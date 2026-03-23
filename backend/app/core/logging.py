@@ -2,6 +2,11 @@ import json
 import logging
 import sys
 from typing import Any
+import os
+from dotenv import load_dotenv
+
+# Load .env file so os.getenv() can access variables
+load_dotenv()
 
 
 def setup_logging() -> None:
@@ -13,7 +18,8 @@ def setup_logging() -> None:
 
 
 setup_logging()
-logger = logging.getLogger("rag_mm_master_poc")
+database_name_local=os.getenv("DATABASE_NAME")
+logger = logging.getLogger(database_name_local)
 
 
 def _normalize_log_value(value: Any) -> Any:
