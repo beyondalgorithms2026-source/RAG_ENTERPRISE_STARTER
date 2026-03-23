@@ -1,7 +1,7 @@
 import json
 import re
 import time
-from typing import Any, List, Optional
+from typing import Any, Callable, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -13,6 +13,11 @@ from app.llm.prompts import REPAIR_PROMPT, SYSTEM_PROMPT, generate_user_prompt
 
 MAX_CHUNK_CHARS = 1500
 MAX_TOTAL_CONTEXT_CHARS = 10000
+_STOPWORDS = {
+    "a", "an", "and", "are", "around", "as", "at", "be", "by", "did", "do", "does", "for", "from",
+    "had", "has", "have", "how", "in", "into", "is", "it", "its", "of", "on", "or", "that", "the",
+    "their", "this", "to", "was", "were", "what", "when", "where", "which", "who", "why", "with",
+}
 
 
 class AskRequest(BaseModel):
@@ -121,7 +126,25 @@ def _safe_citation_ids(*, parsed: dict[str, Any], context_blocks: list[dict[str,
     if not isinstance(citations_list, list):
         citations_list = []
     valid_citation_ids = {block["citation_id"] for block in context_blocks}
-    return [citation_id for citation_id in citations_list if citation_id in valid_citation_ids]
+    normalized_from_array = []
+    seen: set[str] = set()
+    for citation_id in citations_list:
+        normalized = str(citation_id or "").strip().upper()
+        if normalized in valid_citation_ids and normalized not in seen:
+            normalized_from_array.append(normalized)
+            seen.add(normalized)
+
+    if normalized_from_array:
+        return normalized_from_array
+
+    answer_text = str(parsed.get("answer", "") or "")
+    inline_ids = []
+    for match in re.findall(r"\[(S\d+)\]", answer_text, flags=re.IGNORECASE):
+        normalized = str(match).upper()
+        if normalized in valid_citation_ids and normalized not in seen:
+            inline_ids.append(normalized)
+            seen.add(normalized)
+    return inline_ids
 
 
 def _materialize_citations(*, citation_ids: list[str], context_blocks: list[dict[str, Any]]) -> list[CitationItem]:
@@ -156,6 +179,98 @@ def _strip_fake_citations(answer_text: str, safe_citations: list[str]) -> str:
     answer_text = re.sub(r"\[(S\d+)\]", strip_fake_citations, answer_text)
     answer_text = re.sub(r" +", " ", answer_text).strip()
     return answer_text
+
+
+def _normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "")).strip()
+
+
+def _question_terms(question: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[A-Za-z0-9]{3,}", str(question or "").lower())
+        if token not in _STOPWORDS
+    }
+
+
+def _clean_sentence_candidate(sentence: str) -> str:
+    sentence = _normalize_text(sentence)
+    sentence = re.sub(r"^[,.;:)\]]+\s*", "", sentence)
+    sentence = re.sub(r"\s+([,.;:?!])", r"\1", sentence)
+    return sentence
+
+
+def _sentence_score(*, sentence: str, question_terms: set[str], chunk_index: int) -> int:
+    lowered = sentence.lower()
+    terms_in_sentence = {token for token in re.findall(r"[A-Za-z0-9]{3,}", lowered) if token not in _STOPWORDS}
+    overlap = len(question_terms & terms_in_sentence)
+    year_mentions = len(re.findall(r"\b(?:19|20)\d{2}\b", sentence))
+    list_bonus = 2 if any(marker in sentence for marker in ("e.g.", "such as", "including", "like ")) else 0
+    length_bonus = 1 if 70 <= len(sentence) <= 320 else 0
+    starts_cleanly = 0 if re.match(r"^[a-z]", sentence) else 2
+    fragment_penalty = -4 if not re.search(r"[.!?]$", sentence) else 0
+    early_chunk_bonus = max(0, 3 - chunk_index)
+    return (overlap * 6) + (year_mentions * 3) + list_bonus + length_bonus + starts_cleanly + fragment_penalty + early_chunk_bonus
+
+
+def _fallback_answer_from_context(*, question: str, context_blocks: list[dict[str, Any]]) -> tuple[str, list[str]]:
+    if not context_blocks:
+        return "Not found in provided sources.", []
+
+    question_terms = _question_terms(question)
+    candidates: list[tuple[int, int, str, str]] = []
+    for chunk_index, block in enumerate(context_blocks):
+        snippet = _normalize_text(block.get("snippet", ""))
+        if not snippet:
+            continue
+        sentences = re.split(r"(?<=[.!?])\s+", snippet)
+        for sentence in sentences:
+            cleaned = _clean_sentence_candidate(sentence)
+            if len(cleaned) < 45:
+                continue
+            score = _sentence_score(sentence=cleaned, question_terms=question_terms, chunk_index=chunk_index)
+            candidates.append((score, chunk_index, str(block["citation_id"]), cleaned))
+
+    candidates.sort(key=lambda item: (-item[0], item[1]))
+    answer_parts: list[str] = []
+    citation_ids: list[str] = []
+    seen_sentences: set[str] = set()
+    for score, _chunk_index, citation_id, sentence in candidates:
+        normalized_sentence = sentence.lower()
+        if normalized_sentence in seen_sentences:
+            continue
+        if score < 4 and answer_parts:
+            continue
+        seen_sentences.add(normalized_sentence)
+        answer_parts.append(f"{sentence} [{citation_id}]")
+        if citation_id not in citation_ids:
+            citation_ids.append(citation_id)
+        if len(answer_parts) >= 2:
+            break
+
+    if not answer_parts:
+        return "Not found in provided sources.", []
+    return " ".join(answer_parts), citation_ids
+
+
+def _answer_needs_fallback(*, answer_text: str, question: str) -> bool:
+    cleaned = _normalize_text(answer_text)
+    if not cleaned:
+        return True
+    if "not found" in cleaned.lower():
+        return True
+    if len(cleaned) < 60:
+        return True
+    if re.match(r"^[a-z]", cleaned):
+        return True
+    if cleaned.count("[S") == 0:
+        return True
+    question_terms = _question_terms(question)
+    if question_terms:
+        answer_terms = set(re.findall(r"[A-Za-z0-9]{3,}", cleaned.lower()))
+        if len(question_terms & answer_terms) == 0:
+            return True
+    return False
 
 
 def _compare_user_prompt(*, question: str, source_blocks: list[dict[str, Any]]) -> str:
@@ -198,10 +313,11 @@ def _group_citations_by_source(citations: list[CitationItem]) -> list[CompareSou
         bucket.citations.append(citation)
     return list(grouped.values())
 
-
-def perform_ask(request: AskRequest) -> AskResponse:
+def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Callable[[int, str], None]] = None) -> AskResponse:
     start_time = time.time()
     log_event("ask.started", stage="ask", status="processing", requested_mode=request.mode)
+    if progress_callback:
+        progress_callback(10, "Searching sources")
     search_request = SearchRequest(
         question=request.question,
         k=request.k_chunks,
@@ -217,10 +333,14 @@ def perform_ask(request: AskRequest) -> AskResponse:
     search_response = perform_search(search_request)
     raw_chunks = search_response.results
     context_blocks = _build_context_blocks(raw_chunks)
+    if progress_callback:
+        progress_callback(42, f"Retrieved {len(raw_chunks)} candidate chunks")
 
     user_prompt = generate_user_prompt(request.question, context_blocks)
 
     if request.dry_run:
+        if progress_callback:
+            progress_callback(100, "Prompt assembly complete")
         log_event("ask.completed", stage="ask", status="completed", requested_mode=request.mode, resolved_mode=search_response.mode)
         return AskResponse(
             used_chunks_count=len(context_blocks),
@@ -237,6 +357,8 @@ def perform_ask(request: AskRequest) -> AskResponse:
         )
 
     if not context_blocks:
+        if progress_callback:
+            progress_callback(100, "No grounded context found")
         log_event("ask.completed", stage="ask", status="completed", requested_mode=request.mode, resolved_mode=search_response.mode, reason="no_context")
         return AskResponse(
             answer="Not found in provided sources.",
@@ -246,8 +368,12 @@ def perform_ask(request: AskRequest) -> AskResponse:
             debug_info={"retrieval_trace": search_response.debug_info},
         )
 
+    if progress_callback:
+        progress_callback(70, "Generating grounded answer")
     llm_response = generate_answer(SYSTEM_PROMPT, user_prompt)
     if not llm_response.get("success"):
+        if progress_callback:
+            progress_callback(100, "Answer generation failed")
         log_event("ask.failed", level=40, stage="ask", status="failed", requested_mode=request.mode, resolved_mode=search_response.mode, reason=str(llm_response.get("error")))
         return AskResponse(
             answer="Not found in provided sources.",
@@ -257,11 +383,15 @@ def perform_ask(request: AskRequest) -> AskResponse:
         )
 
     raw_content = llm_response["content"]
+    if progress_callback:
+        progress_callback(84, "Validating citations")
     parsed = _parse_llm_json(raw_content)
     if not parsed:
         parsed = _repair_llm_json(raw_content)
 
     if not parsed:
+        if progress_callback:
+            progress_callback(100, "Answer parsing failed")
         log_event("ask.failed", level=40, stage="ask", status="failed", requested_mode=request.mode, resolved_mode=search_response.mode, reason="json_parse_failed")
         return AskResponse(
             answer="Not found in provided sources.",
@@ -273,11 +403,26 @@ def perform_ask(request: AskRequest) -> AskResponse:
     answer_text = parsed.get("answer", "")
     safe_citations = _safe_citation_ids(parsed=parsed, context_blocks=context_blocks)
     answer_text = _strip_fake_citations(answer_text, safe_citations)
+
+    if not safe_citations and context_blocks and answer_text and "not found" not in answer_text.lower():
+        fallback_answer_text, fallback_citation_ids = _fallback_answer_from_context(question=request.question, context_blocks=context_blocks)
+        if fallback_citation_ids:
+            answer_text = fallback_answer_text
+            safe_citations = fallback_citation_ids
+
+    if (_answer_needs_fallback(answer_text=answer_text, question=request.question)) and context_blocks:
+        fallback_answer_text, fallback_citation_ids = _fallback_answer_from_context(question=request.question, context_blocks=context_blocks)
+        if fallback_citation_ids:
+            answer_text = fallback_answer_text
+            safe_citations = fallback_citation_ids
+
     final_citations = _materialize_citations(citation_ids=safe_citations, context_blocks=context_blocks)
 
     if len(final_citations) == 0 and "not found" not in answer_text.lower():
         answer_text = "Not found in provided sources."
 
+    if progress_callback:
+        progress_callback(100, "Grounded answer ready")
     log_event("ask.completed", stage="ask", status="completed", requested_mode=request.mode, resolved_mode=search_response.mode)
 
     return AskResponse(
@@ -288,6 +433,10 @@ def perform_ask(request: AskRequest) -> AskResponse:
         mode=search_response.mode,
         debug_info={"retrieval_trace": search_response.debug_info} if search_response.debug_info else None,
     )
+
+
+def perform_ask(request: AskRequest) -> AskResponse:
+    return _perform_ask_internal(request)
 
 
 def perform_compare(request: CompareRequest) -> CompareResponse:
@@ -415,8 +564,13 @@ def perform_compare(request: CompareRequest) -> CompareResponse:
         )
 
     answer_text = _strip_fake_citations(parsed.get("answer", ""), _safe_citation_ids(parsed=parsed, context_blocks=all_context_blocks))
+    safe_citation_ids = _safe_citation_ids(parsed=parsed, context_blocks=all_context_blocks)
+    if not safe_citation_ids and all_context_blocks and answer_text and "not found" not in answer_text.lower():
+        answer_text, safe_citation_ids = _fallback_answer_from_context(question=request.question, context_blocks=all_context_blocks)
+    if _answer_needs_fallback(answer_text=answer_text, question=request.question) and all_context_blocks:
+        answer_text, safe_citation_ids = _fallback_answer_from_context(question=request.question, context_blocks=all_context_blocks)
     final_citations = _materialize_citations(
-        citation_ids=_safe_citation_ids(parsed=parsed, context_blocks=all_context_blocks),
+        citation_ids=safe_citation_ids,
         context_blocks=all_context_blocks,
     )
     if len(final_citations) == 0 and "not found" not in answer_text.lower():

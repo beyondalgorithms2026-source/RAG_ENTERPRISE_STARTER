@@ -218,3 +218,59 @@ def fetch_neighbor_chunks(chunk_ids: List[int], radius: int = 1) -> List[Dict]:
         }
         for row in rows
     ]
+
+
+def fetch_chunk_context(source_id: int, chunk_id: int, radius: int = 1) -> Dict:
+    sql = text(
+        """
+        WITH target AS (
+            SELECT id, source_id, source_part_id, chunk_index, heading, chunk_text, locator_json
+            FROM chunks
+            WHERE id = :chunk_id AND source_id = :source_id
+        )
+        SELECT
+            c.id,
+            c.source_id,
+            c.source_part_id,
+            c.chunk_index,
+            c.heading,
+            c.chunk_text,
+            c.locator_json,
+            CASE WHEN c.id = t.id THEN true ELSE false END AS is_target
+        FROM chunks c
+        JOIN target t
+          ON c.source_id = t.source_id
+         AND c.chunk_index BETWEEN t.chunk_index - :radius AND t.chunk_index + :radius
+        ORDER BY c.chunk_index ASC, c.id ASC
+        """
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(
+            sql,
+            {"source_id": source_id, "chunk_id": chunk_id, "radius": max(1, int(radius or 1))},
+        ).fetchall()
+
+    if not rows:
+        return {}
+
+    target_row = None
+    neighbors = []
+    for row in rows:
+        item = {
+            "id": row[0],
+            "source_id": row[1],
+            "source_part_id": row[2],
+            "chunk_index": row[3],
+            "heading": row[4],
+            "chunk_text": row[5],
+            "locator_json": row[6] or {},
+        }
+        if row[7]:
+            target_row = item
+        else:
+            neighbors.append(item)
+
+    return {
+        "target": target_row,
+        "neighbors": neighbors,
+    }

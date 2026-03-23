@@ -60,7 +60,6 @@ function describeJobState(item) {
             progressLabel: "Upload failed",
             progress: 100,
             tone: "error",
-            isTerminal: true,
         };
     }
 
@@ -71,7 +70,6 @@ function describeJobState(item) {
             progressLabel: "Already uploaded",
             progress: 100,
             tone: "warning",
-            isTerminal: true,
         };
     }
 
@@ -82,7 +80,6 @@ function describeJobState(item) {
             progressLabel: "Ready",
             progress: 100,
             tone: "success",
-            isTerminal: true,
         };
     }
 
@@ -98,7 +95,6 @@ function describeJobState(item) {
         progressLabel: stageMeta.label,
         progress: stageMeta.progress,
         tone: stageMeta.tone,
-        isTerminal: false,
     };
 }
 
@@ -148,11 +144,28 @@ export function initCorpus({ apiBase }) {
     const corpusList = document.getElementById("corpus-list");
     const corpusMessage = document.getElementById("corpus-message");
     const corpusRefresh = document.getElementById("corpus-refresh");
+    const compareSubmit = document.getElementById("compare-submit");
+    const compareQuestion = document.getElementById("compare-question");
+    const compareMode = document.getElementById("compare-mode");
+    const compareDryRun = document.getElementById("compare-dry-run");
+    const corpusFilterType = document.getElementById("corpus-filter-type");
+    const corpusFilterStatus = document.getElementById("corpus-filter-status");
     const overviewHealthState = document.getElementById("overview-health-state");
     const overviewLastSync = document.getElementById("overview-last-sync");
     const overviewSourceCount = document.getElementById("overview-source-count");
     const overviewReadyCountCopy = document.getElementById("overview-ready-count-copy");
+    const settingsHealthStatus = document.getElementById("settings-health-status");
+    const settingsDefaultMode = document.getElementById("settings-default-mode");
+    const settingsRerankStatus = document.getElementById("settings-rerank-status");
+    const settingsGraphReadyCount = document.getElementById("settings-graph-ready-count");
+    const settingsTemporalReadyCount = document.getElementById("settings-temporal-ready-count");
+    const settingsEmbeddedCount = document.getElementById("settings-embedded-count");
+    const settingsEnrichedCount = document.getElementById("settings-enriched-count");
+    const settingsGraphStatus = document.getElementById("settings-graph-status");
+    const settingsFullStatus = document.getElementById("settings-full-status");
+    const settingsDeepResearchStatus = document.getElementById("settings-deep-research-status");
     const corpusTotalCount = document.getElementById("corpus-total-count");
+    const corpusTotalCaption = document.getElementById("corpus-total-caption");
     const corpusReadyCount = document.getElementById("corpus-ready-count");
     const corpusPendingCount = document.getElementById("corpus-pending-count");
     const corpusEnrichedCount = document.getElementById("corpus-enriched-count");
@@ -169,6 +182,20 @@ export function initCorpus({ apiBase }) {
     const jobProgressLabel = document.getElementById("job-progress-label");
     const jobProgressValue = document.getElementById("job-progress-value");
     const jobProgressFill = document.getElementById("job-progress-fill");
+    const corpusDetail = document.getElementById("corpus-detail");
+    const corpusDetailStatus = document.getElementById("corpus-detail-status");
+    const corpusDetailPills = document.getElementById("corpus-detail-pills");
+    const corpusDetailId = document.getElementById("corpus-detail-id");
+    const corpusDetailType = document.getElementById("corpus-detail-type");
+    const corpusDetailIngestion = document.getElementById("corpus-detail-ingestion");
+    const corpusDetailEnrichment = document.getElementById("corpus-detail-enrichment");
+    const corpusDetailInvestigate = document.getElementById("corpus-detail-investigate");
+    const corpusDetailOpenFile = document.getElementById("corpus-detail-open-file");
+    const corpusDetailClear = document.getElementById("corpus-detail-clear");
+
+    let corpusItems = [];
+    let selectedSourceIds = new Set();
+    let activeDetailSourceId = null;
 
     async function fetchJson(path, options = {}) {
         const response = await fetch(`${apiBase}${path}`, options);
@@ -194,6 +221,47 @@ export function initCorpus({ apiBase }) {
         }
         if (overviewLastSync) {
             overviewLastSync.textContent = text;
+        }
+        if (settingsHealthStatus) {
+            settingsHealthStatus.textContent = isHealthy ? "Online" : "Unavailable";
+        }
+    }
+
+    function renderHealthSnapshot(payload) {
+        const retrievalDefaults = payload?.retrieval_defaults || {};
+        const features = payload?.features || {};
+        const corpus = payload?.corpus || {};
+
+        if (settingsDefaultMode) {
+            settingsDefaultMode.textContent = String(retrievalDefaults.mode || "hybrid");
+        }
+        if (settingsRerankStatus) {
+            settingsRerankStatus.textContent = retrievalDefaults.rerank_enabled ? "Enabled" : "Disabled";
+        }
+        if (settingsGraphReadyCount) {
+            settingsGraphReadyCount.textContent = String(corpus.graph_ready_sources ?? 0);
+        }
+        if (settingsTemporalReadyCount) {
+            settingsTemporalReadyCount.textContent = String(corpus.temporal_ready_sources ?? 0);
+        }
+        if (settingsEmbeddedCount) {
+            settingsEmbeddedCount.textContent = String(corpus.embedded_sources ?? 0);
+        }
+        if (settingsEnrichedCount) {
+            settingsEnrichedCount.textContent = String(corpus.enriched_sources ?? 0);
+        }
+        if (settingsGraphStatus) {
+            settingsGraphStatus.textContent = features.graph_enabled
+                ? ((corpus.graph_ready_sources || 0) > 0 ? "Enabled and ready" : "Enabled, waiting on source artifacts")
+                : "Disabled";
+        }
+        if (settingsFullStatus) {
+            settingsFullStatus.textContent = (features.graph_enabled || features.temporal_enabled)
+                ? ((((corpus.graph_ready_sources || 0) > 0) || ((corpus.temporal_ready_sources || 0) > 0)) ? "Enabled and partially ready" : "Enabled, waiting on source artifacts")
+                : "Disabled";
+        }
+        if (settingsDeepResearchStatus) {
+            settingsDeepResearchStatus.textContent = features.deep_research_available ? "Available" : "Unavailable";
         }
     }
 
@@ -239,39 +307,153 @@ export function initCorpus({ apiBase }) {
         });
     }
 
+    function filteredItems() {
+        return corpusItems.filter((item) => {
+            const typeValue = corpusFilterType?.value || "";
+            const statusValue = corpusFilterStatus?.value || "";
+            if (typeValue && normalizeValue(item.source_type) !== normalizeValue(typeValue)) {
+                return false;
+            }
+            if (!statusValue) {
+                return true;
+            }
+            const ingestion = normalizeValue(item.ingestion_status);
+            const enrichment = normalizeValue(item.enrichment_status);
+            if (statusValue === "ready") {
+                return ingestion === "embedded";
+            }
+            if (statusValue === "processing") {
+                return ingestion !== "embedded" && ingestion !== "failed";
+            }
+            if (statusValue === "failed") {
+                return ingestion === "failed" || enrichment === "failed";
+            }
+            if (statusValue === "enriched") {
+                return enrichment === "completed";
+            }
+            return true;
+        });
+    }
+
+    function updateCompareState() {
+        if (compareSubmit) {
+            compareSubmit.textContent = selectedSourceIds.size >= 2
+                ? `Compare Selected (${selectedSourceIds.size})`
+                : "Compare Selected";
+        }
+    }
+
+    function renderDetail(item) {
+        if (!item) {
+            activeDetailSourceId = null;
+            corpusDetail.classList.add("hidden");
+            corpusDetailPills.innerHTML = "";
+            corpusDetailOpenFile.classList.add("hidden");
+            corpusDetailOpenFile.setAttribute("href", "#");
+            return;
+        }
+        activeDetailSourceId = item.id;
+        corpusDetail.classList.remove("hidden");
+        corpusDetailStatus.textContent = `${describeSourceStatus("ingestion", item.ingestion_status).label} • ${describeSourceStatus("enrichment", item.enrichment_status).label}`;
+        corpusDetailPills.innerHTML = `
+            <span class="detail-pill">${escapeHtml(item.source_type)}</span>
+            <span class="detail-pill">${escapeHtml(describeSourceStatus("ingestion", item.ingestion_status).label)}</span>
+            <span class="detail-pill">${escapeHtml(describeSourceStatus("enrichment", item.enrichment_status).label)}</span>
+        `;
+        corpusDetailId.textContent = String(item.id);
+        corpusDetailType.textContent = item.source_type;
+        corpusDetailIngestion.textContent = item.ingestion_status;
+        corpusDetailEnrichment.textContent = item.enrichment_status;
+        corpusDetailOpenFile.classList.remove("hidden");
+        corpusDetailOpenFile.setAttribute("href", `${apiBase}/corpus/${item.id}/file`);
+    }
+
     function renderCorpus(items) {
-        if (!Array.isArray(items) || items.length === 0) {
+        const visibleItems = items;
+        if (!Array.isArray(visibleItems) || visibleItems.length === 0) {
             corpusList.innerHTML = DEFAULT_EMPTY;
-            updateSummaryCounts([]);
+            updateSummaryCounts(corpusItems);
+            renderDetail(null);
+            updateCompareState();
             return;
         }
 
-        updateSummaryCounts(items);
-        corpusList.innerHTML = items.map((item) => `
-            <article class="corpus-item">
-                <div class="corpus-item-head">
-                    <div>
-                        <h3 class="corpus-title">${escapeHtml(item.file_name)}</h3>
-                        <div class="corpus-primary">
-                            <span class="source-chip">${escapeHtml(item.source_type)}</span>
-                            <span class="status-chip ${escapeHtml(describeSourceStatus("ingestion", item.ingestion_status).className)}">${escapeHtml(describeSourceStatus("ingestion", item.ingestion_status).label)}</span>
-                            <span class="status-chip ${escapeHtml(describeSourceStatus("enrichment", item.enrichment_status).className)}">${escapeHtml(describeSourceStatus("enrichment", item.enrichment_status).label)}</span>
+        updateSummaryCounts(corpusItems);
+        corpusList.innerHTML = visibleItems.map((item) => `
+            <article class="corpus-item ${activeDetailSourceId === item.id ? "is-active" : ""}" data-source-id="${escapeHtml(item.id)}">
+                <div class="corpus-item-select">
+                    <label class="selection-check">
+                        <input type="checkbox" class="corpus-select" data-source-id="${escapeHtml(item.id)}" ${selectedSourceIds.has(item.id) ? "checked" : ""}>
+                        <span>Select</span>
+                    </label>
+                </div>
+                <div class="corpus-item-body">
+                    <div class="corpus-item-head">
+                        <div>
+                            <h3 class="corpus-title">${escapeHtml(item.file_name)}</h3>
+                            <div class="corpus-primary">
+                                <span class="source-chip">${escapeHtml(item.source_type)}</span>
+                                <span class="status-chip ${escapeHtml(describeSourceStatus("ingestion", item.ingestion_status).className)}">${escapeHtml(describeSourceStatus("ingestion", item.ingestion_status).label)}</span>
+                                <span class="status-chip ${escapeHtml(describeSourceStatus("enrichment", item.enrichment_status).className)}">${escapeHtml(describeSourceStatus("enrichment", item.enrichment_status).label)}</span>
+                            </div>
+                        </div>
+                        <div class="corpus-side">
+                            <span class="corpus-id">Source #${escapeHtml(item.id)}</span>
+                            <div class="row-actions">
+                                <button type="button" class="button-secondary corpus-open" data-source-id="${escapeHtml(item.id)}">Inspect</button>
+                                <button type="button" class="button-secondary corpus-investigate" data-source-id="${escapeHtml(item.id)}">Investigate</button>
+                                <button type="button" class="button-secondary corpus-delete" data-source-id="${escapeHtml(item.id)}">Delete</button>
+                            </div>
                         </div>
                     </div>
-                    <div class="corpus-side">
-                        <span class="corpus-id">Source #${escapeHtml(item.id)}</span>
-                        <button type="button" class="button-secondary corpus-delete" data-source-id="${escapeHtml(item.id)}">
-                            Delete
-                        </button>
-                    </div>
-                </div>
-                <div class="corpus-meta">
-                    <span>Path: ${escapeHtml(item.storage_path)}</span>
-                    <span>Bytes: ${escapeHtml(item.file_size_bytes ?? "n/a")}</span>
-                    <span>Hash: ${escapeHtml(item.hash_sha256)}</span>
+                    <p class="corpus-note">Ready for source-scoped investigation, comparison, and grounded evidence review.</p>
                 </div>
             </article>
         `).join("");
+
+        corpusList.querySelectorAll(".corpus-select").forEach((input) => {
+            input.addEventListener("change", () => {
+                const sourceId = Number(input.getAttribute("data-source-id"));
+                if (!sourceId) {
+                    return;
+                }
+                if (input.checked) {
+                    selectedSourceIds.add(sourceId);
+                } else {
+                    selectedSourceIds.delete(sourceId);
+                }
+                updateCompareState();
+            });
+        });
+
+        corpusList.querySelectorAll(".corpus-open").forEach((button) => {
+            button.addEventListener("click", () => {
+                const sourceId = Number(button.getAttribute("data-source-id"));
+                const item = corpusItems.find((row) => row.id === sourceId);
+                renderDetail(item || null);
+                renderCorpus(filteredItems());
+            });
+        });
+
+        corpusList.querySelectorAll(".corpus-investigate").forEach((button) => {
+            button.addEventListener("click", () => {
+                const sourceId = Number(button.getAttribute("data-source-id"));
+                const item = corpusItems.find((row) => row.id === sourceId);
+                if (!item) {
+                    return;
+                }
+                renderDetail(item);
+                window.dispatchEvent(new CustomEvent("rag:source-scope-request", {
+                    detail: {
+                        source: {
+                            id: item.id,
+                            file_name: item.file_name,
+                            source_type: item.source_type,
+                        },
+                    },
+                }));
+            });
+        });
 
         corpusList.querySelectorAll(".corpus-delete").forEach((button) => {
             button.addEventListener("click", async () => {
@@ -283,6 +465,10 @@ export function initCorpus({ apiBase }) {
                 setMessage(corpusMessage, "", "");
                 try {
                     await fetchJson(`/corpus/${sourceId}`, { method: "DELETE" });
+                    selectedSourceIds.delete(Number(sourceId));
+                    if (activeDetailSourceId === Number(sourceId)) {
+                        renderDetail(null);
+                    }
                     await refreshCorpus();
                     setMessage(corpusMessage, "success", `Deleted source #${sourceId}.`);
                 } catch (error) {
@@ -311,8 +497,11 @@ export function initCorpus({ apiBase }) {
         if (corpusTotalCount) {
             corpusTotalCount.textContent = String(total);
         }
+        if (corpusTotalCaption) {
+            corpusTotalCaption.textContent = `${total} document${total === 1 ? "" : "s"}`;
+        }
         if (corpusReadyCount) {
-            corpusReadyCount.textContent = `${ready} ready`;
+            corpusReadyCount.textContent = String(ready);
         }
         if (corpusPendingCount) {
             corpusPendingCount.textContent = String(pending);
@@ -321,13 +510,13 @@ export function initCorpus({ apiBase }) {
             corpusEnrichedCount.textContent = String(enriched);
         }
         if (corpusTotalCountSecondary) {
-            corpusTotalCountSecondary.textContent = String(total);
+            corpusTotalCountSecondary.textContent = `${enriched} enriched`;
         }
         if (corpusReadyCountSecondary) {
-            corpusReadyCountSecondary.textContent = String(ready);
+            corpusReadyCountSecondary.textContent = `${ready} searchable`;
         }
         if (corpusPendingCountSecondary) {
-            corpusPendingCountSecondary.textContent = String(pending);
+            corpusPendingCountSecondary.textContent = `${pending} in flight`;
         }
         if (overviewLastSync) {
             overviewLastSync.textContent = `Last refreshed ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
@@ -338,7 +527,12 @@ export function initCorpus({ apiBase }) {
         setMessage(corpusMessage, "", "");
         try {
             const items = await fetchJson("/corpus");
-            renderCorpus(items);
+            corpusItems = Array.isArray(items) ? items : [];
+            if (activeDetailSourceId != null) {
+                const active = corpusItems.find((item) => item.id === activeDetailSourceId) || null;
+                renderDetail(active);
+            }
+            renderCorpus(filteredItems());
             setMessage(corpusMessage, "success", `Loaded ${items.length} source(s).`);
             return items;
         } catch (error) {
@@ -386,13 +580,14 @@ export function initCorpus({ apiBase }) {
         try {
             const health = await fetchJson("/health");
             setHealth(true, `Backend ${health.status}`);
-        } catch (error) {
+            renderHealthSnapshot(health);
+        } catch (_error) {
             setHealth(false, "Backend unreachable");
         }
 
         try {
             await refreshCorpus();
-        } catch (error) {
+        } catch (_error) {
             // Message already rendered.
         }
     }
@@ -405,6 +600,70 @@ export function initCorpus({ apiBase }) {
         const currentJobId = jobId.textContent !== "-" ? jobId.textContent : "";
         refreshJob(currentJobId).catch(() => {});
     });
+
+    [corpusFilterType, corpusFilterStatus].forEach((element) => {
+        element?.addEventListener("change", () => {
+            renderCorpus(filteredItems());
+        });
+    });
+
+    compareSubmit?.addEventListener("click", () => {
+        const sourceIds = Array.from(selectedSourceIds.values());
+        if (sourceIds.length < 2) {
+            setMessage(corpusMessage, "warning", "Select at least two sources before comparing.");
+            return;
+        }
+        const question = String(compareQuestion?.value || "").trim();
+        if (!question) {
+            setMessage(corpusMessage, "warning", "Write a compare question first.");
+            return;
+        }
+        window.dispatchEvent(new CustomEvent("rag:compare-request", {
+            detail: {
+                question,
+                sourceIds,
+                mode: compareMode?.value || "hybrid",
+                dryRun: Boolean(compareDryRun?.checked),
+                kChunksPerSource: 4,
+            },
+        }));
+    });
+
+    corpusDetailInvestigate?.addEventListener("click", () => {
+        if (activeDetailSourceId == null) {
+            return;
+        }
+        const item = corpusItems.find((row) => row.id === activeDetailSourceId);
+        if (!item) {
+            return;
+        }
+        window.dispatchEvent(new CustomEvent("rag:source-scope-request", {
+            detail: {
+                source: {
+                    id: item.id,
+                    file_name: item.file_name,
+                    source_type: item.source_type,
+                },
+            },
+        }));
+    });
+
+    corpusDetailClear?.addEventListener("click", () => {
+        renderDetail(null);
+        renderCorpus(filteredItems());
+    });
+
+    window.addEventListener("rag:open-source-request", (event) => {
+        const sourceId = Number(event.detail?.sourceId);
+        if (!sourceId) {
+            return;
+        }
+        const item = corpusItems.find((row) => row.id === sourceId) || null;
+        renderDetail(item);
+        renderCorpus(filteredItems());
+    });
+
+    updateCompareState();
 
     return {
         bootstrap,
