@@ -21,6 +21,12 @@ class AskRequest(BaseModel):
     filters: Optional[SearchFilters] = None
     mode: Optional[SearchMode] = Field(default=None)
     dry_run: bool = Field(default=False, description="Return the prompt without calling the LLM")
+    deep_research: bool = Field(default=False, description="Use the slower high-recall retrieval path")
+    custom_query: Optional[str] = Field(default=None, description="Optional retrieval-only query override")
+    anchor_terms: List[str] = Field(default_factory=list, description="Optional manual anchor terms")
+    exact_phrase_bias: Optional[str] = Field(default=None, description="Optional exact phrase to prioritize")
+    expand_neighbors: bool = Field(default=False, description="Include neighboring chunks/pages when retrieval context may be split")
+    force_rare_keyword_scan: bool = Field(default=False, description="Run an extra rare-keyword scan inside Deep Research")
 
 
 class CitationItem(BaseModel):
@@ -41,6 +47,7 @@ class AskResponse(BaseModel):
     used_chunks_count: int = 0
     latency_ms: int = 0
     debug_info: Optional[dict[str, Any]] = None
+    mode: Optional[str] = None
 
 
 class CompareRequest(BaseModel):
@@ -200,6 +207,12 @@ def perform_ask(request: AskRequest) -> AskResponse:
         k=request.k_chunks,
         filters=request.filters,
         mode=request.mode,
+        deep_research=request.deep_research,
+        custom_query=request.custom_query,
+        anchor_terms=request.anchor_terms,
+        exact_phrase_bias=request.exact_phrase_bias,
+        expand_neighbors=request.expand_neighbors,
+        force_rare_keyword_scan=request.force_rare_keyword_scan,
     )
     search_response = perform_search(search_request)
     raw_chunks = search_response.results
@@ -216,9 +229,11 @@ def perform_ask(request: AskRequest) -> AskResponse:
                 "prompt_length_chars": len(user_prompt),
                 "context_blocks_passed": len(context_blocks),
                 "mode": search_response.mode,
+                "retrieval_trace": search_response.debug_info,
                 "system_prompt": SYSTEM_PROMPT,
                 "user_prompt": user_prompt,
             },
+            mode=search_response.mode,
         )
 
     if not context_blocks:
@@ -227,6 +242,8 @@ def perform_ask(request: AskRequest) -> AskResponse:
             answer="Not found in provided sources.",
             used_chunks_count=0,
             latency_ms=int((time.time() - start_time) * 1000),
+            mode=search_response.mode,
+            debug_info={"retrieval_trace": search_response.debug_info},
         )
 
     llm_response = generate_answer(SYSTEM_PROMPT, user_prompt)
@@ -235,7 +252,8 @@ def perform_ask(request: AskRequest) -> AskResponse:
         return AskResponse(
             answer="Not found in provided sources.",
             latency_ms=int((time.time() - start_time) * 1000),
-            debug_info={"error": llm_response.get("error")},
+            debug_info={"error": llm_response.get("error"), "retrieval_trace": search_response.debug_info},
+            mode=search_response.mode,
         )
 
     raw_content = llm_response["content"]
@@ -248,7 +266,8 @@ def perform_ask(request: AskRequest) -> AskResponse:
         return AskResponse(
             answer="Not found in provided sources.",
             latency_ms=int((time.time() - start_time) * 1000),
-            debug_info={"error": "JSON parse failed on both generation strings"},
+            debug_info={"error": "JSON parse failed on both generation strings", "retrieval_trace": search_response.debug_info},
+            mode=search_response.mode,
         )
 
     answer_text = parsed.get("answer", "")
@@ -266,6 +285,8 @@ def perform_ask(request: AskRequest) -> AskResponse:
         citations=final_citations,
         used_chunks_count=len(context_blocks),
         latency_ms=int((time.time() - start_time) * 1000),
+        mode=search_response.mode,
+        debug_info={"retrieval_trace": search_response.debug_info} if search_response.debug_info else None,
     )
 
 

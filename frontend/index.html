@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="RAG Master editorial workspace for grounded document intelligence, evidence review, and retrieval controls.">
+    <title>RAG Master</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header class="app-bar">
+        <div class="app-bar-inner">
+            <div class="app-brand">
+                <button type="button" class="icon-button" aria-label="Workspace menu">
+                    <span></span>
+                    <span></span>
+                </button>
+                <div>
+                    <p class="meta-kicker">Document Intelligence Workspace</p>
+                    <h1>RAG Master</h1>
+                </div>
+            </div>
+            <nav class="app-nav" aria-label="Primary">
+                <a href="#inquiry">Inquiry</a>
+                <a href="#analysis">Analysis</a>
+                <a href="#corpus">Corpus</a>
+                <a href="#controls">Retrieval Controls</a>
+            </nav>
+            <div class="app-status">
+                <div class="status-pill" id="backend-health">
+                    <span class="status-dot"></span>
+                    <span>Checking backend...</span>
+                </div>
+                <div class="avatar-chip" aria-hidden="true">RM</div>
+            </div>
+        </header>
+
+    <main class="page-shell">
+        <section class="workspace-section workspace-section-hero" id="inquiry">
+            <div class="section-rule"></div>
+            <div class="section-head section-head-hero">
+                <div>
+                    <p class="section-label">Inquiry</p>
+                    <h2 class="section-title">Grounded answers over uploaded sources, shaped like an editorial research terminal.</h2>
+                </div>
+                <p class="section-copy">
+                    Upload supported files, inspect ingestion status, choose a retrieval strategy, and read source-backed answers with evidence always in view.
+                </p>
+            </div>
+
+            <div class="hero-layout">
+                <section class="workspace-panel inquiry-panel">
+                    <div class="panel-head">
+                        <p class="meta-label">Current Inquiry</p>
+                        <h3>What do the sources actually say?</h3>
+                        <p>
+                            Ask a grounded question against the indexed corpus. The answer workspace will preserve citations, raw evidence, and the retrieval mode used.
+                        </p>
+                    </div>
+
+                    <div class="inquiry-field">
+                        <label class="field field-editorial" for="ask-question">
+                            <span>Question</span>
+                            <textarea id="ask-question" rows="4" placeholder="Why is it hard for a newcomer to enter this space through SEO?"></textarea>
+                        </label>
+                    </div>
+
+                    <div class="action-row">
+                        <button id="ask-submit" type="button" class="button-primary">Ask Sources</button>
+                        <span class="muted-text mono-text" id="ask-meta">Ready.</span>
+                    </div>
+                    <div class="message-slot hidden" id="deep-research-warning"></div>
+                    <div class="message-slot" id="ask-message"></div>
+                </section>
+
+                <aside class="workspace-panel retrieval-panel" id="controls">
+                    <div class="panel-head">
+                        <p class="meta-label">Retrieval Controls</p>
+                        <h3>System strategy, filters, and ask scope.</h3>
+                        <p>Keep the wording precise to the real backend, while preserving the low-noise administrative feel of the Stitch control panel.</p>
+                    </div>
+                    <div class="control-stack">
+                        <label class="field">
+                            <span>Retrieval Strategy</span>
+                            <select id="ask-mode">
+                                <option value="hybrid">Hybrid</option>
+                                <option value="vector">Semantic</option>
+                                <option value="keyword">Keyword</option>
+                                <option value="graph_hybrid">Graph Hybrid</option>
+                                <option value="full">Full</option>
+                            </select>
+                        </label>
+                        <div class="mode-guide" id="mode-guide">
+                            <button type="button" class="mode-chip is-active" data-mode-option="hybrid" data-tooltip="Combines semantic and keyword retrieval. Best default for most questions.">Hybrid</button>
+                            <button type="button" class="mode-chip" data-mode-option="vector" data-tooltip="Finds meaning-similar passages even when the wording differs. Best for broad conceptual questions.">Semantic</button>
+                            <button type="button" class="mode-chip" data-mode-option="keyword" data-tooltip="Searches exact or near-exact words in the document. Best for names, phrases, and specific terms.">Keyword</button>
+                            <button type="button" class="mode-chip" data-mode-option="graph_hybrid" data-tooltip="Uses entity and relationship structure when available. Best for relational questions, but not automatically better for every ask.">Graph Hybrid</button>
+                            <button type="button" class="mode-chip" data-mode-option="full" data-tooltip="Uses the richest stack available, including graph and temporal signals when enabled. Best for complex questions, but slower and not always better.">Full</button>
+                        </div>
+                        <label class="field">
+                            <span>Source Type Filter</span>
+                            <select id="ask-source-type">
+                                <option value="">All supported types</option>
+                                <option value="pdf">PDF</option>
+                                <option value="docx">DOCX</option>
+                                <option value="pptx">PPTX</option>
+                                <option value="xlsx">XLSX</option>
+                                <option value="eml">EML</option>
+                                <option value="txt">TXT</option>
+                                <option value="md">MD</option>
+                            </select>
+                        </label>
+                        <label class="field">
+                            <span>Candidate Window</span>
+                            <input id="ask-k-chunks" type="number" min="1" max="20" value="6">
+                        </label>
+                        <label class="checkbox-row checkbox-card checkbox-card-primary">
+                            <input id="ask-deep-research" type="checkbox">
+                            <span>Deep Research. Use a slower, higher-recall retrieval path for important questions that may be missed by normal retrieval.</span>
+                        </label>
+                        <label class="checkbox-row checkbox-card">
+                            <input id="ask-dry-run" type="checkbox">
+                            <span>Dry run only. Build the answer prompt and retrieval context without calling the LLM.</span>
+                        </label>
+                        <div class="deep-research-panel hidden" id="deep-research-panel">
+                            <p class="deep-research-copy">Deep Research scans more of the document, can increase system load, and may take significantly longer to answer. Use it only for important questions.</p>
+                            <label class="field">
+                                <span>Custom Retrieval Query</span>
+                                <input id="ask-custom-query" type="text" placeholder="SEO rank aggregators newcomer">
+                            </label>
+                            <label class="field">
+                                <span>Important Terms To Include</span>
+                                <input id="ask-anchor-terms" type="text" placeholder="SEO, rank, aggregators">
+                            </label>
+                            <label class="field">
+                                <span>Exact Phrase Bias</span>
+                                <input id="ask-exact-phrase" type="text" placeholder="free online games">
+                            </label>
+                            <label class="checkbox-row checkbox-card">
+                                <input id="ask-force-rare-keyword-scan" type="checkbox">
+                                <span>Force rare-keyword scan across the document when uncommon terms matter.</span>
+                            </label>
+                            <label class="checkbox-row checkbox-card">
+                                <input id="ask-expand-neighbors" type="checkbox">
+                                <span>Expand neighboring chunks or pages when meaning may be split across boundaries.</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mini-metrics">
+                        <article class="metric-card">
+                            <span class="metric-label">System Health</span>
+                            <strong id="overview-health-state">Online</strong>
+                            <small id="overview-last-sync">Awaiting corpus refresh</small>
+                        </article>
+                        <article class="metric-card metric-card-accent">
+                            <span class="metric-label">Indexed Sources</span>
+                            <strong id="overview-source-count">0</strong>
+                            <small id="overview-ready-count-copy">0 ready</small>
+                        </article>
+                    </div>
+                </aside>
+            </section>
+
+            <div class="overview-grid">
+                <article class="overview-card overview-card-large">
+                    <span class="overview-label">Corpus Size</span>
+                    <strong id="corpus-total-count">0</strong>
+                    <p>Current documents indexed into the searchable workspace.</p>
+                </article>
+                <article class="overview-card">
+                    <span class="overview-label">Ingestion Status</span>
+                    <strong id="corpus-ready-count">0 ready</strong>
+                    <p>Sources available for retrieval and grounded answers.</p>
+                </article>
+                <article class="overview-card">
+                    <span class="overview-label">Pending</span>
+                    <strong id="corpus-pending-count">0</strong>
+                    <p>Uploads or enrichment steps still being processed.</p>
+                </article>
+                <article class="overview-card">
+                    <span class="overview-label">Enriched</span>
+                    <strong id="corpus-enriched-count">0</strong>
+                    <p>Sources carrying graph or metadata enrichment state.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="workspace-section workspace-section-split">
+            <section class="workspace-panel upload-panel">
+                <div class="panel-head">
+                    <p class="meta-label">Ingestion</p>
+                    <h2>Bring new source material into the corpus.</h2>
+                    <p>Upload PDFs, Office documents, emails, and text files with transparent progress from parsing through search indexing.</p>
+                </div>
+
+                <label class="dropzone" id="upload-dropzone" for="upload-file">
+                    <input id="upload-file" type="file" accept=".pdf,.docx,.pptx,.xlsx,.eml,.txt,.md" multiple>
+                    <span class="dropzone-title">Drop files here or choose them</span>
+                    <span class="dropzone-meta">Supported: PDF, DOCX, PPTX, XLSX, EML, TXT, MD</span>
+                </label>
+                <div class="action-row upload-actions">
+                    <button id="upload-submit" type="button" class="button-primary">Upload Files</button>
+                    <span class="muted-text mono-text" id="upload-file-name">No files selected</span>
+                </div>
+                <div class="message-slot" id="upload-message"></div>
+
+                <div class="job-card hidden" id="upload-job-card">
+                    <div class="job-card-head">
+                        <strong>Latest ingestion job</strong>
+                        <button id="job-refresh" type="button" class="button-secondary">Refresh Job</button>
+                    </div>
+                    <div class="job-progress" id="job-progress">
+                        <div class="job-progress-meta">
+                            <span id="job-progress-label">Waiting for upload...</span>
+                            <span id="job-progress-value">0%</span>
+                        </div>
+                        <div class="job-progress-track" aria-hidden="true">
+                            <span class="job-progress-fill" id="job-progress-fill"></span>
+                        </div>
+                    </div>
+                    <dl class="job-grid">
+                        <div><dt>Job ID</dt><dd id="job-id">-</dd></div>
+                        <div><dt>Status</dt><dd id="job-status">-</dd></div>
+                        <div><dt>Stage</dt><dd id="job-stage">-</dd></div>
+                        <div><dt>Source</dt><dd id="job-source">-</dd></div>
+                    </dl>
+                    <p class="job-error hidden" id="job-error"></p>
+                </div>
+            </section>
+
+            <aside class="workspace-panel threads-panel">
+                <div class="panel-head">
+                    <p class="meta-label">Active Threads</p>
+                    <h2>Recent inquiries and investigative trails.</h2>
+                    <p>Client-side recents preserve the Stitch “active threads” texture without changing backend session behavior.</p>
+                </div>
+                <div class="thread-list" id="recent-inquiries-list">
+                    <article class="thread-card thread-card-empty">
+                        <span class="thread-ref">REF 00</span>
+                        <h3>No inquiries yet.</h3>
+                        <p>Ask the first grounded question and it will appear here as part of your current workspace trail.</p>
+                    </article>
+                </div>
+            </aside>
+        </section>
+
+        <section class="workspace-section" id="analysis">
+            <div class="section-rule"></div>
+            <div class="section-head">
+                <div>
+                    <p class="section-label">Analysis Workspace</p>
+                    <h2 class="section-title">Read the answer like an authored brief, with source evidence visible alongside it.</h2>
+                </div>
+            </div>
+
+            <div class="analysis-layout">
+                <article class="workspace-panel analysis-panel">
+                    <div class="analysis-head">
+                        <div class="mode-row">
+                            <span class="mode-pill" id="analysis-mode-badge">Hybrid</span>
+                            <span class="meta-label">Current Inquiry</span>
+                        </div>
+                        <p class="analysis-question" id="analysis-current-inquiry">No question submitted yet.</p>
+                        <div class="answer-state" id="answer-state">No answer yet.</div>
+                        <div class="ask-progress hidden" id="ask-progress">
+                            <div class="job-progress-meta">
+                                <span id="ask-progress-label">Waiting to start...</span>
+                                <span id="ask-progress-value">0%</span>
+                            </div>
+                            <div class="job-progress-track" aria-hidden="true">
+                                <span class="job-progress-fill" id="ask-progress-fill"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="answer-body hidden" id="answer-body">
+                        <div class="answer-metrics" id="answer-metrics"></div>
+                        <div class="ref-strip hidden" id="answer-ref-strip"></div>
+                        <div class="answer-text" id="answer-text"></div>
+                        <pre class="debug-box hidden" id="answer-debug"></pre>
+                    </div>
+                </article>
+
+                <aside class="workspace-panel evidence-panel">
+                    <div class="panel-head panel-head-tight">
+                        <p class="meta-label">Source Evidence</p>
+                        <h2>Inspect citations, locators, and retrieved chunks.</h2>
+                    </div>
+                    <div class="citations-wrap hidden" id="citations-wrap">
+                        <div class="citations-list" id="citations-list"></div>
+                    </div>
+                    <div class="preview-placeholder" id="preview-placeholder">
+                        <strong>Evidence panel waiting for citations</strong>
+                        <p>Once the system returns grounded output, source evidence and citation metadata will appear here.</p>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        <section class="workspace-section" id="corpus">
+            <div class="section-rule"></div>
+            <div class="section-head section-head-inline">
+                <div>
+                    <p class="section-label">Corpus Browser</p>
+                    <h2 class="section-title">Browse indexed sources like a curated archive rather than a generic upload table.</h2>
+                </div>
+                <button id="corpus-refresh" type="button" class="button-secondary">Refresh List</button>
+            </div>
+
+            <div class="corpus-summary-grid">
+                <article class="overview-card">
+                    <span class="overview-label">All Sources</span>
+                    <strong id="corpus-total-count-secondary">0</strong>
+                    <p>Documents currently available inside the workspace.</p>
+                </article>
+                <article class="overview-card">
+                    <span class="overview-label">Ready</span>
+                    <strong id="corpus-ready-count-secondary">0</strong>
+                    <p>Indexed and ready for grounded question answering.</p>
+                </article>
+                <article class="overview-card">
+                    <span class="overview-label">Pending</span>
+                    <strong id="corpus-pending-count-secondary">0</strong>
+                    <p>Still parsing, chunking, embedding, or enriching.</p>
+                </article>
+            </div>
+
+            <div class="collections-grid">
+                <article class="collection-card">
+                    <span class="meta-label">Collection 01</span>
+                    <h3>All Sources</h3>
+                    <p>Full working corpus across all currently uploaded evidence.</p>
+                </article>
+                <article class="collection-card">
+                    <span class="meta-label">Collection 02</span>
+                    <h3>Pending</h3>
+                    <p>Sources still moving through parsing, indexing, or enrichment.</p>
+                </article>
+                <article class="collection-card">
+                    <span class="meta-label">Collection 03</span>
+                    <h3>Recent Documents</h3>
+                    <p>Latest additions to the workspace with live ingestion state.</p>
+                </article>
+            </div>
+
+            <div class="message-slot" id="corpus-message"></div>
+            <div class="corpus-list" id="corpus-list"></div>
+        </section>
+    </main>
+
+    <script type="module">
+        import { initUpload } from "./upload.js";
+        import { initCorpus } from "./corpus.js";
+        import { initAsk } from "./ask.js";
+
+        const apiBase = `${window.location.origin}`.replace(/\/+$/, "");
+        const corpus = initCorpus({ apiBase });
+        initUpload({
+            apiBase,
+            refreshCorpus: corpus.refreshCorpus,
+            refreshJob: corpus.refreshJob,
+            showPendingJob: corpus.showPendingJob,
+            setHealth: corpus.setHealth,
+        });
+        initAsk({
+            apiBase,
+            refreshCorpus: corpus.refreshCorpus,
+            setHealth: corpus.setHealth,
+        });
+        corpus.bootstrap();
+    </script>
+</body>
+</html>

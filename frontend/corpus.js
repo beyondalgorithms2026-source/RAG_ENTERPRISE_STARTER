@@ -1,4 +1,4 @@
-const DEFAULT_EMPTY = "<p class=\"muted-text\">No uploaded sources yet.</p>";
+const DEFAULT_EMPTY = "<p class=\"corpus-empty\">No uploaded sources yet.</p>";
 const JOB_STAGE_LABELS = {
     uploaded: { label: "Uploading file", progress: 12, tone: "pending" },
     parsing: { label: "Extracting text", progress: 35, tone: "pending" },
@@ -148,6 +148,17 @@ export function initCorpus({ apiBase }) {
     const corpusList = document.getElementById("corpus-list");
     const corpusMessage = document.getElementById("corpus-message");
     const corpusRefresh = document.getElementById("corpus-refresh");
+    const overviewHealthState = document.getElementById("overview-health-state");
+    const overviewLastSync = document.getElementById("overview-last-sync");
+    const overviewSourceCount = document.getElementById("overview-source-count");
+    const overviewReadyCountCopy = document.getElementById("overview-ready-count-copy");
+    const corpusTotalCount = document.getElementById("corpus-total-count");
+    const corpusReadyCount = document.getElementById("corpus-ready-count");
+    const corpusPendingCount = document.getElementById("corpus-pending-count");
+    const corpusEnrichedCount = document.getElementById("corpus-enriched-count");
+    const corpusTotalCountSecondary = document.getElementById("corpus-total-count-secondary");
+    const corpusReadyCountSecondary = document.getElementById("corpus-ready-count-secondary");
+    const corpusPendingCountSecondary = document.getElementById("corpus-pending-count-secondary");
     const uploadJobCard = document.getElementById("upload-job-card");
     const jobId = document.getElementById("job-id");
     const jobStatus = document.getElementById("job-status");
@@ -178,6 +189,12 @@ export function initCorpus({ apiBase }) {
             <span>${escapeHtml(text)}</span>
         `;
         backendHealth.classList.toggle("is-error", !isHealthy);
+        if (overviewHealthState) {
+            overviewHealthState.textContent = isHealthy ? "Online" : "Unavailable";
+        }
+        if (overviewLastSync) {
+            overviewLastSync.textContent = text;
+        }
     }
 
     function renderJobCard({ id, sourceId, statusText, stageText, progressLabel, progress, tone, errorText }) {
@@ -225,22 +242,24 @@ export function initCorpus({ apiBase }) {
     function renderCorpus(items) {
         if (!Array.isArray(items) || items.length === 0) {
             corpusList.innerHTML = DEFAULT_EMPTY;
+            updateSummaryCounts([]);
             return;
         }
 
+        updateSummaryCounts(items);
         corpusList.innerHTML = items.map((item) => `
             <article class="corpus-item">
                 <div class="corpus-item-head">
                     <div>
-                        <h3>${escapeHtml(item.file_name)}</h3>
-                        <div class="corpus-meta">
+                        <h3 class="corpus-title">${escapeHtml(item.file_name)}</h3>
+                        <div class="corpus-primary">
                             <span class="source-chip">${escapeHtml(item.source_type)}</span>
                             <span class="status-chip ${escapeHtml(describeSourceStatus("ingestion", item.ingestion_status).className)}">${escapeHtml(describeSourceStatus("ingestion", item.ingestion_status).label)}</span>
                             <span class="status-chip ${escapeHtml(describeSourceStatus("enrichment", item.enrichment_status).className)}">${escapeHtml(describeSourceStatus("enrichment", item.enrichment_status).label)}</span>
                         </div>
                     </div>
-                    <div class="field-row">
-                        <span class="muted-text">Source #${escapeHtml(item.id)}</span>
+                    <div class="corpus-side">
+                        <span class="corpus-id">Source #${escapeHtml(item.id)}</span>
                         <button type="button" class="button-secondary corpus-delete" data-source-id="${escapeHtml(item.id)}">
                             Delete
                         </button>
@@ -272,6 +291,47 @@ export function initCorpus({ apiBase }) {
                 }
             });
         });
+    }
+
+    function updateSummaryCounts(items) {
+        const total = items.length;
+        const ready = items.filter((item) => normalizeValue(item.ingestion_status) === "embedded").length;
+        const pending = items.filter((item) => {
+            const status = normalizeValue(item.ingestion_status);
+            return status && status !== "embedded" && status !== "failed";
+        }).length;
+        const enriched = items.filter((item) => normalizeValue(item.enrichment_status) === "completed").length;
+
+        if (overviewSourceCount) {
+            overviewSourceCount.textContent = String(total);
+        }
+        if (overviewReadyCountCopy) {
+            overviewReadyCountCopy.textContent = `${ready} ready`;
+        }
+        if (corpusTotalCount) {
+            corpusTotalCount.textContent = String(total);
+        }
+        if (corpusReadyCount) {
+            corpusReadyCount.textContent = `${ready} ready`;
+        }
+        if (corpusPendingCount) {
+            corpusPendingCount.textContent = String(pending);
+        }
+        if (corpusEnrichedCount) {
+            corpusEnrichedCount.textContent = String(enriched);
+        }
+        if (corpusTotalCountSecondary) {
+            corpusTotalCountSecondary.textContent = String(total);
+        }
+        if (corpusReadyCountSecondary) {
+            corpusReadyCountSecondary.textContent = String(ready);
+        }
+        if (corpusPendingCountSecondary) {
+            corpusPendingCountSecondary.textContent = String(pending);
+        }
+        if (overviewLastSync) {
+            overviewLastSync.textContent = `Last refreshed ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+        }
     }
 
     async function refreshCorpus() {

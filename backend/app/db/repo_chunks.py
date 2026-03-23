@@ -174,3 +174,47 @@ def update_chunk_embeddings(chunk_embeddings: List[tuple[int, List[float]]]) -> 
     with engine.begin() as conn:
         for chunk_id, embedding_vector in chunk_embeddings:
             conn.execute(sql, {"chunk_id": chunk_id, "embedding": _pgvector_literal(embedding_vector)})
+
+
+def fetch_neighbor_chunks(chunk_ids: List[int], radius: int = 1) -> List[Dict]:
+    if not chunk_ids or radius < 1:
+        return []
+
+    sql = text(
+        """
+        WITH base AS (
+            SELECT DISTINCT source_id, chunk_index
+            FROM chunks
+            WHERE id = ANY(:chunk_ids)
+        )
+        SELECT DISTINCT
+            c.id,
+            c.source_id,
+            c.source_part_id,
+            c.chunk_index,
+            c.heading,
+            c.chunk_text,
+            c.locator_json
+        FROM chunks c
+        JOIN base b
+            ON c.source_id = b.source_id
+           AND c.chunk_index BETWEEN b.chunk_index - :radius AND b.chunk_index + :radius
+        WHERE c.id <> ALL(:chunk_ids)
+        ORDER BY c.source_id ASC, c.chunk_index ASC, c.id ASC
+        """
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(sql, {"chunk_ids": list(chunk_ids), "radius": radius}).fetchall()
+
+    return [
+        {
+            "id": row[0],
+            "source_id": row[1],
+            "source_part_id": row[2],
+            "chunk_index": row[3],
+            "heading": row[4],
+            "chunk_text": row[5],
+            "locator_json": row[6] or {},
+        }
+        for row in rows
+    ]
