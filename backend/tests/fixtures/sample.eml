@@ -1,0 +1,21 @@
+From: sender@example.com
+To: receiver@example.com
+Subject: HTML only sample
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============6830316207278833586=="
+
+--===============6830316207278833586==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+<html><body><p>HTML body fallback</p><p>Parser check.</p></body></html>
+
+--===============6830316207278833586==
+Content-Type: application/octet-stream
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="attachment.bin"
+MIME-Version: 1.0
+
+Zml4dHVyZSBhdHRhY2htZW50
+
+--===============6830316207278833586==--

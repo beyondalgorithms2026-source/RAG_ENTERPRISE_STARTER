@@ -1,0 +1,182 @@
+[
+  {
+    "id": "simple_lookup_modes",
+    "category": "simple_lookup",
+    "question": "\"keywordbanana\"",
+    "request": {
+      "k": 5,
+      "k_chunks": 3,
+      "filters": {
+        "source_id": "benchmark_source_id",
+        "source_type": "pdf"
+      }
+    },
+    "modes": ["vector", "keyword", "hybrid", "graph_hybrid", "full"],
+    "expected": {
+      "retrieval": {
+        "headings_any": ["Benchmark Match Chunk"],
+        "snippet_keywords_any": ["keywordbanana", "ibm"],
+        "source_types_any": ["pdf"]
+      },
+      "citations": {
+        "min_citations": 1,
+        "source_ids": ["benchmark_source_id"]
+      },
+      "answer": {
+        "contains_any": ["IBM", "keywordbanana"],
+        "not_found_allowed": false
+      }
+    },
+    "mock_llm_content": "{\"answer\":\"Benchmark answer for keywordbanana and IBM in the benchmark source [S1]\",\"citations\":[\"S1\"]}",
+    "notes": "Simple lookup benchmark against a single explicit source."
+  },
+  {
+    "id": "exact_term_modes",
+    "category": "exact_term_lookup",
+    "question": "\"Version 2.1\"",
+    "request": {
+      "k": 5,
+      "k_chunks": 3,
+      "filters": {
+        "source_id": "benchmark_source_id",
+        "source_type": "pdf"
+      }
+    },
+    "modes": ["vector", "keyword", "hybrid", "graph_hybrid", "full"],
+    "expected": {
+      "retrieval": {
+        "snippet_keywords_any": ["version 2.1", "2024"],
+        "source_types_any": ["pdf"]
+      },
+      "citations": {
+        "min_citations": 1,
+        "source_ids": ["benchmark_source_id"]
+      },
+      "answer": {
+        "contains_any": ["Version 2.1", "2024"],
+        "not_found_allowed": false
+      }
+    },
+    "mock_llm_content": "{\"answer\":\"Version 2.1 is discussed for 2024 in the benchmark source [S1]\",\"citations\":[\"S1\"]}",
+    "notes": "Exact-term benchmark for explicit lexical lookup."
+  },
+  {
+    "id": "cross_file_summary_modes",
+    "category": "cross_file_summary",
+    "question": "Summarize the benchmark policy coverage.",
+    "request": {
+      "k": 5,
+      "k_chunks": 3
+    },
+    "modes": ["vector", "keyword", "hybrid", "graph_hybrid", "full"],
+    "expected": {
+      "retrieval": {
+        "snippet_keywords_any": ["policy", "2024"]
+      },
+      "citations": {
+        "min_citations": 1
+      },
+      "answer": {
+        "contains_any": ["policy", "2024"],
+        "not_found_allowed": false
+      }
+    },
+    "mock_llm_content": "{\"answer\":\"The benchmark policy coverage focuses on 2024 guidance [S1]\",\"citations\":[\"S1\"]}",
+    "notes": "Cross-file summary case for broader corpus evaluation."
+  },
+  {
+    "id": "relationship_modes",
+    "category": "relationship_heavy",
+    "question": "Who reports to IBM?",
+    "request": {
+      "k": 5,
+      "k_chunks": 3,
+      "filters": {
+        "source_id": "benchmark_source_id",
+        "source_type": "pdf"
+      }
+    },
+    "modes": ["vector", "keyword", "hybrid", "graph_hybrid", "full"],
+    "expected": {
+      "retrieval": {
+        "snippet_keywords_any": ["jane doe", "ibm"],
+        "source_types_any": ["pdf"]
+      },
+      "citations": {
+        "min_citations": 1,
+        "source_ids": ["benchmark_source_id"]
+      },
+      "answer": {
+        "contains_any": ["Jane Doe", "IBM"],
+        "not_found_allowed": false
+      }
+    },
+    "mock_llm_content": "{\"answer\":\"Jane Doe reports to IBM in the benchmark source [S1]\",\"citations\":[\"S1\"]}",
+    "notes": "Relationship-heavy case intended to show when graph-aware retrieval may help."
+  },
+  {
+    "id": "temporal_modes",
+    "category": "temporal_query",
+    "question": "What applied in 2024 under version 2.1?",
+    "request": {
+      "k": 5,
+      "k_chunks": 3,
+      "filters": {
+        "source_id": "benchmark_source_id",
+        "source_type": "pdf"
+      }
+    },
+    "modes": ["vector", "keyword", "hybrid", "graph_hybrid", "full"],
+    "expected": {
+      "retrieval": {
+        "snippet_keywords_any": ["2024", "version 2.1"],
+        "source_types_any": ["pdf"]
+      },
+      "citations": {
+        "min_citations": 1,
+        "source_ids": ["benchmark_source_id"]
+      },
+      "answer": {
+        "contains_any": ["2024", "Version 2.1"],
+        "not_found_allowed": false
+      }
+    },
+    "mock_llm_content": "{\"answer\":\"Version 2.1 applied during 2024 in the benchmark source [S1]\",\"citations\":[\"S1\"]}",
+    "notes": "Temporal case intended to show when full-mode temporal support may help."
+  },
+  {
+    "id": "source_scoped_deep_lookup_modes",
+    "category": "source_scoped_deep_lookup",
+    "question": "\"keywordbanana\"",
+    "request": {
+      "k": 5,
+      "k_chunks": 3,
+      "source_ids": ["benchmark_source_id"],
+      "filters": {
+        "source_id": "benchmark_source_id",
+        "source_type": "pdf"
+      }
+    },
+    "modes": ["keyword", "hybrid", "deep_lookup"],
+    "expected": {
+      "retrieval": {
+        "headings_any": ["Benchmark Match Chunk"],
+        "snippet_keywords_any": ["keywordbanana", "ibm"],
+        "source_types_any": ["pdf"]
+      },
+      "citations": {
+        "min_citations": 1,
+        "source_ids": ["benchmark_source_id"]
+      },
+      "answer": {
+        "contains_any": ["IBM", "keywordbanana"],
+        "not_found_allowed": false
+      }
+    },
+    "mock_llm_content_by_mode": {
+      "keyword": "{\"answer\":\"IBM and keywordbanana are supported in the benchmark source [S1]\",\"citations\":[\"S1\"]}",
+      "hybrid": "{\"answer\":\"IBM and keywordbanana are supported in the benchmark source [S1]\",\"citations\":[\"S1\"]}"
+    },
+    "notes": "Explicit source-scoped deep lookup benchmark. The deep_lookup mode is retrieval-only, so answer and citation sections are not applicable for that mode."
+  }
+]

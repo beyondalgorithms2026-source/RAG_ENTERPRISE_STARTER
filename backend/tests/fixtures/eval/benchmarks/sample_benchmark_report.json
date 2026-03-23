@@ -1,0 +1,74 @@
+{
+  "summary": {
+    "kind": "mode_benchmark",
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate_percent": 100.0,
+    "evaluated_modes": ["full", "graph_hybrid", "hybrid", "keyword", "vector"]
+  },
+  "results": [
+    {
+      "id": "relationship_modes",
+      "category": "relationship_heavy",
+      "question": "Who reports to IBM?",
+      "notes": "Relationship-heavy case intended to show when graph-aware retrieval may help.",
+      "status": "PASS",
+      "failed_modes": [],
+      "modes": [
+        {
+          "mode": "hybrid",
+          "status": "PASS",
+          "resolved_search_mode": "hybrid",
+          "latency_ms": {"search": 7, "ask": 9, "total": 16},
+          "retrieval_relevance": {
+            "passed": true,
+            "note": "retrieval_expectations_met",
+            "best_match_rank": 1,
+            "matched_heading": "Benchmark Match Chunk"
+          },
+          "citation_quality": {
+            "passed": true,
+            "note": "citation_expectations_met",
+            "citation_count": 1,
+            "citation_source_ids": [101]
+          },
+          "answer_clarity": {
+            "passed": true,
+            "note": "answer_clarity_expectations_met",
+            "matched_tokens": ["Jane Doe", "IBM"],
+            "not_found_observed": false
+          },
+          "failure_mode": "none"
+        },
+        {
+          "mode": "graph_hybrid",
+          "status": "PASS",
+          "resolved_search_mode": "graph_hybrid",
+          "latency_ms": {"search": 8, "ask": 9, "total": 17},
+          "retrieval_relevance": {
+            "passed": true,
+            "note": "retrieval_expectations_met",
+            "best_match_rank": 1,
+            "matched_heading": "Benchmark Match Chunk"
+          },
+          "citation_quality": {
+            "passed": true,
+            "note": "citation_expectations_met",
+            "citation_count": 1,
+            "citation_source_ids": [101]
+          },
+          "answer_clarity": {
+            "passed": true,
+            "note": "answer_clarity_expectations_met",
+            "matched_tokens": ["Jane Doe", "IBM"],
+            "not_found_observed": false
+          },
+          "failure_mode": "none"
+        }
+      ]
+    }
+  ],
+  "failures": [],
+  "report_path": "eval_report_mode_benchmark.json"
+}

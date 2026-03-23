@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="RAG Master baseline web UI for upload, corpus status, and grounded ask flows.">
+    <title>RAG Master</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="page-shell">
+        <header class="hero">
+            <div>
+                <p class="eyebrow">Upload-based grounded RAG</p>
+                <h1>RAG Master</h1>
+                <p class="hero-copy">
+                    Upload supported files, track ingestion status, and ask grounded questions with source-aware citations.
+                </p>
+            </div>
+            <div class="hero-status" id="backend-health">
+                <span class="status-dot"></span>
+                <span>Checking backend...</span>
+            </div>
+        </header>
+
+        <main class="layout-grid">
+            <section class="panel panel-upload">
+                <div class="panel-head">
+                    <h2>Upload</h2>
+                    <p>Add one or more supported files at a time.</p>
+                </div>
+                <label class="dropzone" id="upload-dropzone" for="upload-file">
+                    <input id="upload-file" type="file" accept=".pdf,.docx,.pptx,.xlsx,.eml,.txt,.md" multiple>
+                    <span class="dropzone-title">Drop files here or choose them</span>
+                    <span class="dropzone-meta">Supported: PDF, DOCX, PPTX, XLSX, EML, TXT, MD</span>
+                </label>
+                <div class="field-row">
+                    <button id="upload-submit" type="button">Upload Files</button>
+                    <span class="muted-text" id="upload-file-name">No files selected</span>
+                </div>
+                <div class="message-slot" id="upload-message"></div>
+                <div class="job-card hidden" id="upload-job-card">
+                    <div class="job-card-head">
+                        <strong>Latest ingestion job</strong>
+                        <button id="job-refresh" type="button" class="button-secondary">Refresh Job</button>
+                    </div>
+                    <div class="job-progress" id="job-progress">
+                        <div class="job-progress-meta">
+                            <span id="job-progress-label">Waiting for upload...</span>
+                            <span id="job-progress-value">0%</span>
+                        </div>
+                        <div class="job-progress-track" aria-hidden="true">
+                            <span class="job-progress-fill" id="job-progress-fill"></span>
+                        </div>
+                    </div>
+                    <dl class="job-grid">
+                        <div><dt>Job ID</dt><dd id="job-id">-</dd></div>
+                        <div><dt>Status</dt><dd id="job-status">-</dd></div>
+                        <div><dt>Stage</dt><dd id="job-stage">-</dd></div>
+                        <div><dt>Source</dt><dd id="job-source">-</dd></div>
+                    </dl>
+                    <p class="job-error hidden" id="job-error"></p>
+                </div>
+            </section>
+
+            <section class="panel panel-corpus">
+                <div class="panel-head inline-head">
+                    <div>
+                        <h2>Corpus</h2>
+                        <p>Current uploaded sources and ingestion state.</p>
+                    </div>
+                    <button id="corpus-refresh" type="button" class="button-secondary">Refresh List</button>
+                </div>
+                <div class="message-slot" id="corpus-message"></div>
+                <div class="corpus-list" id="corpus-list"></div>
+            </section>
+
+            <section class="panel panel-ask">
+                <div class="panel-head">
+                    <h2>Ask</h2>
+                    <p>Question the uploaded corpus using the finalized M9 ask contract.</p>
+                </div>
+                <div class="ask-grid">
+                    <label class="field">
+                        <span>Question</span>
+                        <textarea id="ask-question" rows="4" placeholder="Ask a grounded question about the uploaded sources."></textarea>
+                    </label>
+                    <div class="field-row field-row-split">
+                        <label class="field">
+                            <span>Retrieval Mode</span>
+                            <select id="ask-mode">
+                                <option value="hybrid">hybrid</option>
+                                <option value="vector">vector</option>
+                                <option value="keyword">keyword</option>
+                                <option value="graph_hybrid">graph_hybrid</option>
+                                <option value="full">full</option>
+                            </select>
+                        </label>
+                        <label class="field">
+                            <span>Source Type Filter</span>
+                            <select id="ask-source-type">
+                                <option value="">All supported types</option>
+                                <option value="pdf">pdf</option>
+                                <option value="docx">docx</option>
+                                <option value="pptx">pptx</option>
+                                <option value="xlsx">xlsx</option>
+                                <option value="eml">eml</option>
+                                <option value="txt">txt</option>
+                                <option value="md">md</option>
+                            </select>
+                        </label>
+                        <label class="field field-small">
+                            <span>k_chunks</span>
+                            <input id="ask-k-chunks" type="number" min="1" max="20" value="6">
+                        </label>
+                    </div>
+                    <label class="field checkbox-row">
+                        <input id="ask-dry-run" type="checkbox">
+                        <span>Dry run only (build prompt without calling the LLM)</span>
+                    </label>
+                    <div class="field-row">
+                        <button id="ask-submit" type="button">Ask Sources</button>
+                        <span class="muted-text" id="ask-meta">Ready.</span>
+                    </div>
+                </div>
+                <div class="message-slot" id="ask-message"></div>
+            </section>
+
+            <section class="panel panel-answer">
+                <div class="panel-head">
+                    <h2>Answer</h2>
+                    <p>Grounded output and source-aware citations.</p>
+                </div>
+                <div class="answer-state" id="answer-state">No answer yet.</div>
+                <div class="answer-body hidden" id="answer-body">
+                    <div class="answer-metrics" id="answer-metrics"></div>
+                    <div class="answer-text" id="answer-text"></div>
+                    <div class="debug-box hidden" id="answer-debug"></div>
+                </div>
+                <div class="citations-wrap hidden" id="citations-wrap">
+                    <h3>Citations</h3>
+                    <div class="citations-list" id="citations-list"></div>
+                </div>
+                <div class="preview-placeholder">
+                    <strong>Source preview placeholder</strong>
+                    <p>Detailed source preview is intentionally deferred beyond baseline M10.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script type="module">
+        import { initUpload } from "./upload.js";
+        import { initCorpus } from "./corpus.js";
+        import { initAsk } from "./ask.js";
+
+        const apiBase = `${window.location.origin}`.replace(/\/+$/, "");
+        const corpus = initCorpus({ apiBase });
+        initUpload({
+            apiBase,
+            refreshCorpus: corpus.refreshCorpus,
+            refreshJob: corpus.refreshJob,
+            showPendingJob: corpus.showPendingJob,
+            setHealth: corpus.setHealth,
+        });
+        initAsk({
+            apiBase,
+            refreshCorpus: corpus.refreshCorpus,
+            setHealth: corpus.setHealth,
+        });
+        corpus.bootstrap();
+    </script>
+</body>
+</html>

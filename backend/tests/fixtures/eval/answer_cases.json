@@ -1,0 +1,47 @@
+[
+  {
+    "id": "ask_keyword_dry_run",
+    "request": {
+      "question": "\"keywordbanana\"",
+      "mode": "keyword",
+      "k_chunks": 4,
+      "dry_run": true
+    },
+    "expected": {
+      "min_used_chunks": 1,
+      "citation_count": 0,
+      "required_debug_keys": ["mode", "system_prompt", "user_prompt"],
+      "debug_mode": "keyword"
+    }
+  },
+  {
+    "id": "ask_citation_sanitization",
+    "request": {
+      "question": "\"keywordbanana\"",
+      "mode": "keyword",
+      "k_chunks": 4,
+      "dry_run": false
+    },
+    "mock_llm_content": "{\"answer\":\"Supported [S1] and fake [S9]\",\"citations\":[\"S1\",\"S9\"]}",
+    "expected": {
+      "min_used_chunks": 1,
+      "citation_count": 1,
+      "answer_contains": ["[S1]"],
+      "answer_excludes": ["[S9]"]
+    }
+  },
+  {
+    "id": "ask_not_found_fallback",
+    "request": {
+      "question": "no such evidence phrase anywhere",
+      "mode": "hybrid",
+      "k_chunks": 4,
+      "dry_run": false
+    },
+    "mock_llm_content": "{\"answer\":\"Unsupported claim without citations\",\"citations\":[]}",
+    "expected": {
+      "answer_equals": "Not found in provided sources.",
+      "citation_count": 0
+    }
+  }
+]

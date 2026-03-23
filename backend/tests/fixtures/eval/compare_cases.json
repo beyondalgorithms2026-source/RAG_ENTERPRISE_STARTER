@@ -1,0 +1,53 @@
+[
+  {
+    "id": "compare_explicit_hybrid_dry_run",
+    "binding": "compare_source_ids",
+    "request": {
+      "question": "Compare alpha and keywordbanana",
+      "source_ids": [0, 0],
+      "mode": "hybrid",
+      "k_chunks_per_source": 4,
+      "dry_run": true
+    },
+    "expected": {
+      "source_count": 2,
+      "citation_count": 2,
+      "resolved_modes": ["hybrid", "hybrid"]
+    }
+  },
+  {
+    "id": "compare_router_keyword_dry_run",
+    "binding": "compare_source_ids",
+    "settings_overrides": {
+      "USE_QUERY_ROUTER": true
+    },
+    "request": {
+      "question": "\"keywordbanana\"",
+      "source_ids": [0, 0],
+      "k_chunks_per_source": 4,
+      "dry_run": true
+    },
+    "expected": {
+      "source_count": 1,
+      "citation_count": 1,
+      "resolved_modes": ["keyword", "keyword"]
+    }
+  },
+  {
+    "id": "compare_citation_grounding",
+    "binding": "compare_source_ids",
+    "request": {
+      "question": "Compare alpha and keywordbanana",
+      "source_ids": [0, 0],
+      "mode": "hybrid",
+      "k_chunks_per_source": 4,
+      "dry_run": false
+    },
+    "mock_llm_content": "{\"answer\":\"PDF says alpha [S1]. DOCX says keywordbanana [S2]. Fake [S9]\",\"citations\":[\"S1\",\"S2\",\"S9\"]}",
+    "expected": {
+      "source_count": 2,
+      "citation_count": 2,
+      "answer_excludes": ["[S9]"]
+    }
+  }
+]

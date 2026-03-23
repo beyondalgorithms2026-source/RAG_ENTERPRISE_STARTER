@@ -1,0 +1,110 @@
+[
+  {
+    "id": "vector_pdf_semantic_match",
+    "request": {
+      "question": "alpha semantic vector match text",
+      "k": 5,
+      "mode": "vector"
+    },
+    "expected": {
+      "mode": "vector",
+      "headings_any": ["PDF Match"],
+      "snippet_keywords_any": ["alpha", "semantic"],
+      "source_types_any": ["pdf"]
+    }
+  },
+  {
+    "id": "keyword_docx_lexical_match",
+    "request": {
+      "question": "\"keywordbanana\"",
+      "k": 5,
+      "mode": "keyword"
+    },
+    "expected": {
+      "mode": "keyword",
+      "headings_any": ["DOCX Match"],
+      "snippet_keywords_any": ["keywordbanana"],
+      "source_types_any": ["docx"]
+    }
+  },
+  {
+    "id": "hybrid_docx_lexical_match",
+    "request": {
+      "question": "\"keywordbanana\"",
+      "k": 5,
+      "mode": "hybrid"
+    },
+    "expected": {
+      "mode": "hybrid",
+      "headings_any": ["DOCX Match"],
+      "snippet_keywords_any": ["keywordbanana"],
+      "source_types_any": ["docx"]
+    }
+  },
+  {
+    "id": "graph_hybrid_relation_case",
+    "binding": "graph_source_id",
+    "request": {
+      "question": "Who works with Acme Corp?",
+      "k": 5,
+      "mode": "graph_hybrid",
+      "filters": {
+        "source_id": 0
+      }
+    },
+    "expected": {
+      "mode": "graph_hybrid",
+      "headings_any": ["Graph Chunk 1"],
+      "snippet_keywords_any": ["acme corp", "works with"]
+    }
+  },
+  {
+    "id": "full_temporal_case",
+    "binding": "temporal_source_id",
+    "request": {
+      "question": "What is effective January 15, 2024?",
+      "k": 5,
+      "mode": "full",
+      "filters": {
+        "source_id": 0
+      }
+    },
+    "expected": {
+      "mode": "full",
+      "headings_any": ["Policy Window"],
+      "snippet_keywords_any": ["effective", "january 15, 2024"]
+    }
+  },
+  {
+    "id": "deep_lookup_single_source_anchor_match",
+    "surface": "deep_lookup",
+    "binding": "deep_lookup_docx_source_ids",
+    "request": {
+      "question": "\"keywordbanana\"",
+      "k": 5,
+      "source_ids": [0]
+    },
+    "expected": {
+      "mode": "deep_lookup",
+      "headings_any": ["DOCX Match"],
+      "snippet_keywords_any": ["keywordbanana"],
+      "source_types_any": ["docx"]
+    }
+  },
+  {
+    "id": "deep_lookup_selected_pair_remains_scoped",
+    "surface": "deep_lookup",
+    "binding": "deep_lookup_pair_source_ids",
+    "request": {
+      "question": "\"keywordbanana\"",
+      "k": 5,
+      "source_ids": [0, 0]
+    },
+    "expected": {
+      "mode": "deep_lookup",
+      "headings_any": ["DOCX Match"],
+      "snippet_keywords_any": ["keywordbanana"],
+      "source_types_any": ["docx"]
+    }
+  }
+]

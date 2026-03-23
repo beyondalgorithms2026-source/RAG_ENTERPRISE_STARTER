@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  rag_enterprise_starter_db:
+    image: pgvector/pgvector:pg16
+    container_name: rag_enterprise_starter_db
+    restart: unless-stopped
+    ports:
+      - "55432:5432"
+    environment:
+      POSTGRES_USER: rag_enterprise_starter
+      POSTGRES_PASSWORD: rag_enterprise_starter_dev_pass
+      POSTGRES_DB: rag_enterprise_starter
+    volumes:
+      - rag_enterprise_starter_pgdata:/var/lib/postgresql/data
+
+volumes:
+  rag_enterprise_starter_pgdata:
