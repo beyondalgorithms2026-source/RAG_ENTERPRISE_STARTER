@@ -423,6 +423,54 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         grouped_ids = {bucket.source_id for bucket in response.sources}
         self.assertEqual(grouped_ids, {seeded["pdf_source_id"], seeded["docx_source_id"]})
 
+    def test_m18_compare_uses_second_pass_for_fragmented_initial_answer(self):
+        seeded = self._seed_retrieval_records()
+        import app.core_rag.answering as answering_module
+
+        original_generate_answer = answering_module.generate_answer
+        calls = []
+
+        def fake_generate_answer(system_prompt, user_prompt):
+            calls.append((system_prompt, user_prompt))
+            if len(calls) == 1:
+                return {
+                    "success": True,
+                    "content": json.dumps(
+                        {
+                            "answer": "pdf alpha [S1] docx keywordbanana [S2]",
+                            "citations": ["S1", "S2"],
+                        }
+                    ),
+                }
+            return {
+                "success": True,
+                "content": json.dumps(
+                    {
+                        "answer": "The PDF source supports alpha while the DOCX source supports keywordbanana, so the evidence comes from two different documents [S1] [S2].",
+                        "citations": ["S1", "S2"],
+                    }
+                ),
+            }
+
+        answering_module.generate_answer = fake_generate_answer
+        try:
+            response = compare_endpoint(
+                CompareRequest(
+                    question="Compare alpha and keywordbanana",
+                    source_ids=[seeded["pdf_source_id"], seeded["docx_source_id"]],
+                    mode="hybrid",
+                    dry_run=False,
+                )
+            )
+        finally:
+            answering_module.generate_answer = original_generate_answer
+            self._delete_retrieval_records(seeded.values())
+
+        self.assertEqual(len(calls), 2)
+        self.assertIn("two different documents", response.answer.lower())
+        self.assertEqual(response.debug_info["answer_generation_path"], "repair")
+        self.assertEqual(len(response.citations), 2)
+
     def test_m18_baseline_ask_remains_unchanged_when_compare_not_requested(self):
         seeded = self._seed_retrieval_records()
         try:

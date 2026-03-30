@@ -54,7 +54,7 @@ from app.ingestion.jobs import (
     process_upload_batch,
 )
 from app.llm.client import generate_answer, is_llm_ready, verify_llm_ready
-from app.llm.prompts import REPAIR_PROMPT, SYSTEM_PROMPT, generate_user_prompt
+from app.llm.prompts import REPAIR_PROMPT, SECOND_PASS_PROMPT, SYSTEM_PROMPT, generate_second_pass_prompt, generate_user_prompt
 from sqlalchemy import text
 
 
@@ -236,6 +236,119 @@ class SmokeTestBase(unittest.TestCase):
                 text("DELETE FROM sources WHERE id = ANY(:source_ids)"),
                 {"source_ids": list(source_ids)},
             )
+
+    def _seed_seo_anomaly_records(self):
+        suffix = uuid4().hex[:8]
+        with engine.begin() as conn:
+            source_id = conn.execute(
+                text(
+                    """
+                    INSERT INTO sources (
+                        file_name, storage_path, source_type, hash_sha256, file_size_bytes,
+                        ingestion_status, enrichment_status, source_metadata_json
+                    )
+                    VALUES (
+                        :file_name, :storage_path, 'pdf', :hash_sha256, 200,
+                        'embedded', 'not_started', '{}'::jsonb
+                    )
+                    RETURNING id
+                    """
+                ),
+                {
+                    "file_name": f"seo-anomaly-{suffix}.pdf",
+                    "storage_path": f"tests/seo-anomaly-{suffix}.pdf",
+                    "hash_sha256": (suffix + "seo") * 4,
+                },
+            ).scalar_one()
+
+        chunks = [
+            {
+                "name": "ground_truth_page_1",
+                "chunk_index": 0,
+                "heading": "Page 1",
+                "section_path": "page:1",
+                "chunk_text": (
+                    "The space is saturated. Search results for free online games and specific game titles "
+                    "are dominated by large aggregators, making it hard for a newcomer site to rank. "
+                    "Incumbents also keep an SEO edge through embeddable content and trend-driven titles."
+                ),
+                "locator_json": {"page": 1, "chunk_window": 1, "chunk_window_total": 2},
+            },
+            {
+                "name": "ground_truth_page_2",
+                "chunk_index": 2,
+                "heading": "Page 2",
+                "section_path": "page:2",
+                "chunk_text": (
+                    "For a newcomer, cracking this space via SEO would be challenging unless they use a fresh "
+                    "distribution approach or a niche."
+                ),
+                "locator_json": {"page": 2, "chunk_window": 1, "chunk_window_total": 3},
+            },
+            {
+                "name": "wrong_page_10_a",
+                "chunk_index": 26,
+                "heading": "Page 10",
+                "section_path": "page:10",
+                "chunk_text": (
+                    "A newcomer can launch a web clone and do some SEO around it to siphon traffic. "
+                    "Large aggregators have not saturated every niche."
+                ),
+                "locator_json": {"page": 10, "chunk_window": 1, "chunk_window_total": 3},
+            },
+            {
+                "name": "wrong_page_10_b",
+                "chunk_index": 27,
+                "heading": "Page 10",
+                "section_path": "page:10",
+                "chunk_text": (
+                    "A newcomer can move fast in a niche and use SEO as one route for attracting users. "
+                    "Execution and marketing matter."
+                ),
+                "locator_json": {"page": 10, "chunk_window": 2, "chunk_window_total": 3},
+            },
+        ]
+
+        insert_chunks(
+            source_id,
+            [
+                {
+                    "chunk_index": chunk["chunk_index"],
+                    "heading": chunk["heading"],
+                    "section_path": chunk["section_path"],
+                    "chunk_text": chunk["chunk_text"],
+                    "token_count": len(chunk["chunk_text"].split()),
+                    "locator_json": chunk["locator_json"],
+                    "provenance_json": {"test": "seo_anomaly", "name": chunk["name"]},
+                }
+                for chunk in chunks
+            ],
+        )
+
+        similarity_by_name = {
+            "ground_truth_page_1": 0.55092,
+            "ground_truth_page_2": 0.54631,
+            "wrong_page_10_a": 0.61401,
+            "wrong_page_10_b": 0.63164,
+        }
+
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text("SELECT id, chunk_index, provenance_json FROM chunks WHERE source_id = :source_id ORDER BY chunk_index ASC"),
+                {"source_id": source_id},
+            ).fetchall()
+
+        chunk_ids: dict[str, int] = {}
+        embeddings: list[tuple[int, list[float]]] = []
+        for row in rows:
+            provenance = dict(row[2] or {})
+            name = provenance["name"]
+            chunk_ids[name] = row[0]
+            similarity = similarity_by_name[name]
+            embeddings.append((row[0], [similarity, (1 - (similarity ** 2)) ** 0.5] + [0.0] * 382))
+
+        update_chunk_embeddings(embeddings)
+        return {"source_id": source_id, "chunk_ids": chunk_ids}
 
     def _source_chunk_count(self, source_id: int) -> int:
         with engine.connect() as conn:

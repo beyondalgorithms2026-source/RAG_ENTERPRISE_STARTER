@@ -9,6 +9,7 @@ from app.adapters.models import ParsedSourceDocument, ParsedSourcePart
 MIN_WORDS = 120
 TARGET_WORDS = 320
 OVERLAP_WORDS = 40
+PDF_CROSS_PAGE_BRIDGE_WORDS = 140
 
 
 @dataclass
@@ -61,6 +62,16 @@ def _split_word_windows(text: str, *, target_words: int = TARGET_WORDS, overlap_
             break
         start = max(end - overlap_words, start + 1)
     return windows
+
+
+def _head_words(text: str, count: int) -> str:
+    words = text.split()
+    return " ".join(words[:count]) if words else ""
+
+
+def _tail_words(text: str, count: int) -> str:
+    words = text.split()
+    return " ".join(words[-count:]) if words else ""
 
 
 def _section_heading(part: ParsedSourcePart) -> str:
@@ -151,6 +162,7 @@ def _chunk_single_part(
 
 def _chunk_pdf(parts: Iterable[ParsedSourcePart]) -> List[ChunkRecord]:
     chunks: List[ChunkRecord] = []
+    page_chunks: List[tuple[ParsedSourcePart, List[ChunkRecord]]] = []
     next_index = 0
     for part in parts:
         part_chunks = _chunk_single_part(
@@ -160,7 +172,62 @@ def _chunk_pdf(parts: Iterable[ParsedSourcePart]) -> List[ChunkRecord]:
             chunk_strategy="pdf_page",
         )
         chunks.extend(part_chunks)
+        page_chunks.append((part, part_chunks))
         next_index += len(part_chunks)
+
+    stitched_chunks: List[ChunkRecord] = []
+    for current_index in range(1, len(page_chunks)):
+        previous_part, previous_chunks = page_chunks[current_index - 1]
+        current_part, current_chunks = page_chunks[current_index]
+        if not previous_chunks or not current_chunks:
+            continue
+
+        previous_page = int(previous_part.locator_json.get("page", previous_part.part_index + 1))
+        current_page = int(current_part.locator_json.get("page", current_part.part_index + 1))
+        if current_page != previous_page + 1:
+            continue
+
+        previous_text = _tail_words(previous_chunks[-1].chunk_text, PDF_CROSS_PAGE_BRIDGE_WORDS)
+        current_text = _head_words(current_chunks[0].chunk_text, PDF_CROSS_PAGE_BRIDGE_WORDS)
+        stitched_text = f"{previous_text}\n\n{current_text}".strip()
+        if len(stitched_text.split()) < 8:
+            continue
+
+        locator = {
+            "page_start": previous_page,
+            "page_end": current_page,
+            "pages": [previous_page, current_page],
+            "cross_page_stitch": True,
+            "stitched_from_chunk_windows": [
+                previous_chunks[-1].locator_json.get("chunk_window"),
+                current_chunks[0].locator_json.get("chunk_window"),
+            ],
+        }
+        provenance = dict(previous_part.provenance_json)
+        provenance.update(
+            {
+                "chunk_strategy": "pdf_cross_page",
+                "source_part_indices": [previous_part.part_index, current_part.part_index],
+                "source_part_types": [previous_part.part_type, current_part.part_type],
+                "stitched_from_pages": [previous_page, current_page],
+                "stitched_from_chunk_indices": [previous_chunks[-1].chunk_index, current_chunks[0].chunk_index],
+            }
+        )
+        stitched_chunks.append(
+            ChunkRecord(
+                chunk_index=next_index,
+                source_part_id=None,
+                heading=f"Pages {previous_page}-{current_page}",
+                section_path=f"pages:{previous_page}-{current_page}",
+                chunk_text=stitched_text,
+                token_count=estimate_tokens(stitched_text),
+                locator_json=locator,
+                provenance_json=provenance,
+            )
+        )
+        next_index += 1
+
+    chunks.extend(stitched_chunks)
     return chunks
 
 

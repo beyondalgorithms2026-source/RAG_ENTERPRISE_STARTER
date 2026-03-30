@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field
 from app.core.config import settings
 from app.core.logging import log_event, logger
 from app.core_rag.query_router import QueryRouteDecision, route_query
-from app.db.repo_search import search_chunks, search_chunks_keyword
+from app.db.repo_chunks import fetch_neighbor_chunks, get_chunks_for_enrichment
+from app.db.repo_search import fetch_chunks_by_ids, search_chunks, search_chunks_keyword
 from app.db.repo_sources import get_sources_by_ids
 from app.embedding.embedder import embed_texts
 from app.graph.graph_retriever import retrieve_graph_candidates
@@ -62,6 +63,12 @@ class SearchRequest(BaseModel):
     filters: Optional[SearchFilters] = None
     mode: Optional[SearchMode] = Field(default=None)
     debug: bool = False
+    deep_research: bool = False
+    custom_query: Optional[str] = None
+    anchor_terms: List[str] = Field(default_factory=list)
+    exact_phrase_bias: Optional[str] = None
+    expand_neighbors: bool = False
+    force_rare_keyword_scan: bool = False
 
 
 class SearchResultItem(BaseModel):
@@ -86,6 +93,7 @@ class SearchResponse(BaseModel):
     results: List[SearchResultItem]
     latency_ms: int
     mode: str
+    debug_info: Optional[dict] = None
 
 
 class DeepLookupRequest(BaseModel):
@@ -129,6 +137,41 @@ def _extract_query_anchors(question: str) -> List[str]:
     return anchors[:8]
 
 
+def _normalize_anchor_terms(anchor_terms: Optional[List[str]]) -> List[str]:
+    anchors: List[str] = []
+    seen: set[str] = set()
+    for raw_value in anchor_terms or []:
+        for token in _tokenize_text(str(raw_value or "")):
+            if token in seen or token in _ANCHOR_STOPWORDS:
+                continue
+            if len(token) < 3 and not any(char.isdigit() for char in token):
+                continue
+            seen.add(token)
+            anchors.append(token)
+    return anchors[:12]
+
+
+def _resolve_query_text(request: SearchRequest) -> str:
+    custom_query = (request.custom_query or "").strip()
+    if custom_query:
+        return custom_query
+    exact_phrase = (request.exact_phrase_bias or "").strip()
+    if exact_phrase:
+        return exact_phrase
+    return request.question
+
+
+def _combined_anchor_terms(request: SearchRequest, query_text: str) -> List[str]:
+    anchors: List[str] = []
+    seen: set[str] = set()
+    for token in _extract_query_anchors(request.question) + _extract_query_anchors(query_text) + _normalize_anchor_terms(request.anchor_terms):
+        if token in seen:
+            continue
+        seen.add(token)
+        anchors.append(token)
+    return anchors[:12]
+
+
 def _apply_anchor_cooccurrence_boost(*, question: str, raw_results: List[Dict]) -> List[Dict]:
     anchors = _extract_query_anchors(question)
     if not anchors:
@@ -140,6 +183,24 @@ def _apply_anchor_cooccurrence_boost(*, question: str, raw_results: List[Dict]) 
         haystack = f"{item.get('heading', '')} {item.get('snippet', '')}".lower()
         matched = [anchor for anchor in anchors if anchor in haystack]
         anchor_score = min(0.18, (len(matched) * 0.03) + (max(len(matched) - 1, 0) * 0.02))
+        updated["anchor_score"] = round(anchor_score, 4)
+        updated["combined_score"] = _blend_score(updated.get("combined_score", 0.0), anchor_score, 1.0)
+        adjusted.append(updated)
+
+    adjusted.sort(key=_result_sort_key)
+    return adjusted
+
+
+def _apply_anchor_boost_with_terms(*, anchors: List[str], raw_results: List[Dict]) -> List[Dict]:
+    if not anchors:
+        return raw_results
+
+    adjusted: List[Dict] = []
+    for item in raw_results:
+        updated = dict(item)
+        haystack = f"{item.get('heading', '')} {item.get('snippet', '')}".lower()
+        matched = [anchor for anchor in anchors if anchor in haystack]
+        anchor_score = min(0.24, (len(matched) * 0.035) + (max(len(matched) - 1, 0) * 0.025))
         updated["anchor_score"] = round(anchor_score, 4)
         updated["combined_score"] = _blend_score(updated.get("combined_score", 0.0), anchor_score, 1.0)
         adjusted.append(updated)
@@ -352,8 +413,9 @@ def _resolve_mode(request: SearchRequest) -> tuple[str, QueryRouteDecision]:
 
 
 def _run_vector_mode(*, request: SearchRequest, source_type: Optional[str], source_id: Optional[int], source_part_id: Optional[int], locator_filter: Optional[str]) -> List[Dict]:
-    query_vector = embed_texts([request.question])[0]
-    effective_k = settings.TOP_K_INITIAL if settings.RERANK_ENABLED else request.k
+    query_text = _resolve_query_text(request)
+    query_vector = embed_texts([query_text])[0]
+    effective_k = settings.TOP_K_INITIAL if settings.RERANK_ENABLED else max(request.k, settings.VECTOR_CANDIDATES)
     raw_results = search_chunks(
         query_vector=query_vector,
         k=effective_k,
@@ -365,15 +427,17 @@ def _run_vector_mode(*, request: SearchRequest, source_type: Optional[str], sour
     for result in raw_results:
         result["vector_score"] = max(0.0, 1.0 - (result["distance"] or 1.0))
         result["keyword_score"] = None
-        result["combined_score"] = None
+        result["combined_score"] = result["vector_score"]
         result["rank_score"] = None
-    return raw_results
+    anchors = _combined_anchor_terms(request, query_text)
+    return _apply_anchor_boost_with_terms(anchors=anchors, raw_results=raw_results)
 
 
 def _run_keyword_mode(*, request: SearchRequest, source_type: Optional[str], source_id: Optional[int], source_part_id: Optional[int], locator_filter: Optional[str]) -> List[Dict]:
-    effective_k = settings.TOP_K_INITIAL if settings.RERANK_ENABLED else request.k
+    effective_k = settings.TOP_K_INITIAL if settings.RERANK_ENABLED else max(request.k, settings.KEYWORD_CANDIDATES)
+    query_text = _resolve_query_text(request)
     raw_results = search_chunks_keyword(
-        query_text=request.question,
+        query_text=query_text,
         k=effective_k,
         source_type=source_type,
         source_id=source_id,
@@ -384,13 +448,16 @@ def _run_keyword_mode(*, request: SearchRequest, source_type: Optional[str], sou
     for result in raw_results:
         result["keyword_score"] = result["rank_score"] / max_rank if max_rank > 0 else 0.0
         result["vector_score"] = None
-        result["combined_score"] = None
-    return raw_results
+        result["combined_score"] = result["keyword_score"]
+    anchors = _combined_anchor_terms(request, query_text)
+    return _apply_anchor_boost_with_terms(anchors=anchors, raw_results=raw_results)
 
 
 def _run_hybrid_baseline(*, request: SearchRequest, source_type: Optional[str], source_id: Optional[int], source_part_id: Optional[int], locator_filter: Optional[str]) -> tuple[List[Dict], int]:
-    query_vector = embed_texts([request.question])[0]
+    query_text = _resolve_query_text(request)
+    query_vector = embed_texts([query_text])[0]
     effective_k = settings.TOP_K_INITIAL if settings.RERANK_ENABLED else request.k
+    merge_k = max(effective_k, settings.VECTOR_CANDIDATES, settings.KEYWORD_CANDIDATES)
     vector_results = search_chunks(
         query_vector=query_vector,
         k=settings.VECTOR_CANDIDATES,
@@ -400,7 +467,7 @@ def _run_hybrid_baseline(*, request: SearchRequest, source_type: Optional[str], 
         locator_filter=locator_filter,
     )
     keyword_results = search_chunks_keyword(
-        query_text=request.question,
+        query_text=query_text,
         k=settings.KEYWORD_CANDIDATES,
         source_type=source_type,
         source_id=source_id,
@@ -410,22 +477,297 @@ def _run_hybrid_baseline(*, request: SearchRequest, source_type: Optional[str], 
     raw_results = merge_hybrid_results(
         vector_results=vector_results,
         keyword_results=keyword_results,
-        k=effective_k,
+        k=merge_k,
         alpha=settings.HYBRID_ALPHA,
     )
+    anchors = _combined_anchor_terms(request, query_text)
+    raw_results = _apply_anchor_boost_with_terms(anchors=anchors, raw_results=raw_results)
     return raw_results, effective_k
 
 
-def _apply_graph_and_temporal_layers(*, request: SearchRequest, resolved_mode: str, source_id: Optional[int], raw_results: List[Dict], effective_k: int) -> tuple[List[Dict], str]:
+def _expand_neighbor_context(*, raw_results: List[Dict], request: SearchRequest, k: int) -> List[Dict]:
+    if not request.expand_neighbors or not raw_results:
+        return raw_results
+
+    top_chunk_ids = [item["chunk_id"] for item in raw_results[: min(len(raw_results), max(k, 4))]]
+    neighbors = fetch_neighbor_chunks(top_chunk_ids, radius=1)
+    if not neighbors:
+        return raw_results
+
+    existing_ids = {item["chunk_id"] for item in raw_results}
+    anchors = _combined_anchor_terms(request, _resolve_query_text(request))
+    expanded = list(raw_results)
+    for neighbor in neighbors:
+        if neighbor["id"] in existing_ids:
+            continue
+        snippet = neighbor["chunk_text"]
+        haystack = f"{neighbor.get('heading', '')} {snippet}".lower()
+        matched_count = sum(1 for anchor in anchors if anchor in haystack)
+        bonus = 0.03 + (matched_count * 0.025)
+        expanded.append(
+            {
+                "chunk_id": neighbor["id"],
+                "source_id": neighbor["source_id"],
+                "source_part_id": neighbor.get("source_part_id"),
+                "file_name": "",
+                "source_type": "",
+                "heading": neighbor.get("heading", ""),
+                "locator": str(neighbor.get("locator_json") or ""),
+                "snippet": snippet,
+                "distance": None,
+                "chunk_index": neighbor["chunk_index"],
+                "vector_score": 0.0,
+                "keyword_score": 0.0,
+                "rank_score": 0.0,
+                "combined_score": bonus,
+                "neighbor_expansion": True,
+            }
+        )
+    source_rows = get_sources_by_ids(sorted({item["source_id"] for item in expanded if item.get("source_id")}))
+    for item in expanded:
+        if item.get("file_name") and item.get("source_type"):
+            continue
+        source = source_rows.get(item["source_id"])
+        if source is None:
+            continue
+        item["file_name"] = source.file_name
+        item["source_type"] = source.source_type
+    expanded.sort(key=_result_sort_key)
+    return expanded
+
+
+def _integrate_supplemental_results(*, baseline_results: List[Dict], supplemental_results: List[Dict], k: int) -> List[Dict]:
+    if not supplemental_results:
+        return baseline_results[:k]
+
+    merged = {item["chunk_id"]: dict(item) for item in baseline_results}
+    for item in supplemental_results:
+        chunk_id = item["chunk_id"]
+        supplemental_score = float(item.get("combined_score") or 0.0)
+        if chunk_id in merged:
+            merged_item = merged[chunk_id]
+            merged_item["anchor_window_score"] = max(float(merged_item.get("anchor_window_score") or 0.0), supplemental_score)
+            merged_item["combined_score"] = _blend_score(float(merged_item.get("combined_score") or 0.0), supplemental_score, 1.0)
+            continue
+        merged[chunk_id] = dict(item)
+        merged[chunk_id]["anchor_window_score"] = supplemental_score
+
+    results = list(merged.values())
+    results.sort(key=_result_sort_key)
+    return results[:k]
+
+
+def _build_anchor_window_candidates(
+    *,
+    request: SearchRequest,
+    source_id: Optional[int],
+    query_text: str,
+    anchors: List[str],
+    k: int,
+) -> tuple[List[Dict], Dict]:
+    trace = {
+        "source_scoped_scan_used": False,
+        "source_scoped_scan_reason": "source_scope_required",
+        "selected_anchors": anchors,
+        "anchor_frequency_by_source": {},
+        "rare_anchor_candidates": [],
+        "window_candidates_added": 0,
+        "window_debug": [],
+    }
+    if source_id is None:
+        return [], trace
+
+    source_chunks = get_chunks_for_enrichment(source_id)
+    if not source_chunks:
+        trace["source_scoped_scan_reason"] = "no_chunks_for_source"
+        return [], trace
+
+    trace["source_scoped_scan_used"] = True
+    trace["source_scoped_scan_reason"] = "ok"
+    chunk_count = len(source_chunks)
+    anchor_frequency: Dict[str, int] = {}
+    tokenized_query_terms = set(_tokenize_text(query_text))
+    causal_terms = {"because", "challenging", "dominated", "making", "hard", "difficult", "saturated", "rank"}
+
+    for anchor in anchors:
+        anchor_frequency[anchor] = sum(1 for chunk in source_chunks if anchor in str(chunk.get("chunk_text", "")).lower())
+
+    trace["anchor_frequency_by_source"] = {str(source_id): anchor_frequency}
+    rare_anchors = [
+        anchor
+        for anchor, hit_count in anchor_frequency.items()
+        if hit_count > 0 and (hit_count <= 3 or hit_count < 10 or (chunk_count and (hit_count / chunk_count) <= 0.01))
+    ]
+    if not rare_anchors and request.force_rare_keyword_scan:
+        rare_anchors = anchors[:2]
+    trace["rare_anchor_candidates"] = rare_anchors
+    if not rare_anchors:
+        trace["source_scoped_scan_reason"] = "no_rare_anchors_detected"
+        return [], trace
+
+    chunk_by_index = {int(chunk["chunk_index"]): chunk for chunk in source_chunks}
+    candidate_scores: Dict[int, float] = {}
+    window_debug: List[Dict] = []
+
+    for chunk in source_chunks:
+        haystack = str(chunk.get("chunk_text", "")).lower()
+        matched_anchors = [anchor for anchor in rare_anchors if anchor in haystack]
+        if not matched_anchors:
+            continue
+
+        lexical_overlap = len(tokenized_query_terms & set(_tokenize_text(haystack)))
+        causal_bonus = 0.05 if any(term in haystack for term in causal_terms) else 0.0
+        base_score = min(0.36, 0.12 + (len(matched_anchors) * 0.04) + min(0.08, lexical_overlap * 0.01) + causal_bonus)
+        chunk_id = int(chunk["id"])
+        candidate_scores[chunk_id] = max(candidate_scores.get(chunk_id, 0.0), base_score)
+
+        chunk_index = int(chunk["chunk_index"])
+        neighbors_added = []
+        if request.expand_neighbors:
+            for offset, bonus in [(-1, 0.08), (1, 0.08)]:
+                neighbor = chunk_by_index.get(chunk_index + offset)
+                if neighbor is None:
+                    continue
+                neighbor_id = int(neighbor["id"])
+                neighbor_score = min(0.24, base_score * 0.7 + bonus)
+                candidate_scores[neighbor_id] = max(candidate_scores.get(neighbor_id, 0.0), neighbor_score)
+                neighbors_added.append(neighbor_id)
+
+        window_debug.append(
+            {
+                "chunk_id": chunk_id,
+                "chunk_index": chunk_index,
+                "matched_anchors": matched_anchors,
+                "score": round(base_score, 4),
+                "neighbors_added": neighbors_added,
+            }
+        )
+
+    ranked_chunk_ids = [
+        chunk_id
+        for chunk_id, _score in sorted(candidate_scores.items(), key=lambda item: (-item[1], item[0]))[: max(k * 3, 12)]
+    ]
+    materialized = fetch_chunks_by_ids(ranked_chunk_ids)
+    score_by_chunk_id = {chunk_id: score for chunk_id, score in candidate_scores.items()}
+    supplemental_results: List[Dict] = []
+    for item in materialized:
+        supplemental_results.append(
+            {
+                **item,
+                "distance": item.get("distance"),
+                "vector_score": 0.0,
+                "keyword_score": 0.0,
+                "rank_score": 0.0,
+                "combined_score": round(float(score_by_chunk_id.get(item["chunk_id"], 0.0)), 4),
+                "anchor_window_candidate": True,
+            }
+        )
+
+    trace["window_candidates_added"] = len(supplemental_results)
+    trace["window_debug"] = window_debug[:8]
+    return supplemental_results, trace
+
+
+def _run_deep_research_mode(*, request: SearchRequest, source_type: Optional[str], source_id: Optional[int], source_part_id: Optional[int], locator_filter: Optional[str]) -> tuple[List[Dict], dict]:
+    query_text = _resolve_query_text(request)
+    anchors = _combined_anchor_terms(request, query_text)
+    vector_query = embed_texts([query_text])[0]
+    vector_k = max(request.k * 4, settings.VECTOR_CANDIDATES, DEEP_LOOKUP_VECTOR_CANDIDATES)
+    keyword_k = max(request.k * 5, settings.KEYWORD_CANDIDATES, DEEP_LOOKUP_KEYWORD_CANDIDATES)
+
+    vector_results = search_chunks(
+        query_vector=vector_query,
+        k=vector_k,
+        source_type=source_type,
+        source_id=source_id,
+        source_part_id=source_part_id,
+        locator_filter=locator_filter,
+    )
+    keyword_results = search_chunks_keyword(
+        query_text=query_text,
+        k=keyword_k,
+        source_type=source_type,
+        source_id=source_id,
+        source_part_id=source_part_id,
+        locator_filter=locator_filter,
+    )
+
+    supplemental_keyword_results: List[Dict] = []
+    if request.force_rare_keyword_scan or anchors:
+        anchor_query = " ".join(anchors[:8]) if anchors else query_text
+        supplemental_keyword_results = search_chunks_keyword(
+            query_text=anchor_query,
+            k=keyword_k,
+            source_type=source_type,
+            source_id=source_id,
+            source_part_id=source_part_id,
+            locator_filter=locator_filter,
+        )
+
+    merged_keyword_results = keyword_results
+    if supplemental_keyword_results:
+        ranked = {item["chunk_id"]: dict(item) for item in keyword_results}
+        for item in supplemental_keyword_results:
+            ranked.setdefault(item["chunk_id"], dict(item))
+            ranked[item["chunk_id"]]["rank_score"] = max(
+                float(ranked[item["chunk_id"]].get("rank_score") or 0.0),
+                float(item.get("rank_score") or 0.0),
+            )
+        merged_keyword_results = list(ranked.values())
+        merged_keyword_results.sort(key=lambda item: (-float(item.get("rank_score") or 0.0), item.get("chunk_index", 0)))
+
+    effective_k = max(request.k * 4, settings.TOP_K_INITIAL if settings.RERANK_ENABLED else request.k)
+    merged = merge_hybrid_results(
+        vector_results=vector_results,
+        keyword_results=merged_keyword_results,
+        k=effective_k,
+        alpha=DEEP_LOOKUP_HYBRID_ALPHA,
+    )
+    merged = _apply_anchor_boost_with_terms(anchors=anchors, raw_results=merged)
+    anchor_window_results, anchor_window_trace = _build_anchor_window_candidates(
+        request=request,
+        source_id=source_id,
+        query_text=query_text,
+        anchors=anchors,
+        k=request.k,
+    )
+    merged = _integrate_supplemental_results(
+        baseline_results=merged,
+        supplemental_results=anchor_window_results,
+        k=max(effective_k, request.k * 4),
+    )
+    merged = _expand_neighbor_context(raw_results=merged, request=request, k=request.k * 2)
+
+    return merged, {
+        "deep_research_used": True,
+        "effective_query": query_text,
+        "anchor_terms_used": anchors,
+        "force_rare_keyword_scan": request.force_rare_keyword_scan,
+        "neighbor_expansion_used": request.expand_neighbors,
+        "vector_candidates": len(vector_results),
+        "keyword_candidates": len(keyword_results),
+        "supplemental_keyword_candidates": len(supplemental_keyword_results),
+        **anchor_window_trace,
+    }
+
+
+def _apply_graph_and_temporal_layers(*, request: SearchRequest, resolved_mode: str, source_id: Optional[int], raw_results: List[Dict], effective_k: int) -> tuple[List[Dict], str, dict]:
     response_mode = "hybrid"
+    trace = {
+        "graph_used": False,
+        "graph_reason": "not_requested",
+        "temporal_used": False,
+        "temporal_reason": "not_requested",
+    }
     if resolved_mode not in {"graph_hybrid", "full"}:
-        return raw_results, response_mode
+        return raw_results, response_mode, trace
 
     graph_result = retrieve_graph_candidates(
         question=request.question,
         source_id=source_id,
         baseline_candidates=raw_results,
     )
+    trace["graph_reason"] = graph_result.reason
     if graph_result.enabled and graph_result.candidates:
         raw_results = _integrate_graph_candidates(
             baseline_results=raw_results,
@@ -433,6 +775,7 @@ def _apply_graph_and_temporal_layers(*, request: SearchRequest, resolved_mode: s
             k=effective_k,
         )
         response_mode = resolved_mode
+        trace["graph_used"] = True
         log_event(
             "search.graph_applied",
             source_id=source_id,
@@ -459,8 +802,12 @@ def _apply_graph_and_temporal_layers(*, request: SearchRequest, resolved_mode: s
             response_mode = "full"
         elif any(item.get("temporal_score", 0.0) > 0 for item in raw_results):
             response_mode = "full"
+            trace["temporal_used"] = True
+            trace["temporal_reason"] = "query_temporal_signals_matched"
+        else:
+            trace["temporal_reason"] = "no_temporal_query_match_or_metadata"
 
-    return raw_results, response_mode
+    return raw_results, response_mode, trace
 
 
 def _materialize_search_results(*, raw_results: List[Dict], resolved_mode: str, debug: bool) -> List[SearchResultItem]:
@@ -511,6 +858,22 @@ def perform_search(request: SearchRequest) -> SearchResponse:
         reason=route_decision.reason,
     )
 
+    retrieval_trace = {
+        "requested_mode": request.mode,
+        "resolved_mode": resolved_mode,
+        "retrieval_path_used": resolved_mode,
+        "route_reason": route_decision.reason,
+        "deep_research_requested": request.deep_research,
+        "deep_research_used": False,
+        "effective_query": _resolve_query_text(request),
+        "anchor_terms_requested": _normalize_anchor_terms(request.anchor_terms),
+        "fallback_reason": None,
+        "graph_used": False,
+        "temporal_used": False,
+        "graph_reason": "not_requested",
+        "temporal_reason": "not_requested",
+    }
+
     lazy_result = None
     if resolved_mode == "full":
         lazy_result = ensure_lazy_full_mode_readiness(source_id=source_id)
@@ -524,7 +887,28 @@ def perform_search(request: SearchRequest) -> SearchResponse:
         )
 
     try:
-        if resolved_mode == "vector":
+        effective_k = request.k
+        if request.deep_research:
+            raw_results, deep_trace = _run_deep_research_mode(
+                request=request,
+                source_type=source_type,
+                source_id=source_id,
+                source_part_id=source_part_id,
+                locator_filter=locator_filter,
+            )
+            effective_k = max(request.k, settings.TOP_K_INITIAL if settings.RERANK_ENABLED else request.k)
+            retrieval_trace.update(deep_trace)
+            if resolved_mode in {"graph_hybrid", "full"}:
+                raw_results, resolved_mode, graph_trace = _apply_graph_and_temporal_layers(
+                    request=request,
+                    resolved_mode=resolved_mode,
+                    source_id=source_id,
+                    raw_results=raw_results,
+                    effective_k=effective_k,
+                )
+                retrieval_trace.update(graph_trace)
+                retrieval_trace["retrieval_path_used"] = resolved_mode
+        elif resolved_mode == "vector":
             raw_results = _run_vector_mode(
                 request=request,
                 source_type=source_type,
@@ -548,14 +932,17 @@ def perform_search(request: SearchRequest) -> SearchResponse:
                 source_part_id=source_part_id,
                 locator_filter=locator_filter,
             )
-            raw_results, resolved_mode = _apply_graph_and_temporal_layers(
+            raw_results, resolved_mode, graph_trace = _apply_graph_and_temporal_layers(
                 request=request,
                 resolved_mode=resolved_mode,
                 source_id=source_id,
                 raw_results=raw_results,
                 effective_k=effective_k,
             )
+            retrieval_trace.update(graph_trace)
+            retrieval_trace["retrieval_path_used"] = resolved_mode
     except Exception as exc:
+        retrieval_trace["fallback_reason"] = str(exc)
         log_event(
             "search.failed",
             level=40,
@@ -566,13 +953,15 @@ def perform_search(request: SearchRequest) -> SearchResponse:
             resolved_mode=resolved_mode,
             reason=str(exc),
         )
-        return SearchResponse(results=[], latency_ms=int((time.time() - start_time) * 1000), mode=resolved_mode)
+        return SearchResponse(results=[], latency_ms=int((time.time() - start_time) * 1000), mode=resolved_mode, debug_info=retrieval_trace)
 
     if settings.RERANK_ENABLED and raw_results:
         from app.core_rag.reranker import rerank
 
         logger.info(f"Reranking {len(raw_results)} candidates down to {request.k}")
         raw_results = rerank(request.question, raw_results, request.k)
+    elif len(raw_results) > request.k:
+        raw_results = raw_results[: request.k]
 
     results = _materialize_search_results(raw_results=raw_results, resolved_mode=resolved_mode, debug=request.debug)
     log_event(
@@ -589,6 +978,7 @@ def perform_search(request: SearchRequest) -> SearchResponse:
         results=results,
         latency_ms=int((time.time() - start_time) * 1000),
         mode=resolved_mode,
+        debug_info=retrieval_trace,
     )
 
 

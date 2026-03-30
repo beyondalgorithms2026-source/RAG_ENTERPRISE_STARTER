@@ -1,18 +1,23 @@
 import json
 import re
 import time
-from typing import Any, List, Optional
+from typing import Any, Callable, List, Optional
 
 from pydantic import BaseModel, Field
 
 from app.core.logging import log_event, logger
 from app.core_rag.retrieval import SearchFilters, SearchMode, SearchRequest, perform_search
 from app.llm.client import generate_answer
-from app.llm.prompts import REPAIR_PROMPT, SYSTEM_PROMPT, generate_user_prompt
+from app.llm.prompts import REPAIR_PROMPT, SECOND_PASS_PROMPT, SYSTEM_PROMPT, generate_second_pass_prompt, generate_user_prompt
 
 
 MAX_CHUNK_CHARS = 1500
 MAX_TOTAL_CONTEXT_CHARS = 10000
+_STOPWORDS = {
+    "a", "an", "and", "are", "around", "as", "at", "be", "by", "did", "do", "does", "for", "from",
+    "had", "has", "have", "how", "in", "into", "is", "it", "its", "of", "on", "or", "that", "the",
+    "their", "this", "to", "was", "were", "what", "when", "where", "which", "who", "why", "with",
+}
 
 
 class AskRequest(BaseModel):
@@ -21,6 +26,12 @@ class AskRequest(BaseModel):
     filters: Optional[SearchFilters] = None
     mode: Optional[SearchMode] = Field(default=None)
     dry_run: bool = Field(default=False, description="Return the prompt without calling the LLM")
+    deep_research: bool = Field(default=False, description="Use the slower high-recall retrieval path")
+    custom_query: Optional[str] = Field(default=None, description="Optional retrieval-only query override")
+    anchor_terms: List[str] = Field(default_factory=list, description="Optional manual anchor terms")
+    exact_phrase_bias: Optional[str] = Field(default=None, description="Optional exact phrase to prioritize")
+    expand_neighbors: bool = Field(default=False, description="Include neighboring chunks/pages when retrieval context may be split")
+    force_rare_keyword_scan: bool = Field(default=False, description="Run an extra rare-keyword scan inside Deep Research")
 
 
 class CitationItem(BaseModel):
@@ -41,6 +52,7 @@ class AskResponse(BaseModel):
     used_chunks_count: int = 0
     latency_ms: int = 0
     debug_info: Optional[dict[str, Any]] = None
+    mode: Optional[str] = None
 
 
 class CompareRequest(BaseModel):
@@ -114,7 +126,25 @@ def _safe_citation_ids(*, parsed: dict[str, Any], context_blocks: list[dict[str,
     if not isinstance(citations_list, list):
         citations_list = []
     valid_citation_ids = {block["citation_id"] for block in context_blocks}
-    return [citation_id for citation_id in citations_list if citation_id in valid_citation_ids]
+    normalized_from_array = []
+    seen: set[str] = set()
+    for citation_id in citations_list:
+        normalized = str(citation_id or "").strip().upper()
+        if normalized in valid_citation_ids and normalized not in seen:
+            normalized_from_array.append(normalized)
+            seen.add(normalized)
+
+    if normalized_from_array:
+        return normalized_from_array
+
+    answer_text = str(parsed.get("answer", "") or "")
+    inline_ids = []
+    for match in re.findall(r"\[(S\d+)\]", answer_text, flags=re.IGNORECASE):
+        normalized = str(match).upper()
+        if normalized in valid_citation_ids and normalized not in seen:
+            inline_ids.append(normalized)
+            seen.add(normalized)
+    return inline_ids
 
 
 def _materialize_citations(*, citation_ids: list[str], context_blocks: list[dict[str, Any]]) -> list[CitationItem]:
@@ -149,6 +179,104 @@ def _strip_fake_citations(answer_text: str, safe_citations: list[str]) -> str:
     answer_text = re.sub(r"\[(S\d+)\]", strip_fake_citations, answer_text)
     answer_text = re.sub(r" +", " ", answer_text).strip()
     return answer_text
+
+
+def _normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "")).strip()
+
+
+def _question_terms(question: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[A-Za-z0-9]{3,}", str(question or "").lower())
+        if token not in _STOPWORDS
+    }
+
+
+def _clean_sentence_candidate(sentence: str) -> str:
+    sentence = _normalize_text(sentence)
+    sentence = re.sub(r"^[,.;:)\]]+\s*", "", sentence)
+    sentence = re.sub(r"\s+([,.;:?!])", r"\1", sentence)
+    return sentence
+
+
+def _sentence_score(*, sentence: str, question_terms: set[str], chunk_index: int) -> int:
+    lowered = sentence.lower()
+    terms_in_sentence = {token for token in re.findall(r"[A-Za-z0-9]{3,}", lowered) if token not in _STOPWORDS}
+    overlap = len(question_terms & terms_in_sentence)
+    year_mentions = len(re.findall(r"\b(?:19|20)\d{2}\b", sentence))
+    list_bonus = 2 if any(marker in sentence for marker in ("e.g.", "such as", "including", "like ")) else 0
+    length_bonus = 1 if 70 <= len(sentence) <= 320 else 0
+    starts_cleanly = 0 if re.match(r"^[a-z]", sentence) else 2
+    fragment_penalty = -4 if not re.search(r"[.!?]$", sentence) else 0
+    early_chunk_bonus = max(0, 3 - chunk_index)
+    return (overlap * 6) + (year_mentions * 3) + list_bonus + length_bonus + starts_cleanly + fragment_penalty + early_chunk_bonus
+
+
+def _extract_inline_citations(answer_text: str) -> list[str]:
+    seen: set[str] = set()
+    inline_ids: list[str] = []
+    for match in re.findall(r"\[(S\d+)\]", str(answer_text or ""), flags=re.IGNORECASE):
+        normalized = str(match).upper()
+        if normalized not in seen:
+            inline_ids.append(normalized)
+            seen.add(normalized)
+    return inline_ids
+
+
+def _answer_fallback_reason(*, answer_text: str, question: str, safe_citations: list[str]) -> Optional[str]:
+    cleaned = _normalize_text(answer_text)
+    if not cleaned:
+        return "empty_answer"
+    if "not found" in cleaned.lower():
+        return "not_found_answer"
+    if len(cleaned) < 30:
+        return "answer_too_short"
+    if re.match(r"^[a-z]", cleaned):
+        return "answer_starts_mid_sentence"
+    if not safe_citations:
+        return "no_valid_citations"
+    question_terms = _question_terms(question)
+    if question_terms:
+        answer_terms = set(re.findall(r"[A-Za-z0-9]{3,}", cleaned.lower()))
+        if len(question_terms & answer_terms) == 0:
+            return "question_terms_missing"
+    return None
+
+
+def _merge_debug_info(*, retrieval_trace: Optional[dict[str, Any]], answer_generation_path: str, fallback_reason: Optional[str] = None, error: Optional[str] = None, extra: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    debug_info: dict[str, Any] = {}
+    if retrieval_trace:
+        debug_info["retrieval_trace"] = retrieval_trace
+    debug_info["answer_generation_path"] = answer_generation_path
+    debug_info["fallback_reason"] = fallback_reason
+    if error:
+        debug_info["error"] = error
+    if extra:
+        debug_info.update(extra)
+    return debug_info
+
+
+def _generate_second_pass_answer(*, question: str, context_blocks: list[dict[str, Any]], prior_answer: str, fallback_reason: str) -> tuple[Optional[dict[str, Any]], Optional[str]]:
+    if not context_blocks:
+        return None, "no_context_blocks"
+
+    repair_user_prompt = generate_second_pass_prompt(
+        question=question,
+        context_blocks=context_blocks,
+        prior_answer=prior_answer,
+        fallback_reason=fallback_reason,
+    )
+    repair_response = generate_answer(SECOND_PASS_PROMPT, repair_user_prompt)
+    if not repair_response.get("success"):
+        return None, str(repair_response.get("error") or "second_pass_failed")
+
+    parsed = _parse_llm_json(repair_response["content"])
+    if not parsed:
+        parsed = _repair_llm_json(repair_response["content"])
+    if not parsed:
+        return None, "second_pass_json_parse_failed"
+    return parsed, None
 
 
 def _compare_user_prompt(*, question: str, source_blocks: list[dict[str, Any]]) -> str:
@@ -191,23 +319,34 @@ def _group_citations_by_source(citations: list[CitationItem]) -> list[CompareSou
         bucket.citations.append(citation)
     return list(grouped.values())
 
-
-def perform_ask(request: AskRequest) -> AskResponse:
+def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Callable[[int, str], None]] = None) -> AskResponse:
     start_time = time.time()
     log_event("ask.started", stage="ask", status="processing", requested_mode=request.mode)
+    if progress_callback:
+        progress_callback(10, "Searching sources")
     search_request = SearchRequest(
         question=request.question,
         k=request.k_chunks,
         filters=request.filters,
         mode=request.mode,
+        deep_research=request.deep_research,
+        custom_query=request.custom_query,
+        anchor_terms=request.anchor_terms,
+        exact_phrase_bias=request.exact_phrase_bias,
+        expand_neighbors=request.expand_neighbors,
+        force_rare_keyword_scan=request.force_rare_keyword_scan,
     )
     search_response = perform_search(search_request)
     raw_chunks = search_response.results
     context_blocks = _build_context_blocks(raw_chunks)
+    if progress_callback:
+        progress_callback(42, f"Retrieved {len(raw_chunks)} candidate chunks")
 
     user_prompt = generate_user_prompt(request.question, context_blocks)
 
     if request.dry_run:
+        if progress_callback:
+            progress_callback(100, "Prompt assembly complete")
         log_event("ask.completed", stage="ask", status="completed", requested_mode=request.mode, resolved_mode=search_response.mode)
         return AskResponse(
             used_chunks_count=len(context_blocks),
@@ -216,49 +355,120 @@ def perform_ask(request: AskRequest) -> AskResponse:
                 "prompt_length_chars": len(user_prompt),
                 "context_blocks_passed": len(context_blocks),
                 "mode": search_response.mode,
+                "retrieval_trace": search_response.debug_info,
                 "system_prompt": SYSTEM_PROMPT,
                 "user_prompt": user_prompt,
             },
+            mode=search_response.mode,
         )
 
     if not context_blocks:
+        if progress_callback:
+            progress_callback(100, "No grounded context found")
         log_event("ask.completed", stage="ask", status="completed", requested_mode=request.mode, resolved_mode=search_response.mode, reason="no_context")
         return AskResponse(
             answer="Not found in provided sources.",
             used_chunks_count=0,
             latency_ms=int((time.time() - start_time) * 1000),
+            mode=search_response.mode,
+            debug_info={"retrieval_trace": search_response.debug_info},
         )
 
+    if progress_callback:
+        progress_callback(70, "Generating grounded answer")
     llm_response = generate_answer(SYSTEM_PROMPT, user_prompt)
     if not llm_response.get("success"):
+        if progress_callback:
+            progress_callback(100, "Answer generation failed")
         log_event("ask.failed", level=40, stage="ask", status="failed", requested_mode=request.mode, resolved_mode=search_response.mode, reason=str(llm_response.get("error")))
         return AskResponse(
             answer="Not found in provided sources.",
             latency_ms=int((time.time() - start_time) * 1000),
-            debug_info={"error": llm_response.get("error")},
+            debug_info=_merge_debug_info(
+                retrieval_trace=search_response.debug_info,
+                answer_generation_path="not_found",
+                error=str(llm_response.get("error")),
+            ),
+            mode=search_response.mode,
         )
 
     raw_content = llm_response["content"]
+    if progress_callback:
+        progress_callback(84, "Validating citations")
     parsed = _parse_llm_json(raw_content)
     if not parsed:
         parsed = _repair_llm_json(raw_content)
 
     if not parsed:
+        if progress_callback:
+            progress_callback(100, "Answer parsing failed")
         log_event("ask.failed", level=40, stage="ask", status="failed", requested_mode=request.mode, resolved_mode=search_response.mode, reason="json_parse_failed")
         return AskResponse(
             answer="Not found in provided sources.",
             latency_ms=int((time.time() - start_time) * 1000),
-            debug_info={"error": "JSON parse failed on both generation strings"},
+            debug_info=_merge_debug_info(
+                retrieval_trace=search_response.debug_info,
+                answer_generation_path="not_found",
+                error="JSON parse failed on both generation strings",
+            ),
+            mode=search_response.mode,
         )
 
     answer_text = parsed.get("answer", "")
     safe_citations = _safe_citation_ids(parsed=parsed, context_blocks=context_blocks)
     answer_text = _strip_fake_citations(answer_text, safe_citations)
+    answer_generation_path = "llm"
+    fallback_reason = _answer_fallback_reason(
+        answer_text=answer_text,
+        question=request.question,
+        safe_citations=safe_citations,
+    )
+    repair_attempted = False
+    if fallback_reason and context_blocks and "not found" not in answer_text.lower():
+        repair_attempted = True
+        repaired_parsed, repair_error = _generate_second_pass_answer(
+            question=request.question,
+            context_blocks=context_blocks,
+            prior_answer=answer_text,
+            fallback_reason=fallback_reason,
+        )
+        if repaired_parsed:
+            repaired_safe_citations = _safe_citation_ids(parsed=repaired_parsed, context_blocks=context_blocks)
+            repaired_answer_text = _strip_fake_citations(repaired_parsed.get("answer", ""), repaired_safe_citations)
+            repaired_reason = _answer_fallback_reason(
+                answer_text=repaired_answer_text,
+                question=request.question,
+                safe_citations=repaired_safe_citations,
+            )
+            if repaired_reason is None or "not found" in repaired_answer_text.lower():
+                answer_text = repaired_answer_text
+                safe_citations = repaired_safe_citations
+                answer_generation_path = "repair"
+                fallback_reason = fallback_reason
+            else:
+                fallback_reason = f"{fallback_reason}; repair_unsuitable:{repaired_reason}"
+        elif repair_error:
+            fallback_reason = f"{fallback_reason}; repair_error:{repair_error}"
+
     final_citations = _materialize_citations(citation_ids=safe_citations, context_blocks=context_blocks)
+    final_reason = _answer_fallback_reason(
+        answer_text=answer_text,
+        question=request.question,
+        safe_citations=safe_citations,
+    )
 
-    if len(final_citations) == 0 and "not found" not in answer_text.lower():
+    if (repair_attempted and final_reason and "not found" not in str(answer_text).lower()) or (
+        len(final_citations) == 0 and "not found" not in answer_text.lower()
+    ):
         answer_text = "Not found in provided sources."
+        answer_generation_path = "not_found"
+    elif "not found" in str(answer_text).lower():
+        answer_generation_path = "not_found"
+    if answer_generation_path == "not_found":
+        final_citations = []
 
+    if progress_callback:
+        progress_callback(100, "Grounded answer ready")
     log_event("ask.completed", stage="ask", status="completed", requested_mode=request.mode, resolved_mode=search_response.mode)
 
     return AskResponse(
@@ -266,7 +476,17 @@ def perform_ask(request: AskRequest) -> AskResponse:
         citations=final_citations,
         used_chunks_count=len(context_blocks),
         latency_ms=int((time.time() - start_time) * 1000),
+        mode=search_response.mode,
+        debug_info=_merge_debug_info(
+            retrieval_trace=search_response.debug_info,
+            answer_generation_path=answer_generation_path,
+            fallback_reason=fallback_reason,
+        ),
     )
+
+
+def perform_ask(request: AskRequest) -> AskResponse:
+    return _perform_ask_internal(request)
 
 
 def perform_compare(request: CompareRequest) -> CompareResponse:
@@ -379,7 +599,11 @@ def perform_compare(request: CompareRequest) -> CompareResponse:
         return CompareResponse(
             answer="Not found in provided sources.",
             latency_ms=int((time.time() - start_time) * 1000),
-            debug_info={"error": llm_response.get("error")},
+            debug_info=_merge_debug_info(
+                retrieval_trace=None,
+                answer_generation_path="not_found",
+                error=str(llm_response.get("error")),
+            ),
         )
 
     parsed = _parse_llm_json(llm_response["content"])
@@ -390,16 +614,64 @@ def perform_compare(request: CompareRequest) -> CompareResponse:
         return CompareResponse(
             answer="Not found in provided sources.",
             latency_ms=int((time.time() - start_time) * 1000),
-            debug_info={"error": "JSON parse failed on both generation strings"},
+            debug_info=_merge_debug_info(
+                retrieval_trace=None,
+                answer_generation_path="not_found",
+                error="JSON parse failed on both generation strings",
+            ),
         )
 
-    answer_text = _strip_fake_citations(parsed.get("answer", ""), _safe_citation_ids(parsed=parsed, context_blocks=all_context_blocks))
+    safe_citation_ids = _safe_citation_ids(parsed=parsed, context_blocks=all_context_blocks)
+    answer_text = _strip_fake_citations(parsed.get("answer", ""), safe_citation_ids)
+    answer_generation_path = "llm"
+    fallback_reason = _answer_fallback_reason(
+        answer_text=answer_text,
+        question=request.question,
+        safe_citations=safe_citation_ids,
+    )
+    repair_attempted = False
+    if fallback_reason and all_context_blocks and "not found" not in answer_text.lower():
+        repair_attempted = True
+        repaired_parsed, repair_error = _generate_second_pass_answer(
+            question=request.question,
+            context_blocks=all_context_blocks,
+            prior_answer=answer_text,
+            fallback_reason=fallback_reason,
+        )
+        if repaired_parsed:
+            repaired_safe_citation_ids = _safe_citation_ids(parsed=repaired_parsed, context_blocks=all_context_blocks)
+            repaired_answer_text = _strip_fake_citations(repaired_parsed.get("answer", ""), repaired_safe_citation_ids)
+            repaired_reason = _answer_fallback_reason(
+                answer_text=repaired_answer_text,
+                question=request.question,
+                safe_citations=repaired_safe_citation_ids,
+            )
+            if repaired_reason is None or "not found" in repaired_answer_text.lower():
+                answer_text = repaired_answer_text
+                safe_citation_ids = repaired_safe_citation_ids
+                answer_generation_path = "repair"
+            else:
+                fallback_reason = f"{fallback_reason}; repair_unsuitable:{repaired_reason}"
+        elif repair_error:
+            fallback_reason = f"{fallback_reason}; repair_error:{repair_error}"
     final_citations = _materialize_citations(
-        citation_ids=_safe_citation_ids(parsed=parsed, context_blocks=all_context_blocks),
+        citation_ids=safe_citation_ids,
         context_blocks=all_context_blocks,
     )
-    if len(final_citations) == 0 and "not found" not in answer_text.lower():
+    final_reason = _answer_fallback_reason(
+        answer_text=answer_text,
+        question=request.question,
+        safe_citations=safe_citation_ids,
+    )
+    if (repair_attempted and final_reason and "not found" not in str(answer_text).lower()) or (
+        len(final_citations) == 0 and "not found" not in answer_text.lower()
+    ):
         answer_text = "Not found in provided sources."
+        answer_generation_path = "not_found"
+    elif "not found" in str(answer_text).lower():
+        answer_generation_path = "not_found"
+    if answer_generation_path == "not_found":
+        final_citations = []
 
     log_event("compare.completed", stage="compare", status="completed", requested_mode=request.mode)
 
@@ -409,4 +681,9 @@ def perform_compare(request: CompareRequest) -> CompareResponse:
         citations=final_citations,
         used_chunks_count=total_used_chunks,
         latency_ms=int((time.time() - start_time) * 1000),
+        debug_info=_merge_debug_info(
+            retrieval_trace=None,
+            answer_generation_path=answer_generation_path,
+            fallback_reason=fallback_reason,
+        ),
     )

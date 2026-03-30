@@ -1,6 +1,7 @@
 import os
 
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 
 
 CORE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -11,6 +12,12 @@ ENV_FILE_PATH = os.path.join(BACKEND_DIR, ".env")
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(
+        env_file=ENV_FILE_PATH,
+        env_file_encoding="utf-8",
+        extra="ignore"  # Ignore extra fields from .env file
+    )
+
     # Project-isolated fallback used when backend/.env is absent.
     DATABASE_URL: str = "postgresql://rag_enterprise_starter:rag_enterprise_starter_dev_pass@localhost:55432/rag_enterprise_starter"
     UPLOAD_DIR: str = os.path.join(REPO_ROOT, "data", "uploads")
@@ -39,13 +46,22 @@ class Settings(BaseSettings):
     KEYWORD_CANDIDATES: int = 30
 
     # Enrichment flags
-    ENABLE_GRAPH: bool = False
-    ENABLE_TEMPORAL: bool = False
-    ENABLE_ONTOLOGY: bool = False
-    EXTRACT_ENTITIES: bool = False
-    EXTRACT_RELATIONS: bool = False
-    EXTRACT_TEMPORAL_METADATA: bool = False
-    BUILD_GRAPH_ON_INGEST: bool = False
+    #
+    # These are enabled by default so `graph_hybrid` and `full` can use the
+    # richer retrieval stack when the user explicitly selects those modes.
+    #
+    # If you need to reduce ingestion cost, latency, token usage, or overall
+    # infrastructure spend, this is the main area to turn back to False.
+    # Important: changing these flags only affects newly processed or
+    # re-enriched sources. Existing sources need re-ingestion or re-enrichment
+    # before graph/temporal/ontology artifacts become available.
+    ENABLE_GRAPH: bool = True
+    ENABLE_TEMPORAL: bool = True
+    ENABLE_ONTOLOGY: bool = True
+    EXTRACT_ENTITIES: bool = True
+    EXTRACT_RELATIONS: bool = True
+    EXTRACT_TEMPORAL_METADATA: bool = True
+    BUILD_GRAPH_ON_INGEST: bool = True
 
     # Query-time orchestration and routing
     ALLOW_LAZY_ENRICHMENT: bool = True
@@ -56,10 +72,6 @@ class Settings(BaseSettings):
     ENABLE_COMPARISON_VIEW: bool = True
     ENABLE_RETRIEVAL_TRACE: bool = True
     ENABLE_GRAPH_EXPLAINABILITY: bool = True
-
-    class Config:
-        env_file = ENV_FILE_PATH
-        env_file_encoding = "utf-8"
 
 
 settings = Settings()

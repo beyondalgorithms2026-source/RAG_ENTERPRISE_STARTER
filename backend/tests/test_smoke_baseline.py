@@ -9,8 +9,22 @@ class SmokeTestBaseline(SmokeTestBase):
 
     def test_retrieval_models(self):
         filters = SearchFilters(source_type="pdf", source_id=1, source_part_id=2, locator_filter="page 1")
-        request = SearchRequest(question="What is this?", filters=filters, mode="hybrid", debug=True)
+        request = SearchRequest(
+            question="What is this?",
+            filters=filters,
+            mode="hybrid",
+            debug=True,
+            deep_research=True,
+            custom_query="custom retrieval query",
+            anchor_terms=["alpha", "beta"],
+            exact_phrase_bias="exact phrase",
+            expand_neighbors=True,
+            force_rare_keyword_scan=True,
+        )
         self.assertEqual(request.filters.source_type, "pdf")
+        self.assertTrue(request.deep_research)
+        self.assertEqual(request.custom_query, "custom retrieval query")
+        self.assertEqual(request.anchor_terms, ["alpha", "beta"])
 
         item = SearchResultItem(
             chunk_id=1,
@@ -23,11 +37,22 @@ class SmokeTestBaseline(SmokeTestBase):
             snippet="Snippet",
             score=0.9,
         )
-        response = SearchResponse(results=[item], latency_ms=5, mode="hybrid")
+        response = SearchResponse(results=[item], latency_ms=5, mode="hybrid", debug_info={"deep_research_used": True})
         self.assertEqual(response.results[0].file_name, "example.pdf")
+        self.assertTrue(response.debug_info["deep_research_used"])
 
     def test_answering_models(self):
-        request = AskRequest(question="Summarize this", dry_run=True, mode="hybrid")
+        request = AskRequest(
+            question="Summarize this",
+            dry_run=True,
+            mode="hybrid",
+            deep_research=True,
+            custom_query="summary query",
+            anchor_terms=["summary"],
+            exact_phrase_bias="important phrase",
+            expand_neighbors=True,
+            force_rare_keyword_scan=True,
+        )
         citation = CitationItem(
             citation_id="S1",
             source_id=42,
@@ -39,9 +64,10 @@ class SmokeTestBaseline(SmokeTestBase):
             locator="page=1",
             snippet="Snippet",
         )
-        response = AskResponse(answer="Answer [S1]", citations=[citation], used_chunks_count=1, latency_ms=1)
+        response = AskResponse(answer="Answer [S1]", citations=[citation], used_chunks_count=1, latency_ms=1, mode="hybrid")
         self.assertTrue(request.dry_run)
         self.assertEqual(request.mode, "hybrid")
+        self.assertTrue(request.deep_research)
         self.assertEqual(response.citations[0].source_type, "pdf")
         self.assertEqual(response.citations[0].source_part_id, 7)
 
@@ -70,6 +96,25 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertIn("Use only the listed [S#] citation ids", prompt)
         self.assertTrue(SYSTEM_PROMPT)
         self.assertTrue(REPAIR_PROMPT)
+        self.assertTrue(SECOND_PASS_PROMPT)
+
+        second_pass_prompt = generate_second_pass_prompt(
+            question="What is this?",
+            context_blocks=[
+                {
+                    "citation_id": "S1",
+                    "file_name": "example.pdf",
+                    "source_type": "pdf",
+                    "heading": "Intro",
+                    "locator": "page=1",
+                    "snippet": "Snippet text",
+                }
+            ],
+            prior_answer="fragment [S1]",
+            fallback_reason="answer_too_short",
+        )
+        self.assertIn("PRIOR ANSWER TO REPAIR", second_pass_prompt)
+        self.assertIn("REPAIR REASON: answer_too_short", second_pass_prompt)
 
     def test_module_symbols_are_callable_without_runtime_execution(self):
         self.assertTrue(callable(search_chunks))
@@ -81,6 +126,7 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertTrue(callable(is_llm_ready))
         self.assertTrue(callable(verify_llm_ready))
         self.assertTrue(callable(generate_answer))
+        self.assertTrue(callable(generate_second_pass_prompt))
         self.assertTrue(callable(parse_demo_questions))
         self.assertTrue(callable(evaluate_question))
         self.assertTrue(callable(parse_uploaded_source_file))
@@ -92,11 +138,14 @@ class SmokeTestBaseline(SmokeTestBase):
     def test_chunk_pdf_fixture(self):
         parsed = parse_source_bytes("pdf", (FIXTURE_DIR / "sample.pdf").read_bytes(), "sample.pdf")
         chunks = chunk_parsed_document(parsed)
-        self.assertEqual(len(chunks), 2)
+        self.assertGreaterEqual(len(chunks), 3)
         self.assertEqual(chunks[0]["locator_json"]["page"], 1)
         self.assertEqual(chunks[1]["locator_json"]["page"], 2)
         self.assertIn("Page One Text", chunks[0]["chunk_text"])
         self.assertIn("page:1", chunks[0]["section_path"])
+        stitched = [chunk for chunk in chunks if chunk["provenance_json"].get("chunk_strategy") == "pdf_cross_page"]
+        self.assertTrue(stitched)
+        self.assertEqual(stitched[0]["locator_json"]["pages"], [1, 2])
 
     def test_chunk_docx_fixture(self):
         parsed = parse_source_bytes("docx", (FIXTURE_DIR / "sample.docx").read_bytes(), "sample.docx")
@@ -168,9 +217,41 @@ class SmokeTestBaseline(SmokeTestBase):
                 )
                 preview_path = root / "data" / "extracted" / "sample.pdf.chunks.json"
                 self.assertTrue(preview_path.exists())
-                self.assertEqual(result["chunk_count"], 2)
+                self.assertGreaterEqual(result["chunk_count"], 3)
             finally:
                 jobs_module.REPO_ROOT = original_root
+
+    def test_deep_research_trace_reports_anchor_scan_details_for_source_scoped_query(self):
+        seeded = self._seed_seo_anomaly_records()
+        import app.core_rag.retrieval as retrieval_module
+
+        original_embed_texts = retrieval_module.embed_texts
+        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        try:
+            response = perform_search(
+                SearchRequest(
+                    question="Why is it hard for a newcomer to enter this space through SEO?",
+                    k=4,
+                    mode="hybrid",
+                    filters=SearchFilters(source_id=seeded["source_id"]),
+                    deep_research=True,
+                    custom_query="SEO rank aggregators newcomer",
+                    anchor_terms=["SEO", "aggregators"],
+                    expand_neighbors=True,
+                    force_rare_keyword_scan=True,
+                    debug=True,
+                )
+            )
+        finally:
+            retrieval_module.embed_texts = original_embed_texts
+            self._delete_seed_source(seeded["source_id"])
+
+        self.assertTrue(response.debug_info["source_scoped_scan_used"])
+        self.assertEqual(response.debug_info["source_scoped_scan_reason"], "ok")
+        self.assertIn(str(seeded["source_id"]), response.debug_info["anchor_frequency_by_source"])
+        self.assertTrue(response.debug_info["rare_anchor_candidates"])
+        self.assertGreaterEqual(response.debug_info["window_candidates_added"], 1)
+        self.assertTrue(response.debug_info["window_debug"])
 
     def test_process_upload_makes_source_answerable_in_same_flow(self):
         unique_name = f"sample-{uuid4().hex[:8]}.pdf"
@@ -528,6 +609,305 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertGreaterEqual(len(response.results), 2)
         self.assertEqual(response.mode, "hybrid")
         self.assertTrue(all(result.combined_score is not None for result in response.results[:2]))
+
+    def test_keyword_mode_soft_fallback_recovers_split_seo_evidence(self):
+        seeded = self._seed_seo_anomaly_records()
+        try:
+            response = perform_search(
+                SearchRequest(
+                    question="Why is it hard for a newcomer to enter this space through SEO?",
+                    k=5,
+                    mode="keyword",
+                    filters=SearchFilters(source_id=seeded["source_id"]),
+                )
+            )
+        finally:
+            self._delete_seed_source(seeded["source_id"])
+
+        self.assertEqual(response.mode, "keyword")
+        top_ids = [item.chunk_id for item in response.results[:2]]
+        self.assertEqual(
+            top_ids,
+            [
+                seeded["chunk_ids"]["ground_truth_page_1"],
+                seeded["chunk_ids"]["ground_truth_page_2"],
+            ],
+        )
+
+    def test_vector_mode_anchor_boost_surfaces_true_seo_chunks(self):
+        seeded = self._seed_seo_anomaly_records()
+        import app.core_rag.retrieval as retrieval_module
+
+        original_embed_texts = retrieval_module.embed_texts
+        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        try:
+            response = perform_search(
+                SearchRequest(
+                    question="Why is it hard for a newcomer to enter this space through SEO?",
+                    k=4,
+                    mode="vector",
+                    filters=SearchFilters(source_id=seeded["source_id"]),
+                )
+            )
+        finally:
+            retrieval_module.embed_texts = original_embed_texts
+            self._delete_seed_source(seeded["source_id"])
+
+        returned_ids = [item.chunk_id for item in response.results]
+        self.assertEqual(response.mode, "vector")
+        self.assertEqual(returned_ids[0], seeded["chunk_ids"]["ground_truth_page_1"])
+        self.assertIn(seeded["chunk_ids"]["ground_truth_page_2"], returned_ids[:4])
+
+    def test_hybrid_mode_anchor_boost_recovers_true_seo_chunks(self):
+        seeded = self._seed_seo_anomaly_records()
+        import app.core_rag.retrieval as retrieval_module
+
+        original_embed_texts = retrieval_module.embed_texts
+        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        try:
+            response = perform_search(
+                SearchRequest(
+                    question="Why is it hard for a newcomer to enter this space through SEO?",
+                    k=4,
+                    mode="hybrid",
+                    filters=SearchFilters(source_id=seeded["source_id"]),
+                    debug=True,
+                )
+            )
+        finally:
+            retrieval_module.embed_texts = original_embed_texts
+            self._delete_seed_source(seeded["source_id"])
+
+        top_ids = [item.chunk_id for item in response.results[:3]]
+        self.assertEqual(response.mode, "hybrid")
+        self.assertEqual(response.results[0].chunk_id, seeded["chunk_ids"]["ground_truth_page_1"])
+        self.assertIn(seeded["chunk_ids"]["ground_truth_page_2"], top_ids)
+
+    def test_ask_dry_run_uses_ground_truth_seo_chunks_after_hybrid_recovery(self):
+        seeded = self._seed_seo_anomaly_records()
+        import app.core_rag.retrieval as retrieval_module
+        from app.core_rag.answering import perform_ask
+
+        original_embed_texts = retrieval_module.embed_texts
+        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        try:
+            response = perform_ask(
+                AskRequest(
+                    question="Why is it hard for a newcomer to enter this space through SEO?",
+                    k_chunks=3,
+                    mode="hybrid",
+                    filters=SearchFilters(source_id=seeded["source_id"]),
+                    dry_run=True,
+                )
+            )
+        finally:
+            retrieval_module.embed_texts = original_embed_texts
+            self._delete_seed_source(seeded["source_id"])
+
+        prompt = response.debug_info["user_prompt"]
+        self.assertEqual(response.debug_info["mode"], "hybrid")
+        self.assertIn("dominated by large aggregators", prompt)
+        self.assertIn("cracking this space via SEO would be challenging", prompt)
+
+    def test_deep_research_search_returns_trace_metadata_and_uses_custom_query(self):
+        seeded = self._seed_seo_anomaly_records()
+        import app.core_rag.retrieval as retrieval_module
+
+        original_embed_texts = retrieval_module.embed_texts
+        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        try:
+            response = perform_search(
+                SearchRequest(
+                    question="Why is it hard for a newcomer to enter this space through SEO?",
+                    k=4,
+                    mode="hybrid",
+                    filters=SearchFilters(source_id=seeded["source_id"]),
+                    deep_research=True,
+                    custom_query="SEO rank aggregators newcomer",
+                    anchor_terms=["SEO", "aggregators"],
+                    expand_neighbors=True,
+                    force_rare_keyword_scan=True,
+                    debug=True,
+                )
+            )
+        finally:
+            retrieval_module.embed_texts = original_embed_texts
+            self._delete_seed_source(seeded["source_id"])
+
+        self.assertEqual(response.mode, "hybrid")
+        self.assertTrue(response.debug_info["deep_research_used"])
+        self.assertEqual(response.debug_info["effective_query"], "SEO rank aggregators newcomer")
+        self.assertTrue(response.debug_info["neighbor_expansion_used"])
+        self.assertTrue(response.debug_info["force_rare_keyword_scan"])
+        self.assertEqual(response.results[0].chunk_id, seeded["chunk_ids"]["ground_truth_page_1"])
+
+    def test_ask_dry_run_includes_retrieval_trace_for_deep_research(self):
+        seeded = self._seed_seo_anomaly_records()
+        import app.core_rag.retrieval as retrieval_module
+        from app.core_rag.answering import perform_ask
+
+        original_embed_texts = retrieval_module.embed_texts
+        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        try:
+            response = perform_ask(
+                AskRequest(
+                    question="Why is it hard for a newcomer to enter this space through SEO?",
+                    k_chunks=4,
+                    mode="hybrid",
+                    filters=SearchFilters(source_id=seeded["source_id"]),
+                    dry_run=True,
+                    deep_research=True,
+                    custom_query="SEO rank aggregators newcomer",
+                    anchor_terms=["SEO", "aggregators"],
+                    expand_neighbors=True,
+                )
+            )
+        finally:
+            retrieval_module.embed_texts = original_embed_texts
+            self._delete_seed_source(seeded["source_id"])
+
+        self.assertEqual(response.mode, "hybrid")
+        self.assertTrue(response.debug_info["retrieval_trace"]["deep_research_used"])
+        self.assertIn("aggregators", " ".join(response.debug_info["retrieval_trace"]["anchor_terms_used"]))
+
+    def test_answering_recovers_inline_citations_when_citation_array_is_empty(self):
+        seeded = self._seed_seo_anomaly_records()
+        import app.core_rag.retrieval as retrieval_module
+        import app.core_rag.answering as answering_module
+
+        original_embed_texts = retrieval_module.embed_texts
+        original_generate_answer = answering_module.generate_answer
+        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        answering_module.generate_answer = lambda system_prompt, user_prompt: {
+            "success": True,
+            "content": json.dumps(
+                {
+                    "answer": "The market is saturated and large aggregators dominate search results, making it difficult for a newcomer to rank [S1].",
+                    "citations": [],
+                }
+            ),
+        }
+        try:
+            response = answering_module.perform_ask(
+                AskRequest(
+                    question="Why is it hard for a newcomer to enter this space through SEO?",
+                    k_chunks=3,
+                    mode="hybrid",
+                    filters=SearchFilters(source_id=seeded["source_id"]),
+                )
+            )
+        finally:
+            retrieval_module.embed_texts = original_embed_texts
+            answering_module.generate_answer = original_generate_answer
+            self._delete_seed_source(seeded["source_id"])
+
+        self.assertIn("aggregators", response.answer.lower())
+        self.assertTrue(response.citations)
+
+    def test_answering_uses_second_pass_repair_for_fragmented_initial_answer(self):
+        seeded = self._seed_seo_anomaly_records()
+        import app.core_rag.retrieval as retrieval_module
+        import app.core_rag.answering as answering_module
+
+        original_embed_texts = retrieval_module.embed_texts
+        original_generate_answer = answering_module.generate_answer
+        calls = []
+
+        def fake_generate_answer(system_prompt, user_prompt):
+            calls.append((system_prompt, user_prompt))
+            if len(calls) == 1:
+                return {
+                    "success": True,
+                    "content": json.dumps(
+                        {
+                            "answer": "large aggregators dominate search [S1]",
+                            "citations": ["S1"],
+                        }
+                    ),
+                }
+            return {
+                "success": True,
+                "content": json.dumps(
+                    {
+                        "answer": "Large aggregators dominate search visibility, which makes it difficult for a newcomer to rank through SEO [S1].",
+                        "citations": ["S1"],
+                    }
+                ),
+            }
+
+        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        answering_module.generate_answer = fake_generate_answer
+        try:
+            response = answering_module.perform_ask(
+                AskRequest(
+                    question="Why is it hard for a newcomer to enter this space through SEO?",
+                    k_chunks=3,
+                    mode="hybrid",
+                    filters=SearchFilters(source_id=seeded["source_id"]),
+                )
+            )
+        finally:
+            retrieval_module.embed_texts = original_embed_texts
+            answering_module.generate_answer = original_generate_answer
+            self._delete_seed_source(seeded["source_id"])
+
+        self.assertEqual(len(calls), 2)
+        self.assertIn("repairing a grounded answer", calls[1][0].lower())
+        self.assertIn("difficult for a newcomer", response.answer.lower())
+        self.assertEqual(response.debug_info["answer_generation_path"], "repair")
+        self.assertEqual(response.debug_info["fallback_reason"], "answer_starts_mid_sentence")
+
+    def test_answering_returns_not_found_when_repair_cannot_produce_grounded_answer(self):
+        seeded = self._seed_seo_anomaly_records()
+        import app.core_rag.retrieval as retrieval_module
+        import app.core_rag.answering as answering_module
+
+        original_embed_texts = retrieval_module.embed_texts
+        original_generate_answer = answering_module.generate_answer
+        calls = []
+
+        def fake_generate_answer(system_prompt, user_prompt):
+            calls.append((system_prompt, user_prompt))
+            if len(calls) == 1:
+                return {
+                    "success": True,
+                    "content": json.dumps(
+                        {
+                            "answer": "fragment [S1]",
+                            "citations": ["S1"],
+                        }
+                    ),
+                }
+            return {
+                "success": True,
+                "content": json.dumps(
+                    {
+                        "answer": "still fragment [S1]",
+                        "citations": ["S1"],
+                    }
+                ),
+            }
+
+        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        answering_module.generate_answer = fake_generate_answer
+        try:
+            response = answering_module.perform_ask(
+                AskRequest(
+                    question="Why is it hard for a newcomer to enter this space through SEO?",
+                    k_chunks=3,
+                    mode="hybrid",
+                    filters=SearchFilters(source_id=seeded["source_id"]),
+                )
+            )
+        finally:
+            retrieval_module.embed_texts = original_embed_texts
+            answering_module.generate_answer = original_generate_answer
+            self._delete_seed_source(seeded["source_id"])
+
+        self.assertEqual(response.answer, "Not found in provided sources.")
+        self.assertEqual(response.citations, [])
+        self.assertEqual(response.debug_info["answer_generation_path"], "not_found")
+        self.assertIn("repair_unsuitable", response.debug_info["fallback_reason"])
 
     def test_source_type_filter_works(self):
         seeded = self._seed_retrieval_records()

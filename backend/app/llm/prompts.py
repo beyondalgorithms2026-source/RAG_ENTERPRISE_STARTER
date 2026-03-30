@@ -1,9 +1,12 @@
-SYSTEM_PROMPT = """You are an expert Q&A system.
+SYSTEM_PROMPT = """You are an expert grounded Q&A system.
 Answer the user's question using ONLY the provided SOURCE CONTEXT.
 If the answer is not fundamentally present in the sources, you must reply: "Not found in provided sources."
-Cite all claims strictly using the exact designated source brackets, e.g., [S1], [S2].
+Write in normal, complete sentences. Prefer one concise paragraph unless the question clearly requires a list.
+Synthesize across multiple relevant sources or chunks into one coherent answer when needed.
+Do NOT dump raw text or stitch together quotes unless the user explicitly asks for a quote.
+Use only the exact designated source brackets, e.g., [S1], [S2], as lightweight grounding for supported claims.
 Never invent citations, locators, or source metadata.
-Do NOT dump raw text. Be concise, direct, and factual.
+Be concise, direct, factual, and readable.
 
 Return EXACTLY and ONLY valid JSON matching this schema:
 {
@@ -16,6 +19,23 @@ REPAIR_PROMPT = """Your last response was not valid JSON. You MUST reply with ON
 {
   "answer": "...",
   "citations": ["S#"]
+}
+"""
+
+SECOND_PASS_PROMPT = """You are repairing a grounded answer.
+Rewrite the answer as a coherent, concise response using ONLY the provided source context and valid citation ids.
+Requirements:
+- Use normal, complete sentences.
+- Prefer a single readable paragraph unless the question clearly requires a list.
+- Combine relevant evidence across chunks into one answer when appropriate.
+- Do not dump raw excerpts or quote fragments unless the user explicitly asked for a quote.
+- Keep citations lightweight and valid. Use only the provided [S#] ids.
+- If the sources do not support a coherent answer, reply exactly: "Not found in provided sources."
+
+Return EXACTLY and ONLY valid JSON matching this schema:
+{
+  "answer": "Your repaired answer here.",
+  "citations": ["S1", "S2"]
 }
 """
 
@@ -33,4 +53,25 @@ def generate_user_prompt(question: str, context_blocks: list) -> str:
         prompt += f"Text: {block['snippet']}\n\n"
 
     prompt += "Provide the JSON response now based strictly on the above context. Use only the listed [S#] citation ids."
+    return prompt
+
+
+def generate_second_pass_prompt(*, question: str, context_blocks: list, prior_answer: str, fallback_reason: str) -> str:
+    prompt = (
+        f"QUESTION: {question}\n\n"
+        f"PRIOR ANSWER TO REPAIR:\n{prior_answer or '(empty)'}\n\n"
+        f"REPAIR REASON: {fallback_reason}\n\n"
+        "SOURCE CONTEXT:\n"
+    )
+    for block in context_blocks:
+        locator = block.get("locator") or ""
+        prompt += (
+            f"[{block['citation_id']}] File: {block['file_name']} | "
+            f"Source Type: {block['source_type']} | "
+            f"Section: {block['heading']} | "
+            f"Locator: {locator}\n"
+        )
+        prompt += f"Text: {block['snippet']}\n\n"
+
+    prompt += "Repair the answer now using only the listed [S#] citation ids."
     return prompt

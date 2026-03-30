@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Curator-style document intelligence workspace for grounded answers, analysis, and corpus management.">
+    <title>RAG Master</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <div class="brand-row">
+                <span class="brand-mark">Curator</span>
+                <nav class="topnav" aria-label="Primary">
+                    <button type="button" class="nav-tab is-active" data-tab-target="inquiry">Workspace</button>
+                    <button type="button" class="nav-tab" data-tab-target="corpus">Corpus</button>
+                    <button type="button" class="nav-tab" data-tab-target="analysis">Analysis</button>
+                    <button type="button" class="nav-tab" data-tab-target="settings">Settings</button>
+                </nav>
+            </div>
+            <div class="topbar-actions">
+                <div class="status-pill" id="backend-health">
+                    <span class="status-dot"></span>
+                    <span>Checking backend...</span>
+                </div>
+                <button type="button" class="icon-button" aria-label="Notifications">
+                    <span class="material-symbols-outlined">notifications</span>
+                </button>
+                <div class="avatar-badge" aria-hidden="true">RM</div>
+            </div>
+        </div>
+        <div class="topbar-rule"></div>
+    </header>
+
+    <main class="canvas-shell">
+        <section class="screen is-active" data-tab-panel="inquiry">
+            <div class="screen-inner screen-inner-center">
+                <section class="hero-block">
+                    <h1 class="hero-title">What shall we <span>investigate</span> today?</h1>
+                    <p class="hero-subtitle">Synthesizing intelligence across your corpus.</p>
+                </section>
+
+                <section class="search-block">
+                    <div class="search-shell">
+                        <span class="material-symbols-outlined search-icon">search</span>
+                        <label class="search-input-wrap" for="ask-question">
+                            <span class="visually-hidden">Question</span>
+                            <textarea id="ask-question" rows="1" placeholder="Ask a complex question or search files..."></textarea>
+                        </label>
+                        <button id="ask-submit" type="button" class="button-primary">
+                            Analyze
+                            <span class="material-symbols-outlined">arrow_forward</span>
+                        </button>
+                    </div>
+                    <div class="search-meta-row">
+                        <button id="advanced-toggle" type="button" class="advanced-link">Advanced Params</button>
+                        <span class="search-state" id="ask-meta">Ready.</span>
+                    </div>
+                    <div class="message-slot hidden" id="deep-research-warning"></div>
+                    <div class="message-slot" id="ask-message"></div>
+                    <div class="advanced-panel hidden" id="advanced-panel">
+                        <div class="advanced-grid">
+                            <div class="advanced-column">
+                                <label class="field">
+                                    <span>Retrieval Strategy</span>
+                                    <select id="ask-mode">
+                                        <option value="hybrid">Hybrid</option>
+                                        <option value="vector">Semantic</option>
+                                        <option value="keyword">Keyword</option>
+                                        <option value="graph_hybrid">Graph Hybrid</option>
+                                        <option value="full">Full</option>
+                                    </select>
+                                </label>
+                                <div class="mode-guide" id="mode-guide">
+                                    <button type="button" class="mode-chip is-active" data-mode-option="hybrid" data-tooltip="Combines semantic and keyword retrieval. Best default for most questions.">Hybrid</button>
+                                    <button type="button" class="mode-chip" data-mode-option="vector" data-tooltip="Finds meaning-similar passages even when the wording differs. Best for broad conceptual questions.">Semantic</button>
+                                    <button type="button" class="mode-chip" data-mode-option="keyword" data-tooltip="Searches exact or near-exact words in the document. Best for names, phrases, and specific terms.">Keyword</button>
+                                    <button type="button" class="mode-chip" data-mode-option="graph_hybrid" data-tooltip="Uses entity and relationship structure when available. Best for relational questions, but not automatically better for every ask.">Graph Hybrid</button>
+                                    <button type="button" class="mode-chip" data-mode-option="full" data-tooltip="Uses the richest stack available, including graph and temporal signals when enabled. Best for complex questions, but slower and not always better.">Full</button>
+                                </div>
+                            </div>
+                            <div class="advanced-column">
+                                <label class="field">
+                                    <span>Source Type Filter</span>
+                                    <select id="ask-source-type">
+                                        <option value="">All supported types</option>
+                                        <option value="pdf">PDF</option>
+                                        <option value="docx">DOCX</option>
+                                        <option value="pptx">PPTX</option>
+                                        <option value="xlsx">XLSX</option>
+                                        <option value="eml">EML</option>
+                                        <option value="txt">TXT</option>
+                                        <option value="md">MD</option>
+                                    </select>
+                                </label>
+                                <label class="field field-small">
+                                    <span>Candidate Window</span>
+                                    <input id="ask-k-chunks" type="number" min="1" max="20" value="6">
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="toggle-list">
+                            <label class="toggle-row">
+                                <input id="ask-dry-run" type="checkbox">
+                                <span>Dry run only. Build the answer prompt without calling the LLM.</span>
+                            </label>
+                            <label class="toggle-row">
+                                <input id="ask-deep-research" type="checkbox">
+                                <span>Deep Research. Use a slower, higher-recall retrieval path for important questions that may be missed by normal retrieval.</span>
+                            </label>
+                        </div>
+
+                        <div class="deep-research-panel hidden" id="deep-research-panel">
+                            <p class="deep-research-copy">Deep Research scans more of the document, can increase system load, and may take significantly longer to answer. Use it only for important questions.</p>
+                            <div class="advanced-grid advanced-grid-tight">
+                                <label class="field">
+                                    <span>Custom Retrieval Query</span>
+                                    <input id="ask-custom-query" type="text" placeholder="SEO rank aggregators newcomer">
+                                </label>
+                                <label class="field">
+                                    <span>Important Terms To Include</span>
+                                    <input id="ask-anchor-terms" type="text" placeholder="SEO, rank, aggregators">
+                                </label>
+                                <label class="field">
+                                    <span>Exact Phrase Bias</span>
+                                    <input id="ask-exact-phrase" type="text" placeholder="free online games">
+                                </label>
+                            </div>
+                            <div class="toggle-list">
+                                <label class="toggle-row">
+                                    <input id="ask-force-rare-keyword-scan" type="checkbox">
+                                    <span>Force rare-keyword scan across the document when uncommon terms matter.</span>
+                                </label>
+                                <label class="toggle-row">
+                                    <input id="ask-expand-neighbors" type="checkbox">
+                                    <span>Expand neighboring chunks or pages when meaning may be split across boundaries.</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="stats-row">
+                    <article class="stat-card">
+                        <span class="stat-label">Corpus Size</span>
+                        <div class="stat-value-row">
+                            <strong id="corpus-total-count">0</strong>
+                            <span id="corpus-total-caption">0 documents</span>
+                        </div>
+                    </article>
+                    <article class="stat-card">
+                        <span class="stat-label">Live Status</span>
+                        <div class="status-value-row">
+                            <span class="live-dot"></span>
+                            <strong id="overview-health-state">Ready</strong>
+                            <span id="overview-last-sync">Awaiting corpus refresh</span>
+                        </div>
+                    </article>
+                </section>
+
+                <section class="threads-block">
+                    <div class="threads-head">
+                        <h2>Recent Threads</h2>
+                        <button type="button" class="plain-link" data-tab-jump="corpus">View Library</button>
+                    </div>
+                    <div class="thread-list" id="recent-inquiries-list">
+                        <article class="thread-row thread-row-empty">
+                            <div>
+                                <h3>No inquiries yet.</h3>
+                                <p>Ask the first grounded question to start a new thread.</p>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="scope-banner hidden" id="ask-source-scope">
+                    <div class="scope-copy">
+                        <span class="eyebrow-label">Scoped Investigation</span>
+                        <strong id="ask-source-scope-label">Source scope not set</strong>
+                        <p>Retrieval will stay inside this source until you clear the scope.</p>
+                    </div>
+                    <button type="button" class="button-secondary" id="ask-source-scope-clear">Clear Scope</button>
+                </section>
+            </div>
+        </section>
+
+        <section class="screen" data-tab-panel="analysis">
+            <div class="screen-inner screen-inner-analysis screen-inner-analysis-stacked">
+                <section class="analysis-main">
+                    <div class="analysis-header">
+                        <span class="eyebrow-label">Current Analysis</span>
+                        <h1 class="analysis-title" id="analysis-current-inquiry">No question submitted yet.</h1>
+                        <div class="analysis-meta-row">
+                            <span class="mode-badge" id="analysis-mode-badge">Hybrid</span>
+                            <div class="answer-state" id="answer-state">No answer yet.</div>
+                        </div>
+                    </div>
+
+                    <div class="progress-card hidden" id="ask-progress">
+                        <div class="progress-meta">
+                            <span id="ask-progress-label">Waiting to start...</span>
+                            <span id="ask-progress-value">0%</span>
+                        </div>
+                        <div class="progress-track" aria-hidden="true">
+                            <span class="progress-fill" id="ask-progress-fill"></span>
+                        </div>
+                    </div>
+
+                    <div class="answer-body hidden" id="answer-body">
+                        <div class="answer-metrics" id="answer-metrics"></div>
+                        <div class="analysis-summary-grid hidden" id="analysis-summary-grid">
+                            <article class="summary-mini-card">
+                                <span class="stat-label">Retrieval Path</span>
+                                <strong id="analysis-summary-path">-</strong>
+                                <span id="analysis-summary-mode-detail">-</span>
+                            </article>
+                            <article class="summary-mini-card">
+                                <span class="stat-label">Source Scope</span>
+                                <strong id="analysis-summary-scope">All sources</strong>
+                                <span id="analysis-summary-counts">No counts yet</span>
+                            </article>
+                            <article class="summary-mini-card">
+                                <span class="stat-label">Fallback</span>
+                                <strong id="analysis-summary-fallback">No fallback reported</strong>
+                                <span id="analysis-summary-latency">-</span>
+                            </article>
+                        </div>
+                        <div class="answer-text" id="answer-text"></div>
+                        <div class="ref-strip hidden" id="answer-ref-strip"></div>
+                        <div class="compare-groups hidden" id="compare-groups"></div>
+                        <pre class="debug-box hidden" id="answer-debug"></pre>
+                    </div>
+                </section>
+
+                <aside class="evidence-drawer evidence-drawer-below">
+                    <div class="evidence-drawer-shell">
+                        <div class="evidence-head">
+                            <span class="eyebrow-label">Evidence</span>
+                            <button type="button" class="plain-link" data-tab-jump="inquiry">New Question</button>
+                        </div>
+                        <div class="preview-placeholder" id="preview-placeholder">
+                            <strong>Evidence will appear here.</strong>
+                            <p>Run an analysis to inspect citations and retrieved passages.</p>
+                        </div>
+                        <div class="evidence-detail hidden" id="evidence-detail">
+                            <div class="evidence-detail-head">
+                                <div>
+                                    <span class="eyebrow-label">Focused Evidence</span>
+                                    <h3 id="evidence-detail-title">No citation selected</h3>
+                                    <p id="evidence-detail-meta">Choose a citation to inspect source context.</p>
+                                </div>
+                                <div class="evidence-detail-actions">
+                                    <button type="button" class="button-secondary" id="evidence-prev">Previous</button>
+                                    <button type="button" class="button-secondary" id="evidence-next">Next</button>
+                                </div>
+                            </div>
+                            <blockquote class="evidence-detail-quote" id="evidence-detail-snippet"></blockquote>
+                            <div class="evidence-context-list hidden" id="evidence-context-list"></div>
+                            <div class="evidence-detail-footer">
+                                <button type="button" class="plain-link" id="evidence-open-source">Open In Corpus</button>
+                            </div>
+                        </div>
+                        <div class="citations-wrap hidden" id="citations-wrap">
+                            <div class="citations-list" id="citations-list"></div>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        <section class="screen" data-tab-panel="corpus">
+            <div class="screen-inner screen-inner-center">
+                <section class="hero-block hero-block-corpus">
+                    <h1 class="hero-title hero-title-small">Your <span>corpus</span>, beautifully organized.</h1>
+                    <p class="hero-subtitle">Upload, inspect, and manage the living archive behind every answer.</p>
+                </section>
+
+                <section class="corpus-top-grid">
+                    <section class="upload-card">
+                        <div class="card-head">
+                            <span class="eyebrow-label">Upload</span>
+                        </div>
+                        <label class="dropzone" id="upload-dropzone" for="upload-file">
+                            <input id="upload-file" type="file" accept=".pdf,.docx,.pptx,.xlsx,.eml,.txt,.md" multiple>
+                            <span class="dropzone-title">Drop files here or choose them</span>
+                            <span class="dropzone-meta">PDF, DOCX, PPTX, XLSX, EML, TXT, MD</span>
+                        </label>
+                        <div class="upload-actions">
+                            <button id="upload-submit" type="button" class="button-primary">Upload Files</button>
+                            <span class="search-state" id="upload-file-name">No files selected</span>
+                        </div>
+                        <div class="message-slot" id="upload-message"></div>
+
+                        <div class="job-card hidden" id="upload-job-card">
+                            <div class="job-card-head">
+                                <strong>Latest ingestion job</strong>
+                                <button id="job-refresh" type="button" class="button-secondary">Refresh Job</button>
+                            </div>
+                            <div class="job-progress" id="job-progress">
+                                <div class="progress-meta">
+                                    <span id="job-progress-label">Waiting for upload...</span>
+                                    <span id="job-progress-value">0%</span>
+                                </div>
+                                <div class="progress-track" aria-hidden="true">
+                                    <span class="progress-fill" id="job-progress-fill"></span>
+                                </div>
+                            </div>
+                            <dl class="job-grid">
+                                <div><dt>Job ID</dt><dd id="job-id">-</dd></div>
+                                <div><dt>Status</dt><dd id="job-status">-</dd></div>
+                                <div><dt>Stage</dt><dd id="job-stage">-</dd></div>
+                                <div><dt>Source</dt><dd id="job-source">-</dd></div>
+                            </dl>
+                            <p class="job-error hidden" id="job-error"></p>
+                        </div>
+                    </section>
+
+                    <section class="corpus-summary">
+                        <div class="summary-card">
+                            <span class="stat-label">Indexed Sources</span>
+                            <strong id="overview-source-count">0</strong>
+                            <span id="overview-ready-count-copy">0 ready</span>
+                        </div>
+                        <div class="summary-card">
+                            <span class="stat-label">Ready</span>
+                            <strong id="corpus-ready-count">0</strong>
+                            <span id="corpus-ready-count-secondary">0</span>
+                        </div>
+                        <div class="summary-card">
+                            <span class="stat-label">Pending</span>
+                            <strong id="corpus-pending-count">0</strong>
+                            <span id="corpus-pending-count-secondary">0</span>
+                        </div>
+                        <div class="summary-card">
+                            <span class="stat-label">Enriched</span>
+                            <strong id="corpus-enriched-count">0</strong>
+                            <span id="corpus-total-count-secondary">0</span>
+                        </div>
+                    </section>
+                </section>
+
+                <section class="corpus-library">
+                    <div class="threads-head">
+                        <h2>Document Library</h2>
+                        <div class="library-actions">
+                            <button id="corpus-refresh" type="button" class="plain-link">Refresh List</button>
+                            <button id="compare-submit" type="button" class="plain-link">Compare Selected</button>
+                        </div>
+                    </div>
+                    <section class="corpus-toolbar">
+                        <label class="field field-inline">
+                            <span>Filter Type</span>
+                            <select id="corpus-filter-type">
+                                <option value="">All types</option>
+                                <option value="pdf">PDF</option>
+                                <option value="docx">DOCX</option>
+                                <option value="pptx">PPTX</option>
+                                <option value="xlsx">XLSX</option>
+                                <option value="eml">EML</option>
+                                <option value="txt">TXT</option>
+                                <option value="md">MD</option>
+                            </select>
+                        </label>
+                        <label class="field field-inline">
+                            <span>Status</span>
+                            <select id="corpus-filter-status">
+                                <option value="">All statuses</option>
+                                <option value="ready">Ready</option>
+                                <option value="processing">Processing</option>
+                                <option value="failed">Failed</option>
+                                <option value="enriched">Enriched</option>
+                            </select>
+                        </label>
+                        <label class="field field-inline corpus-grow">
+                            <span>Compare Question</span>
+                            <input id="compare-question" type="text" placeholder="Compare what these sources say about...">
+                        </label>
+                        <label class="field field-inline">
+                            <span>Mode</span>
+                            <select id="compare-mode">
+                                <option value="hybrid">Hybrid</option>
+                                <option value="vector">Semantic</option>
+                                <option value="keyword">Keyword</option>
+                                <option value="graph_hybrid">Graph Hybrid</option>
+                                <option value="full">Full</option>
+                            </select>
+                        </label>
+                        <label class="toggle-row toggle-row-inline">
+                            <input id="compare-dry-run" type="checkbox">
+                            <span>Dry run</span>
+                        </label>
+                    </section>
+                    <div class="message-slot" id="corpus-message"></div>
+                        <div class="corpus-layout">
+                            <div class="corpus-list" id="corpus-list"></div>
+                            <aside class="corpus-detail hidden" id="corpus-detail">
+                                <p id="corpus-detail-status">Choose a source row to inspect metadata and launch scoped actions.</p>
+                                <div class="detail-pills" id="corpus-detail-pills"></div>
+                            <dl class="detail-grid">
+                                <div><dt>Source ID</dt><dd id="corpus-detail-id">-</dd></div>
+                                <div><dt>Type</dt><dd id="corpus-detail-type">-</dd></div>
+                                <div><dt>Ingestion</dt><dd id="corpus-detail-ingestion">-</dd></div>
+                                <div><dt>Enrichment</dt><dd id="corpus-detail-enrichment">-</dd></div>
+                            </dl>
+                            <div class="detail-actions">
+                                <button type="button" class="button-primary" id="corpus-detail-investigate">Investigate This Source</button>
+                                <a class="button-secondary button-link hidden" id="corpus-detail-open-file" href="#" target="_blank" rel="noopener noreferrer">Open File</a>
+                                <button type="button" class="button-secondary" id="corpus-detail-clear">Clear Selection</button>
+                            </div>
+                            <p class="detail-footnote">Selecting a source lets you launch source-scoped ask and Deep Research from the main workspace.</p>
+                        </aside>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <section class="screen" data-tab-panel="settings">
+            <div class="screen-inner screen-inner-center">
+                <section class="hero-block hero-block-corpus">
+                    <h1 class="hero-title hero-title-small">Operational <span>settings</span> for this workspace.</h1>
+                    <p class="hero-subtitle">Use advanced retrieval intentionally. Richer modes may take longer and are not automatically better.</p>
+                </section>
+
+                <section class="corpus-top-grid">
+                    <section class="upload-card">
+                        <div class="card-head">
+                            <span class="eyebrow-label">System</span>
+                        </div>
+                        <div class="settings-stack">
+                            <article class="settings-row">
+                                <div>
+                                    <h3>Backend status</h3>
+                                    <p>Current health of the running service.</p>
+                                </div>
+                                <strong id="settings-health-status">Checking...</strong>
+                            </article>
+                            <article class="settings-row">
+                                <div>
+                                    <h3>Default retrieval mode</h3>
+                                    <p>Fallback mode when users do not choose one explicitly.</p>
+                                </div>
+                                <strong id="settings-default-mode">hybrid</strong>
+                            </article>
+                            <article class="settings-row">
+                                <div>
+                                    <h3>Reranker</h3>
+                                    <p>Second-stage reranking status for retrieval candidates.</p>
+                                </div>
+                                <strong id="settings-rerank-status">Disabled</strong>
+                            </article>
+                        </div>
+                    </section>
+
+                    <section class="corpus-summary">
+                        <div class="summary-card">
+                            <span class="stat-label">Graph Ready</span>
+                            <strong id="settings-graph-ready-count">0</strong>
+                            <span>sources with graph artifacts</span>
+                        </div>
+                        <div class="summary-card">
+                            <span class="stat-label">Temporal Ready</span>
+                            <strong id="settings-temporal-ready-count">0</strong>
+                            <span>sources with temporal metadata</span>
+                        </div>
+                        <div class="summary-card">
+                            <span class="stat-label">Embedded</span>
+                            <strong id="settings-embedded-count">0</strong>
+                            <span>sources searchable now</span>
+                        </div>
+                        <div class="summary-card">
+                            <span class="stat-label">Enriched</span>
+                            <strong id="settings-enriched-count">0</strong>
+                            <span>sources with advanced metadata</span>
+                        </div>
+                    </section>
+                </section>
+
+                <section class="corpus-library">
+                    <div class="threads-head">
+                        <h2>Retrieval readiness</h2>
+                        <button type="button" class="plain-link" data-tab-jump="inquiry">Back To Workspace</button>
+                    </div>
+                    <div class="settings-grid">
+                        <article class="readiness-card">
+                            <span class="eyebrow-label">Semantic</span>
+                            <h3>Always available</h3>
+                            <p>Best for broad conceptual questions where wording may differ from the source text.</p>
+                        </article>
+                        <article class="readiness-card">
+                            <span class="eyebrow-label">Keyword</span>
+                            <h3>Always available</h3>
+                            <p>Best when names, phrases, exact terms, or narrow domain words matter.</p>
+                        </article>
+                        <article class="readiness-card">
+                            <span class="eyebrow-label">Graph Hybrid</span>
+                            <h3 id="settings-graph-status">Checking...</h3>
+                            <p>Best for relational questions. Helps only when extraction is enabled and graph artifacts exist for the relevant sources.</p>
+                        </article>
+                        <article class="readiness-card">
+                            <span class="eyebrow-label">Full</span>
+                            <h3 id="settings-full-status">Checking...</h3>
+                            <p>Uses the richest retrieval stack available. Slower and not guaranteed to improve every answer.</p>
+                        </article>
+                        <article class="readiness-card">
+                            <span class="eyebrow-label">Deep Research</span>
+                            <h3 id="settings-deep-research-status">Available</h3>
+                            <p>High-recall retrieval for important questions. Slower, heavier, and best used intentionally.</p>
+                        </article>
+                        <article class="readiness-card">
+                            <span class="eyebrow-label">Operator Note</span>
+                            <h3>Use advanced modes intentionally</h3>
+                            <p>Graph, Full, and Deep Research should match the shape of the question. They may take longer and do not necessarily lead to better answers.</p>
+                        </article>
+                    </div>
+                </section>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer-shell">
+        <div class="footer-inner">
+            <span>© 2026 RAG Master Intelligence</span>
+            <div class="footer-links">
+                <span>Privacy</span>
+                <span>Terms</span>
+                <span>Support</span>
+                <span>Documentation</span>
+            </div>
+        </div>
+    </footer>
+
+    <div class="ambient-layer" aria-hidden="true">
+        <div class="ambient-orb ambient-orb-left"></div>
+        <div class="ambient-orb ambient-orb-right"></div>
+    </div>
+
+    <script type="module">
+        import { initUpload } from "./upload.js";
+        import { initCorpus } from "./corpus.js";
+        import { initAsk } from "./ask.js";
+
+        const apiBase = `${window.location.origin}`.replace(/\/+$/, "");
+        const corpus = initCorpus({ apiBase });
+        initUpload({
+            apiBase,
+            refreshCorpus: corpus.refreshCorpus,
+            refreshJob: corpus.refreshJob,
+            showPendingJob: corpus.showPendingJob,
+            setHealth: corpus.setHealth,
+        });
+        initAsk({
+            apiBase,
+            refreshCorpus: corpus.refreshCorpus,
+            setHealth: corpus.setHealth,
+        });
+        corpus.bootstrap();
+    </script>
+</body>
+</html>
