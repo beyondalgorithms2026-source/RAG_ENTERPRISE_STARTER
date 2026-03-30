@@ -54,7 +54,7 @@ from app.ingestion.jobs import (
     process_upload_batch,
 )
 from app.llm.client import generate_answer, is_llm_ready, verify_llm_ready
-from app.llm.prompts import REPAIR_PROMPT, SYSTEM_PROMPT, generate_user_prompt
+from app.llm.prompts import REPAIR_PROMPT, SECOND_PASS_PROMPT, SYSTEM_PROMPT, generate_second_pass_prompt, generate_user_prompt
 from sqlalchemy import text
 
 

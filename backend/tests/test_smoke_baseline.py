@@ -96,6 +96,25 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertIn("Use only the listed [S#] citation ids", prompt)
         self.assertTrue(SYSTEM_PROMPT)
         self.assertTrue(REPAIR_PROMPT)
+        self.assertTrue(SECOND_PASS_PROMPT)
+
+        second_pass_prompt = generate_second_pass_prompt(
+            question="What is this?",
+            context_blocks=[
+                {
+                    "citation_id": "S1",
+                    "file_name": "example.pdf",
+                    "source_type": "pdf",
+                    "heading": "Intro",
+                    "locator": "page=1",
+                    "snippet": "Snippet text",
+                }
+            ],
+            prior_answer="fragment [S1]",
+            fallback_reason="answer_too_short",
+        )
+        self.assertIn("PRIOR ANSWER TO REPAIR", second_pass_prompt)
+        self.assertIn("REPAIR REASON: answer_too_short", second_pass_prompt)
 
     def test_module_symbols_are_callable_without_runtime_execution(self):
         self.assertTrue(callable(search_chunks))
@@ -107,6 +126,7 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertTrue(callable(is_llm_ready))
         self.assertTrue(callable(verify_llm_ready))
         self.assertTrue(callable(generate_answer))
+        self.assertTrue(callable(generate_second_pass_prompt))
         self.assertTrue(callable(parse_demo_questions))
         self.assertTrue(callable(evaluate_question))
         self.assertTrue(callable(parse_uploaded_source_file))
@@ -783,6 +803,111 @@ class SmokeTestBaseline(SmokeTestBase):
 
         self.assertIn("aggregators", response.answer.lower())
         self.assertTrue(response.citations)
+
+    def test_answering_uses_second_pass_repair_for_fragmented_initial_answer(self):
+        seeded = self._seed_seo_anomaly_records()
+        import app.core_rag.retrieval as retrieval_module
+        import app.core_rag.answering as answering_module
+
+        original_embed_texts = retrieval_module.embed_texts
+        original_generate_answer = answering_module.generate_answer
+        calls = []
+
+        def fake_generate_answer(system_prompt, user_prompt):
+            calls.append((system_prompt, user_prompt))
+            if len(calls) == 1:
+                return {
+                    "success": True,
+                    "content": json.dumps(
+                        {
+                            "answer": "large aggregators dominate search [S1]",
+                            "citations": ["S1"],
+                        }
+                    ),
+                }
+            return {
+                "success": True,
+                "content": json.dumps(
+                    {
+                        "answer": "Large aggregators dominate search visibility, which makes it difficult for a newcomer to rank through SEO [S1].",
+                        "citations": ["S1"],
+                    }
+                ),
+            }
+
+        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        answering_module.generate_answer = fake_generate_answer
+        try:
+            response = answering_module.perform_ask(
+                AskRequest(
+                    question="Why is it hard for a newcomer to enter this space through SEO?",
+                    k_chunks=3,
+                    mode="hybrid",
+                    filters=SearchFilters(source_id=seeded["source_id"]),
+                )
+            )
+        finally:
+            retrieval_module.embed_texts = original_embed_texts
+            answering_module.generate_answer = original_generate_answer
+            self._delete_seed_source(seeded["source_id"])
+
+        self.assertEqual(len(calls), 2)
+        self.assertIn("repairing a grounded answer", calls[1][0].lower())
+        self.assertIn("difficult for a newcomer", response.answer.lower())
+        self.assertEqual(response.debug_info["answer_generation_path"], "repair")
+        self.assertEqual(response.debug_info["fallback_reason"], "answer_starts_mid_sentence")
+
+    def test_answering_returns_not_found_when_repair_cannot_produce_grounded_answer(self):
+        seeded = self._seed_seo_anomaly_records()
+        import app.core_rag.retrieval as retrieval_module
+        import app.core_rag.answering as answering_module
+
+        original_embed_texts = retrieval_module.embed_texts
+        original_generate_answer = answering_module.generate_answer
+        calls = []
+
+        def fake_generate_answer(system_prompt, user_prompt):
+            calls.append((system_prompt, user_prompt))
+            if len(calls) == 1:
+                return {
+                    "success": True,
+                    "content": json.dumps(
+                        {
+                            "answer": "fragment [S1]",
+                            "citations": ["S1"],
+                        }
+                    ),
+                }
+            return {
+                "success": True,
+                "content": json.dumps(
+                    {
+                        "answer": "still fragment [S1]",
+                        "citations": ["S1"],
+                    }
+                ),
+            }
+
+        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        answering_module.generate_answer = fake_generate_answer
+        try:
+            response = answering_module.perform_ask(
+                AskRequest(
+                    question="Why is it hard for a newcomer to enter this space through SEO?",
+                    k_chunks=3,
+                    mode="hybrid",
+                    filters=SearchFilters(source_id=seeded["source_id"]),
+                )
+            )
+        finally:
+            retrieval_module.embed_texts = original_embed_texts
+            answering_module.generate_answer = original_generate_answer
+            self._delete_seed_source(seeded["source_id"])
+
+        self.assertEqual(response.answer, "Not found in provided sources.")
+        self.assertEqual(response.citations, [])
+        self.assertEqual(response.debug_info["answer_generation_path"], "not_found")
+        self.assertIn("repair_unsuitable", response.debug_info["fallback_reason"])
 
     def test_source_type_filter_works(self):
         seeded = self._seed_retrieval_records()
