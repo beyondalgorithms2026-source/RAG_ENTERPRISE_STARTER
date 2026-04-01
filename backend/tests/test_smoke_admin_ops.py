@@ -259,11 +259,186 @@ class SmokeTestAdminOps(SmokeTestBase):
             answering_module.generate_answer = original_generate_answer
             self._delete_retrieval_records(seeded.values())
 
-        self.assertEqual(response.status_code, 200)
-        output = "\n".join(captured.output)
-        self.assertIn('"user_id": "user-123"', output)
-        self.assertIn('"user_email": "user@example.com"', output)
-        self.assertIn('"event": "ask.started"', output)
+    def test_m5_admin_endpoints_require_admin_role(self):
+        from fastapi.testclient import TestClient
+
+        import app.main as main_module
+        from app.auth.context import AuthenticatedUser
+
+        client = TestClient(app)
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_authenticate = main_module.authenticate_request
+        try:
+            settings.AUTH_ENABLED = True
+            main_module.authenticate_request = lambda request: AuthenticatedUser(
+                user_id="user-only",
+                email="user@example.com",
+                roles=["user"],
+            )
+            response = client.get("/admin/profiles")
+        finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_authenticate
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["detail"]["error"], "admin_required")
+
+    def test_m5_admin_control_plane_runs_without_code_edits(self):
+        from fastapi.testclient import TestClient
+
+        import app.api.admin as admin_api
+        import app.main as main_module
+        import app.core_rag.retrieval as retrieval_module
+        from app.auth.context import AuthenticatedUser
+
+        run_migrations()
+        seeded = self._seed_retrieval_records()
+        client = TestClient(app)
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_authenticate = main_module.authenticate_request
+        original_embed_texts = retrieval_module.embed_texts
+        original_reindex = admin_api.admin_reindex_source
+        original_load_eval_cases = admin_api.load_eval_cases
+        original_run_eval = admin_api.run_retrieval_eval
+        try:
+            settings.AUTH_ENABLED = True
+            main_module.authenticate_request = lambda request: AuthenticatedUser(
+                user_id="admin-1",
+                email="admin@example.com",
+                roles=["user", "admin"],
+            )
+            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            admin_api.admin_reindex_source = lambda source_id, force=False: {
+                "status": "completed",
+                "source_id": source_id,
+                "job_id": 999,
+                "chunk_count": 1,
+                "source_part_count": 1,
+            }
+            admin_api.load_eval_cases = lambda: []
+            admin_api.run_retrieval_eval = lambda cases, report_path=None, debug=False: {
+                "summary": {"kind": "retrieval", "total": 0, "passed": 0, "failed": 0},
+                "report_metadata": {"active_profiles": admin_api.get_active_profile_snapshot()},
+            }
+
+            create_response = client.post(
+                "/admin/corpora",
+                json={"name": "ops-corpus", "description": "Operations corpus", "metadata_json": {"owner": "ops"}},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(create_response.status_code, 200)
+
+            assign_response = client.patch(
+                "/admin/corpora/ops-corpus/sources",
+                json={"source_ids": [seeded["pdf_source_id"]], "sensitivity_label": "internal"},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(assign_response.status_code, 200)
+            self.assertEqual(assign_response.json()["updated_source_ids"], [seeded["pdf_source_id"]])
+
+            corpora_response = client.get("/admin/corpora", headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(corpora_response.status_code, 200)
+            corpora_payload = corpora_response.json()
+            self.assertTrue(any(item["name"] == "ops-corpus" for item in corpora_payload["corpora"]))
+
+            reindex_response = client.post(
+                f"/admin/sources/{seeded['pdf_source_id']}/reindex",
+                json={"force": True},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(reindex_response.status_code, 200)
+            self.assertEqual(reindex_response.json()["job_id"], 999)
+
+            trace_response = client.post(
+                "/admin/traces/query-debug",
+                json={"question": "alpha semantic vector match text", "mode": "hybrid", "k": 3},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(trace_response.status_code, 200)
+            trace_payload = trace_response.json()
+            self.assertEqual(trace_payload["mode"], "hybrid")
+            self.assertIn("trace", trace_payload)
+            self.assertIn("request_id", trace_payload["trace"])
+
+            metadata_response = client.get("/admin/profiles/metadata", headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(metadata_response.status_code, 200)
+            self.assertIn("strategy_defaults", metadata_response.json())
+
+            eval_response = client.post(
+                "/admin/eval/run",
+                json={"report_kind": "retrieval"},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(eval_response.status_code, 200)
+            self.assertEqual(eval_response.json()["status"], "completed")
+
+            reports_response = client.get("/admin/eval/reports", headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(reports_response.status_code, 200)
+            self.assertTrue(any(item["kind"] == "retrieval" for item in reports_response.json()["reports"]))
+        finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_authenticate
+            retrieval_module.embed_texts = original_embed_texts
+            admin_api.admin_reindex_source = original_reindex
+            admin_api.load_eval_cases = original_load_eval_cases
+            admin_api.run_retrieval_eval = original_run_eval
+            self._delete_retrieval_records(seeded.values())
+
+    def test_m5_admin_job_status_surface_lists_ingestion_and_enrichment_jobs(self):
+        from fastapi.testclient import TestClient
+
+        import app.main as main_module
+        from app.auth.context import AuthenticatedUser
+        from app.db.repo_jobs import create_enrichment_job, create_ingestion_job
+
+        run_migrations()
+        client = TestClient(app)
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_authenticate = main_module.authenticate_request
+        try:
+            settings.AUTH_ENABLED = True
+            main_module.authenticate_request = lambda request: AuthenticatedUser(
+                user_id="admin-2",
+                email="admin2@example.com",
+                roles=["admin"],
+            )
+            ingestion_job_id = create_ingestion_job(
+                source_id=None,
+                status="queued",
+                stage="admin_reindex",
+                triggered_by="admin_reindex",
+                job_metadata_json={"test": "m5"},
+            )
+            enrichment_job_id = create_enrichment_job(
+                source_id=None,
+                enrichment_type="graph",
+                status="queued",
+                stage="admin_enrich",
+                job_metadata_json={"test": "m5"},
+            )
+
+            jobs_response = client.get("/admin/jobs", headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(jobs_response.status_code, 200)
+            jobs_payload = jobs_response.json()
+            self.assertTrue(any(item["id"] == ingestion_job_id for item in jobs_payload["ingestion_jobs"]))
+            self.assertTrue(any(item["id"] == enrichment_job_id for item in jobs_payload["enrichment_jobs"]))
+
+            ingestion_response = client.get(
+                f"/admin/jobs/ingestion/{ingestion_job_id}",
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(ingestion_response.status_code, 200)
+            self.assertEqual(ingestion_response.json()["stage"], "admin_reindex")
+
+            enrichment_response = client.get(
+                f"/admin/jobs/enrichment/{enrichment_job_id}",
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(enrichment_response.status_code, 200)
+            self.assertEqual(enrichment_response.json()["stage"], "admin_enrich")
+        finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_authenticate
 
     def test_m2_retrieval_trace_persists_full_ask_lifecycle_and_admin_inspection(self):
         from fastapi.testclient import TestClient

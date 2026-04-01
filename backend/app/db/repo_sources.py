@@ -181,6 +181,34 @@ def list_sources() -> List[SourceRow]:
     return [_row_to_source(row) for row in rows]
 
 
+def update_source_admin_fields(
+    source_id: int,
+    *,
+    file_name: Optional[str] = None,
+    sensitivity_label: Optional[str] = None,
+    source_metadata_json: Optional[Dict] = None,
+) -> bool:
+    updates = []
+    params: Dict[str, Any] = {"source_id": source_id}
+    if file_name is not None:
+        updates.append("file_name = :file_name")
+        params["file_name"] = file_name
+    if sensitivity_label is not None:
+        updates.append("sensitivity_label = :sensitivity_label")
+        params["sensitivity_label"] = sensitivity_label
+    if source_metadata_json is not None:
+        updates.append("source_metadata_json = CAST(:source_metadata_json AS jsonb)")
+        params["source_metadata_json"] = json.dumps(source_metadata_json)
+    if not updates:
+        return False
+
+    updates.append("updated_at = now()")
+    sql = text(f"UPDATE sources SET {', '.join(updates)} WHERE id = :source_id")
+    with engine.begin() as conn:
+        result = conn.execute(sql, params)
+    return result.rowcount > 0
+
+
 def delete_source(source_id: int) -> bool:
     sql = text("DELETE FROM sources WHERE id = :source_id")
     with engine.begin() as conn:

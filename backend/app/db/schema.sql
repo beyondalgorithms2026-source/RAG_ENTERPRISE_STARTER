@@ -117,6 +117,14 @@ CREATE TABLE IF NOT EXISTS profiles (
     UNIQUE (profile_type, name)
 );
 
+CREATE TABLE IF NOT EXISTS corpora (
+    name TEXT PRIMARY KEY,
+    description TEXT NOT NULL DEFAULT '',
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS active_profiles (
     profile_type TEXT        PRIMARY KEY,
     profile_name TEXT        NOT NULL,
@@ -155,6 +163,7 @@ CREATE TABLE IF NOT EXISTS document_acl (
 );
 
 CREATE INDEX IF NOT EXISTS profiles_type_idx ON profiles(profile_type);
+CREATE INDEX IF NOT EXISTS corpora_created_at_idx ON corpora(created_at);
 CREATE INDEX IF NOT EXISTS auth_users_external_user_id_idx ON auth_users(external_user_id);
 CREATE INDEX IF NOT EXISTS auth_groups_name_idx ON auth_groups(name);
 CREATE INDEX IF NOT EXISTS user_group_memberships_group_id_idx ON user_group_memberships(group_id);

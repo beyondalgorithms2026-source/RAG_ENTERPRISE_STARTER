@@ -225,6 +225,21 @@ def _create_acl_tables() -> None:
         conn.execute(text(ddl))
 
 
+def _create_corpora_table() -> None:
+    ddl = """
+    CREATE TABLE IF NOT EXISTS corpora (
+        name TEXT PRIMARY KEY,
+        description TEXT NOT NULL DEFAULT '',
+        metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS corpora_created_at_idx ON corpora(created_at);
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def _seed_default_profiles() -> None:
     from app.core.config import settings
     from app.db.repo_profiles import seed_default_profiles
@@ -272,6 +287,11 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P008",
             description="Create authz and ACL tables plus source sensitivity label",
             runner=_create_acl_tables,
+        ),
+        MigrationStep(
+            step_id="MIG-P009",
+            description="Create corpora registry table for admin control plane",
+            runner=_create_corpora_table,
         ),
     ]
 

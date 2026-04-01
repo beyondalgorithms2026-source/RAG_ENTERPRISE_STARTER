@@ -159,6 +159,37 @@ def finish_enrichment_job(job_id: int, *, status: str, error_message: Optional[s
         conn.execute(sql, {"job_id": job_id, "status": status, "error_message": error_message})
 
 
+def get_enrichment_job(job_id: int) -> Optional[EnrichmentJobRow]:
+    sql = text(
+        """
+        SELECT id, source_id, source_part_id, enrichment_type, artifact_version, status, stage, error_message, job_metadata_json
+        FROM enrichment_jobs
+        WHERE id = :job_id
+        """
+    )
+    with engine.connect() as conn:
+        row = conn.execute(sql, {"job_id": job_id}).first()
+    if not row:
+        return None
+    return EnrichmentJobRow(*row)
+
+
+def list_enrichment_jobs(source_id: Optional[int] = None) -> List[EnrichmentJobRow]:
+    sql = """
+        SELECT id, source_id, source_part_id, enrichment_type, artifact_version, status, stage, error_message, job_metadata_json
+        FROM enrichment_jobs
+    """
+    params = {}
+    if source_id is not None:
+        sql += " WHERE source_id = :source_id"
+        params["source_id"] = source_id
+    sql += " ORDER BY created_at DESC, id DESC"
+
+    with engine.connect() as conn:
+        rows = conn.execute(text(sql), params).fetchall()
+    return [EnrichmentJobRow(*row) for row in rows]
+
+
 def create_attachment_link(
     *,
     parent_source_id: int,

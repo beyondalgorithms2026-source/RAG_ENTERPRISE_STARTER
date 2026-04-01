@@ -1,6 +1,6 @@
 # STATUS.md — Milestone Progress Tracker
 
-**Current Milestone:** M5 — Admin API Control Plane
+**Current Milestone:** M6 — Hybrid Fusion Upgrade
 
 **Completed**
 - M0: Baseline Stable Import (baseline-import-stable)
@@ -8,6 +8,14 @@
 - M2: Retrieval Observability And Traceability (2026-04-01)
 - M3: Identity + SSO Auth (2026-04-01)
 - M4: Authorization + ACL Security Trimming (2026-04-01)
+- M5: Admin API Control Plane (2026-04-01)
+
+**M5 summary**
+- Added admin-role enforcement for `/admin/*` so the control plane is no longer reachable by authenticated non-admin users
+- Added corpus registry APIs to create, update, list, and assign sources to corpora without editing code
+- Added admin surfaces for retrieval profile metadata/defaults, query-time retrieval debug traces, eval triggers, report listing, and ingestion/enrichment job inspection
+- Added admin reindex and enrichment trigger endpoints on top of the existing synchronous ingestion/enrichment flows
+- See docs/m5_admin_api_control_plane.md
 
 **M1 summary**
 - DB-backed profile registries: embedding, reranker, LLM, retrieval, eval_pack
@@ -26,9 +34,17 @@
 - See docs/m2_retrieval_observability_and_traceability.md
 
 **Next actions**
-- Start M5: admin API control plane
-- Add admin-only endpoints for eval triggers, report listing, and retrieval debug surfaces
-- Expose retrieval defaults and job status without code edits
+- Start M6: hybrid fusion upgrade
+- Add configurable fusion method support while keeping current linear fusion as the baseline-safe default
+- Extend score traces and eval comparisons for fusion debugging
+
+**Notes / DoD checklist (M5)**
+- [x] Admin can reindex without code changes
+- [x] Admin can run evals and inspect report listings over API
+- [x] Retrieval defaults and active profile metadata are inspectable over API
+- [x] Basic ingestion/enrichment job status surface is available
+- [x] docs/ note added
+- [x] STATUS.md updated
 
 **M4 summary**
 - Added authz data model tables for users, groups, memberships, and document ACL mappings
