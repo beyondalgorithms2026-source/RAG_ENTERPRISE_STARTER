@@ -10,6 +10,7 @@ from app.core.logging import logger
 from app.core_rag.answering import AskRequest
 from app.core_rag.retrieval import DeepLookupRequest, SearchFilters, SearchRequest, perform_deep_lookup, perform_search
 from app.eval.retrieval_eval import PROJECT_ROOT, write_eval_report
+from app.profiles.resolver import get_active_profile_snapshot, get_effective_retrieval
 
 
 EVAL_FIXTURE_DIR = PROJECT_ROOT / "backend" / "tests" / "fixtures" / "eval"
@@ -210,6 +211,8 @@ def _run_mode(case: Dict[str, Any], *, mode: str) -> Dict[str, Any]:
     raw_results: list[dict[str, Any]] = []
     search_latency_ms = None
     search_mode = mode
+    search_trace: dict[str, Any] = {}
+    ask_trace: dict[str, Any] = {}
 
     try:
         if mode == "deep_lookup":
@@ -223,13 +226,17 @@ def _run_mode(case: Dict[str, Any], *, mode: str) -> Dict[str, Any]:
         raw_results = [item.model_dump() for item in search_response.results]
         search_latency_ms = search_response.latency_ms
         search_mode = search_response.mode
+        search_trace = getattr(search_response, "debug_info", None) or {}
     except Exception as exc:
         search_error = str(exc)
 
     answer_payload = None
     ask_latency_ms = None
+    ask_debug_info: dict[str, Any] = {}
     llm_content = _mock_llm_content(case, mode)
-    ask_request = AskRequest(question=question, k_chunks=k_chunks, filters=filters, mode=mode, dry_run=False)
+    ask_request = None
+    if mode != "deep_lookup":
+        ask_request = AskRequest(question=question, k_chunks=k_chunks, filters=filters, mode=mode, dry_run=False)
     if search_error is None and mode != "deep_lookup":
         try:
             with _temporary_value(ask_api_module, "verify_llm_ready", lambda: True):
@@ -244,6 +251,8 @@ def _run_mode(case: Dict[str, Any], *, mode: str) -> Dict[str, Any]:
                         ask_response = ask_endpoint(ask_request)
             answer_payload = ask_response.model_dump()
             ask_latency_ms = ask_response.latency_ms
+            ask_debug_info = ask_response.debug_info or {}
+            ask_trace = (ask_response.debug_info or {}).get("retrieval_trace", {})
         except Exception as exc:
             ask_error = str(exc)
 
@@ -295,6 +304,16 @@ def _run_mode(case: Dict[str, Any], *, mode: str) -> Dict[str, Any]:
             "search": search_error,
             "ask": ask_error,
         },
+        "trace": {
+            "search_request_id": search_trace.get("request_id"),
+            "ask_request_id": ask_trace.get("request_id"),
+            "retrieval_path_used": (ask_trace or search_trace).get("retrieval_path_used"),
+            "candidate_counts": (ask_trace or search_trace).get("candidate_counts", {}),
+            "latency_ms": (ask_trace or search_trace).get("latency_ms", {}),
+            "fallback_reason": (ask_trace or search_trace).get("fallback_reason"),
+            "answer_generation_path": ask_debug_info.get("answer_generation_path"),
+            "score_diagnostics": (ask_trace or search_trace).get("score_diagnostics", []),
+        },
     }
 
 
@@ -344,6 +363,10 @@ def run_mode_benchmark(
             "failed": len(failures),
             "pass_rate_percent": round((passed / total) * 100.0, 2) if total else 0.0,
             "evaluated_modes": evaluated_modes,
+        },
+        "report_metadata": {
+            "active_profiles": get_active_profile_snapshot(),
+            "retrieval_settings": get_effective_retrieval().model_dump(),
         },
         "results": results,
         "failures": failures,

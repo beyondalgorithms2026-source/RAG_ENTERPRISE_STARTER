@@ -2,6 +2,76 @@ from tests.smoke_test_base import *
 
 
 class SmokeTestAdminOps(SmokeTestBase):
+    def test_m2_retrieval_trace_persists_full_ask_lifecycle_and_admin_inspection(self):
+        from fastapi.testclient import TestClient
+
+        from app.core_rag.answering import perform_ask
+        from app.db.migrate import run_migrations
+        from app.db.repo_traces import get_trace
+
+        run_migrations()
+        seeded = self._seed_retrieval_records()
+        client = TestClient(app)
+        import app.core_rag.retrieval as retrieval_module
+        import app.core_rag.answering as answering_module
+
+        original_embed_texts = retrieval_module.embed_texts
+        original_generate_answer = answering_module.generate_answer
+        trace_request_id = None
+        try:
+            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            answering_module.generate_answer = lambda system_prompt, user_prompt: {
+                "success": True,
+                "content": "{\"answer\":\"The answer confirms the alpha semantic vector match text in the retrieved source [S1]\",\"citations\":[\"S1\"]}",
+            }
+            response = perform_ask(
+                AskRequest(
+                    question="alpha semantic vector match text",
+                    k_chunks=2,
+                    mode="hybrid",
+                    filters=SearchFilters(source_id=seeded["pdf_source_id"]),
+                )
+            )
+        finally:
+            retrieval_module.embed_texts = original_embed_texts
+            answering_module.generate_answer = original_generate_answer
+
+        try:
+            trace_request_id = response.debug_info["retrieval_trace"]["request_id"]
+            stored = get_trace(trace_request_id)
+            self.assertIsNotNone(stored)
+            self.assertEqual(stored["request_id"], trace_request_id)
+            self.assertEqual(stored["resolved_mode"], "hybrid")
+            self.assertEqual(stored["retrieval_path"], "hybrid")
+            self.assertEqual(stored["answer_path"], "llm")
+            self.assertIn("pre_rerank", stored["candidate_counts"])
+            self.assertIn("post_rerank", stored["candidate_counts"])
+            self.assertIn("search", stored["latency_ms"])
+            self.assertIn("ask", stored["latency_ms"])
+            self.assertIn("total", stored["latency_ms"])
+            self.assertIn("search_total", stored["latency_ms"])
+            self.assertGreaterEqual(len(stored["score_diagnostics"]), 1)
+
+            by_request = client.get(f"/admin/traces/by-request/{trace_request_id}")
+            self.assertEqual(by_request.status_code, 200)
+            by_request_json = by_request.json()
+            self.assertEqual(by_request_json["trace"]["request_id"], trace_request_id)
+            self.assertEqual(by_request_json["trace"]["answer_path"], "llm")
+            self.assertIn("retrieval", by_request_json["active_profiles"])
+            self.assertIn("hybrid_alpha", by_request_json["retrieval_settings"])
+
+            listing = client.get("/admin/traces", params={"limit": 5})
+            self.assertEqual(listing.status_code, 200)
+            listing_json = listing.json()
+            self.assertTrue(any(item["request_id"] == trace_request_id for item in listing_json["traces"]))
+            self.assertIn("retrieval", listing_json["active_profiles"])
+            self.assertIn("default_mode", listing_json["retrieval_settings"])
+        finally:
+            if trace_request_id:
+                with engine.begin() as conn:
+                    conn.execute(text("DELETE FROM retrieval_traces WHERE request_id = :request_id"), {"request_id": trace_request_id})
+            self._delete_retrieval_records(seeded.values())
+
     def test_m21_structured_logs_exist_for_upload_search_ask_enrich_and_build_graph(self):
         from app.ingestion.jobs import process_upload
         from app.core_rag.answering import perform_ask

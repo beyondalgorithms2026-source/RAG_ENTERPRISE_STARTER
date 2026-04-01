@@ -731,6 +731,10 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         self.assertEqual(report["summary"]["kind"], "retrieval")
         self.assertEqual(report["summary"]["failed"], 0)
         self.assertEqual(set(report["summary"]["evaluated_modes"]), {"vector", "keyword", "hybrid", "graph_hybrid", "full", "deep_lookup"})
+        self.assertIn("report_metadata", report)
+        self.assertIn("active_profiles", report["report_metadata"])
+        self.assertIn("retrieval_settings", report["report_metadata"])
+        self.assertTrue(all("trace" in item for item in report["results"]))
         self.assertTrue(report_path_exists)
 
     def test_m26_deep_lookup_bypasses_router_and_stays_source_scoped(self):
@@ -1001,6 +1005,9 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         self.assertEqual(report["summary"]["kind"], "mode_benchmark")
         self.assertEqual(report["summary"]["total"], 1)
         self.assertEqual(report["summary"]["failed"], 0)
+        self.assertIn("report_metadata", report)
+        self.assertIn("active_profiles", report["report_metadata"])
+        self.assertIn("retrieval_settings", report["report_metadata"])
         mode_names = [item["mode"] for item in report["results"][0]["modes"]]
         self.assertEqual(mode_names, ["vector", "keyword", "hybrid", "graph_hybrid", "full", "deep_lookup"])
         for item in report["results"][0]["modes"]:
@@ -1009,3 +1016,6 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
             self.assertIn("answer_clarity", item)
             self.assertIn("latency_ms", item)
             self.assertIn("failure_mode", item)
+            self.assertIn("trace", item)
+            self.assertIn("latency_ms", item["trace"])
+            self.assertIn("candidate_counts", item["trace"])

@@ -104,3 +104,42 @@ CREATE INDEX IF NOT EXISTS enrichment_jobs_status_idx ON enrichment_jobs(status)
 CREATE INDEX IF NOT EXISTS enrichment_jobs_type_idx ON enrichment_jobs(enrichment_type);
 CREATE INDEX IF NOT EXISTS attachments_parent_source_idx ON attachments(parent_source_id);
 CREATE INDEX IF NOT EXISTS attachments_child_source_idx ON attachments(child_source_id);
+
+CREATE TABLE IF NOT EXISTS profiles (
+    id           BIGSERIAL    PRIMARY KEY,
+    profile_type TEXT         NOT NULL,
+    name         TEXT         NOT NULL,
+    config_json  JSONB        NOT NULL DEFAULT '{}'::jsonb,
+    is_default   BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    UNIQUE (profile_type, name)
+);
+
+CREATE TABLE IF NOT EXISTS active_profiles (
+    profile_type TEXT        PRIMARY KEY,
+    profile_name TEXT        NOT NULL,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS profiles_type_idx ON profiles(profile_type);
+
+CREATE TABLE IF NOT EXISTS retrieval_traces (
+    id              BIGSERIAL    PRIMARY KEY,
+    request_id      TEXT         NOT NULL,
+    question        TEXT         NOT NULL,
+    requested_mode  TEXT,
+    resolved_mode   TEXT         NOT NULL,
+    retrieval_path  TEXT         NOT NULL,
+    candidate_counts JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    fallback_reason TEXT,
+    answer_path     TEXT,
+    latency_ms      JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    score_diagnostics JSONB     NOT NULL DEFAULT '[]'::jsonb,
+    trace_json      JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    active_profiles JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS retrieval_traces_request_id_idx ON retrieval_traces(request_id);
+CREATE INDEX IF NOT EXISTS retrieval_traces_created_at_idx ON retrieval_traces(created_at);

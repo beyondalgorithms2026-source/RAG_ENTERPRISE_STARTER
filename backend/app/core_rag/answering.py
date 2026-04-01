@@ -257,6 +257,50 @@ def _merge_debug_info(*, retrieval_trace: Optional[dict[str, Any]], answer_gener
     return debug_info
 
 
+def _record_answer_trace(
+    *,
+    retrieval_trace: Optional[dict[str, Any]],
+    ask_latency_ms: int,
+    answer_generation_path: str,
+    fallback_reason: Optional[str] = None,
+    error: Optional[str] = None,
+) -> Optional[dict[str, Any]]:
+    if not retrieval_trace:
+        return retrieval_trace
+
+    trace_payload = dict(retrieval_trace)
+    latency_payload = dict(trace_payload.get("latency_ms") or {})
+    if "search_total" not in latency_payload and "total" in latency_payload:
+        latency_payload["search_total"] = latency_payload["total"]
+    latency_payload["ask"] = ask_latency_ms
+    latency_payload["total"] = ask_latency_ms
+    trace_payload["latency_ms"] = latency_payload
+    trace_payload["answer_generation_path"] = answer_generation_path
+    if fallback_reason is not None:
+        trace_payload["fallback_reason"] = fallback_reason
+    if error:
+        trace_payload["answer_error"] = error
+
+    request_id = trace_payload.get("request_id")
+    if not request_id:
+        return trace_payload
+
+    try:
+        from app.db.repo_traces import update_trace
+
+        update_trace(
+            request_id=request_id,
+            answer_path=answer_generation_path,
+            fallback_reason=fallback_reason,
+            latency_ms=latency_payload,
+            trace_json=trace_payload,
+            score_diagnostics=trace_payload.get("score_diagnostics"),
+        )
+    except Exception as exc:
+        logger.debug("Failed to update retrieval trace for ask request: %s", exc)
+    return trace_payload
+
+
 def _generate_second_pass_answer(*, question: str, context_blocks: list[dict[str, Any]], prior_answer: str, fallback_reason: str) -> tuple[Optional[dict[str, Any]], Optional[str]]:
     if not context_blocks:
         return None, "no_context_blocks"
@@ -345,17 +389,23 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
     user_prompt = generate_user_prompt(request.question, context_blocks)
 
     if request.dry_run:
+        ask_latency_ms = int((time.time() - start_time) * 1000)
+        retrieval_trace = _record_answer_trace(
+            retrieval_trace=search_response.debug_info,
+            ask_latency_ms=ask_latency_ms,
+            answer_generation_path="dry_run",
+        )
         if progress_callback:
             progress_callback(100, "Prompt assembly complete")
         log_event("ask.completed", stage="ask", status="completed", requested_mode=request.mode, resolved_mode=search_response.mode)
         return AskResponse(
             used_chunks_count=len(context_blocks),
-            latency_ms=int((time.time() - start_time) * 1000),
+            latency_ms=ask_latency_ms,
             debug_info={
                 "prompt_length_chars": len(user_prompt),
                 "context_blocks_passed": len(context_blocks),
                 "mode": search_response.mode,
-                "retrieval_trace": search_response.debug_info,
+                "retrieval_trace": retrieval_trace,
                 "system_prompt": SYSTEM_PROMPT,
                 "user_prompt": user_prompt,
             },
@@ -363,29 +413,42 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
         )
 
     if not context_blocks:
+        ask_latency_ms = int((time.time() - start_time) * 1000)
+        retrieval_trace = _record_answer_trace(
+            retrieval_trace=search_response.debug_info,
+            ask_latency_ms=ask_latency_ms,
+            answer_generation_path="not_found",
+        )
         if progress_callback:
             progress_callback(100, "No grounded context found")
         log_event("ask.completed", stage="ask", status="completed", requested_mode=request.mode, resolved_mode=search_response.mode, reason="no_context")
         return AskResponse(
             answer="Not found in provided sources.",
             used_chunks_count=0,
-            latency_ms=int((time.time() - start_time) * 1000),
+            latency_ms=ask_latency_ms,
             mode=search_response.mode,
-            debug_info={"retrieval_trace": search_response.debug_info},
+            debug_info={"retrieval_trace": retrieval_trace},
         )
 
     if progress_callback:
         progress_callback(70, "Generating grounded answer")
     llm_response = generate_answer(SYSTEM_PROMPT, user_prompt)
     if not llm_response.get("success"):
+        ask_latency_ms = int((time.time() - start_time) * 1000)
+        retrieval_trace = _record_answer_trace(
+            retrieval_trace=search_response.debug_info,
+            ask_latency_ms=ask_latency_ms,
+            answer_generation_path="not_found",
+            error=str(llm_response.get("error")),
+        )
         if progress_callback:
             progress_callback(100, "Answer generation failed")
         log_event("ask.failed", level=40, stage="ask", status="failed", requested_mode=request.mode, resolved_mode=search_response.mode, reason=str(llm_response.get("error")))
         return AskResponse(
             answer="Not found in provided sources.",
-            latency_ms=int((time.time() - start_time) * 1000),
+            latency_ms=ask_latency_ms,
             debug_info=_merge_debug_info(
-                retrieval_trace=search_response.debug_info,
+                retrieval_trace=retrieval_trace,
                 answer_generation_path="not_found",
                 error=str(llm_response.get("error")),
             ),
@@ -400,14 +463,21 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
         parsed = _repair_llm_json(raw_content)
 
     if not parsed:
+        ask_latency_ms = int((time.time() - start_time) * 1000)
+        retrieval_trace = _record_answer_trace(
+            retrieval_trace=search_response.debug_info,
+            ask_latency_ms=ask_latency_ms,
+            answer_generation_path="not_found",
+            error="JSON parse failed on both generation strings",
+        )
         if progress_callback:
             progress_callback(100, "Answer parsing failed")
         log_event("ask.failed", level=40, stage="ask", status="failed", requested_mode=request.mode, resolved_mode=search_response.mode, reason="json_parse_failed")
         return AskResponse(
             answer="Not found in provided sources.",
-            latency_ms=int((time.time() - start_time) * 1000),
+            latency_ms=ask_latency_ms,
             debug_info=_merge_debug_info(
-                retrieval_trace=search_response.debug_info,
+                retrieval_trace=retrieval_trace,
                 answer_generation_path="not_found",
                 error="JSON parse failed on both generation strings",
             ),
@@ -470,15 +540,22 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
     if progress_callback:
         progress_callback(100, "Grounded answer ready")
     log_event("ask.completed", stage="ask", status="completed", requested_mode=request.mode, resolved_mode=search_response.mode)
+    ask_latency_ms = int((time.time() - start_time) * 1000)
+    retrieval_trace = _record_answer_trace(
+        retrieval_trace=search_response.debug_info,
+        ask_latency_ms=ask_latency_ms,
+        answer_generation_path=answer_generation_path,
+        fallback_reason=fallback_reason,
+    )
 
     return AskResponse(
         answer=answer_text,
         citations=final_citations,
         used_chunks_count=len(context_blocks),
-        latency_ms=int((time.time() - start_time) * 1000),
+        latency_ms=ask_latency_ms,
         mode=search_response.mode,
         debug_info=_merge_debug_info(
-            retrieval_trace=search_response.debug_info,
+            retrieval_trace=retrieval_trace,
             answer_generation_path=answer_generation_path,
             fallback_reason=fallback_reason,
         ),

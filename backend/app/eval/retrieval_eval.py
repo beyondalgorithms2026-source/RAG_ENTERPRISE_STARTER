@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from app.core.logging import logger
 from app.core_rag.retrieval import DeepLookupRequest, SearchRequest, perform_deep_lookup, perform_search
+from app.profiles.resolver import get_active_profile_snapshot, get_effective_retrieval
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -170,6 +171,7 @@ def evaluate_search_case(case: Dict[str, Any], debug: bool = False) -> Dict[str,
     mode_ok = True if not expected_mode else response.mode == expected_mode
     fallback_ok = True if not expected_fallback else response.mode == expected_fallback
     passed = bool(match_info["passed"] and mode_ok and fallback_ok)
+    response_trace = getattr(response, "debug_info", None) or {}
 
     return {
         "id": case.get("id", "unknown"),
@@ -186,6 +188,14 @@ def evaluate_search_case(case: Dict[str, Any], debug: bool = False) -> Dict[str,
         "observed": {
             "top_headings": [item.get("heading") for item in raw_results[:3]],
             "top_source_types": [item.get("source_type") for item in raw_results[:3]],
+        },
+        "trace": {
+            "request_id": response_trace.get("request_id"),
+            "retrieval_path_used": response_trace.get("retrieval_path_used"),
+            "candidate_counts": response_trace.get("candidate_counts", {}),
+            "latency_ms": response_trace.get("latency_ms", {}),
+            "fallback_reason": response_trace.get("fallback_reason"),
+            "score_diagnostics": response_trace.get("score_diagnostics", []),
         },
     }
 
@@ -241,6 +251,11 @@ def run_retrieval_eval(
             "pass_rate_percent": round((passed / total) * 100.0, 2) if total else 0.0,
             "evaluated_modes": evaluated_modes,
         },
+        "report_metadata": {
+            "active_profiles": get_active_profile_snapshot(),
+            "retrieval_settings": get_effective_retrieval().model_dump(),
+        },
+        "active_profiles": get_active_profile_snapshot(),
         "results": results,
         "failures": failures,
     }

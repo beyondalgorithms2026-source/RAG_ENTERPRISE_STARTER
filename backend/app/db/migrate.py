@@ -136,6 +136,60 @@ def _create_vector_index() -> None:
         logger.info("IVFFLAT vector index created successfully.")
 
 
+def _create_profiles_tables() -> None:
+    ddl = """
+    CREATE TABLE IF NOT EXISTS profiles (
+        id           BIGSERIAL    PRIMARY KEY,
+        profile_type TEXT         NOT NULL,
+        name         TEXT         NOT NULL,
+        config_json  JSONB        NOT NULL DEFAULT '{}'::jsonb,
+        is_default   BOOLEAN      NOT NULL DEFAULT FALSE,
+        created_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        updated_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        UNIQUE (profile_type, name)
+    );
+    CREATE TABLE IF NOT EXISTS active_profiles (
+        profile_type TEXT        PRIMARY KEY,
+        profile_name TEXT        NOT NULL,
+        updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS profiles_type_idx ON profiles(profile_type);
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
+def _create_retrieval_traces_table() -> None:
+    ddl = """
+    CREATE TABLE IF NOT EXISTS retrieval_traces (
+        id              BIGSERIAL    PRIMARY KEY,
+        request_id      TEXT         NOT NULL,
+        question        TEXT         NOT NULL,
+        requested_mode  TEXT,
+        resolved_mode   TEXT         NOT NULL,
+        retrieval_path  TEXT         NOT NULL,
+        candidate_counts JSONB       NOT NULL DEFAULT '{}'::jsonb,
+        fallback_reason TEXT,
+        answer_path     TEXT,
+        latency_ms      JSONB       NOT NULL DEFAULT '{}'::jsonb,
+        score_diagnostics JSONB     NOT NULL DEFAULT '[]'::jsonb,
+        trace_json      JSONB       NOT NULL DEFAULT '{}'::jsonb,
+        active_profiles JSONB       NOT NULL DEFAULT '{}'::jsonb,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS retrieval_traces_request_id_idx ON retrieval_traces(request_id);
+    CREATE INDEX IF NOT EXISTS retrieval_traces_created_at_idx ON retrieval_traces(created_at);
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
+def _seed_default_profiles() -> None:
+    from app.core.config import settings
+    from app.db.repo_profiles import seed_default_profiles
+    seed_default_profiles(settings)
+
+
 def _patch_steps() -> list[MigrationStep]:
     return [
         MigrationStep(
@@ -157,6 +211,21 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P004",
             description="Create vector index for chunks.embedding with HNSW/IVFFLAT fallback",
             runner=_create_vector_index,
+        ),
+        MigrationStep(
+            step_id="MIG-P005",
+            description="Create profiles and active_profiles tables",
+            runner=_create_profiles_tables,
+        ),
+        MigrationStep(
+            step_id="MIG-P006",
+            description="Seed default profiles from current settings",
+            runner=_seed_default_profiles,
+        ),
+        MigrationStep(
+            step_id="MIG-P007",
+            description="Create retrieval_traces table for observability",
+            runner=_create_retrieval_traces_table,
         ),
     ]
 
