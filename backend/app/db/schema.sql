@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS sources (
     file_name TEXT NOT NULL,
     storage_path TEXT NOT NULL UNIQUE,
     source_type TEXT NOT NULL,
+    sensitivity_label TEXT NOT NULL DEFAULT 'internal',
     mime_type TEXT,
     hash_sha256 TEXT NOT NULL,
     file_size_bytes BIGINT,
@@ -122,7 +123,42 @@ CREATE TABLE IF NOT EXISTS active_profiles (
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS auth_users (
+    id BIGSERIAL PRIMARY KEY,
+    external_user_id TEXT NOT NULL UNIQUE,
+    email TEXT,
+    display_name TEXT,
+    provider_issuer TEXT,
+    user_metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS auth_groups (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS user_group_memberships (
+    user_id BIGINT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    group_id BIGINT NOT NULL REFERENCES auth_groups(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, group_id)
+);
+
+CREATE TABLE IF NOT EXISTS document_acl (
+    source_id BIGINT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+    group_id BIGINT NOT NULL REFERENCES auth_groups(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (source_id, group_id)
+);
+
 CREATE INDEX IF NOT EXISTS profiles_type_idx ON profiles(profile_type);
+CREATE INDEX IF NOT EXISTS auth_users_external_user_id_idx ON auth_users(external_user_id);
+CREATE INDEX IF NOT EXISTS auth_groups_name_idx ON auth_groups(name);
+CREATE INDEX IF NOT EXISTS user_group_memberships_group_id_idx ON user_group_memberships(group_id);
+CREATE INDEX IF NOT EXISTS document_acl_group_id_idx ON document_acl(group_id);
 
 CREATE TABLE IF NOT EXISTS retrieval_traces (
     id              BIGSERIAL    PRIMARY KEY,

@@ -2,6 +2,269 @@ from tests.smoke_test_base import *
 
 
 class SmokeTestAdminOps(SmokeTestBase):
+    def _seed_acl_records(self):
+        from app.db.repo_acl import assign_document_acl
+
+        suffix = uuid4().hex[:8]
+        with engine.begin() as conn:
+            alpha_source_id = conn.execute(
+                text(
+                    """
+                    INSERT INTO sources (
+                        file_name, storage_path, source_type, sensitivity_label, hash_sha256, file_size_bytes,
+                        ingestion_status, enrichment_status, source_metadata_json
+                    )
+                    VALUES (
+                        :file_name, :storage_path, 'pdf', 'internal', :hash_sha256, 100,
+                        'embedded', 'not_started', CAST(:metadata AS jsonb)
+                    )
+                    RETURNING id
+                    """
+                ),
+                {
+                    "file_name": f"acl-alpha-{suffix}.pdf",
+                    "storage_path": f"tests/acl-alpha-{suffix}.pdf",
+                    "hash_sha256": (suffix + "alpha") * 4,
+                    "metadata": json.dumps({"corpus": "alpha-corpus"}),
+                },
+            ).scalar_one()
+            beta_source_id = conn.execute(
+                text(
+                    """
+                    INSERT INTO sources (
+                        file_name, storage_path, source_type, sensitivity_label, hash_sha256, file_size_bytes,
+                        ingestion_status, enrichment_status, source_metadata_json
+                    )
+                    VALUES (
+                        :file_name, :storage_path, 'pdf', 'confidential', :hash_sha256, 100,
+                        'embedded', 'not_started', CAST(:metadata AS jsonb)
+                    )
+                    RETURNING id
+                    """
+                ),
+                {
+                    "file_name": f"acl-beta-{suffix}.pdf",
+                    "storage_path": f"tests/acl-beta-{suffix}.pdf",
+                    "hash_sha256": (suffix + "beta") * 4,
+                    "metadata": json.dumps({"corpus": "beta-corpus"}),
+                },
+            ).scalar_one()
+
+        insert_chunks(
+            alpha_source_id,
+            [
+                {
+                    "chunk_index": 0,
+                    "heading": "Alpha Restricted",
+                    "section_path": "page:1",
+                    "chunk_text": "alpha acl protected content only for group alpha alphaonlytoken123",
+                    "token_count": 8,
+                    "locator_json": {"page": 1},
+                    "provenance_json": {"test": "acl"},
+                }
+            ],
+        )
+        insert_chunks(
+            beta_source_id,
+            [
+                {
+                    "chunk_index": 0,
+                    "heading": "Beta Restricted",
+                    "section_path": "page:1",
+                    "chunk_text": "beta acl protected content only for group beta betaonlytoken456",
+                    "token_count": 8,
+                    "locator_json": {"page": 1},
+                    "provenance_json": {"test": "acl"},
+                }
+            ],
+        )
+
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text(
+                    """
+                    SELECT id, source_id
+                    FROM chunks
+                    WHERE source_id IN (:alpha_source_id, :beta_source_id)
+                    ORDER BY source_id ASC
+                    """
+                ),
+                {"alpha_source_id": alpha_source_id, "beta_source_id": beta_source_id},
+            ).fetchall()
+        update_chunk_embeddings([(row[0], [1.0] + [0.0] * 383) for row in rows])
+        assign_document_acl(source_id=alpha_source_id, group_names=["group-alpha"])
+        assign_document_acl(source_id=beta_source_id, group_names=["group-beta"])
+        return {"alpha_source_id": alpha_source_id, "beta_source_id": beta_source_id}
+
+    def test_m4_acl_trimming_prevents_cross_group_search_and_citation_leaks(self):
+        from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
+        from app.core_rag.answering import perform_ask
+        from app.db.migrate import run_migrations
+        from app.db.repo_acl import sync_authenticated_user
+
+        run_migrations()
+        seeded = self._seed_acl_records()
+        import app.core_rag.retrieval as retrieval_module
+
+        original_embed_texts = retrieval_module.embed_texts
+        token = None
+        try:
+            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            alpha_user = AuthenticatedUser(user_id="user-alpha", email="alpha@example.com", groups=["group-alpha"], roles=["user"])
+            sync_authenticated_user(alpha_user)
+            token = set_current_user(alpha_user)
+
+            alpha_search = perform_search(SearchRequest(question="alphaonlytoken123", k=5, mode="keyword"))
+            self.assertTrue(alpha_search.results)
+            self.assertTrue(all(item.source_id == seeded["alpha_source_id"] for item in alpha_search.results))
+
+            forbidden_search = perform_search(SearchRequest(question="betaonlytoken456", k=5, mode="keyword"))
+            self.assertTrue(all(item.source_id != seeded["beta_source_id"] for item in forbidden_search.results))
+
+            forbidden_answer = perform_ask(AskRequest(question="betaonlytoken456", k_chunks=3, mode="keyword"))
+            self.assertEqual(forbidden_answer.answer, "Not found in provided sources.")
+            self.assertEqual(forbidden_answer.citations, [])
+            self.assertEqual(forbidden_answer.used_chunks_count, 0)
+        finally:
+            if token is not None:
+                reset_current_user(token)
+            retrieval_module.embed_texts = original_embed_texts
+            self._delete_retrieval_records(seeded.values())
+
+    def test_m4_acl_leak_pack_differentiates_users_and_emits_audit_logs(self):
+        from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
+        from app.db.migrate import run_migrations
+        from app.db.repo_acl import sync_authenticated_user
+
+        run_migrations()
+        seeded = self._seed_acl_records()
+        cases = json.loads((EVAL_FIXTURE_DIR / "acl_leak_cases.json").read_text(encoding="utf-8"))
+        import app.core_rag.retrieval as retrieval_module
+
+        original_embed_texts = retrieval_module.embed_texts
+        try:
+            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            for case in cases:
+                user = AuthenticatedUser(
+                    user_id=case["user_id"],
+                    email=f"{case['user_id']}@example.com",
+                    groups=list(case["groups"]),
+                    roles=["user"],
+                )
+                sync_authenticated_user(user)
+                token = set_current_user(user)
+                try:
+                    with self.assertLogs(logger.name, level="INFO") as captured:
+                        response = perform_search(SearchRequest(question=case["query"], k=5, mode="keyword"))
+                finally:
+                    reset_current_user(token)
+
+                self.assertTrue(response.results)
+                allowed_source_id = seeded[case["allowed_source_key"]]
+                forbidden_source_id = seeded[case["forbidden_source_key"]]
+                self.assertTrue(all(item.source_id == allowed_source_id for item in response.results))
+                self.assertTrue(all(item.source_id != forbidden_source_id for item in response.results))
+                output = "\n".join(captured.output)
+                self.assertIn('"event": "search.audit_access"', output)
+                self.assertIn(f'"user_id": "{case["user_id"]}"', output)
+                self.assertIn('"user_groups":', output)
+                self.assertIn('"doc_ids":', output)
+                self.assertIn('"corpora":', output)
+        finally:
+            retrieval_module.embed_texts = original_embed_texts
+            self._delete_retrieval_records(seeded.values())
+
+    def test_m3_oidc_login_redirect_support_exists(self):
+        from fastapi.testclient import TestClient
+
+        import app.api.auth as auth_api
+
+        client = TestClient(app)
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_build_login_url = auth_api.build_login_url
+        try:
+            settings.AUTH_ENABLED = True
+            auth_api.build_login_url = lambda next_path: ("https://issuer.example.com/authorize?state=fake", "signed-state")
+            response = client.get("/auth/login", params={"next_path": "/frontend/"}, follow_redirects=False)
+        finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            auth_api.build_login_url = original_build_login_url
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["location"], "https://issuer.example.com/authorize?state=fake")
+        self.assertIn(settings.AUTH_STATE_COOKIE_NAME, response.headers.get("set-cookie", ""))
+
+    def test_m3_ask_requires_auth_when_enabled(self):
+        from fastapi.testclient import TestClient
+
+        import app.main as main_module
+
+        client = TestClient(app)
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_verify = main_module.authenticate_request
+        try:
+            settings.AUTH_ENABLED = True
+            main_module.authenticate_request = lambda request: None
+            response = client.post("/ask", json={"question": "Who is authenticated?", "dry_run": True, "mode": "hybrid"})
+        finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_verify
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["detail"]["error"], "authentication_required")
+
+    def test_m3_authenticated_user_identity_appears_in_logs(self):
+        from fastapi.testclient import TestClient
+
+        import app.main as main_module
+        import app.core_rag.retrieval as retrieval_module
+        import app.core_rag.answering as answering_module
+        from app.auth.context import AuthenticatedUser
+
+        seeded = self._seed_retrieval_records()
+        client = TestClient(app)
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_authenticate = main_module.authenticate_request
+        original_embed_texts = retrieval_module.embed_texts
+        original_generate_answer = answering_module.generate_answer
+        try:
+            settings.AUTH_ENABLED = True
+            main_module.authenticate_request = lambda request: AuthenticatedUser(
+                user_id="user-123",
+                email="user@example.com",
+                roles=["user", "admin"],
+                issuer="https://issuer.example.com",
+            )
+            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            answering_module.generate_answer = lambda system_prompt, user_prompt: {
+                "success": True,
+                "content": "{\"answer\":\"The answer confirms the alpha semantic vector match text in the retrieved source [S1]\",\"citations\":[\"S1\"]}",
+            }
+            with self.assertLogs(logger.name, level="INFO") as captured:
+                response = client.post(
+                    "/ask",
+                    json={
+                        "question": "alpha semantic vector match text",
+                        "k_chunks": 2,
+                        "mode": "hybrid",
+                        "dry_run": True,
+                        "filters": {"source_id": seeded["pdf_source_id"]},
+                    },
+                    headers={"Authorization": "Bearer fake-token"},
+                )
+        finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_authenticate
+            retrieval_module.embed_texts = original_embed_texts
+            answering_module.generate_answer = original_generate_answer
+            self._delete_retrieval_records(seeded.values())
+
+        self.assertEqual(response.status_code, 200)
+        output = "\n".join(captured.output)
+        self.assertIn('"user_id": "user-123"', output)
+        self.assertIn('"user_email": "user@example.com"', output)
+        self.assertIn('"event": "ask.started"', output)
+
     def test_m2_retrieval_trace_persists_full_ask_lifecycle_and_admin_inspection(self):
         from fastapi.testclient import TestClient
 

@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
 
+from app.db.repo_acl import current_acl_context
 from app.db.db import engine
 
 
@@ -73,6 +74,25 @@ def _keyword_anchors(query_text: str) -> List[str]:
     return anchors[:8]
 
 
+def _acl_clause(*, params: Dict[str, Any], source_alias: str = "s") -> str:
+    acl_context = current_acl_context()
+    external_user_id = acl_context.get("external_user_id")
+    if external_user_id:
+        params["acl_external_user_id"] = external_user_id
+        return f"""(
+            {source_alias}.sensitivity_label = 'public'
+            OR EXISTS (
+                SELECT 1
+                FROM auth_users au
+                JOIN user_group_memberships ugm ON ugm.user_id = au.id
+                JOIN document_acl da ON da.group_id = ugm.group_id
+                WHERE au.external_user_id = :acl_external_user_id
+                  AND da.source_id = {source_alias}.id
+            )
+        )"""
+    return f"{source_alias}.sensitivity_label = 'public'"
+
+
 def _soft_keyword_results(
     *,
     query_text: str,
@@ -126,6 +146,8 @@ def _soft_keyword_results(
     if locator_filter:
         conditions.append("COALESCE(c.locator_json::text, sp.locator_json::text, '') ILIKE :locator_filter")
         params["locator_filter"] = f"%{locator_filter}%"
+
+    conditions.append(_acl_clause(params=params))
 
     if conditions:
         sql_base += " AND " + " AND ".join(conditions)
@@ -196,6 +218,8 @@ def search_chunks(
         conditions.append("COALESCE(c.locator_json::text, sp.locator_json::text, '') ILIKE :locator_filter")
         params["locator_filter"] = f"%{locator_filter}%"
 
+    conditions.append(_acl_clause(params=params))
+
     if conditions:
         sql_base += " AND " + " AND ".join(conditions)
 
@@ -255,6 +279,8 @@ def search_chunks_keyword(
         conditions.append("COALESCE(c.locator_json::text, sp.locator_json::text, '') ILIKE :locator_filter")
         params["locator_filter"] = f"%{locator_filter}%"
 
+    conditions.append(_acl_clause(params=params))
+
     if conditions:
         sql_base += " AND " + " AND ".join(conditions)
 
@@ -291,8 +317,8 @@ def fetch_chunks_by_ids(chunk_ids: List[int]) -> List[Dict[str, Any]]:
     if not chunk_ids:
         return []
 
-    sql = text(
-        """
+    params = {"chunk_ids": list(chunk_ids)}
+    sql = """
         SELECT
             c.id AS chunk_id,
             c.source_id,
@@ -308,10 +334,10 @@ def fetch_chunks_by_ids(chunk_ids: List[int]) -> List[Dict[str, Any]]:
         JOIN sources s ON c.source_id = s.id
         LEFT JOIN source_parts sp ON c.source_part_id = sp.id
         WHERE c.id = ANY(:chunk_ids)
-        """
-    )
+    """
+    sql += f" AND {_acl_clause(params=params)}"
     with engine.connect() as conn:
-        rows = conn.execute(sql, {"chunk_ids": list(chunk_ids)}).fetchall()
+        rows = conn.execute(text(sql), params).fetchall()
 
     row_by_chunk_id = {row[0]: row for row in rows}
     ordered_results: List[Dict[str, Any]] = []

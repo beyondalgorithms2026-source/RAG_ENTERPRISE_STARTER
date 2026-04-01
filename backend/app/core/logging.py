@@ -5,6 +5,8 @@ from typing import Any
 import os
 from dotenv import load_dotenv
 
+from app.auth.context import get_current_user
+
 # Load .env file so os.getenv() can access variables
 load_dotenv()
 
@@ -34,6 +36,15 @@ def _normalize_log_value(value: Any) -> Any:
 
 def log_event(event: str, *, level: int = logging.INFO, **fields: Any) -> None:
     payload = {"event": event}
+    user = get_current_user()
+    if user is not None:
+        payload["user_id"] = user.user_id
+        if user.email:
+            payload["user_email"] = user.email
+        if user.roles:
+            payload["user_roles"] = list(user.roles)
+        if user.groups:
+            payload["user_groups"] = list(user.groups)
     for key, value in fields.items():
         if value is not None:
             payload[key] = _normalize_log_value(value)

@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.core.logging import log_event, logger
+from app.db.repo_acl import current_acl_context
 from app.core_rag.query_router import QueryRouteDecision, route_query
 from app.profiles.resolver import get_effective_reranker, get_effective_retrieval
 from app.db.repo_chunks import fetch_neighbor_chunks, get_chunks_for_enrichment
@@ -924,6 +925,7 @@ def perform_search(request: SearchRequest) -> SearchResponse:
         "temporal_reason": "not_requested",
         "candidate_counts": {},
         "latency_ms": {},
+        "acl": current_acl_context(),
     }
 
     lazy_result = None
@@ -1048,6 +1050,32 @@ def perform_search(request: SearchRequest) -> SearchResponse:
         resolved_mode=resolved_mode,
         reason=f"results={len(results)}",
     )
+    if results:
+        doc_ids = sorted({item.source_id for item in results})
+        source_rows = get_sources_by_ids(doc_ids)
+        corpora = sorted(
+            {
+                str((source_rows[item.source_id].source_metadata_json or {}).get("corpus") or item.source_type)
+                for item in results
+            }
+        )
+        sensitivity_by_doc = {
+            str(row.id): row.sensitivity_label
+            for row in source_rows.values()
+        }
+        retrieval_trace["acl"]["accessed_doc_ids"] = doc_ids
+        retrieval_trace["acl"]["sensitivity_by_doc"] = sensitivity_by_doc
+        log_event(
+            "search.audit_access",
+            stage="search",
+            status="completed",
+            requested_mode=request.mode,
+            resolved_mode=resolved_mode,
+            doc_ids=doc_ids,
+            corpora=corpora,
+            sensitivity_by_doc=sensitivity_by_doc,
+            groups=current_acl_context().get("groups", []),
+        )
 
     _persist_trace(retrieval_trace=retrieval_trace, question=request.question, score_diagnostics=score_diagnostics)
 

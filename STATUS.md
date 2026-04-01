@@ -1,11 +1,13 @@
 # STATUS.md — Milestone Progress Tracker
 
-**Current Milestone:** M3 — Identity + SSO Auth
+**Current Milestone:** M5 — Admin API Control Plane
 
 **Completed**
 - M0: Baseline Stable Import (baseline-import-stable)
 - M1: Profiles And Retrieval Controls (2026-04-01)
 - M2: Retrieval Observability And Traceability (2026-04-01)
+- M3: Identity + SSO Auth (2026-04-01)
+- M4: Authorization + ACL Security Trimming (2026-04-01)
 
 **M1 summary**
 - DB-backed profile registries: embedding, reranker, LLM, retrieval, eval_pack
@@ -24,9 +26,39 @@
 - See docs/m2_retrieval_observability_and_traceability.md
 
 **Next actions**
-- Start M3: identity and SSO auth
-- Add authenticated user context to request handling
-- Ensure `/ask` requires auth once middleware is wired
+- Start M5: admin API control plane
+- Add admin-only endpoints for eval triggers, report listing, and retrieval debug surfaces
+- Expose retrieval defaults and job status without code edits
+
+**M4 summary**
+- Added authz data model tables for users, groups, memberships, and document ACL mappings
+- Added `sources.sensitivity_label` to support `public` / `internal` / `confidential` style gating
+- Retrieval SQL now trims results at query time based on the authenticated principal’s synced group memberships
+- Chunk fetch paths used for graph/deep-research supplementation also enforce the same ACL predicate
+- Forbidden documents are excluded before answer assembly so citations cannot leak restricted doc ids
+- Search audit logs record user identity, groups, corpus labels, document ids, and sensitivity labels
+- See docs/m4_authorization_and_acl_security_trimming.md
+
+**Notes / DoD checklist (M4)**
+- [x] Two test users with different groups get different retrieval results
+- [x] Forbidden content cannot appear in retrieved chunks nor citations
+- [x] Audit log records user, groups, corpus, doc ids accessed
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**M3 summary**
+- Generic OIDC settings and discovery-based auth support added for Azure AD / Okta / Google Workspace style providers
+- Backend auth middleware validates JWTs from bearer headers or auth cookies and attaches authenticated user context to each request
+- `/auth/login`, `/auth/callback`, `/auth/logout`, `/auth/me`, and `/auth/providers` endpoints added for backend-managed login flow support
+- `/ask` and `/ask/stream` require auth when `AUTH_ENABLED=true`
+- Structured logs now include authenticated user identity and simple mapped roles: `user`, `admin`, `approver`
+- See docs/m3_identity_and_sso_auth.md
+
+**Notes / DoD checklist (M3)**
+- [x] `/ask` requires auth
+- [x] user identity appears in logs/audit events
+- [x] docs/ note added
+- [x] STATUS.md updated
 
 **Notes / DoD checklist (M2)**
 - [x] Operators can explain why a query used a specific retrieval path

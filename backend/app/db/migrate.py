@@ -184,6 +184,47 @@ def _create_retrieval_traces_table() -> None:
         conn.execute(text(ddl))
 
 
+def _create_acl_tables() -> None:
+    ddl = """
+    ALTER TABLE sources ADD COLUMN IF NOT EXISTS sensitivity_label TEXT NOT NULL DEFAULT 'internal';
+    CREATE INDEX IF NOT EXISTS sources_sensitivity_label_idx ON sources(sensitivity_label);
+
+    CREATE TABLE IF NOT EXISTS auth_users (
+        id BIGSERIAL PRIMARY KEY,
+        external_user_id TEXT NOT NULL UNIQUE,
+        email TEXT,
+        display_name TEXT,
+        provider_issuer TEXT,
+        user_metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS auth_groups (
+        id BIGSERIAL PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS user_group_memberships (
+        user_id BIGINT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+        group_id BIGINT NOT NULL REFERENCES auth_groups(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, group_id)
+    );
+    CREATE TABLE IF NOT EXISTS document_acl (
+        source_id BIGINT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+        group_id BIGINT NOT NULL REFERENCES auth_groups(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (source_id, group_id)
+    );
+    CREATE INDEX IF NOT EXISTS auth_users_external_user_id_idx ON auth_users(external_user_id);
+    CREATE INDEX IF NOT EXISTS auth_groups_name_idx ON auth_groups(name);
+    CREATE INDEX IF NOT EXISTS user_group_memberships_group_id_idx ON user_group_memberships(group_id);
+    CREATE INDEX IF NOT EXISTS document_acl_group_id_idx ON document_acl(group_id);
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def _seed_default_profiles() -> None:
     from app.core.config import settings
     from app.db.repo_profiles import seed_default_profiles
@@ -226,6 +267,11 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P007",
             description="Create retrieval_traces table for observability",
             runner=_create_retrieval_traces_table,
+        ),
+        MigrationStep(
+            step_id="MIG-P008",
+            description="Create authz and ACL tables plus source sensitivity label",
+            runner=_create_acl_tables,
         ),
     ]
 

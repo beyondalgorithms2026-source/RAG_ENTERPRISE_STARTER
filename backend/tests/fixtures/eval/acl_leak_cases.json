@@ -1,0 +1,18 @@
+[
+  {
+    "id": "acl_alpha_can_see_alpha_only",
+    "query": "alphaonlytoken123",
+    "user_id": "user-alpha",
+    "groups": ["group-alpha"],
+    "allowed_source_key": "alpha_source_id",
+    "forbidden_source_key": "beta_source_id"
+  },
+  {
+    "id": "acl_beta_can_see_beta_only",
+    "query": "betaonlytoken456",
+    "user_id": "user-beta",
+    "groups": ["group-beta"],
+    "allowed_source_key": "beta_source_id",
+    "forbidden_source_key": "alpha_source_id"
+  }
+]

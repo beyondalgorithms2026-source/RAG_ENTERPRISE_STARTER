@@ -36,6 +36,25 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = ""
     OLLAMA_API_KEY: str = ""
 
+    # Auth / OIDC configuration
+    AUTH_ENABLED: bool = False
+    AUTH_COOKIE_NAME: str = "rag_access_token"
+    AUTH_STATE_COOKIE_NAME: str = "rag_oidc_state"
+    AUTH_COOKIE_SECURE: bool = False
+    AUTH_STATE_SIGNING_SECRET: str = "rag-enterprise-starter-dev-state-secret"
+    OIDC_DISCOVERY_URL: str = ""
+    OIDC_ISSUER: str = ""
+    OIDC_AUDIENCE: str = ""
+    OIDC_CLIENT_ID: str = ""
+    OIDC_CLIENT_SECRET: str = ""
+    OIDC_REDIRECT_URI: str = "http://127.0.0.1:8000/auth/callback"
+    OIDC_SCOPES: str = "openid profile email"
+    OIDC_ROLE_CLAIM: str = "roles"
+    OIDC_GROUPS_CLAIM: str = "groups"
+    OIDC_ADMIN_ROLES: str = "admin"
+    OIDC_APPROVER_ROLES: str = "approver"
+    OIDC_ALLOWED_ALGORITHMS: str = "RS256"
+
     # Retrieval configuration
     RETRIEVAL_MODE: str = "hybrid"
     RERANK_ENABLED: bool = False

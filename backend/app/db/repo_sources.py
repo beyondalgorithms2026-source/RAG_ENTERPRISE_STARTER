@@ -18,6 +18,7 @@ class SourceRow:
     source_type: str
     mime_type: Optional[str]
     hash_sha256: str
+    sensitivity_label: str
     file_size_bytes: Optional[int]
     ingestion_status: str
     enrichment_status: str
@@ -32,7 +33,7 @@ def get_source_by_storage_path(storage_path: str) -> Optional[SourceRow]:
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
-               file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
         FROM sources
         WHERE storage_path = :storage_path
         """
@@ -48,7 +49,7 @@ def get_source_by_id(source_id: int) -> Optional[SourceRow]:
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
-               file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
         FROM sources
         WHERE id = :source_id
         """
@@ -67,7 +68,7 @@ def get_sources_by_ids(source_ids: List[int]) -> Dict[int, SourceRow]:
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
-               file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
         FROM sources
         WHERE id = ANY(:source_ids)
         """
@@ -81,7 +82,7 @@ def find_source_by_name_and_hash(file_name: str, hash_sha256: str) -> Optional[S
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
-               file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
         FROM sources
         WHERE file_name = :file_name AND hash_sha256 = :hash_sha256
         ORDER BY created_at DESC, id DESC
@@ -99,7 +100,7 @@ def get_latest_source_by_name(file_name: str) -> Optional[SourceRow]:
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
-               file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
         FROM sources
         WHERE file_name = :file_name
         ORDER BY created_at DESC, id DESC
@@ -120,6 +121,7 @@ def upsert_source(
     source_type: str,
     hash_sha256: str,
     mime_type: Optional[str] = None,
+    sensitivity_label: str = "internal",
     file_size_bytes: Optional[int] = None,
     ingestion_status: str = "pending",
     enrichment_status: str = "not_started",
@@ -128,16 +130,17 @@ def upsert_source(
     sql = text(
         """
         INSERT INTO sources (
-            storage_path, file_name, source_type, mime_type, hash_sha256,
+            storage_path, file_name, source_type, sensitivity_label, mime_type, hash_sha256,
             file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
         )
         VALUES (
-            :storage_path, :file_name, :source_type, :mime_type, :hash_sha256,
+            :storage_path, :file_name, :source_type, :sensitivity_label, :mime_type, :hash_sha256,
             :file_size_bytes, :ingestion_status, :enrichment_status, CAST(:source_metadata_json AS jsonb)
         )
         ON CONFLICT (storage_path) DO UPDATE
         SET file_name = EXCLUDED.file_name,
             source_type = EXCLUDED.source_type,
+            sensitivity_label = EXCLUDED.sensitivity_label,
             mime_type = EXCLUDED.mime_type,
             hash_sha256 = EXCLUDED.hash_sha256,
             file_size_bytes = EXCLUDED.file_size_bytes,
@@ -152,6 +155,7 @@ def upsert_source(
         "storage_path": storage_path,
         "file_name": file_name,
         "source_type": source_type,
+        "sensitivity_label": sensitivity_label,
         "mime_type": mime_type,
         "hash_sha256": hash_sha256,
         "file_size_bytes": file_size_bytes,
@@ -167,7 +171,7 @@ def list_sources() -> List[SourceRow]:
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
-               file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
         FROM sources
         ORDER BY created_at DESC, id DESC
         """

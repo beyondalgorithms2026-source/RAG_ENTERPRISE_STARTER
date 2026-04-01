@@ -1,8 +1,10 @@
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
+from app.auth.context import AuthenticatedUser
+from app.auth.dependencies import require_authenticated_user
 from app.core.config import settings
 from app.core_rag.answering import AskRequest, AskResponse, perform_ask, _perform_ask_internal
 from app.llm.client import verify_llm_ready
@@ -12,7 +14,7 @@ router = APIRouter()
 
 
 @router.post("/ask", response_model=AskResponse)
-def ask_endpoint(request: AskRequest):
+def ask_endpoint(request: AskRequest, user: AuthenticatedUser | None = Depends(require_authenticated_user)):
     if not request.dry_run and not verify_llm_ready():
         raise HTTPException(
             status_code=503,
@@ -25,7 +27,7 @@ def ask_endpoint(request: AskRequest):
 
 
 @router.post("/ask/stream")
-def ask_stream_endpoint(request: AskRequest):
+def ask_stream_endpoint(request: AskRequest, user: AuthenticatedUser | None = Depends(require_authenticated_user)):
     if not request.dry_run and not verify_llm_ready():
         raise HTTPException(
             status_code=503,
