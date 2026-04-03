@@ -24,6 +24,9 @@ node_modules/
 .next/
 web/node_modules/
 web/.next/
+web/.next_stale*/
+web/.next_stale_*/
+web/.next_stale_demo_fix_*/
 
 # Data and Uploads (keep directories but ignore contents)
 data/uploads/*
