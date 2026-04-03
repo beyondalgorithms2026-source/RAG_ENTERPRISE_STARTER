@@ -288,37 +288,58 @@ Key design rules:
 
 ---
 
-### Milestone M10 — End-User Chat UI (Gate 10: usable UX)
+### Milestone M10 — Next.js Enterprise Console UI (Gate 10: usable UX)
 **Deliverables**
-- Next.js (or similar) “Claude-like” UI:
-  - SSO login flow
-  - chat history (session-level)
-  - citations panel (source + page/locator)
-  - fast/slow toggle
-  - feedback buttons (helpful/not)
+- New Next.js 15 App Router frontend in `web/` as the primary product UI
+- Public marketing homepage at `/`
+- SSO-first login and register entry pages
+- Authenticated role-aware console under `/console/*`
+- User workspace with:
+  - unified search and grounded chat
+  - session-level thread history
+  - citations and evidence panel
+  - fast/slow control
   - retrieval path and latency visibility where appropriate
+  - self-service uploads
+  - source listing
+  - connector request UI stub for later connector milestones
+- Admin workspace pulled forward into M10 with:
+  - corpora management
+  - ingestion/indexing job views
+  - profile selection
+  - eval reports and triggers
+  - retrieval trace review
+  - retrieval/rerank/corpus policy metadata inspection
+- Backend integration kept on existing contracts:
+  - `/auth/*`
+  - `/ask`, `/ask/stream`, `/search`
+  - `/corpus`, `/upload`
+  - `/admin/*`
+- Minimal backend support changes only:
+  - allow the Next.js origin in CORS
+  - root redirect points to the new frontend entrypoint
 
 **DoD**
-- Users can chat and see citations reliably
-- Feedback captured per Q/A
-- Retrieval/latency metadata is explainable, not noisy
+- Anonymous users can view the homepage but cannot access `/console/*`
+- Login flow lands users in the correct workspace by role
+- Users can search, chat, upload, inspect citations, and browse sources reliably
+- Admins can operate current control-plane capabilities without code edits
+- Retrieval/latency metadata remains explainable, not noisy
+- Legacy static frontend is no longer the primary product path
 
 ---
 
-### Milestone M11 — Admin Console UI (Gate 11: non-dev operations)
+### Milestone M11 — Admin Workspace Polish And Operational UX (Gate 11: non-dev operations)
 **Deliverables**
-- Admin UI pages:
-  - corpora management
-  - ingestion/indexing jobs
-  - profile selection (embeddings/reranker/LLM/retrieval)
-  - eval packs + compare reports
-  - retrieval trace review
-  - strategy controls (fusion/rerank defaults)
+- Follow-on admin improvements on top of the M10 admin workspace:
   - approval inbox (stub until M15)
   - audit log viewer
+  - bulk-action and filtering refinement for corpora/jobs/traces
+  - report comparison UX polish
+  - operational quality-of-life improvements for non-developer operators
 
 **DoD**
-- Non-developer can operate: reindex, switch profile, run eval, review traces, inspect retrieval settings
+- Non-developer can operate daily workflows comfortably with less engineering assistance
 
 ---
 

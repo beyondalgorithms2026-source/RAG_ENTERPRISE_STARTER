@@ -1,0 +1,184 @@
+{
+  "version": 3,
+  "pages404": true,
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "dynamicRoutes": [
+    {
+      "page": "/console/workspace/chat/[thread]",
+      "regex": "^/console/workspace/chat/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPthread": "nxtPthread"
+      },
+      "namedRegex": "^/console/workspace/chat/(?<nxtPthread>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/console",
+      "regex": "^/console(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console(?:/)?$"
+    },
+    {
+      "page": "/console/admin",
+      "regex": "^/console/admin(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/admin(?:/)?$"
+    },
+    {
+      "page": "/console/admin/audit-log",
+      "regex": "^/console/admin/audit\\-log(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/admin/audit\\-log(?:/)?$"
+    },
+    {
+      "page": "/console/admin/corpora",
+      "regex": "^/console/admin/corpora(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/admin/corpora(?:/)?$"
+    },
+    {
+      "page": "/console/admin/evals",
+      "regex": "^/console/admin/evals(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/admin/evals(?:/)?$"
+    },
+    {
+      "page": "/console/admin/jobs",
+      "regex": "^/console/admin/jobs(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/admin/jobs(?:/)?$"
+    },
+    {
+      "page": "/console/admin/policies",
+      "regex": "^/console/admin/policies(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/admin/policies(?:/)?$"
+    },
+    {
+      "page": "/console/admin/profiles",
+      "regex": "^/console/admin/profiles(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/admin/profiles(?:/)?$"
+    },
+    {
+      "page": "/console/admin/traces",
+      "regex": "^/console/admin/traces(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/admin/traces(?:/)?$"
+    },
+    {
+      "page": "/console/denied",
+      "regex": "^/console/denied(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/denied(?:/)?$"
+    },
+    {
+      "page": "/console/workspace",
+      "regex": "^/console/workspace(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/workspace(?:/)?$"
+    },
+    {
+      "page": "/console/workspace/chat",
+      "regex": "^/console/workspace/chat(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/workspace/chat(?:/)?$"
+    },
+    {
+      "page": "/console/workspace/connectors",
+      "regex": "^/console/workspace/connectors(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/workspace/connectors(?:/)?$"
+    },
+    {
+      "page": "/console/workspace/history",
+      "regex": "^/console/workspace/history(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/workspace/history(?:/)?$"
+    },
+    {
+      "page": "/console/workspace/search",
+      "regex": "^/console/workspace/search(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/workspace/search(?:/)?$"
+    },
+    {
+      "page": "/console/workspace/sources",
+      "regex": "^/console/workspace/sources(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/workspace/sources(?:/)?$"
+    },
+    {
+      "page": "/console/workspace/uploads",
+      "regex": "^/console/workspace/uploads(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/console/workspace/uploads(?:/)?$"
+    },
+    {
+      "page": "/get-a-demo",
+      "regex": "^/get\\-a\\-demo(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/get\\-a\\-demo(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/register",
+      "regex": "^/register(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/register(?:/)?$"
+    },
+    {
+      "page": "/watch-video-tour",
+      "regex": "^/watch\\-video\\-tour(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/watch\\-video\\-tour(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "RSC",
+    "varyHeader": "RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Router-Segment-Prefetch",
+    "prefetchHeader": "Next-Router-Prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSuffix": ".prefetch.rsc",
+    "prefetchSegmentHeader": "Next-Router-Segment-Prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments"
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  },
+  "rewrites": []
+}

@@ -1,0 +1,10 @@
+{
+  "/page": "app/page.js",
+  "/login/page": "app/login/page.js",
+  "/console/admin/page": "app/console/admin/page.js",
+  "/console/workspace/sources/page": "app/console/workspace/sources/page.js",
+  "/console/workspace/history/page": "app/console/workspace/history/page.js",
+  "/console/workspace/chat/page": "app/console/workspace/chat/page.js",
+  "/console/workspace/uploads/page": "app/console/workspace/uploads/page.js",
+  "/console/workspace/connectors/page": "app/console/workspace/connectors/page.js"
+}

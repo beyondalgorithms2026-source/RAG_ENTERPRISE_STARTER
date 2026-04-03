@@ -2,6 +2,314 @@ from tests.smoke_test_base import *
 
 
 class SmokeTestBaseline(SmokeTestBase):
+    def test_m9_transcript_policy_adds_speaker_and_time_metadata(self):
+        from app.adapters.models import ParsedSourceDocument, ParsedSourcePart
+
+        parsed = ParsedSourceDocument(
+            source_type="txt",
+            metadata={"corpus_policy": "transcripts"},
+            parts=[
+                ParsedSourcePart(
+                    part_type="text_block",
+                    part_index=0,
+                    title="Transcript Segment",
+                    locator_json={"section": "body"},
+                    content_text=(
+                        "00:01 Alice: We need to finalize the roadmap and budget.\n"
+                        "00:15 Bob: Agreed, let's cover the rollout plan next."
+                    ),
+                )
+            ],
+        )
+
+        chunks = chunk_parsed_document(parsed, policy_name="transcripts")
+
+        self.assertEqual(chunks[0]["provenance_json"]["corpus_policy"], "transcripts")
+        self.assertEqual(chunks[0]["provenance_json"]["parser_route"], "transcript_speaker_windowing")
+        self.assertEqual(chunks[0]["locator_json"]["speaker"], "Alice")
+        self.assertEqual(chunks[0]["locator_json"]["time_start"], "00:01")
+        self.assertIn("Bob", chunks[0]["locator_json"]["speakers"])
+
+    def test_m9_legal_corpus_defaults_to_keyword_when_mode_omitted(self):
+        suffix = uuid4().hex[:8]
+        with engine.begin() as conn:
+            source_id = conn.execute(
+                text(
+                    """
+                    INSERT INTO sources (
+                        file_name, storage_path, source_type, sensitivity_label, hash_sha256, file_size_bytes,
+                        ingestion_status, enrichment_status, source_metadata_json
+                    )
+                    VALUES (
+                        :file_name, :storage_path, 'pdf', 'public', :hash_sha256, 120,
+                        'embedded', 'not_started', CAST(:source_metadata_json AS jsonb)
+                    )
+                    RETURNING id
+                    """
+                ),
+                {
+                    "file_name": f"m9-legal-{suffix}.pdf",
+                    "storage_path": f"tests/m9-legal-{suffix}.pdf",
+                    "hash_sha256": (suffix + "l") * 4,
+                    "source_metadata_json": json.dumps({"corpus": "legal", "corpus_policy": "legal"}),
+                },
+            ).scalar_one()
+        insert_chunks(
+            source_id,
+            [
+                {
+                    "chunk_index": 0,
+                    "heading": "Legal Clause",
+                    "section_path": "page:1",
+                    "chunk_text": "termination clause survives and legal remedy applies",
+                    "token_count": 7,
+                    "locator_json": {"page": 1},
+                    "provenance_json": {"test": "m9-legal"},
+                }
+            ],
+        )
+        try:
+            response = perform_search(
+                SearchRequest(
+                    question="termination clause",
+                    k=3,
+                    filters=SearchFilters(source_id=source_id),
+                    debug=True,
+                )
+            )
+        finally:
+            self._delete_seed_source(source_id)
+
+        self.assertEqual(response.mode, "keyword")
+        self.assertEqual(response.debug_info["corpus_policy"]["name"], "legal")
+        self.assertTrue(response.results)
+        self.assertEqual(response.results[0].heading, "Legal Clause")
+
+    def test_m9_db_rows_structured_metadata_filters_trim_results(self):
+        suffix = uuid4().hex[:8]
+        import app.core_rag.retrieval as retrieval_module
+
+        with engine.begin() as conn:
+            source_id = conn.execute(
+                text(
+                    """
+                    INSERT INTO sources (
+                        file_name, storage_path, source_type, sensitivity_label, hash_sha256, file_size_bytes,
+                        ingestion_status, enrichment_status, source_metadata_json
+                    )
+                    VALUES (
+                        :file_name, :storage_path, 'xlsx', 'public', :hash_sha256, 120,
+                        'embedded', 'not_started', CAST(:source_metadata_json AS jsonb)
+                    )
+                    RETURNING id
+                    """
+                ),
+                {
+                    "file_name": f"m9-rows-{suffix}.xlsx",
+                    "storage_path": f"tests/m9-rows-{suffix}.xlsx",
+                    "hash_sha256": (suffix + "d") * 4,
+                    "source_metadata_json": json.dumps({"corpus": "db_rows", "corpus_policy": "db_rows"}),
+                },
+            ).scalar_one()
+        insert_chunks(
+            source_id,
+            [
+                {
+                    "chunk_index": 0,
+                    "heading": "Customer Rows",
+                    "section_path": "sheet:Customers",
+                    "chunk_text": "Customer Acme Corp active ARR 120000",
+                    "token_count": 6,
+                    "locator_json": {"sheet": "Customers", "range": "Customers!rows 1-2"},
+                    "provenance_json": {"row_group": "customers"},
+                },
+                {
+                    "chunk_index": 1,
+                    "heading": "Invoice Rows",
+                    "section_path": "sheet:Invoices",
+                    "chunk_text": "Invoice INV-001 paid by Acme Corp",
+                    "token_count": 6,
+                    "locator_json": {"sheet": "Invoices", "range": "Invoices!rows 1-2"},
+                    "provenance_json": {"row_group": "invoices"},
+                },
+            ],
+        )
+        update_chunk_embeddings(
+            [(row[0], [1.0] + [0.0] * 383) for row in engine.connect().execute(
+                text("SELECT id FROM chunks WHERE source_id = :source_id ORDER BY chunk_index ASC"),
+                {"source_id": source_id},
+            ).fetchall()]
+        )
+        original_embed_texts = retrieval_module.embed_texts
+        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        try:
+            response = perform_search(
+                SearchRequest(
+                    question="Acme Corp",
+                    k=5,
+                    filters=SearchFilters(
+                        source_id=source_id,
+                        metadata_filters={"sheet": "Customers"},
+                    ),
+                    debug=True,
+                )
+            )
+        finally:
+            retrieval_module.embed_texts = original_embed_texts
+            self._delete_seed_source(source_id)
+
+        self.assertEqual(response.debug_info["structured_filters"], {"sheet": "Customers"})
+        self.assertTrue(response.results)
+        self.assertEqual([item.heading for item in response.results], ["Customer Rows"])
+
+    def test_m9_corpus_policy_eval_matrix(self):
+        cases = json.loads((EVAL_FIXTURE_DIR / "corpus_policy_cases.json").read_text(encoding="utf-8"))
+        suffix = uuid4().hex[:8]
+        import app.core_rag.retrieval as retrieval_module
+
+        with engine.begin() as conn:
+            legal_source_id = conn.execute(
+                text(
+                    """
+                    INSERT INTO sources (
+                        file_name, storage_path, source_type, sensitivity_label, hash_sha256, file_size_bytes,
+                        ingestion_status, enrichment_status, source_metadata_json
+                    )
+                    VALUES (
+                        :file_name, :storage_path, 'pdf', 'public', :hash_sha256, 120,
+                        'embedded', 'not_started', CAST(:source_metadata_json AS jsonb)
+                    )
+                    RETURNING id
+                    """
+                ),
+                {
+                    "file_name": f"m9-legal-matrix-{suffix}.pdf",
+                    "storage_path": f"tests/m9-legal-matrix-{suffix}.pdf",
+                    "hash_sha256": (suffix + "a") * 4,
+                    "source_metadata_json": json.dumps({"corpus": "legal", "corpus_policy": "legal"}),
+                },
+            ).scalar_one()
+            transcript_source_id = conn.execute(
+                text(
+                    """
+                    INSERT INTO sources (
+                        file_name, storage_path, source_type, sensitivity_label, hash_sha256, file_size_bytes,
+                        ingestion_status, enrichment_status, source_metadata_json
+                    )
+                    VALUES (
+                        :file_name, :storage_path, 'txt', 'public', :hash_sha256, 120,
+                        'embedded', 'not_started', CAST(:source_metadata_json AS jsonb)
+                    )
+                    RETURNING id
+                    """
+                ),
+                {
+                    "file_name": f"m9-transcript-matrix-{suffix}.txt",
+                    "storage_path": f"tests/m9-transcript-matrix-{suffix}.txt",
+                    "hash_sha256": (suffix + "b") * 4,
+                    "source_metadata_json": json.dumps({"corpus": "transcripts", "corpus_policy": "transcripts"}),
+                },
+            ).scalar_one()
+            db_rows_source_id = conn.execute(
+                text(
+                    """
+                    INSERT INTO sources (
+                        file_name, storage_path, source_type, sensitivity_label, hash_sha256, file_size_bytes,
+                        ingestion_status, enrichment_status, source_metadata_json
+                    )
+                    VALUES (
+                        :file_name, :storage_path, 'xlsx', 'public', :hash_sha256, 120,
+                        'embedded', 'not_started', CAST(:source_metadata_json AS jsonb)
+                    )
+                    RETURNING id
+                    """
+                ),
+                {
+                    "file_name": f"m9-dbrows-matrix-{suffix}.xlsx",
+                    "storage_path": f"tests/m9-dbrows-matrix-{suffix}.xlsx",
+                    "hash_sha256": (suffix + "c") * 4,
+                    "source_metadata_json": json.dumps({"corpus": "db_rows", "corpus_policy": "db_rows"}),
+                },
+            ).scalar_one()
+        insert_chunks(
+            legal_source_id,
+            [
+                {
+                    "chunk_index": 0,
+                    "heading": "Legal Clause",
+                    "section_path": "page:1",
+                    "chunk_text": "termination clause survives and legal remedy applies",
+                    "token_count": 7,
+                    "locator_json": {"page": 1},
+                    "provenance_json": {"test": "m9-matrix"},
+                }
+            ],
+        )
+        insert_chunks(
+            transcript_source_id,
+            [
+                {
+                    "chunk_index": 0,
+                    "heading": "Transcript Segment",
+                    "section_path": "text:body",
+                    "chunk_text": "00:01 Alice: We should ship the roadmap update this quarter.",
+                    "token_count": 10,
+                    "locator_json": {"section": "body", "speaker": "Alice", "time_start": "00:01"},
+                    "provenance_json": {"test": "m9-matrix", "corpus_policy": "transcripts"},
+                }
+            ],
+        )
+        insert_chunks(
+            db_rows_source_id,
+            [
+                {
+                    "chunk_index": 0,
+                    "heading": "Customer Rows",
+                    "section_path": "sheet:Customers",
+                    "chunk_text": "Customer Acme Corp active ARR 120000",
+                    "token_count": 6,
+                    "locator_json": {"sheet": "Customers", "range": "Customers!rows 1-2"},
+                    "provenance_json": {"test": "m9-matrix", "row_group": "customers"},
+                }
+            ],
+        )
+        update_chunk_embeddings(
+            [
+                (self._chunk_id_for_source(transcript_source_id), [1.0] + [0.0] * 383),
+                (self._chunk_id_for_source(db_rows_source_id), [1.0] + [0.0] * 383),
+            ]
+        )
+        original_embed_texts = retrieval_module.embed_texts
+        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        try:
+            source_ids = {
+                "legal": legal_source_id,
+                "transcripts": transcript_source_id,
+                "db_rows": db_rows_source_id,
+            }
+            observed = []
+            for case in cases:
+                response = perform_search(
+                    SearchRequest(
+                        question=case["question"],
+                        k=3,
+                        filters=SearchFilters(
+                            source_id=source_ids[case["policy"]],
+                            metadata_filters=case.get("metadata_filters"),
+                        ),
+                    )
+                )
+                observed.append((case["id"], response.mode, response.results[0].heading if response.results else None))
+                self.assertEqual(response.mode, case["expected_mode"], case["id"])
+                self.assertEqual(response.results[0].heading if response.results else None, case["expected_heading"], case["id"])
+        finally:
+            retrieval_module.embed_texts = original_embed_texts
+            self._delete_seed_source(legal_source_id)
+            self._delete_seed_source(transcript_source_id)
+            self._delete_seed_source(db_rows_source_id)
+
+        self.assertEqual(len(observed), 3)
+
     def test_core_imports(self):
         self.assertIsNotNone(settings)
         self.assertEqual(logger.name, "rag_mm_master_poc")
@@ -609,6 +917,81 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertGreaterEqual(len(response.results), 2)
         self.assertEqual(response.mode, "hybrid")
         self.assertTrue(all(result.combined_score is not None for result in response.results[:2]))
+
+    def test_m6_rrf_fusion_promotes_balanced_hits_and_emits_score_details(self):
+        from app.core_rag.retrieval import _build_score_diagnostics, merge_hybrid_results
+
+        vector_results = [
+            {
+                "chunk_id": 101,
+                "source_id": 1,
+                "source_part_id": None,
+                "file_name": "fusion-a.pdf",
+                "source_type": "pdf",
+                "heading": "Vector First",
+                "locator": "page=1",
+                "snippet": "vector dominant hit",
+                "distance": 0.0,
+                "chunk_index": 0,
+            },
+            {
+                "chunk_id": 103,
+                "source_id": 1,
+                "source_part_id": None,
+                "file_name": "fusion-c.pdf",
+                "source_type": "pdf",
+                "heading": "Balanced Hit",
+                "locator": "page=2",
+                "snippet": "balanced hit",
+                "distance": 0.6,
+                "chunk_index": 1,
+            },
+        ]
+        keyword_results = [
+            {
+                "chunk_id": 102,
+                "source_id": 1,
+                "source_part_id": None,
+                "file_name": "fusion-b.pdf",
+                "source_type": "pdf",
+                "heading": "Keyword First",
+                "locator": "page=3",
+                "snippet": "keyword dominant hit",
+                "rank_score": 100.0,
+                "chunk_index": 2,
+            },
+            {
+                "chunk_id": 103,
+                "source_id": 1,
+                "source_part_id": None,
+                "file_name": "fusion-c.pdf",
+                "source_type": "pdf",
+                "heading": "Balanced Hit",
+                "locator": "page=2",
+                "snippet": "balanced hit",
+                "rank_score": 40.0,
+                "chunk_index": 1,
+            },
+        ]
+
+        linear = merge_hybrid_results(vector_results=vector_results, keyword_results=keyword_results, k=3, alpha=0.65)
+        rrf = merge_hybrid_results(
+            vector_results=vector_results,
+            keyword_results=keyword_results,
+            k=3,
+            alpha=0.65,
+            fusion_method="rrf",
+            rrf_k=60,
+        )
+        diagnostics = _build_score_diagnostics(rrf)
+
+        self.assertEqual(linear[0]["chunk_id"], 101)
+        self.assertEqual(rrf[0]["chunk_id"], 103)
+        self.assertEqual(diagnostics[0]["fusion_method"], "rrf")
+        self.assertEqual(diagnostics[0]["vector_rank"], 2)
+        self.assertEqual(diagnostics[0]["keyword_rank"], 2)
+        self.assertIsNotNone(diagnostics[0]["fusion_rrf_score"])
+
 
     def test_keyword_mode_soft_fallback_recovers_split_seo_evidence(self):
         seeded = self._seed_seo_anomaly_records()

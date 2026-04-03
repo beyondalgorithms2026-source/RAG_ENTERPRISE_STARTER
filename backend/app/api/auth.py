@@ -1,12 +1,31 @@
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 
 from app.auth.dependencies import require_authenticated_user
-from app.auth.service import AuthError, build_login_url, exchange_code_for_token, get_oidc_metadata, validate_access_token, verify_state
+from app.auth.service import (
+    AuthError,
+    authenticate_local_dev_user,
+    build_login_url,
+    exchange_code_for_token,
+    get_oidc_metadata,
+    issue_local_dev_token,
+    local_dev_auth_enabled,
+    resolve_post_login_path,
+    validate_access_token,
+    verify_state,
+)
 from app.core.config import settings
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+class LocalDevLoginRequest(BaseModel):
+    email: str
+    password: str
+    next_path: str | None = None
 
 
 @router.get("/providers")
@@ -27,7 +46,7 @@ def auth_providers():
 
 
 @router.get("/login")
-def auth_login(next_path: str = Query(default="/frontend/")):
+def auth_login(next_path: str = Query(default_factory=lambda: settings.FRONTEND_APP_URL)):
     if not settings.AUTH_ENABLED:
         raise HTTPException(status_code=503, detail={"error": "auth_disabled", "message": "Authentication is disabled."})
     try:
@@ -62,7 +81,7 @@ def auth_callback(request: Request, code: str, state: str):
     except AuthError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"error": exc.code, "message": exc.message})
 
-    response = RedirectResponse(url=state_payload.get("next_path") or "/frontend/", status_code=302)
+    response = RedirectResponse(url=state_payload.get("next_path") or settings.FRONTEND_APP_URL, status_code=302)
     response.set_cookie(
         key=settings.AUTH_COOKIE_NAME,
         value=access_token,
@@ -76,15 +95,45 @@ def auth_callback(request: Request, code: str, state: str):
     return response
 
 
-@router.post("/logout")
-def auth_logout():
-    response = RedirectResponse(url="/frontend/", status_code=302)
+def _logout_response():
+    response = RedirectResponse(url=settings.FRONTEND_APP_URL, status_code=302)
     response.delete_cookie(settings.AUTH_COOKIE_NAME, path="/")
     response.delete_cookie(settings.AUTH_STATE_COOKIE_NAME, path="/")
     return response
+
+
+@router.get("/logout")
+def auth_logout_get():
+    return _logout_response()
+
+
+@router.post("/logout")
+def auth_logout():
+    return _logout_response()
 
 
 @router.get("/me")
 def auth_me(request: Request):
     user = require_authenticated_user(request)
     return {"user": user.model_dump() if user else None}
+
+
+@router.post("/local-dev-login")
+def auth_local_dev_login(payload: LocalDevLoginRequest):
+    if not local_dev_auth_enabled():
+        raise HTTPException(status_code=404, detail={"error": "not_found", "message": "Local dev login is not enabled."})
+    user = authenticate_local_dev_user(payload.email, payload.password)
+    if user is None:
+        raise HTTPException(status_code=401, detail={"error": "invalid_credentials", "message": "Invalid local dev credentials."})
+    access_token = issue_local_dev_token(user)
+    redirect_path = resolve_post_login_path(user, payload.next_path)
+    response = JSONResponse({"user": user.model_dump(), "redirect_path": redirect_path})
+    response.set_cookie(
+        key=settings.AUTH_COOKIE_NAME,
+        value=access_token,
+        httponly=True,
+        secure=settings.AUTH_COOKIE_SECURE,
+        samesite="lax",
+        path="/",
+    )
+    return response

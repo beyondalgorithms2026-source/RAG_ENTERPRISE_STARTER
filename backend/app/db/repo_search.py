@@ -93,6 +93,28 @@ def _acl_clause(*, params: Dict[str, Any], source_alias: str = "s") -> str:
     return f"{source_alias}.sensitivity_label = 'public'"
 
 
+def _structured_filter_clauses(*, metadata_filters: Optional[Dict[str, str]], params: Dict[str, Any], chunk_alias: str = "c", source_part_alias: str = "sp") -> List[str]:
+    clauses: List[str] = []
+    for index, (raw_key, raw_value) in enumerate((metadata_filters or {}).items()):
+        key = str(raw_key or "").strip()
+        value = str(raw_value or "").strip()
+        if not key or not value:
+            continue
+        key_param = f"metadata_filter_key_{index}"
+        value_param = f"metadata_filter_value_{index}"
+        params[key_param] = key
+        params[value_param] = value
+        clauses.append(
+            f"""(
+                COALESCE({chunk_alias}.locator_json ->> :{key_param}, '') ILIKE :{value_param}
+                OR COALESCE({source_part_alias}.locator_json ->> :{key_param}, '') ILIKE :{value_param}
+                OR COALESCE({chunk_alias}.provenance_json ->> :{key_param}, '') ILIKE :{value_param}
+            )"""
+        )
+        params[value_param] = f"%{value}%"
+    return clauses
+
+
 def _soft_keyword_results(
     *,
     query_text: str,
@@ -102,6 +124,7 @@ def _soft_keyword_results(
     source_ids: Optional[List[int]],
     source_part_id: Optional[int],
     locator_filter: Optional[str],
+    metadata_filters: Optional[Dict[str, str]],
 ) -> List[Dict[str, Any]]:
     anchors = _keyword_anchors(query_text)
     if not anchors:
@@ -147,6 +170,7 @@ def _soft_keyword_results(
         conditions.append("COALESCE(c.locator_json::text, sp.locator_json::text, '') ILIKE :locator_filter")
         params["locator_filter"] = f"%{locator_filter}%"
 
+    conditions.extend(_structured_filter_clauses(metadata_filters=metadata_filters, params=params))
     conditions.append(_acl_clause(params=params))
 
     if conditions:
@@ -178,6 +202,7 @@ def search_chunks(
     source_ids: Optional[List[int]] = None,
     source_part_id: Optional[int] = None,
     locator_filter: Optional[str] = None,
+    metadata_filters: Optional[Dict[str, str]] = None,
 ) -> List[Dict[str, Any]]:
     sql_base = """
         SELECT
@@ -218,6 +243,7 @@ def search_chunks(
         conditions.append("COALESCE(c.locator_json::text, sp.locator_json::text, '') ILIKE :locator_filter")
         params["locator_filter"] = f"%{locator_filter}%"
 
+    conditions.extend(_structured_filter_clauses(metadata_filters=metadata_filters, params=params))
     conditions.append(_acl_clause(params=params))
 
     if conditions:
@@ -239,6 +265,7 @@ def search_chunks_keyword(
     source_ids: Optional[List[int]] = None,
     source_part_id: Optional[int] = None,
     locator_filter: Optional[str] = None,
+    metadata_filters: Optional[Dict[str, str]] = None,
 ) -> List[Dict[str, Any]]:
     sql_base = """
         SELECT
@@ -279,6 +306,7 @@ def search_chunks_keyword(
         conditions.append("COALESCE(c.locator_json::text, sp.locator_json::text, '') ILIKE :locator_filter")
         params["locator_filter"] = f"%{locator_filter}%"
 
+    conditions.extend(_structured_filter_clauses(metadata_filters=metadata_filters, params=params))
     conditions.append(_acl_clause(params=params))
 
     if conditions:
@@ -303,6 +331,7 @@ def search_chunks_keyword(
             source_ids=source_ids,
             source_part_id=source_part_id,
             locator_filter=locator_filter,
+            metadata_filters=metadata_filters,
         )
 
     results = []

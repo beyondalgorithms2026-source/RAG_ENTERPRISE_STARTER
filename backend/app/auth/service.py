@@ -32,6 +32,14 @@ def auth_enabled() -> bool:
     return settings.AUTH_ENABLED
 
 
+def auth_mode() -> str:
+    return (settings.AUTH_MODE or "oidc").strip().lower()
+
+
+def local_dev_auth_enabled() -> bool:
+    return auth_enabled() and auth_mode() == "dev"
+
+
 def _csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
@@ -124,6 +132,8 @@ def _get_groups(claims: dict[str, Any]) -> list[str]:
 
 
 def validate_access_token(token: str) -> AuthenticatedUser:
+    if local_dev_auth_enabled():
+        return validate_local_dev_token(token)
     try:
         signing_key = _get_jwk_client().get_signing_key_from_jwt(token)
         metadata = get_oidc_metadata()
@@ -149,6 +159,91 @@ def validate_access_token(token: str) -> AuthenticatedUser:
         issuer=claims.get("iss"),
         raw_claims=claims,
     )
+
+
+def _local_dev_users() -> dict[str, dict[str, Any]]:
+    return {
+        settings.DEV_TEST_USER_EMAIL.strip().lower(): {
+            "password": settings.DEV_TEST_USER_PASSWORD,
+            "user": AuthenticatedUser(
+                user_id="dev-test-user",
+                email=settings.DEV_TEST_USER_EMAIL,
+                name=settings.DEV_TEST_USER_NAME,
+                roles=["user"],
+                groups=["dev-users"],
+                issuer=settings.DEV_LOCAL_ISSUER,
+                raw_claims={"auth_mode": "dev"},
+            ),
+        },
+        settings.DEV_TEST_ADMIN_EMAIL.strip().lower(): {
+            "password": settings.DEV_TEST_ADMIN_PASSWORD,
+            "user": AuthenticatedUser(
+                user_id="dev-test-admin",
+                email=settings.DEV_TEST_ADMIN_EMAIL,
+                name=settings.DEV_TEST_ADMIN_NAME,
+                roles=["admin", "user"],
+                groups=["dev-admins"],
+                issuer=settings.DEV_LOCAL_ISSUER,
+                raw_claims={"auth_mode": "dev"},
+            ),
+        },
+    }
+
+
+def authenticate_local_dev_user(email: str, password: str) -> Optional[AuthenticatedUser]:
+    candidate = _local_dev_users().get(email.strip().lower())
+    if not candidate:
+        return None
+    if candidate["password"] != password:
+        return None
+    return candidate["user"]
+
+
+def issue_local_dev_token(user: AuthenticatedUser) -> str:
+    now = int(time.time())
+    payload = {
+        "sub": user.user_id,
+        "email": user.email,
+        "name": user.name,
+        "roles": user.roles,
+        "groups": user.groups,
+        "iss": settings.DEV_LOCAL_ISSUER,
+        "iat": now,
+        "exp": now + 60 * 60 * 12,
+    }
+    return jwt.encode(payload, settings.DEV_LOCAL_JWT_SECRET, algorithm="HS256")
+
+
+def validate_local_dev_token(token: str) -> AuthenticatedUser:
+    try:
+        claims = jwt.decode(
+            token,
+            settings.DEV_LOCAL_JWT_SECRET,
+            algorithms=["HS256"],
+            issuer=settings.DEV_LOCAL_ISSUER,
+            options={"require": ["exp", "iat", "sub"], "verify_aud": False},
+        )
+    except Exception as exc:
+        raise AuthError("invalid_token", f"Local dev token validation failed: {exc}")
+    return AuthenticatedUser(
+        user_id=str(claims.get("sub")),
+        email=claims.get("email"),
+        name=claims.get("name"),
+        roles=[str(item) for item in claims.get("roles", ["user"])],
+        groups=[str(item) for item in claims.get("groups", [])],
+        issuer=claims.get("iss"),
+        raw_claims=claims,
+    )
+
+
+def resolve_post_login_path(user: AuthenticatedUser, next_path: str | None = None) -> str:
+    requested = (next_path or "").strip()
+    if requested and requested not in {"/", "/console"}:
+        return requested
+    user_roles = {role.lower() for role in user.roles}
+    if "admin" in user_roles or "approver" in user_roles:
+        return "/console/admin"
+    return "/console/workspace/chat"
 
 
 def _urlsafe_b64(data: bytes) -> str:

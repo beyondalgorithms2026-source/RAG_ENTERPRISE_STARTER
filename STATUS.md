@@ -1,6 +1,6 @@
 # STATUS.md — Milestone Progress Tracker
 
-**Current Milestone:** M6 — Hybrid Fusion Upgrade
+**Current Milestone:** M11 — Admin Workspace Polish And Operational UX
 
 **Completed**
 - M0: Baseline Stable Import (baseline-import-stable)
@@ -9,6 +9,55 @@
 - M3: Identity + SSO Auth (2026-04-01)
 - M4: Authorization + ACL Security Trimming (2026-04-01)
 - M5: Admin API Control Plane (2026-04-01)
+- M6: Hybrid Fusion Upgrade (2026-04-02)
+- M7: Router And Lexical Intent Expansion (2026-04-02)
+- M8: Reranking Policy Layer (2026-04-02)
+- M9: Per-Corpus Indexing And Adaptive Chunking Policies (2026-04-02)
+- M10: Next.js Enterprise Console UI (2026-04-02)
+- M10.1: Stitch Fidelity Remediation (2026-04-02)
+
+**M10 summary**
+- Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
+- Added a role-aware `/console/*` shell so standard users land in a unified workspace and admins/approvers land in an operations workspace
+- Delivered user workspace pages for grounded chat, enterprise search, source browsing, uploads, and connector requests on top of the existing backend APIs
+- Pulled the admin UI forward into M10 with corpora, jobs, profiles, evals, traces, and policy views backed by the existing `/admin/*` endpoints
+- Updated backend CORS and root redirect behavior so the new frontend is the main entrypoint while preserving the legacy `/frontend` fallback
+- See docs/m10_nextjs_enterprise_console_ui.md
+
+**M10.1 summary**
+- Rebuilt the exposed frontend routes as Stitch-faithful ports so the public marketing flow, login flow, chat workspace, sources workspace, and admin dashboard now follow the reference package structure rather than a custom approximation
+- Kept the guarded local-dev auth path with test user and test admin accounts, but moved the local login UI into a secondary disclosure below the unchanged Stitch-style SSO card
+- Added the extra Stitch CTA routes (`/get-a-demo` and `/watch-video-tour`) and redirected non-reference routes back to the Stitch-backed surfaces
+- Preserved the default frontend runtime and backend redirect target on port `3001` while keeping the backend local-dev auth checks green
+- See docs/m10_1_polished_ui_with_test_users.md
+
+**M9 summary**
+- Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline
+- Source-scoped retrieval now honors corpus default modes so different corpora behave differently without changing global settings
+- Chunking now adapts target size and overlap by corpus policy, and transcript-oriented policies emit speaker/time metadata
+- Added structured metadata filters for row-shaped corpora plus a corpus-policy eval matrix fixture and smoke coverage
+- See docs/m9_per_corpus_indexing_and_adaptive_chunking_policies.md
+
+**M8 summary**
+- Expanded the reranker profile into a policy layer with selective controls by mode, corpus, candidate depth, and latency budget
+- Added rerank policy traces so operators can see when reranking was applied, skipped, and which candidate corpora were considered
+- Reserved an explicit MMR placeholder hook in the rerank trace without changing current ranking behavior
+- Extended compare-eval with rerank A/B variants and a latency delta report for rerank-off vs rerank-on comparisons
+- See docs/m8_reranking_policy_layer.md
+
+**M7 summary**
+- Expanded lexical-first routing for quote-like exact wording queries, identifier/code lookups, and date-heavy lexical queries
+- Kept semantic-first queries on the hybrid baseline while preserving graph/temporal readiness fallback behavior
+- Added structured route metadata to retrieval traces and retrieval-eval outputs: route class, preferred mode, and per-signal route details
+- Added a router benchmark fixture pack covering quote, code, semantic, and temporal query sets
+- See docs/m7_router_and_lexical_intent_expansion.md
+
+**M6 summary**
+- Preserved linear fusion as the default hybrid baseline while adding configurable `rrf` support through retrieval profile settings
+- Added explicit retrieval fusion settings for `fusion_method` and `rrf_k`
+- Extended retrieval traces and score diagnostics with fusion method, rank inputs, and per-method component scores
+- Updated benchmark fixtures and compare reporting so fusion-method comparisons are visible in reports
+- See docs/m6_hybrid_fusion_upgrade.md
 
 **M5 summary**
 - Added admin-role enforcement for `/admin/*` so the control plane is no longer reachable by authenticated non-admin users
@@ -34,9 +83,50 @@
 - See docs/m2_retrieval_observability_and_traceability.md
 
 **Next actions**
-- Start M6: hybrid fusion upgrade
-- Add configurable fusion method support while keeping current linear fusion as the baseline-safe default
-- Extend score traces and eval comparisons for fusion debugging
+- Start M11: admin workspace polish and operational UX refinement
+- Improve operator workflows on top of the new console without changing existing backend control-plane contracts
+- Preserve the new role-aware console split while refining non-developer operations
+
+**Notes / DoD checklist (M10)**
+- [x] Anonymous users can view the homepage but cannot access `/console/*`
+- [x] Login flow routes users into the correct workspace by role
+- [x] Users can search, chat, upload, inspect citations, and browse sources from the new console
+- [x] Admins can operate current control-plane capabilities from the new console UI
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M10.1)**
+- [x] Stitch-backed public and console routes now drive the visible UI
+- [x] Local test-user and test-admin auth still works without changing the backend auth contract
+- [x] Non-reference routes redirect back to the Stitch-backed surfaces
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M9)**
+- [x] Different corpora behave differently by policy
+- [x] Policies are explicit and test-covered
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M8)**
+- [x] Reranking can be enabled selectively rather than globally
+- [x] Operators can compare rerank-off vs rerank-on quality and latency
+- [x] Future MMR hook is planned without blocking milestone completion
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M7)**
+- [x] Router routes quote-like and ID-like queries more reliably
+- [x] Route decisions are inspectable in debug traces
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M6)**
+- [x] Linear remains the default and regression-safe baseline
+- [x] RRF can be enabled by retrieval config/profile
+- [x] Fusion comparisons are visible in reports
+- [x] docs/ note added
+- [x] STATUS.md updated
 
 **Notes / DoD checklist (M5)**
 - [x] Admin can reindex without code changes

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "legal_keyword_default",
+    "policy": "legal",
+    "question": "termination clause",
+    "expected_mode": "keyword",
+    "expected_heading": "Legal Clause"
+  },
+  {
+    "id": "transcript_vector_default",
+    "policy": "transcripts",
+    "question": "What did Alice say about the roadmap?",
+    "expected_mode": "vector",
+    "expected_heading": "Transcript Segment"
+  },
+  {
+    "id": "db_rows_structured_filter",
+    "policy": "db_rows",
+    "question": "Acme Corp",
+    "expected_mode": "hybrid",
+    "expected_heading": "Customer Rows",
+    "metadata_filters": {
+      "sheet": "Customers"
+    }
+  }
+]

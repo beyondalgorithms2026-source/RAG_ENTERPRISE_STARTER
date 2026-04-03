@@ -20,6 +20,10 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+node_modules/
+.next/
+web/node_modules/
+web/.next/
 
 # Data and Uploads (keep directories but ignore contents)
 data/uploads/*

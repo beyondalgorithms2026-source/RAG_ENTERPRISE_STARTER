@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.auth.dependencies import require_admin_user
+from app.corpus_policies import get_corpus_policy
 from app.core.config import REPO_ROOT
 from app.core.logging import logger
 from app.core_rag.retrieval import SearchFilters, SearchRequest, perform_search
@@ -26,7 +27,7 @@ from app.eval.retrieval_eval import load_eval_cases, run_retrieval_eval
 from app.ingestion.enrichment import admin_rerun_enrichment
 from app.ingestion.jobs import admin_reindex_source
 from app.profiles.models import PROFILE_TYPE_MODELS
-from app.profiles.resolver import get_active_profile_snapshot, get_effective_retrieval, invalidate_cache
+from app.profiles.resolver import get_active_profile_snapshot, get_effective_reranker, get_effective_retrieval, invalidate_cache
 
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_user)])
@@ -160,20 +161,37 @@ def set_active(body: ActiveProfileRequest):
 @router.get("/profiles/metadata")
 def get_profile_metadata():
     retrieval_settings = get_effective_retrieval().model_dump()
+    reranker_settings = get_effective_reranker().model_dump()
     return {
         "active_profiles": get_active_profile_snapshot(),
         "retrieval_settings": retrieval_settings,
+        "reranker_settings": reranker_settings,
         "strategy_defaults": {
             "default_mode": retrieval_settings.get("default_mode"),
             "fusion_method": retrieval_settings.get("fusion_method"),
+            "rrf_k": retrieval_settings.get("rrf_k"),
             "vector_candidates": retrieval_settings.get("vector_candidates"),
             "keyword_candidates": retrieval_settings.get("keyword_candidates"),
             "hybrid_alpha": retrieval_settings.get("hybrid_alpha"),
             "deep_research_vector_candidates": retrieval_settings.get("deep_research_vector_candidates"),
             "deep_research_keyword_candidates": retrieval_settings.get("deep_research_keyword_candidates"),
+            "rerank_enabled": reranker_settings.get("enabled"),
+            "rerank_enabled_modes": reranker_settings.get("enabled_modes"),
+            "rerank_enabled_corpora": reranker_settings.get("enabled_corpora"),
+            "rerank_min_candidate_count": reranker_settings.get("min_candidate_count"),
+            "rerank_max_candidate_count": reranker_settings.get("max_candidate_count"),
+            "rerank_latency_budget_ms": reranker_settings.get("latency_budget_ms"),
+            "rerank_mmr_enabled": reranker_settings.get("mmr_enabled"),
         },
         "profile_types": sorted(PROFILE_TYPE_MODELS.keys()),
         "supported_search_modes": ["vector", "keyword", "hybrid", "graph_hybrid", "full"],
+        "supported_corpus_policies": [
+            get_corpus_policy("default").to_dict(),
+            get_corpus_policy("legal").to_dict(),
+            get_corpus_policy("transcripts").to_dict(),
+            get_corpus_policy("db_rows").to_dict(),
+            get_corpus_policy("email_casework").to_dict(),
+        ],
     }
 
 

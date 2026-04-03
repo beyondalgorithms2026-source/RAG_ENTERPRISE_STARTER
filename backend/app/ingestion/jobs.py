@@ -9,6 +9,7 @@ from fastapi import HTTPException, UploadFile
 from sqlalchemy import text
 
 from app.adapters import ParsedSourceDocument, parse_source_bytes
+from app.corpus_policies import get_corpus_policy, resolve_policy_name_from_source_metadata
 from app.core.config import REPO_ROOT, settings
 from app.core.logging import log_event, logger
 from app.db.db import engine
@@ -132,11 +133,13 @@ def _persist_upload_bytes(*, storage_path: str, content: bytes) -> Path:
 
 def _build_upload_metadata(*, file_name: str, content_type: Optional[str], hash_sha256: str) -> Dict[str, Any]:
     previous_source = get_latest_source_by_name(file_name)
-    return {
+    metadata = {
         "original_file_name": file_name,
         "upload_content_type": content_type,
         "reupload_of_source_id": previous_source.id if previous_source and previous_source.hash_sha256 != hash_sha256 else None,
     }
+    metadata["corpus_policy"] = resolve_policy_name_from_source_metadata(metadata)
+    return metadata
 
 
 def _queue_upload_source(
@@ -258,7 +261,9 @@ def _ingest_uploaded_source(*, source_id: int, source_type: str, file_name: str,
 
         _update_ingestion_job_stage(job_id, status="processing", stage="chunking")
         log_event("chunk.started", source_id=source_id, job_id=job_id, stage="chunk", status="processing")
-        chunks = chunk_parsed_document(parsed)
+        source = get_source_by_id(source_id)
+        policy_name = resolve_policy_name_from_source_metadata(source.source_metadata_json if source else {})
+        chunks = chunk_parsed_document(parsed, policy_name=policy_name)
         linked_chunks = _link_chunks_to_source_parts(chunks, source_part_ids)
         if check_chunks_exist(source_id):
             delete_chunks_for_source(source_id)
@@ -271,6 +276,14 @@ def _ingest_uploaded_source(*, source_id: int, source_type: str, file_name: str,
             stage="chunk",
             status="completed",
             reason="chunks_persisted",
+        )
+        log_event(
+            "chunk.policy_applied",
+            source_id=source_id,
+            job_id=job_id,
+            stage="chunk",
+            status="completed",
+            reason=get_corpus_policy(policy_name).name,
         )
 
         _update_ingestion_job_stage(job_id, status="processing", stage="embedding")

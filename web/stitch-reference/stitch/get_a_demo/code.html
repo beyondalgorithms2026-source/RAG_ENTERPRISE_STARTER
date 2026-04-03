@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container": "#efefda",
+              "inverse-on-surface": "#f2f2dd",
+              "tertiary-container": "#4f6000",
+              "surface-bright": "#fbfbe6",
+              "surface-tint": "#3a42f2",
+              "primary-container": "#343ced",
+              "surface-container-low": "#f5f5e0",
+              "on-error-container": "#93000a",
+              "surface-container-lowest": "#ffffff",
+              "on-secondary-container": "#586373",
+              "on-secondary": "#ffffff",
+              "surface-container-high": "#eae9d5",
+              "tertiary-fixed": "#cdf13d",
+              "on-error": "#ffffff",
+              "error-container": "#ffdad6",
+              "primary": "#0e11d8",
+              "secondary-fixed": "#d8e3f6",
+              "on-tertiary-fixed": "#171e00",
+              "on-primary-fixed-variant": "#181ddc",
+              "surface-container-highest": "#e4e4cf",
+              "surface": "#fbfbe6",
+              "surface-dim": "#dbdbc7",
+              "secondary-container": "#d5e0f3",
+              "on-primary-fixed": "#00006e",
+              "error": "#ba1a1a",
+              "inverse-primary": "#bfc2ff",
+              "outline-variant": "#c6c5d9",
+              "tertiary-fixed-dim": "#b1d41c",
+              "outline": "#767588",
+              "secondary": "#545f6f",
+              "on-surface": "#1b1d10",
+              "tertiary": "#3a4700",
+              "on-tertiary-fixed-variant": "#3e4c00",
+              "primary-fixed": "#e0e0ff",
+              "secondary-fixed-dim": "#bcc7da",
+              "primary-fixed-dim": "#bfc2ff",
+              "surface-variant": "#e4e4cf",
+              "on-surface-variant": "#454556",
+              "on-background": "#1b1d10",
+              "on-primary": "#ffffff",
+              "on-secondary-fixed-variant": "#3d4857",
+              "on-tertiary": "#ffffff",
+              "on-tertiary-container": "#bbdf2a",
+              "inverse-surface": "#303124",
+              "on-secondary-fixed": "#111c2a",
+              "background": "#fbfbe6",
+              "on-primary-container": "#cbcdff"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        display: inline-block;
+        line-height: 1;
+      }
+      body {
+        background-color: #fbfbe6;
+        color: #1b1d10;
+        font-family: 'Inter', sans-serif;
+      }
+      .glass-header {
+        background-color: rgba(251, 251, 230, 0.8);
+        backdrop-filter: blur(24px);
+      }
+    </style>
+</head>
+<body class="antialiased">
+<!-- TopNavBar - Rendered for top-level navigation shell -->
+<header class="fixed top-0 left-0 right-0 z-50 glass-header">
+<nav class="flex justify-between items-center w-full px-8 py-4 max-w-screen-2xl mx-auto">
+<div class="text-xl font-bold tracking-tight text-[#1b1d10] dark:text-white">
+                RAG Enterprise
+            </div>
+<div class="hidden md:flex items-center space-x-8">
+<a class="text-[#1b1d10]/70 hover:text-[#343CED] transition-colors font-['Inter'] body-lg leading-relaxed" href="#">Product</a>
+<a class="text-[#1b1d10]/70 hover:text-[#343CED] transition-colors font-['Inter'] body-lg leading-relaxed" href="#">Solutions</a>
+<a class="text-[#1b1d10]/70 hover:text-[#343CED] transition-colors font-['Inter'] body-lg leading-relaxed" href="#">Docs</a>
+<a class="text-[#1b1d10]/70 hover:text-[#343CED] transition-colors font-['Inter'] body-lg leading-relaxed" href="#">Pricing</a>
+</div>
+<div class="flex items-center space-x-4">
+<a class="text-slate-600 dark:text-slate-400 hover:text-[#343CED] transition-colors font-medium" href="#">Console Login</a>
+<button class="bg-gradient-to-br from-primary to-primary-container text-on-primary px-6 py-2.5 rounded-xl font-semibold shadow-sm hover:opacity-90 transition-all active:scale-95">
+                    Register
+                </button>
+</div>
+</nav>
+</header>
+<main class="min-h-screen pt-16 flex flex-col md:flex-row overflow-hidden">
+<!-- Left Side: Dark/Editorial Content -->
+<section class="md:w-[45%] bg-[#0e11d8] text-white p-12 md:p-24 flex flex-col justify-between relative overflow-hidden">
+<!-- Decorative background element -->
+<div class="absolute top-0 right-0 w-full h-full opacity-10 pointer-events-none" data-alt="abstract glowing light effect with subtle grain texture and deep blue to lime green gradient transition" style="background-image: radial-gradient(circle at 100% 0%, #cdf13d 0%, transparent 50%);"></div>
+<div class="relative z-10">
+<div class="mb-12">
+<span class="inline-block bg-white/10 text-tertiary-fixed text-xs font-bold tracking-[0.2em] px-3 py-1 rounded-full mb-6 uppercase">Enterprise AI Retrieval</span>
+<h1 class="text-5xl md:text-7xl font-extrabold tracking-tighter leading-[1.05] mb-8">
+                        Put AI to work.<br/>At work.
+                    </h1>
+<p class="text-xl text-white/70 max-w-md font-light leading-relaxed">
+                        The unified knowledge layer that powers enterprise-grade RAG. Connect your data, evaluate your models, and deploy at scale.
+                    </p>
+</div>
+</div>
+<div class="relative z-10">
+<!-- Customer Testimonial Card -->
+<div class="bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10">
+<div class="flex items-center space-x-2 mb-6">
+<span class="material-symbols-outlined text-tertiary-fixed" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-tertiary-fixed" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-tertiary-fixed" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-tertiary-fixed" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-tertiary-fixed" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+<blockquote class="text-2xl font-medium leading-snug mb-8">
+                        "RAG Enterprise has transformed how our retrieval teams access cross-functional data, cutting our hallucination rates by nearly 40%."
+                    </blockquote>
+<div class="flex items-center space-x-4">
+<div class="w-12 h-12 rounded-full bg-white/20 overflow-hidden">
+<img alt="Customer Portrait" class="w-full h-full object-cover" data-alt="professional headshot of an executive man in his 40s wearing a neutral modern suit looking confident against a clean office background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCfeat5KrjH9euP2bwb6M7b9vdkM4G3VuGQZ0yJXX8DKrTNS0rJuDDW35MgRnL17eP6MPejOMSST29ySfGdc46QNPrjYnapGsRxGKP4_JZ4oM0z_m2rvpMoauW9sX7RTKJgmWPltfVGFfi_a6YhA6ErOUXSCR7BBROknxPp_nongwWCmIO-WYoeAkbIe_dVWUw2g7Ac3ntfQZOHlBdsbCti-WaS-pTVqiKIFd7x29z3AEZ5rw06D11bS32GXQepLbi5vISJ5JDSJbE"/>
+</div>
+<div>
+<div class="font-bold text-white">Chief Data Officer</div>
+<div class="text-white/50 text-sm">Booking.com</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Right Side: The Demo Form -->
+<section class="md:w-[55%] bg-surface px-8 py-16 md:p-24 flex items-center">
+<div class="max-w-xl w-full mx-auto">
+<div class="mb-10">
+<h2 class="text-3xl font-black text-on-surface mb-2 tracking-tight">Request a Personalized Demo</h2>
+<p class="text-on-surface-variant text-lg">See how our platform fits your specific enterprise architecture.</p>
+</div>
+<form class="space-y-6">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-2">
+<label class="text-sm font-semibold text-on-surface/70 px-1">First name</label>
+<input class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-3.5 text-on-surface focus:ring-2 focus:ring-primary focus:ring-offset-4 focus:ring-offset-surface transition-all" placeholder="John" type="text"/>
+</div>
+<div class="space-y-2">
+<label class="text-sm font-semibold text-on-surface/70 px-1">Last name</label>
+<input class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-3.5 text-on-surface focus:ring-2 focus:ring-primary focus:ring-offset-4 focus:ring-offset-surface transition-all" placeholder="Doe" type="text"/>
+</div>
+</div>
+<div class="space-y-2">
+<label class="text-sm font-semibold text-on-surface/70 px-1">Work email</label>
+<input class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-3.5 text-on-surface focus:ring-2 focus:ring-primary focus:ring-offset-4 focus:ring-offset-surface transition-all" placeholder="john@company.com" type="email"/>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-2">
+<label class="text-sm font-semibold text-on-surface/70 px-1">Company</label>
+<input class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-3.5 text-on-surface focus:ring-2 focus:ring-primary focus:ring-offset-4 focus:ring-offset-surface transition-all" placeholder="Acme Corp" type="text"/>
+</div>
+<div class="space-y-2">
+<label class="text-sm font-semibold text-on-surface/70 px-1">Company Size</label>
+<select class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-3.5 text-on-surface focus:ring-2 focus:ring-primary focus:ring-offset-4 focus:ring-offset-surface transition-all appearance-none">
+<option>1-50 employees</option>
+<option>51-250 employees</option>
+<option>251-1000 employees</option>
+<option>1000+ employees</option>
+</select>
+</div>
+</div>
+<div class="space-y-2">
+<label class="text-sm font-semibold text-on-surface/70 px-1">Country</label>
+<select class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-3.5 text-on-surface focus:ring-2 focus:ring-primary focus:ring-offset-4 focus:ring-offset-surface transition-all appearance-none">
+<option>United States</option>
+<option>United Kingdom</option>
+<option>Germany</option>
+<option>Singapore</option>
+<option>Other</option>
+</select>
+</div>
+<div class="space-y-2">
+<label class="text-sm font-semibold text-on-surface/70 px-1">What sparked your interest?</label>
+<textarea class="w-full bg-surface-container-highest border-none rounded-xl px-4 py-3.5 text-on-surface focus:ring-2 focus:ring-primary focus:ring-offset-4 focus:ring-offset-surface transition-all" placeholder="Tell us about your retrieval challenges..." rows="4"></textarea>
+</div>
+<div class="pt-4">
+<button class="w-full bg-gradient-to-br from-primary to-primary-container text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-primary/20 transition-all active:scale-[0.98]" type="submit">
+                            Submit Request
+                        </button>
+<p class="mt-6 text-center text-xs text-on-surface-variant font-medium uppercase tracking-widest leading-relaxed">
+                            By submitting this form, you agree to our <a class="underline hover:text-primary" href="#">Privacy Policy</a>
+</p>
+</div>
+</form>
+</div>
+</section>
+</main>
+<!-- Footer - Hidden for transaction focus but specified in components -->
+<footer class="bg-surface-container-low w-full py-12 border-t border-outline-variant/10">
+<div class="max-w-7xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+<p class="text-slate-500 font-['Inter'] text-xs uppercase tracking-widest">Built for enterprise retrieval teams</p>
+<div class="flex space-x-8">
+<a class="text-slate-500 hover:text-[#343CED] font-['Inter'] text-xs uppercase tracking-widest transition-colors" href="#">Privacy</a>
+<a class="text-slate-500 hover:text-[#343CED] font-['Inter'] text-xs uppercase tracking-widest transition-colors" href="#">Terms</a>
+<a class="text-slate-500 hover:text-[#343CED] font-['Inter'] text-xs uppercase tracking-widest transition-colors" href="#">Security</a>
+<a class="text-slate-500 hover:text-[#343CED] font-['Inter'] text-xs uppercase tracking-widest transition-colors" href="#">Status</a>
+</div>
+</div>
+</footer>
+</body></html>

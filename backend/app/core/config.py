@@ -38,10 +38,20 @@ class Settings(BaseSettings):
 
     # Auth / OIDC configuration
     AUTH_ENABLED: bool = False
+    AUTH_MODE: str = "oidc"
     AUTH_COOKIE_NAME: str = "rag_access_token"
     AUTH_STATE_COOKIE_NAME: str = "rag_oidc_state"
     AUTH_COOKIE_SECURE: bool = False
+    FRONTEND_APP_URL: str = "http://127.0.0.1:3001"
     AUTH_STATE_SIGNING_SECRET: str = "rag-enterprise-starter-dev-state-secret"
+    DEV_LOCAL_JWT_SECRET: str = "rag-enterprise-local-dev-jwt-secret"
+    DEV_LOCAL_ISSUER: str = "rag-enterprise-local-dev"
+    DEV_TEST_USER_EMAIL: str = "test-user@ragenterprise.local"
+    DEV_TEST_USER_PASSWORD: str = "password123"
+    DEV_TEST_USER_NAME: str = "Test User"
+    DEV_TEST_ADMIN_EMAIL: str = "test-admin@ragenterprise.local"
+    DEV_TEST_ADMIN_PASSWORD: str = "password123"
+    DEV_TEST_ADMIN_NAME: str = "Test Admin"
     OIDC_DISCOVERY_URL: str = ""
     OIDC_ISSUER: str = ""
     OIDC_AUDIENCE: str = ""

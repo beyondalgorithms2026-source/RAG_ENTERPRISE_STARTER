@@ -16,6 +16,7 @@ from .api.corpus import router as corpus_router
 from .api.admin import router as admin_router
 from .auth.context import reset_current_user, set_current_user
 from .auth.service import AuthError, authenticate_request
+from .core.config import settings
 from .db.repo_acl import sync_authenticated_user
 
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
@@ -24,7 +25,14 @@ app = FastAPI(title="RAG enterprise Starter", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+    ],
     allow_credentials=True,
     allow_methods=["OPTIONS", "POST", "GET", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
@@ -65,7 +73,7 @@ app.include_router(admin_router)
 
 @app.get("/", include_in_schema=False)
 def ui_root():
-    return RedirectResponse(url="/frontend/")
+    return RedirectResponse(url=settings.FRONTEND_APP_URL)
 
 
 app.mount("/frontend", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
