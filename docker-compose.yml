@@ -12,7 +12,4 @@ services:
       POSTGRES_PASSWORD: rag_enterprise_starter_dev_pass
       POSTGRES_DB: rag_enterprise_starter
     volumes:
-      - rag_enterprise_starter_pgdata:/var/lib/postgresql/data
-
-volumes:
-  rag_enterprise_starter_pgdata:
+      - /Users/Work/Projects/Backup/Database/rag-enterprise-pgdata:/var/lib/postgresql/data

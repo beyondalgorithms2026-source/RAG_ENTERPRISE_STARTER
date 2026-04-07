@@ -13,58 +13,130 @@ Finally, the platform is built with granular customization and modularity in min
 “This repo is forked-by-copy from `RAG_MM_MASTER_POC` as a baseline engine; enterprise features are added in milestones with explicit DoD checks.”
 
 
-Commands to run the app:
+## 🚀 First Run (2026 Setup)
 
-The backend lives under `backend/app/main.py` and the primary frontend now lives under `web/`.
+Use the actual local repo path:
+
+```bash
+cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER
+```
+
+### 1. Persist Postgres on the host
+
+Create the backup folder:
+
+```bash
+mkdir -p /Users/Work/Projects/Backup/Database/rag-enterprise-pgdata
+```
+
+Update `docker-compose.yml` so the database volume is:
+
+```yaml
+volumes:
+  - /Users/Work/Projects/Backup/Database/rag-enterprise-pgdata:/var/lib/postgresql/data
+```
+
+Start Postgres:
 
 ```bash
 docker compose up -d
+docker compose ps
+```
 
-cd backend
-python -m venv .venv
+### 2. Pull the Ollama model
+
+```bash
+ollama pull llama3.2:3b
+```
+
+### 3. Optional: restore an existing backup
+
+Plain SQL dump:
+
+```bash
+docker exec -i rag_enterprise_starter_db psql \
+  -U rag_enterprise_starter \
+  -d rag_enterprise_starter < /absolute/path/to/backup.sql
+```
+
+Custom dump:
+
+```bash
+docker exec -i rag_enterprise_starter_db pg_restore \
+  --clean --if-exists --no-owner --no-privileges \
+  -U rag_enterprise_starter \
+  -d rag_enterprise_starter < /absolute/path/to/backup.dump
+```
+
+### 4. Frontend env file
+
+```bash
+cp web/.env.example web/.env.local
+```
+
+Set the frontend env in `web/.env.local`:
+
+```dotenv
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_DEV_MODE=true
+```
+
+### 5. Confirm backend env values
+
+Make sure your restored `backend/.env` includes:
+
+```dotenv
+AUTH_ENABLED=true
+AUTH_MODE=dev
+FRONTEND_APP_URL=http://127.0.0.1:3001
+LLM_PROVIDER=ollama
+LLM_BASE_URL=http://localhost:11434
+LLM_MODEL=llama3.2:3b
+```
+
+### 6. Python setup with `uv`
+
+Open one terminal for the backend:
+
+```bash
+cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/backend
+uv venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-
+uv pip install -r requirements.txt
 python -m app.db.migrate
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-In a second terminal:
-
-```bash
-cd web
-npm install
-NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 npm run dev -- --port 3001
-```
-
-Then open:
-
-- Marketing homepage: `http://127.0.0.1:3001/`
-- Console login: `http://127.0.0.1:3001/login`
-- Backend health: `http://127.0.0.1:8000/health`
-- Legacy static frontend fallback: `http://127.0.0.1:8000/frontend/`
-
 Notes:
+- Keep this backend terminal open while the server runs.
+- If you open a new backend terminal later, run `source .venv/bin/activate` again first.
 
-- `requirements.txt` is in `backend/`, not the repo root.
-- The ASGI app is `app.main:app`, not `app:app`.
-- The app expects Postgres on `localhost:55432` by default, so `docker compose up -d` should happen first.
-- Running `python -m app.db.migrate` before starting the server is recommended so the schema exists.
-- Backend auth still owns the SSO flow; the Next.js app is the primary UI client.
+### 7. Frontend setup with `pnpm`
 
-Local dev login:
+Open a second terminal for the frontend:
 
 ```bash
-cd backend
-source .venv/bin/activate
-AUTH_ENABLED=true AUTH_MODE=dev FRONTEND_APP_URL=http://127.0.0.1:3001 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/web
+rm -f package-lock.json
+pnpm install
+pnpm run dev -- --port 3001
 ```
 
-```bash
-cd web
-NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 NEXT_PUBLIC_DEV_MODE=true npm run dev -- --port 3001
-```
+### 8. Open the app
 
-- Local dev user: `test-user@ragenterprise.local` / `password123`
-- Local dev admin: `test-admin@ragenterprise.local` / `password123`
-- Shortcut: `make dev-web`
+- Frontend: `http://127.0.0.1:3001`
+- Login: `http://127.0.0.1:3001/login`
+- Backend health: `http://127.0.0.1:8000/health`
+
+Local dev accounts:
+
+- `test-user@ragenterprise.local` / `password123`
+- `test-admin@ragenterprise.local` / `password123`
+
+### Notes
+
+- This repo currently uses custom SQLAlchemy migrations, not Prisma or Drizzle.
+- Python is managed with `uv`, but dependencies still come from `backend/requirements.txt`.
+- Node should be managed with `pnpm`; `npm` and `package-lock.json` should be retired from this repo.
+- The first migration may download the embedding model used to size the `vector(...)` column.
+- `llama3.2:3b` is the recommended lightweight Ollama model for this first run on an 8GB Mac.
