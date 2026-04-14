@@ -372,7 +372,22 @@ def chunk_uploaded_source_file(
     }
 
 
-async def process_upload(upload: UploadFile) -> Dict[str, Any]:
+def _run_ingestion_job(*, source_id: int, source_type: str, file_name: str, storage_path: str, job_id: int) -> None:
+    _ingest_uploaded_source(
+        source_id=source_id,
+        source_type=source_type,
+        file_name=file_name,
+        storage_path=storage_path,
+        job_id=job_id,
+    )
+
+
+async def process_upload(
+    upload: UploadFile,
+    *,
+    wait_for_completion: bool = True,
+    background_tasks: Any | None = None,
+) -> Dict[str, Any]:
     file_name = upload.filename or "upload.bin"
     log_event("upload.received", stage="upload", status="received", reason=file_name)
     source_type = _detect_source_type(file_name)
@@ -399,14 +414,24 @@ async def process_upload(upload: UploadFile) -> Dict[str, Any]:
         storage_path=storage_path,
         metadata=metadata,
     )
-    _ingest_uploaded_source(
-        source_id=source_id,
-        source_type=source_type,
-        file_name=file_name,
-        storage_path=storage_path,
-        job_id=job_id,
-    )
     log_event("upload.accepted", source_id=source_id, job_id=job_id, stage="upload", status="accepted")
+    if wait_for_completion or background_tasks is None:
+        _run_ingestion_job(
+            source_id=source_id,
+            source_type=source_type,
+            file_name=file_name,
+            storage_path=storage_path,
+            job_id=job_id,
+        )
+    else:
+        background_tasks.add_task(
+            _run_ingestion_job,
+            source_id=source_id,
+            source_type=source_type,
+            file_name=file_name,
+            storage_path=storage_path,
+            job_id=job_id,
+        )
     return {
         "status": "queued",
         "source_id": source_id,

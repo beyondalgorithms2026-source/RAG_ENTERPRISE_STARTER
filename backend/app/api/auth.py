@@ -1,3 +1,5 @@
+from urllib.parse import quote
+
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -12,6 +14,7 @@ from app.auth.service import (
     get_oidc_metadata,
     issue_local_dev_token,
     local_dev_auth_enabled,
+    oidc_configured,
     resolve_post_login_path,
     validate_access_token,
     verify_state,
@@ -31,10 +34,46 @@ class LocalDevLoginRequest(BaseModel):
 @router.get("/providers")
 def auth_providers():
     if not settings.AUTH_ENABLED:
-        return {"auth_enabled": False, "providers": []}
-    metadata = get_oidc_metadata()
+        return {
+            "auth_enabled": False,
+            "auth_mode": settings.AUTH_MODE,
+            "local_dev_enabled": False,
+            "oidc_configured": False,
+            "sso_available": False,
+            "provider_error": None,
+            "providers": [],
+        }
+    local_dev_enabled = local_dev_auth_enabled()
+    configured = oidc_configured()
+    if not configured:
+        return {
+            "auth_enabled": True,
+            "auth_mode": settings.AUTH_MODE,
+            "local_dev_enabled": local_dev_enabled,
+            "oidc_configured": False,
+            "sso_available": False,
+            "provider_error": None,
+            "providers": [],
+        }
+    try:
+        metadata = get_oidc_metadata()
+    except AuthError as exc:
+        return {
+            "auth_enabled": True,
+            "auth_mode": settings.AUTH_MODE,
+            "local_dev_enabled": local_dev_enabled,
+            "oidc_configured": True,
+            "sso_available": False,
+            "provider_error": {"error": exc.code, "message": exc.message},
+            "providers": [],
+        }
     return {
         "auth_enabled": True,
+        "auth_mode": settings.AUTH_MODE,
+        "local_dev_enabled": local_dev_enabled,
+        "oidc_configured": True,
+        "sso_available": True,
+        "provider_error": None,
         "providers": [
             {
                 "issuer": metadata.get("issuer"),
@@ -49,6 +88,9 @@ def auth_providers():
 def auth_login(next_path: str = Query(default_factory=lambda: settings.FRONTEND_APP_URL)):
     if not settings.AUTH_ENABLED:
         raise HTTPException(status_code=503, detail={"error": "auth_disabled", "message": "Authentication is disabled."})
+    if local_dev_auth_enabled() and not oidc_configured():
+        redirect_target = f"{settings.FRONTEND_APP_URL.rstrip('/')}/login?next={quote(next_path, safe='')}&dev_login=1"
+        return RedirectResponse(url=redirect_target, status_code=302)
     try:
         login_url, state = build_login_url(next_path=next_path)
     except AuthError as exc:

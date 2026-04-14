@@ -10,6 +10,9 @@ export function AuthCard({
   secondaryHref,
   secondaryLabel,
   showDevLogin = false,
+  devLoginPreferred = false,
+  ssoAvailable = true,
+  infoMessage,
 }: {
   title: string;
   description: string;
@@ -17,7 +20,14 @@ export function AuthCard({
   secondaryHref: string;
   secondaryLabel: string;
   showDevLogin?: boolean;
+  devLoginPreferred?: boolean;
+  ssoAvailable?: boolean;
+  infoMessage: string;
 }) {
+  const primaryHref = devLoginPreferred ? "#local-dev-login" : buildLoginHref(nextPath);
+  const primaryLabel = devLoginPreferred ? "Continue With Local Dev Login" : "Continue With SSO";
+  const devSummaryLabel = devLoginPreferred ? "Local Dev Login (Recommended For This Environment)" : "Local Dev Login";
+
   return (
     <main className="login-shell">
       <div className="login-background">
@@ -41,9 +51,9 @@ export function AuthCard({
             <p>{description}</p>
           </div>
           <div className="login-card-actions">
-            <a className="stitch-button stitch-button-primary stitch-button-block" href={buildLoginHref(nextPath)}>
+            <a className="stitch-button stitch-button-primary stitch-button-block" href={primaryHref}>
               <span className="material-symbols-outlined">identity_platform</span>
-              Continue With SSO
+              {primaryLabel}
             </a>
             <Link className="stitch-button stitch-button-secondary stitch-button-block" href={secondaryHref}>
               {secondaryLabel}
@@ -54,16 +64,16 @@ export function AuthCard({
           </div>
           <div className="login-note-card">
             <span className="material-symbols-outlined">info</span>
-            <p>This product uses enterprise single sign-on only. Local email/password registration is intentionally disabled.</p>
+            <p>{infoMessage}</p>
           </div>
         </section>
 
         {showDevLogin ? (
-          <section className="login-dev-card">
-            <details>
+          <section className="login-dev-card" id="local-dev-login">
+            <details open={devLoginPreferred}>
               <summary>
                 <span className="material-symbols-outlined">code</span>
-                Local Dev Login
+                {devSummaryLabel}
               </summary>
               <DevLoginForm nextPath={nextPath} />
             </details>

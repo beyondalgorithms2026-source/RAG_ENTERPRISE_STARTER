@@ -40,6 +40,10 @@ def local_dev_auth_enabled() -> bool:
     return auth_enabled() and auth_mode() == "dev"
 
 
+def oidc_configured() -> bool:
+    return bool(_resolve_discovery_url())
+
+
 def _csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 

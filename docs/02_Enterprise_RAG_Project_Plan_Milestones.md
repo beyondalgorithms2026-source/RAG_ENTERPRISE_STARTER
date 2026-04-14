@@ -29,7 +29,7 @@ This version adds an explicit `M10.1.x` finish-the-job sequence between M10 and 
 ### Admin capabilities
 - Corpus management (create, enable/disable, sensitivity labels)
 - Run indexing/reindexing and connectors
-- Configure profiles (embedding model / reranker / LLM / retrieval policy)
+- Configure profiles (embedding model / reranker / LLM / retrieval policy) through governed admin workflows in later milestones
 - Run eval packs; compare reports
 - Human approval queue for sensitive responses/actions
 - Audit logs and retrieval/latency traces
@@ -332,27 +332,30 @@ Key design rules:
 
 ---
 
-### Milestone M10.1 — Truthful Console IA And Surface Consolidation (Gate 10.1: no misleading UX)
-**Why now:** the first console shell exists, but before M11 polish the product surface must stop advertising routes and actions that are redirects, placeholders, or dashboard-only summaries.
+### Milestone M10.1 — Truthful Console IA While Preserving The Existing Design (Gate 10.1: no misleading UX)
+**Why now:** the first console shell already has the right enterprise shape. The next step is not to redesign or strip it down, but to preserve that design and make every route, page, and summary surface honest about what is live now, what is read-only, and what will deepen in later milestones.
 
 **Deliverables**
-- Reconcile visible information architecture with what is actually implemented today
-- User workspace labels/routes match the real supported surfaces:
-  - grounded chat
-  - session history
-  - source listing + upload flow
-  - connector request stub only where explicitly intentional
-- Admin workspace labels/routes match real operable surfaces rather than aspirational destinations
-- Route map review:
-  - no nav destination should silently collapse into an unrelated page unless the label says so
-  - remove, rename, merge, or properly implement routes that currently only redirect
-- UX contract document for what is intentionally consolidated vs intentionally deferred
+- Keep the current console design language and left-nav information architecture as the default direction
+- Keep overview pages where they are useful:
+  - admin landing remains a true system overview page
+  - user landing/workspace can remain a launchpad into chat/history/sources flows
+- Convert redirects into meaningful pages instead of collapsing them into unrelated destinations:
+  - each sidebar item must open a page with a clear purpose
+  - pages may begin as interactive, read-only, live-summary, or clearly marked limited-access states
+- Define a page-state contract for every visible screen:
+  - live and interactive
+  - live and read-only
+  - live summary with drill-downs still in progress
+  - coming soon / request flow only where explicitly intentional
+- UX contract document for what is available in M10, what is fulfilled in M10.1.x, and what is intentionally deepened in later milestones
 
 **DoD**
-- No primary nav item implies standalone functionality that does not exist
-- User can predict where each workspace link goes from its label alone
-- Admin nav does not advertise pages that are only dashboard redirects
-- Route structure is truthful enough that operators do not feel bait-and-switched on first exploration
+- The existing console design is preserved rather than replaced
+- No primary nav item silently redirects to an unrelated page
+- User and admin can predict what each page is for before clicking it
+- Overview pages remain in place and feel intentional, even when some controls are read-only or summary-only
+- The product no longer feels misleading on first exploration
 
 **Re-run checks**
 - route inventory review across `/`, `/login`, `/console/workspace/*`, `/console/admin/*`
@@ -386,13 +389,44 @@ Key design rules:
 
 ### Milestone M10.1.2 — User Workspace Contract Completion (Gate 10.1.2: user surface matches promise)
 **Deliverables**
-- Resolve the user workspace contract in one truthful direction:
-  - either implement distinct search/uploads/connectors views
-  - or intentionally consolidate them and rename the IA to match
+- Keep the existing user workspace structure where it helps comprehension:
+  - chat
+  - history
+  - my sources
+  - uploads
+  - connectors or source requests
+- Convert each visible user route into a meaningful page with a clear role, even if some begin as read-only or limited-scope
+- Establish an explicit local-dev retrieval contract for the built-in test identities:
+  - in `AUTH_MODE=dev`, `test-user` and `test-admin` can retrieve from uploaded/dev-visible sources by default so they can validate the full end-to-end product flow
+  - if explicit ACL rules exist for a source, those explicit rules still win
+  - strict production-style ACL behavior remains unchanged outside local dev mode
+- Prevent newly uploaded dev sources from becoming silently invisible to retrieval because of internal sensitivity labels with no matching ACL mapping
+- Define the minimum page contract for each user screen:
+  - what data is live now
+  - what actions are interactive now
+  - what actions are visible but intentionally read-only
+  - what actions move to later milestones
+- Chat request lifecycle contract:
+  - show visible in-progress states immediately after submit
+  - reflect backend progress labels during `/ask/stream`
+  - always render a terminal state: success, no evidence found, failed
+  - never leave the thread pane blank after a submitted question
+- Upload request lifecycle contract:
+  - upload returns quickly with a job/source reference instead of blocking the page through the entire ingest pipeline
+  - sources page shows live stage/status updates such as parsing, chunking, embedding, indexed, failed
+  - users can tell whether a file is queued, working, completed, or failed without reading backend logs
+- Thread persistence contract:
+  - a new thread and user message are durably stored before route transition
+  - assistant results remain attached to the correct thread after navigation, refresh, or remount
+  - route transitions must not blank the conversation because of client-state races
 - Evidence panel minimum interaction contract:
   - citation click behavior
   - source/context drill-in behavior
   - retrieval-path and latency visibility rules
+- No-context and no-results contract pulled forward from later UX ideas:
+  - if retrieval returns zero usable chunks, the assistant must explicitly say so in-thread
+  - the UI should suggest likely next steps such as asking with exact words, checking source visibility, or opening `My Sources`
+  - richer clarification and feedback loops may deepen later, but the base no-evidence state must already be usable here
 - Thread/history contract clarified:
   - session-local vs persisted history
   - what survives reload vs browser/device changes
@@ -404,25 +438,75 @@ Key design rules:
 - Convert placeholders into one of:
   - real functionality
   - clearly disabled “coming soon”
-  - removed from the surface until backed
+  - read-only or limited-scope visibility with explicit copy
+  - request flow for future capabilities such as connectors
+- Uploads and connectors may remain distinct pages if they each expose a truthful contract:
+  - upload page = file/job status and source onboarding
+  - connectors page = request flow now, real connector configuration in later milestones
 
 **DoD**
+- Built-in dev test accounts can exercise the end-to-end user workflow without being accidentally blocked by implicit ACL gaps
 - User-facing actions no longer feel decorative or mismatched
 - Citation/evidence interactions increase trust instead of acting like static display chrome
 - Workspace behavior around history and persistence is predictable to non-technical users
 - The console no longer suggests capabilities that disappear into unrelated routes
+- Distinct user pages may remain distinct as long as each one has a truthful, useful contract
+- Ask and upload flows always show visible progress and a visible terminal state rather than a blank or frozen interface
+- No-context questions render an explicit assistant response instead of a confusing empty chat state
 
 **Re-run checks**
 - authenticated user journey: login → ask → inspect evidence → view history → upload source
+- authenticated user journey in local dev: upload a source → ask a question from that source → retrieve grounded evidence without manual ACL intervention
+- upload job-state pass: accepted → parsing/chunking/embedding → completed or failed
+- no-context rendering pass: zero-result search shows explicit assistant feedback in-thread
+- thread persistence pass across route transition and refresh
 - citation/evidence interaction pass
 - empty-history and populated-history UX pass
 
 ---
 
-### Milestone M10.1.3 — Admin Workspace Route Wiring And Operator Completeness (Gate 10.1.3: routed control plane)
-**Why now:** backend admin APIs and even richer frontend panels may already exist, but the product is not operator-complete until routed pages expose them honestly.
+### Milestone M10.1.2.1 — User Workspace Interaction Polish And Upload Readiness Clarity (Gate 10.1.2.1: user interactions feel legible and trustworthy)
+**Why now:** M10.1.2 made the user workspace truthful and functional. This short follow-up tightens the remaining rough edges so M10.1.3 can stay focused on admin completeness instead of absorbing avoidable user-console polish work.
 
 **Deliverables**
+- Modernize answer action controls without pulling the full feedback-loop milestone forward:
+  - `Copy answer` stays functional and shows visible acknowledgement
+  - `helpful` / `not helpful` become live client-side controls
+  - no backend persistence yet
+- Make the retrieved-sources rail easier to scan in long threads:
+  - older answer groups default collapsed
+  - clearer expand/collapse affordance
+  - citation clicks open the matching answer section instead of feeling like unrelated sidebar motion
+- Improve selected-context clarity:
+  - source file name shown prominently
+  - page / section / chunk locator metadata shown when available
+  - avoid fake page numbers for plain-text sources
+- Clarify upload and source readiness semantics:
+  - `chunked` means not searchable yet
+  - `embedding` / processing means still preparing retrieval state
+  - `embedded` / `indexed` means ready for search and ask
+- Explain that repeated `/corpus` and `/corpus/jobs/*` requests are expected polling during live progress refresh
+
+**DoD**
+- Copy action shows visible success feedback and still copies the answer
+- Helpful / not-helpful controls feel intentional rather than decorative
+- Multi-turn evidence sections are easier to scan by default
+- Selected context identifies the source more clearly than a generic panel heading
+- Users can tell whether an uploaded document is actually ready for retrieval without reading backend logs
+
+**Re-run checks**
+- multi-turn chat UX pass covering citation click, evidence expand/collapse, and answer-action feedback
+- upload readiness pass from upload accepted through indexed/embedded
+- source table review for searchable vs non-searchable state clarity
+
+---
+
+### Milestone M10.1.3 — Admin Workspace Route Wiring And Operator Completeness (Gate 10.1.3: routed control plane)
+**Why now:** backend admin APIs and richer admin views may already exist, but the product is not operator-complete until the sidebar resolves to real pages and the dashboard is treated as an overview page rather than a catch-all proxy.
+
+**Deliverables**
+- Keep the existing admin console layout and overview-first design
+- Preserve the admin landing page as a true `System Overview` screen showing health, corpus state, job state, retrieval quality, and operator quick actions
 - Wire the admin sidebar to real, distinct pages for:
   - corpora
   - jobs
@@ -430,7 +514,10 @@ Key design rules:
   - evals
   - traces
   - policies
-- Preserve the dashboard as a summary page instead of using it as a proxy for every workflow
+- For each admin page, allow one of three truthful launch states:
+  - interactive if backend support already exists
+  - read-only if live backend data exists but controls are still being wired
+  - live summary if the page is meant to orient operators before deeper workflow controls arrive
 - Expose current backend control-plane capabilities through the routed admin UI where already supported:
   - corpus inspection and management
   - indexing/reindex/job visibility
@@ -438,16 +525,63 @@ Key design rules:
   - eval trigger/report review
   - trace inspection
   - retrieval/rerank/corpus policy metadata inspection
-- Define any truly future admin surfaces as deferred rather than half-routed
+- Explicitly map deeper admin controls that are not yet wired to later milestones instead of removing the page concept
 
 **DoD**
 - Every advertised admin destination is a real page, not a redirect back to the dashboard
-- Admins can operate current control-plane capabilities from the UI without code edits
+- The overview page remains intact and useful for a real admin on first login
+- Admins can use current live controls where supported and still gain value from read-only/live-summary pages where deeper controls arrive later
 - The admin console feels like an operator workspace rather than a pretty summary shell
 
 **Re-run checks**
 - admin route smoke across all sidebar destinations
 - operator journey: corpus review → profile switch → eval trigger → trace review
+
+---
+
+### Milestone M10.1.3.1 — Admin Trustworthiness, Operational Depth, And Audit Foundations (Gate 10.1.3.1: truthful operator control plane)
+**Why now:** `M10.1.3` makes the admin workspace routable and recognizable, but it is not yet operator-grade if overview metrics can be fabricated, important pages are still shallow, or auditability is missing.
+
+**Deliverables**
+- Remove fake fallback signals from the admin landing page:
+  - no invented corpus/job/eval/document counts
+  - no fabricated notifications or placeholder trace rows
+  - empty and unavailable states shown explicitly when real data is missing
+  - metric formatting corrected so source counts are not shown as fake `k` values
+- Upgrade the admin console from route-complete to operator-truthful:
+  - overview becomes a real health and queue summary driven by live admin contracts
+  - jobs page upgraded from list-only into queue and execution visibility with useful status, timing, actor, and failure context
+  - traces page upgraded from recent-summary list into a real debug surface with drill-in
+  - corpora page upgraded from create/list into corpus detail plus source-assignment visibility
+  - profiles page upgraded from active-toggle only into a clearer live profile inventory with activation history visibility
+  - evals page upgraded from run/list into real report-state and comparison-oriented operator flow
+- Add missing admin information architecture so operators are not forced to infer state from unrelated pages:
+  - `Sources` route for source-level inventory, status, corpus placement, and admin actions
+  - `Access` route for user/group/document-ACL visibility and enterprise access posture
+- Introduce a real audit log foundation:
+  - append-only admin audit events stored separately from retrieval traces
+  - profile activation, corpus edits, source assignment, reindex/enrich actions, eval runs, and other admin mutations are audit-recorded
+  - audit log page becomes a true event viewer rather than a summary assembled from jobs/traces
+  - audit entries capture actor, action, target, before/after context where relevant, outcome, and timestamp
+- Cross-link operator workflows:
+  - jobs link to related source/corpus context
+  - traces link to related request/debug context
+  - audit entries link to affected source/job/profile/corpus when applicable
+  - overview cards and alerts route into the correct admin page instead of acting as dead-end summaries
+- Preserve the existing admin workspace structure while making it trustworthy enough for enterprise use
+
+**DoD**
+- Admin overview never invents system state when APIs return empty or unavailable data
+- Every admin sidebar destination is both real and operationally meaningful
+- Sources, corpora, jobs, profiles, evals, traces, policies, access, and audit each have a distinct operator purpose
+- Audit log is backed by stored admin events, not inferred summaries
+- Admin can understand what happened, who changed it, and what object was affected without using the terminal or database directly
+
+**Re-run checks**
+- admin truthfulness pass: no fake counts, fake notifications, or fake rows render when backend data is empty
+- jobs/traces/corpora drill-in pass across routed admin pages
+- audit pass: profile switch, corpus/source update, reindex, enrich, and eval trigger all create audit events
+- operator journey pass: overview → source/job inspection → trace/debug review → audit verification
 
 ---
 
@@ -461,7 +595,8 @@ Key design rules:
 - Establish a consistent policy for unfinished actions:
   - disabled with explanation
   - clearly marked “coming soon”
-  - hidden until backed by behavior
+  - read-only/live-summary where visibility is useful to operators
+  - hidden only when showing the affordance would be actively misleading
 - Align `/register`, demo, free-trial, and video-tour flows with the actual product/business motion
 - Footer and header navigation either point somewhere real or are intentionally removed
 
@@ -469,6 +604,7 @@ Key design rules:
 - No primary CTA appears clickable while doing nothing
 - Demo and trial flows set the right expectation for enterprise/private-beta reality
 - Placeholder actions are intentional and legible rather than feeling broken
+- Useful overview and summary surfaces are allowed to remain visible even before every downstream action is interactive
 
 **Re-run checks**
 - click-through audit of all visible CTA/button/link affordances
@@ -489,9 +625,11 @@ Key design rules:
 - Clear distinction between:
   - no data yet
   - loading
+  - actively processing
   - permission-limited visibility
   - failed backend call
 - First-run checklist or embedded guidance for local dev operators
+- Empty-state and in-progress copy must explain whether the system is waiting on upload, indexing, retrieval, or answer generation
 
 **DoD**
 - A clean install feels intentionally empty rather than misconfigured
@@ -508,14 +646,73 @@ Key design rules:
 ### Milestone M11 — Admin Workspace Polish And Operational UX (Gate 11: non-dev operations)
 **Deliverables**
 - Follow-on admin improvements on top of the completed M10.1.x admin workspace:
-  - approval inbox (stub until M15)
-  - audit log viewer
-  - bulk-action and filtering refinement for corpora/jobs/traces
-  - report comparison UX polish
+  - follow-on UX polish on top of the completed truthful admin workspace
+  - bulk-action refinement for already-existing admin workflows
+  - filtering, saved views, and table ergonomics across jobs/sources/traces/audit
+  - report comparison UX polish and operator quality-of-life improvements
   - operational quality-of-life improvements for non-developer operators
+  - approval inbox remains summary/stub here and becomes a full workflow in M15
 
 **DoD**
 - Non-developer can operate daily workflows comfortably with less engineering assistance
+
+---
+
+### Milestone M11.1 — Ingestion Queue Visibility, ETA, And Priority Governance (Gate 11.1: enterprise indexing operations)
+**Why now:** once the admin workspace is operational, indexing stops being just a background technical detail and becomes a shared enterprise workflow with fairness, urgency, and audit requirements.
+
+**Deliverables**
+- End-user upload/indexing visibility upgraded from raw status polling into a clearer job-progress contract:
+  - current stage shown per file: queued, parsing, chunking, embedding, indexing/enrichment, completed, failed
+  - estimated completion window shown when enough signal exists
+  - queue-delay messaging shown when slower files or earlier jobs are ahead
+  - completion-time expectation updates if enterprise-wide queue state changes materially
+- ETA prediction framework for indexing jobs:
+  - rough estimate available from file size and file type immediately after upload acceptance
+  - improved estimate after parsing/chunk-count discovery
+  - best estimate incorporates current queue depth and recent observed throughput
+  - confidence band or estimate quality label exposed so low-confidence ETA is not presented as exact truth
+- User-side priority/escalation request flow:
+  - user can mark a newly uploaded file as urgent or submit a priority request with reason
+  - request is routed into the admin workspace rather than directly bypassing queue policy
+  - user can see request status: submitted, under review, approved, denied, expired
+  - user-facing job status and ETA update if an admin takes action on the request
+- Admin ingestion queue console upgraded from summary visibility into real queue operations:
+  - queue visible at file, source, and user level
+  - sortable/filterable by wait time, stage, priority, owner, corpus, file size, source type, and failure state
+  - clear distinction between queued, actively running, retrying, blocked, and completed jobs
+  - queue health summary: backlog, active workers, oldest waiting job, average chunks/minute, failure hotspots
+- Admin queue controls with governance:
+  - raise/lower priority for waiting jobs
+  - approve/deny user priority requests with reason
+  - pause, resume, cancel, retry, or requeue jobs where operationally safe
+  - optional queue policies such as small-files-first, VIP override, or fairness guardrails by role/team
+  - running-job behavior defined explicitly so unsafe mid-flight reordering is not implied if unsupported
+- Enterprise-wide queue impact visibility:
+  - when one job is expedited, downstream ETA/status for affected queued jobs is recalculated
+  - affected users see truthful updated timing rather than stale original estimates
+  - admin can preview estimated blast radius before confirming a reprioritization action
+- Auditability for ingestion operations:
+  - queue audit events extend the `M10.1.3.1` audit foundation rather than introducing a separate audit mechanism
+  - append-only operational audit log for queue and priority actions
+  - captures who requested priority, who approved/denied/reordered, when, why, what changed, and ETA impact
+  - admin audit view supports filtering by user, file, job, action type, and time range
+  - exportable audit artifact or log file available for enterprise review/compliance workflows
+
+**DoD**
+- Users can see more than a raw status poll and are no longer forced to guess whether indexing delay is normal
+- ETA is present when reasonably inferable and degrades gracefully when confidence is low
+- Users can submit a priority request without bypassing governance
+- Admin can inspect the queue at both file and user level and take bounded, auditable action
+- Reprioritization updates affected queued-job timing/status rather than leaving stale expectations in place
+- Every queue-control and priority decision is audit-recorded with actor, reason, and impact
+
+**Re-run checks**
+- single-file upload ETA pass: upload accepted → stage progression → completion estimate narrows over time
+- multi-file burst pass: queue depth changes are reflected in user-visible status/ETA
+- priority-request pass: user submits request → admin approves/denies → user/job state updates correctly
+- reprioritization pass: expedite one queued job and verify downstream queued-job ETA/status recompute
+- audit pass: request, decision, reorder, cancel, retry, and completion-impact events are all recorded and filterable
 
 ---
 
@@ -526,10 +723,13 @@ Key design rules:
   - row-to-document serialization
   - incremental ingestion by updated_at/id
 - Metadata filters preserved (customer_id, region, etc.)
+- Upgrade user/admin connector-related pages from request-flow or summary states into real connector configuration and visibility where the backend support exists
+- Preserve the local-dev-first testing story while making connector-backed sources compatible with explicit corpus/ACL rules outside the dev bypass flow
 
 **DoD**
 - Can ingest DB data into a corpus and query it
 - Filters work and are enforced alongside ACL trimming
+- Connector-related screens are no longer just placeholders once DB connector support lands
 
 ---
 
@@ -543,6 +743,7 @@ Key design rules:
   - normalized email document model
   - attachment-as-child-source handling when attachment type is supported
 - Attachment relationship model integrated with retrieval policy
+- Extend source and connector pages to expose email/mailbox-style sources once these flows are implemented
 
 **DoD**
 - Email ingestion is no longer limited conceptually to uploaded `.eml`
@@ -581,6 +782,7 @@ Key design rules:
   - pending approvals stored
   - approver can approve/deny with reason
 - End-user sees: pending approval vs denied vs approved answer
+- Admin approval-related overview cards or stub pages introduced earlier become a real interactive workflow here
 
 **DoD**
 - Sensitive query triggers approval path
@@ -603,6 +805,8 @@ Key design rules:
 - Feedback loop:
   - store successful/failed queries
   - “top failed queries” dashboard in admin UI
+- User-facing feedback and missing-source affordances that were previously basic but functional in M10.1.2 become full closed-loop product behavior here
+- Expand the basic no-context UX introduced in M10.1.2 into richer clarification flows for likely wrong wording, missing source visibility, or genuinely absent evidence
 
 **DoD**
 - Missing-evidence queries do not hallucinate
@@ -632,6 +836,52 @@ Key design rules:
 - Slow improves hard questions measurably (eval deltas)
 - User can choose mode; system can also auto-suggest mode
 - Operators can explain latency/cost tradeoffs by policy
+
+---
+
+### Milestone M17.1 — Admin Retrieval Tuning Lab And Profile Rollout Controls (Gate 17.1: controlled admin customization)
+**Why now:** real admin model and retrieval tuning should arrive only after traces, evals, queue governance, and operator auditability exist; otherwise configuration changes become hard to evaluate and risky to roll back.
+
+**Deliverables**
+- Upgrade admin profile controls from visibility/activation into real controlled tuning workflows:
+  - embedding profile selection from registered embedding models
+  - reranker profile selection and policy controls
+  - LLM profile selection from approved registered models
+  - retrieval-profile selection for mode, fusion, candidate caps, and budget posture
+- Add an admin query workbench / tuning lab:
+  - rerun a query against a chosen corpus/profile combination
+  - compare current active profile vs candidate profile side by side
+  - inspect trace deltas, citation differences, latency deltas, and eval implications
+  - run controlled query-debug experiments without silently changing production defaults
+- Add corpus-aware and source-type-aware tuning controls:
+  - assign retrieval/rerank/profile defaults by corpus
+  - allow policy by source or content shape where supported by corpus policy design
+  - support testing different strategies for PDFs, transcripts, DB rows, email-style content, or other source classes through governed profile assignment rather than ad hoc switches
+- Add safe embedding-model change workflow:
+  - preview reindex impact before activation
+  - show affected corpora/sources and estimated indexing blast radius
+  - require explicit reindex workflow for embedding changes
+  - preserve rollback path to prior active embedding profile
+- Add safe rollout and auditability:
+  - activation history and change provenance
+  - audit records for every model/profile/policy change
+  - optional compare-before-promote flow using eval reports or benchmark packs
+  - no arbitrary freeform model strings in admin UI; only approved registry-backed profiles
+- Extend admin console IA with a dedicated `Tuning Lab` route or equivalent routed surface once this milestone lands
+
+**DoD**
+- Admin can test and compare retrieval/model settings without code edits
+- Embedding changes are treated as reindexing events, not casual toggles
+- Rerank, LLM, and retrieval-profile changes are explainable, measurable, and auditable
+- Customization by corpus/source type is supported through explicit policy/profile assignment
+- Operators can promote or roll back settings with trace/eval evidence
+
+**Re-run checks**
+- profile compare pass: active vs candidate profile on benchmark queries
+- rerank policy pass: off vs selective-on comparison
+- LLM profile swap pass without answer-contract regression
+- embedding profile change pass with reindex preview and audit trail
+- corpus/source-type policy pass demonstrating different governed behavior across content classes
 
 ---
 
@@ -737,7 +987,7 @@ An internal assistant that:
 - answers from approved sources with citations
 - respects SSO and per-document permissions
 - supports multiple corpora and data connectors, including enterprise email realities
-- lets admins tune models, fusion, rerankers, and retrieval policies
+- lets admins inspect, test, compare, roll out, and audit models, fusion, rerankers, LLMs, and retrieval policies through governed workflows
 - provides latency, trace, and eval visibility for operators
 - supports tool actions with policy gates and approvals
 - collects feedback and improves over time without breaking governance

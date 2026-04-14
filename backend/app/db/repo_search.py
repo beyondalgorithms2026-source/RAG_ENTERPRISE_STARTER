@@ -79,7 +79,7 @@ def _acl_clause(*, params: Dict[str, Any], source_alias: str = "s") -> str:
     external_user_id = acl_context.get("external_user_id")
     if external_user_id:
         params["acl_external_user_id"] = external_user_id
-        return f"""(
+        base_clause = f"""(
             {source_alias}.sensitivity_label = 'public'
             OR EXISTS (
                 SELECT 1
@@ -90,6 +90,16 @@ def _acl_clause(*, params: Dict[str, Any], source_alias: str = "s") -> str:
                   AND da.source_id = {source_alias}.id
             )
         )"""
+        if acl_context.get("local_dev_full_access"):
+            return f"""(
+                {base_clause}
+                OR NOT EXISTS (
+                    SELECT 1
+                    FROM document_acl da_any
+                    WHERE da_any.source_id = {source_alias}.id
+                )
+            )"""
+        return base_clause
     return f"{source_alias}.sensitivity_label = 'public'"
 
 

@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { ProfilesAdminPanel } from "@/components/admin-panels";
 
 export default function AdminProfilesPage() {
-  redirect("/console/admin");
+  return <ProfilesAdminPanel />;
 }

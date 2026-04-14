@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { JobsAdminPanel } from "@/components/admin-panels";
 
 export default function AdminJobsPage() {
-  redirect("/console/admin");
+  return <JobsAdminPanel />;
 }

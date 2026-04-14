@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { SourcesPage } from "@/components/sources-page";
 
 export default function ConnectorsRoutePage() {
-  redirect("/console/workspace/sources");
+  return <SourcesPage view="connectors" />;
 }

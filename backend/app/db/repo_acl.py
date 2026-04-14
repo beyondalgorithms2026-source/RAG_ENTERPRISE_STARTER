@@ -4,6 +4,8 @@ from typing import Any, Optional
 from sqlalchemy import text
 
 from app.auth.context import AuthenticatedUser, get_current_user
+from app.auth.service import local_dev_auth_enabled
+from app.core.config import settings
 from app.db.db import engine
 
 
@@ -70,7 +72,20 @@ def current_acl_context() -> dict[str, Any]:
         "external_user_id": user.user_id if user else None,
         "groups": list(user.groups) if user else [],
         "roles": list(user.roles) if user else [],
+        "local_dev_full_access": local_dev_acl_bypass_enabled(user),
     }
+
+
+def local_dev_acl_bypass_enabled(user: Optional[AuthenticatedUser] = None) -> bool:
+    principal = user or get_current_user()
+    if principal is None or not local_dev_auth_enabled():
+        return False
+    allowed_ids = {"dev-test-user", "dev-test-admin"}
+    allowed_emails = {
+        settings.DEV_TEST_USER_EMAIL.strip().lower(),
+        settings.DEV_TEST_ADMIN_EMAIL.strip().lower(),
+    }
+    return principal.user_id in allowed_ids or (principal.email or "").strip().lower() in allowed_emails
 
 
 def assign_document_acl(*, source_id: int, group_names: list[str]) -> None:

@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { AuditLogAdminPanel } from "@/components/admin-panels";
 
 export default function AdminAuditLogPage() {
-  redirect("/console/admin");
+  return <AuditLogAdminPanel />;
 }

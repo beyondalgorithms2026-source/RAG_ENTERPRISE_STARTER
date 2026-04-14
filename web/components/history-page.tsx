@@ -40,7 +40,7 @@ export function HistoryPage() {
       <div className="history-header">
         <div>
           <h1>Search History</h1>
-          <p>Your first question becomes the saved thread title. Reopen any conversation with its sources intact.</p>
+          <p>Your first question becomes the saved thread title. This history persists in the current browser so reloads reopen the same stitched threads.</p>
         </div>
       </div>
 

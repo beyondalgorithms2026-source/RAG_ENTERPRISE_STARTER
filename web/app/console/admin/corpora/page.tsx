@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { CorporaAdminPanel } from "@/components/admin-panels";
 
 export default function AdminCorporaPage() {
-  redirect("/console/admin");
+  return <CorporaAdminPanel />;
 }

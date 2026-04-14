@@ -1,6 +1,6 @@
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, UploadFile
 from pydantic import BaseModel
 
 from app.ingestion.jobs import process_upload, process_upload_batch
@@ -26,8 +26,8 @@ class BatchUploadResponse(BaseModel):
 
 
 @router.post("/upload", response_model=UploadResponse)
-async def upload_endpoint(file: UploadFile = File(...)):
-    result = await process_upload(file)
+async def upload_endpoint(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+    result = await process_upload(file, wait_for_completion=False, background_tasks=background_tasks)
     return UploadResponse(**result)
 
 

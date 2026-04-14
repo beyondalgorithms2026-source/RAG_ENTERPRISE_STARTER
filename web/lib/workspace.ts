@@ -5,6 +5,9 @@ export type ThreadMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  status?: "pending" | "completed" | "failed";
+  progressLabel?: string | null;
+  progress?: number | null;
   citations?: {
     citation_id: string;
     source_id: number;
@@ -46,4 +49,16 @@ export function writeThreads(threads: ThreadRecord[]) {
   }
   window.localStorage.setItem(THREAD_STORAGE_KEY, JSON.stringify(threads));
   window.dispatchEvent(new Event(THREADS_UPDATED_EVENT));
+}
+
+export function upsertThreadRecord(thread: ThreadRecord): ThreadRecord[] {
+  const nextThreads = [thread, ...readThreads().filter((item) => item.id !== thread.id)];
+  writeThreads(nextThreads);
+  return nextThreads;
+}
+
+export function updateThreadRecord(threadId: string, updater: (thread: ThreadRecord) => ThreadRecord): ThreadRecord[] {
+  const nextThreads = readThreads().map((thread) => (thread.id === threadId ? updater(thread) : thread));
+  writeThreads(nextThreads);
+  return nextThreads;
 }

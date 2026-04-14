@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
@@ -105,7 +106,7 @@ export function AdminDashboard() {
         <div className="admin-traces-pane">
           <div className="admin-section-head">
             <h2>Recent Traces</h2>
-            <button type="button">View all</button>
+            <Link href="/console/admin/traces" className="admin-inline-link">View all</Link>
           </div>
           <div className="admin-traces-table">
             <table>
@@ -181,6 +182,24 @@ export function AdminDashboard() {
                   </div>
                 </div>
               ))}
+            </div>
+          </article>
+
+          <article className="admin-notification-card">
+            <h3>Operator Quick Actions</h3>
+            <div className="admin-notification-list">
+              <Link href="/console/admin/corpora" className="admin-action-link">
+                <strong>Review corpora</strong>
+                <span>Inspect corpus inventory, source counts, and create a new corpus.</span>
+              </Link>
+              <Link href="/console/admin/jobs" className="admin-action-link">
+                <strong>Inspect jobs</strong>
+                <span>Open the live ingestion and enrichment queues without leaving the admin workspace.</span>
+              </Link>
+              <Link href="/console/admin/evals" className="admin-action-link">
+                <strong>Run evals</strong>
+                <span>Trigger retrieval checks and compare current report availability.</span>
+              </Link>
             </div>
           </article>
 

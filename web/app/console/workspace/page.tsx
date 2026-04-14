@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { ChatWorkspace } from "@/components/chat-workspace";
 
 export default function WorkspaceIndexPage() {
-  redirect("/console/workspace/chat");
+  return <ChatWorkspace freshOnLoad />;
 }

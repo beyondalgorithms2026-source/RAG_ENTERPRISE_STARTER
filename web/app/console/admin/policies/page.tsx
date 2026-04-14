@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { PoliciesAdminPanel } from "@/components/admin-panels";
 
 export default function AdminPoliciesPage() {
-  redirect("/console/admin");
+  return <PoliciesAdminPanel />;
 }

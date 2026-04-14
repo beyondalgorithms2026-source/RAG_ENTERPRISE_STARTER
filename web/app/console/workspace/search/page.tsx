@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { SearchWorkspace } from "@/components/search-workspace";
 
 export default function SearchPage() {
-  redirect("/console/workspace/chat");
+  return <SearchWorkspace />;
 }

@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { EvalsAdminPanel } from "@/components/admin-panels";
 
 export default function AdminEvalsPage() {
-  redirect("/console/admin");
+  return <EvalsAdminPanel />;
 }

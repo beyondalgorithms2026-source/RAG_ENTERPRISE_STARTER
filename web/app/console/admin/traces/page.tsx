@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { TracesAdminPanel } from "@/components/admin-panels";
 
 export default function AdminTracesPage() {
-  redirect("/console/admin");
+  return <TracesAdminPanel />;
 }

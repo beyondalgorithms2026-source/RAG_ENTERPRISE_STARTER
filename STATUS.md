@@ -1,6 +1,6 @@
 # STATUS.md — Milestone Progress Tracker
 
-**Current Milestone:** M11 — Admin Workspace Polish And Operational UX
+**Current Milestone:** M10.1.4 — Placeholder And CTA Hygiene Across Public And Console Surfaces
 
 **Completed**
 - M0: Baseline Stable Import (baseline-import-stable)
@@ -15,6 +15,10 @@
 - M9: Per-Corpus Indexing And Adaptive Chunking Policies (2026-04-02)
 - M10: Next.js Enterprise Console UI (2026-04-02)
 - M10.1: Stitch Fidelity Remediation (2026-04-02)
+- M10.1.1: Local Dev Auth And First-Run Entry Path Coherence (2026-04-08)
+- M10.1.2: User Workspace Contract Completion (2026-04-09)
+- M10.1.2.1: User Workspace Interaction Polish And Upload Readiness Clarity (2026-04-12)
+- M10.1.3: Admin Workspace Route Wiring And Operator Completeness (2026-04-14)
 
 **M10 summary**
 - Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
@@ -30,6 +34,38 @@
 - Added the extra Stitch CTA routes (`/get-a-demo` and `/watch-video-tour`) and redirected non-reference routes back to the Stitch-backed surfaces
 - Preserved the default frontend runtime and backend redirect target on port `3001` while keeping the backend local-dev auth checks green
 - See docs/m10_1_polished_ui_with_test_users.md
+
+**M10.1.1 summary**
+- Added graceful auth capability probing on `/auth/providers` so local-dev-first environments no longer fail the login page when OIDC is not configured
+- Updated `/auth/login` to redirect back to the frontend login route with `dev_login=1` in local-dev-only environments instead of returning an OIDC configuration dead-end
+- Updated the login screen to promote the supported local dev sign-in path when SSO is unavailable while preserving the SSO-first primary action in real OIDC-backed environments
+- Made the first-run guidance for test-user and test-admin accounts explicit near the primary login action
+- See docs/m10_1_1_local_dev_auth_and_first_run_entry_path_coherence.md
+
+**M10.1.2 summary**
+- Replaced redirect-only user routes with truthful workspace pages for search, uploads, and connectors while preserving the existing console structure
+- Persisted new chat threads before route transition and rendered live `/ask/stream` progress states so submitted questions no longer disappear into a blank pane
+- Added explicit no-evidence and request-failed terminal states in chat plus source-context drill-in and open-file actions in the evidence rail
+- Switched single-file upload HTTP handling to queue background ingestion and surfaced job-stage progress in the uploads workspace
+- Added a local-dev retrieval bypass for built-in test identities when no explicit ACL exists so uploaded dev sources can be exercised end to end without manual ACL setup
+- Follow-up remediation keeps user entry on a fresh chat state, groups retrieved sources by answer turn, keeps the workspace rails visible during long thread review, and propagates auth context into streamed ask workers
+- See docs/m10_1_2_user_workspace_contract_completion.md
+
+**M10.1.2.1 summary**
+- Turned answer actions into working user-console controls with modern styling, transient feedback acknowledgements, and client-only helpful/not-helpful toggles
+- Made the retrieved-sources rail easier to scan by default-collapsing older answer groups, switching to clearer `+/-` affordances, and keeping citation clicks scoped to the correct answer section
+- Closed the retrieved-sources persistence gap at refresh hydration time so the rail now keeps the same selected answer group and citation context instead of silently reverting to the latest answer
+- Replaced the generic selected-context heading with cleaner source-aware file details, proper spacing for locator metadata, and a separate open-file link line so grounded context reads more like a real source viewer
+- Clarified upload and source readiness states so chunked files are clearly marked as not searchable yet, embedded/indexed files are marked ready, and polling/logging behavior is explained in plain language
+- See docs/m10_1_2_1_user_workspace_interaction_polish_and_upload_readiness_clarity.md
+
+**M10.1.3 summary**
+- Preserved `/console/admin` as a true system overview page and added an explicit `Overview` destination in the admin sidebar
+- Replaced redirect-only admin routes with real routed pages for corpora, jobs, profiles, evals, traces, policies, and audit log
+- Wired supported backend control-plane actions into the routed pages for corpus creation, job inspection, profile activation, eval triggering, and trace review
+- Kept policies and audit log truthful as read-only or live-summary surfaces where deeper workflows still belong to later milestones
+- Fixed admin workspace trust gaps such as the `New Corpus` CTA target and nav active-state behavior so the console feels like an operator workspace instead of a summary shell
+- See docs/m10_1_3_admin_workspace_route_wiring_and_operator_completeness.md
 
 **M9 summary**
 - Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline
@@ -83,9 +119,9 @@
 - See docs/m2_retrieval_observability_and_traceability.md
 
 **Next actions**
-- Start M11: admin workspace polish and operational UX refinement
-- Improve operator workflows on top of the new console without changing existing backend control-plane contracts
-- Preserve the new role-aware console split while refining non-developer operations
+- Start M10.1.4: placeholder and CTA hygiene across public and console surfaces
+- Audit all visible clickable affordances and remove dead-end behavior
+- Keep truthful read-only/live-summary pages where useful while eliminating misleading actions
 
 **Notes / DoD checklist (M10)**
 - [x] Anonymous users can view the homepage but cannot access `/console/*`
@@ -99,6 +135,43 @@
 - [x] Stitch-backed public and console routes now drive the visible UI
 - [x] Local test-user and test-admin auth still works without changing the backend auth contract
 - [x] Non-reference routes redirect back to the Stitch-backed surfaces
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M10.1.1)**
+- [x] A first-time local user does not hit a dead-end primary login CTA
+- [x] Test user and admin entry flows are explicit enough for a clean-machine first run
+- [x] SSO-first branding remains intact in real deployed environments without breaking local usability
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M10.1.2)**
+- [x] Built-in dev test accounts can exercise the end-to-end user workflow without being accidentally blocked by implicit ACL gaps
+- [x] User-facing actions no longer feel decorative or mismatched
+- [x] Citation/evidence interactions increase trust instead of acting like static display chrome
+- [x] Workspace behavior around history and persistence is predictable to non-technical users
+- [x] The console no longer suggests capabilities that disappear into unrelated routes
+- [x] Distinct user pages remain distinct with truthful contracts
+- [x] Ask and upload flows show visible progress and a visible terminal state
+- [x] No-context questions render an explicit assistant response
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M10.1.2.1)**
+- [x] Copy action shows visible success feedback and still copies the answer
+- [x] Helpful / not-helpful answer controls are interactive without introducing backend logging early
+- [x] Retrieved-source groups default to a more scannable collapsed state
+- [x] Retrieved-source rail selection and collapse state survive refresh within the same thread
+- [x] Selected context shows source-aware locator details with readable title/link formatting when available
+- [x] Upload and source readiness states explain when a document is actually searchable
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M10.1.3)**
+- [x] Every advertised admin destination is a real page, not a redirect back to the dashboard
+- [x] The overview page remains intact and useful for a real admin on first login
+- [x] Admins can use current live controls where supported and still gain value from read-only/live-summary pages where deeper controls arrive later
+- [x] The admin console feels like an operator workspace rather than a pretty summary shell
 - [x] docs/ note added
 - [x] STATUS.md updated
 

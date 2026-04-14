@@ -47,7 +47,11 @@ export function ConsoleShell({
   }, []);
 
   const isChatSurface = pathname.startsWith("/console/workspace/chat");
-  const isSourcesSurface = pathname.startsWith("/console/workspace/sources");
+  const isSearchSurface = pathname.startsWith("/console/workspace/search");
+  const isSourcesSurface =
+    pathname.startsWith("/console/workspace/sources") ||
+    pathname.startsWith("/console/workspace/uploads") ||
+    pathname.startsWith("/console/workspace/connectors");
   const brandAvatar = variant === "admin"
     ? "https://lh3.googleusercontent.com/aida-public/AB6AXuDDzrfI0fplKu_x0sR5zlA8iGmugYhn3F22d-IqQgfODwZm1RJyD-UzdaxUzvE52YtoSYoL3C8tPAvcx2Qx7LIACk57feFQJ7Cw1BpAoMHWSFgXl1G4R2rdhmVPg9f-aVViy3MBJPPSTc96lWhLkXmI-SlNTZXgmL8XVvvn85wqod38m2ebrX62rGP6SgmLGqz0UTLeauV_0rEwSnNS8TzucqerLolx81wW-QRAmapfiGTTbgVJTJMcllvsec7fvP3C7EM3czcwIRg"
     : "https://lh3.googleusercontent.com/aida-public/AB6AXuACPUt-vFdpDEFkTykPrDK7qWDXayI-mTENz12neiecYsTFwJcauq2SyXQIlPs1icim8vWLYPo-1eATxYkQeXUrE1bxqk93oQwngnIvnhKlzQxk8QRI97HUkzaGZjV43CgcmygoyRZLwtmXmqHStwx_LK5ISY31JrhpkesypNorp8pIGSBHx65TQ9Sa2PShgRk2KhhRNaLjKKb_hrddPTJZhA5qk17WxUp4Mjjf3ENB2PbD4fnxXXRYKiwow_MZXjn4J7Qw-dz5kw8";
@@ -66,7 +70,7 @@ export function ConsoleShell({
                 key={item.label}
                 href={item.href}
                 className={`admin-sidebar-link ${
-                  pathname === item.href || (pathname === "/console/admin" && item.href === "/console/admin/corpora") ? "is-active" : ""
+                  pathname === item.href ? "is-active" : ""
                 }`}
               >
                 <span className="material-symbols-outlined">{item.icon}</span>
@@ -100,9 +104,9 @@ export function ConsoleShell({
               <button type="button" className="admin-icon-button" aria-label="Settings">
                 <span className="material-symbols-outlined">settings</span>
               </button>
-              <Link href="/console/admin" className="stitch-button stitch-button-primary stitch-button-small">
+              <Link href="/console/admin/corpora" className="stitch-button stitch-button-primary stitch-button-small">
                 <span className="material-symbols-outlined">add</span>
-                New Corpura
+                New Corpus
               </Link>
             </div>
           </header>
@@ -135,10 +139,12 @@ export function ConsoleShell({
             </div>
           ) : (
             <div className="workspace-toggle">
-              <button type="button" className="is-active">
+              <Link href="/console/workspace/chat" className={!isSearchSurface ? "is-active" : ""}>
                 Ask
-              </button>
-              <button type="button">Search</button>
+              </Link>
+              <Link href="/console/workspace/search" className={isSearchSurface ? "is-active" : ""}>
+                Search
+              </Link>
             </div>
           )}
         </div>
@@ -157,52 +163,54 @@ export function ConsoleShell({
 
       <div className="workspace-body">
         <aside className="workspace-sidebar">
-          <div className="workspace-sidebar-head">
-            <h2>Workspace</h2>
-            <p>User Console</p>
+          <div className="workspace-sidebar-scroll">
+            <div className="workspace-sidebar-head">
+              <h2>Workspace</h2>
+              <p>User Console</p>
+            </div>
+            <nav className="workspace-sidebar-nav">
+              {navItems.map((item) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className={`workspace-sidebar-link ${pathname.startsWith(item.href) ? "is-active" : ""}`}
+                >
+                  <span className="material-symbols-outlined">{item.icon}</span>
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+            </nav>
+            {isSourcesSurface ? (
+              <div className="workspace-storage-card">
+                <div className="workspace-storage-head">
+                  <span>Storage</span>
+                  <strong>64%</strong>
+                </div>
+                <div className="workspace-storage-bar">
+                  <div />
+                </div>
+              </div>
+            ) : (
+              <div className="workspace-thread-card">
+                <span>Recent Threads</span>
+                <div>
+                  {recentThreads.length === 0 ? (
+                    <p className="workspace-thread-empty">Ask your first grounded question.</p>
+                  ) : (
+                    recentThreads.map((thread) => (
+                      <Link
+                        key={thread.id}
+                        href={`/console/workspace/chat/${thread.id}`}
+                        className={pathname.endsWith(thread.id) ? "is-active-thread" : ""}
+                      >
+                        {thread.title}
+                      </Link>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-          <nav className="workspace-sidebar-nav">
-            {navItems.map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`workspace-sidebar-link ${pathname.startsWith(item.href) ? "is-active" : ""}`}
-              >
-                <span className="material-symbols-outlined">{item.icon}</span>
-                <span>{item.label}</span>
-              </Link>
-            ))}
-          </nav>
-          {isSourcesSurface ? (
-            <div className="workspace-storage-card">
-              <div className="workspace-storage-head">
-                <span>Storage</span>
-                <strong>64%</strong>
-              </div>
-              <div className="workspace-storage-bar">
-                <div />
-              </div>
-            </div>
-          ) : (
-            <div className="workspace-thread-card">
-              <span>Recent Threads</span>
-              <div>
-                {recentThreads.length === 0 ? (
-                  <p className="workspace-thread-empty">Ask your first grounded question.</p>
-                ) : (
-                  recentThreads.map((thread) => (
-                    <Link
-                      key={thread.id}
-                      href={`/console/workspace/chat/${thread.id}`}
-                      className={pathname.endsWith(thread.id) ? "is-active-thread" : ""}
-                    >
-                      {thread.title}
-                    </Link>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
           <div className="workspace-sidebar-footer">
             <span>Built for enterprise retrieval teams</span>
             <LogoutButton />

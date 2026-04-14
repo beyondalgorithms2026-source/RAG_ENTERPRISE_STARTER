@@ -6,6 +6,7 @@ import { requireAdminViewer } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 const navItems = [
+  { href: "/console/admin", label: "Overview", icon: "space_dashboard" },
   { href: "/console/admin/corpora", label: "Corpora", icon: "folder_shared" },
   { href: "/console/admin/jobs", label: "Jobs", icon: "work_history" },
   { href: "/console/admin/profiles", label: "Profiles", icon: "account_circle" },

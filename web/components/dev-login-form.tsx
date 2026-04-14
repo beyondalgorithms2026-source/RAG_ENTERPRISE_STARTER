@@ -33,7 +33,7 @@ export function DevLoginForm({ nextPath }: { nextPath: string }) {
   return (
     <form className="dev-login-form" onSubmit={onSubmit}>
       <p className="dev-login-copy">
-        Development-only shortcut for the two local test accounts. Production SSO remains unchanged.
+        Development-only shortcut for the two local test accounts. Test User opens the standard workspace. Test Admin opens the admin console. Production SSO remains unchanged.
       </p>
       <div className="dev-login-presets">
         <button type="button" className="dev-login-pill" onClick={() => setEmail("test-user@ragenterprise.local")}>
