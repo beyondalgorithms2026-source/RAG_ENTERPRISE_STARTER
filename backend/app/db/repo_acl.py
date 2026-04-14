@@ -113,3 +113,114 @@ def assign_document_acl(*, source_id: int, group_names: list[str]) -> None:
                 ),
                 {"source_id": source_id, "group_id": int(group_id)},
             )
+
+
+def list_source_acl_map() -> dict[int, list[str]]:
+    sql = text(
+        """
+        SELECT da.source_id, ag.name
+        FROM document_acl da
+        JOIN auth_groups ag ON ag.id = da.group_id
+        ORDER BY da.source_id ASC, ag.name ASC
+        """
+    )
+    mapping: dict[int, list[str]] = {}
+    with engine.connect() as conn:
+        for source_id, group_name in conn.execute(sql).fetchall():
+            mapping.setdefault(int(source_id), []).append(str(group_name))
+    return mapping
+
+
+def list_access_summary() -> dict[str, Any]:
+    users_sql = text(
+        """
+        SELECT
+            au.external_user_id,
+            au.email,
+            au.display_name,
+            COALESCE(
+                jsonb_agg(DISTINCT ag.name) FILTER (WHERE ag.name IS NOT NULL),
+                '[]'::jsonb
+            ) AS groups,
+            au.updated_at
+        FROM auth_users au
+        LEFT JOIN user_group_memberships ugm ON ugm.user_id = au.id
+        LEFT JOIN auth_groups ag ON ag.id = ugm.group_id
+        GROUP BY au.id
+        ORDER BY au.updated_at DESC, au.external_user_id ASC
+        """
+    )
+    groups_sql = text(
+        """
+        SELECT
+            ag.name,
+            COUNT(DISTINCT ugm.user_id)::bigint AS member_count,
+            COUNT(DISTINCT da.source_id)::bigint AS source_count
+        FROM auth_groups ag
+        LEFT JOIN user_group_memberships ugm ON ugm.group_id = ag.id
+        LEFT JOIN document_acl da ON da.group_id = ag.id
+        GROUP BY ag.id
+        ORDER BY ag.name ASC
+        """
+    )
+    source_acl_sql = text(
+        """
+        SELECT
+            s.id,
+            s.file_name,
+            s.sensitivity_label,
+            COALESCE(s.source_metadata_json ->> 'corpus', '') AS corpus_name,
+            COALESCE(
+                jsonb_agg(DISTINCT ag.name) FILTER (WHERE ag.name IS NOT NULL),
+                '[]'::jsonb
+            ) AS groups
+        FROM sources s
+        LEFT JOIN document_acl da ON da.source_id = s.id
+        LEFT JOIN auth_groups ag ON ag.id = da.group_id
+        GROUP BY s.id
+        ORDER BY s.created_at DESC, s.id DESC
+        """
+    )
+
+    with engine.connect() as conn:
+        users = [
+            {
+                "external_user_id": row.external_user_id,
+                "email": row.email,
+                "display_name": row.display_name,
+                "groups": list(row.groups or []),
+                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+            }
+            for row in conn.execute(users_sql).mappings().all()
+        ]
+        groups = [
+            {
+                "name": row.name,
+                "member_count": int(row.member_count or 0),
+                "source_count": int(row.source_count or 0),
+            }
+            for row in conn.execute(groups_sql).mappings().all()
+        ]
+        source_acl = [
+            {
+                "source_id": int(row.id),
+                "file_name": row.file_name,
+                "sensitivity_label": row.sensitivity_label,
+                "corpus_name": row.corpus_name or None,
+                "groups": list(row.groups or []),
+            }
+            for row in conn.execute(source_acl_sql).mappings().all()
+        ]
+
+    protected_sources = sum(1 for item in source_acl if item["groups"])
+    return {
+        "users": users,
+        "groups": groups,
+        "source_acl": source_acl,
+        "summary": {
+            "user_count": len(users),
+            "group_count": len(groups),
+            "protected_source_count": protected_sources,
+            "open_source_count": len(source_acl) - protected_sources,
+        },
+    }

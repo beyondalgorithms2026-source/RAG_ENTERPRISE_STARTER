@@ -19,6 +19,7 @@
 - M10.1.2: User Workspace Contract Completion (2026-04-09)
 - M10.1.2.1: User Workspace Interaction Polish And Upload Readiness Clarity (2026-04-12)
 - M10.1.3: Admin Workspace Route Wiring And Operator Completeness (2026-04-14)
+- M10.1.3.1: Admin Trustworthiness, Operational Depth, And Audit Foundations (2026-04-14)
 
 **M10 summary**
 - Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
@@ -66,6 +67,13 @@
 - Kept policies and audit log truthful as read-only or live-summary surfaces where deeper workflows still belong to later milestones
 - Fixed admin workspace trust gaps such as the `New Corpus` CTA target and nav active-state behavior so the console feels like an operator workspace instead of a summary shell
 - See docs/m10_1_3_admin_workspace_route_wiring_and_operator_completeness.md
+
+**M10.1.3.1 summary**
+- Replaced the admin overview’s fabricated fallback counts, fake notifications, placeholder trace rows, and misleading source-count formatting with a live `/admin/overview` contract
+- Added real admin `Sources` and `Access` routes so operators can inspect source placement, ACL posture, and access-state visibility without inferring state from unrelated pages
+- Introduced append-only `admin_audit_events` persistence plus backend audit APIs, and wired profile activation, corpus changes, source edits, reindex/enrichment actions, and eval runs into stored admin audit records
+- Upgraded corpora, jobs, profiles, evals, traces, and audit-log pages from shallow summary surfaces into more operational routed views with detail, drill-in, and cross-links
+- See docs/m10_1_3_1_admin_trustworthiness_operational_depth_and_audit_foundations.md
 
 **M9 summary**
 - Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline
@@ -172,6 +180,15 @@
 - [x] The overview page remains intact and useful for a real admin on first login
 - [x] Admins can use current live controls where supported and still gain value from read-only/live-summary pages where deeper controls arrive later
 - [x] The admin console feels like an operator workspace rather than a pretty summary shell
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M10.1.3.1)**
+- [x] Admin overview never invents system state when APIs return empty or unavailable data
+- [x] Every admin sidebar destination is both real and operationally meaningful
+- [x] Sources, corpora, jobs, profiles, evals, traces, policies, access, and audit each have a distinct operator purpose
+- [x] Audit log is backed by stored admin events, not inferred summaries
+- [x] Admin can understand what happened, who changed it, and what object was affected without using the terminal or database directly
 - [x] docs/ note added
 - [x] STATUS.md updated
 

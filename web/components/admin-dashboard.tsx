@@ -1,104 +1,100 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
 
 type GenericMap = Record<string, unknown>;
 
+function formatMetric(value: unknown, suffix = "") {
+  if (value === null || value === undefined || value === "") {
+    return "Unavailable";
+  }
+  if (typeof value === "number") {
+    return `${value}${suffix}`;
+  }
+  return `${String(value)}${suffix}`;
+}
+
+function formatTimestamp(value: unknown) {
+  if (!value) {
+    return "Unavailable";
+  }
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value);
+  }
+  return parsed.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export function AdminDashboard() {
-  const [corpora, setCorpora] = useState<GenericMap[]>([]);
-  const [jobs, setJobs] = useState<{ ingestion_jobs: GenericMap[]; enrichment_jobs: GenericMap[] }>({ ingestion_jobs: [], enrichment_jobs: [] });
-  const [traces, setTraces] = useState<GenericMap[]>([]);
-  const [reports, setReports] = useState<GenericMap[]>([]);
+  const [payload, setPayload] = useState<GenericMap | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    browserFetch<{ corpora: GenericMap[] }>("/admin/corpora")
-      .then((payload) => setCorpora(payload.corpora || []))
-      .catch(() => setCorpora([]));
-    browserFetch<{ ingestion_jobs: GenericMap[]; enrichment_jobs: GenericMap[] }>("/admin/jobs")
-      .then(setJobs)
-      .catch(() => setJobs({ ingestion_jobs: [], enrichment_jobs: [] }));
-    browserFetch<{ traces: GenericMap[] }>("/admin/traces")
-      .then((payload) => setTraces(payload.traces || []))
-      .catch(() => setTraces([]));
-    browserFetch<{ reports: GenericMap[] }>("/admin/eval/reports")
-      .then((payload) => setReports(payload.reports || []))
-      .catch(() => setReports([]));
+    browserFetch<GenericMap>("/admin/overview")
+      .then((value) => {
+        setPayload(value);
+        setError("");
+      })
+      .catch((err) => {
+        setPayload(null);
+        setError(err instanceof Error ? err.message : "Failed to load admin overview.");
+      });
   }, []);
 
-  const activeJobs = jobs.ingestion_jobs.length + jobs.enrichment_jobs.length;
-  const latestReport = useMemo(() => reports.find((report) => Boolean(report.exists)) || null, [reports]);
-  const latestPassRate = Number((latestReport?.summary as GenericMap | undefined)?.pass_rate_percent ?? 92) / 100;
-  const totalDocs = corpora.reduce((total, corpus) => total + Number(corpus.source_count || 0), 0);
-  const latencyValues = traces.slice(0, 6).map((trace) => Number(trace.total_latency_ms ?? trace.search_latency_ms ?? 0));
-  const maxLatency = Math.max(...latencyValues, 1);
-  const trendBars = (latencyValues.length ? latencyValues : [40, 55, 85, 60, 50, 30]).map((value) => `${Math.max(28, Math.min(90, (value / maxLatency) * 100))}%`);
-  const notifications = [
-    traces[0]
-      ? {
-          tone: "is-alert",
-          title: "Latency Spike detected",
-          body: `Latest trace ${String(traces[0].request_id || traces[0].id || "")} exceeded the recent latency baseline.`,
-        }
-      : {
-          tone: "is-alert",
-          title: "Latency Spike detected",
-          body: "Cluster US-EAST-1 report average 4s+ retrieval time.",
-        },
-    corpora[0]
-      ? {
-          tone: "is-policy",
-          title: "New Policy deployed",
-          body: `Access control updated for ${String(corpora[0].name || "Legal_Archive")}.`,
-        }
-      : {
-          tone: "is-policy",
-          title: "New Policy deployed",
-          body: "Access control updated for 4 documents in 'Legal_Archive'.",
-        },
-  ];
+  const summary = (payload?.summary || {}) as GenericMap;
+  const alerts = (payload?.alerts || []) as GenericMap[];
+  const recentTraces = (payload?.recent_traces || []) as GenericMap[];
+  const recentAuditEvents = (payload?.recent_audit_events || []) as GenericMap[];
 
   return (
     <div className="admin-dashboard">
       <section className="admin-dashboard-head">
         <h1>System Overview</h1>
-        <p>Real-time health and retrieval metrics for the enterprise workspace.</p>
+        <p>Truthful health, queue, quality, and audit visibility for the enterprise admin workspace.</p>
       </section>
+
+      {error ? <div className="error-banner">{error}</div> : null}
 
       <section className="admin-stat-grid">
         <article className="admin-stat-card">
           <div className="admin-stat-head">
             <span className="material-symbols-outlined">folder_zip</span>
-            <span>Health 100%</span>
+            <span>Live</span>
           </div>
-          <h3>{corpora.length || 12}</h3>
+          <h3>{formatMetric(summary.corpora_count)}</h3>
           <p>Active Corpora</p>
         </article>
         <article className="admin-stat-card">
           <div className="admin-stat-head">
-            <span className="material-symbols-outlined">hourglass_empty</span>
-            <span>Processing</span>
+            <span className="material-symbols-outlined">database</span>
+            <span>Inventory</span>
           </div>
-          <h3>{activeJobs || 3}</h3>
-          <p>Running Jobs</p>
+          <h3>{formatMetric(summary.source_count)}</h3>
+          <p>Registered Sources</p>
+        </article>
+        <article className="admin-stat-card">
+          <div className="admin-stat-head">
+            <span className="material-symbols-outlined">work_history</span>
+            <span>Queue</span>
+          </div>
+          <h3>{formatMetric(summary.active_job_count)}</h3>
+          <p>Active Jobs</p>
         </article>
         <article className="admin-stat-card">
           <div className="admin-stat-head">
             <span className="material-symbols-outlined">verified</span>
-            <span>+2.4% Δ</span>
+            <span>{String(summary.latest_eval_kind || "No eval")}</span>
           </div>
-          <h3>{latestPassRate ? latestPassRate.toFixed(2) : "0.92"}</h3>
-          <p>Last Eval Score</p>
-        </article>
-        <article className="admin-stat-card">
-          <div className="admin-stat-head">
-            <span className="material-symbols-outlined">database</span>
-            <span>Storage 82%</span>
-          </div>
-          <h3>{totalDocs ? `${totalDocs.toFixed(1)}k`.replace(".0", "") : "45.2k"}</h3>
-          <p>Total Documents</p>
+          <h3>{summary.latest_eval_pass_rate === null || summary.latest_eval_pass_rate === undefined ? "Unavailable" : `${String(summary.latest_eval_pass_rate)}%`}</h3>
+          <p>Last Eval Pass Rate</p>
         </article>
       </section>
 
@@ -106,111 +102,97 @@ export function AdminDashboard() {
         <div className="admin-traces-pane">
           <div className="admin-section-head">
             <h2>Recent Traces</h2>
-            <Link href="/console/admin/traces" className="admin-inline-link">View all</Link>
+            <Link href="/console/admin/traces" className="admin-inline-link">Open traces</Link>
           </div>
           <div className="admin-traces-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Query Intent</th>
-                  <th>Latency</th>
-                  <th>Score</th>
-                  <th>User</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(traces.length ? traces.slice(0, 4) : [
-                  { id: "finance", request_id: "Summarize Q3 financial report", retrieval_path: "Finance_Prod_v2", total_latency_ms: "1.2s", used_chunks_count: "0.98", user_id: "j.doe" },
-                  { id: "api", request_id: "API endpoints for webhooks", retrieval_path: "Docs_Master", total_latency_ms: "840ms", used_chunks_count: "0.94", user_id: "m.smith" },
-                  { id: "hr", request_id: "HR policy regarding remote", retrieval_path: "Corp_Policies", total_latency_ms: "2.1s", used_chunks_count: "0.62", user_id: "s.vance" },
-                  { id: "roadmap", request_id: "Product roadmap for Q4", retrieval_path: "Strategic_Ops", total_latency_ms: "1.1s", used_chunks_count: "0.91", user_id: "k.lamar" },
-                ]).map((trace) => {
-                  const score = Number(trace.used_chunks_count ?? trace.candidate_count ?? 0.91);
-                  return (
+            {recentTraces.length ? (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Request</th>
+                    <th>Mode</th>
+                    <th>Latency</th>
+                    <th>Recorded</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentTraces.map((trace) => (
                     <tr key={String(trace.id)}>
                       <td>
                         <div className="admin-trace-intent">
                           <strong>{String(trace.request_id || trace.id)}</strong>
-                          <span>{String(trace.retrieval_path || trace.resolved_mode || "hybrid")}</span>
+                          <span>{String(trace.fallback_reason || "No fallback recorded")}</span>
                         </div>
                       </td>
-                      <td>{String(trace.total_latency_ms ?? trace.search_latency_ms ?? "1.1s")}</td>
-                      <td>
-                        <span className={`admin-score-pill ${score < 0.7 ? "is-low" : ""}`}>{score.toFixed ? score.toFixed(2) : String(score)}</span>
-                      </td>
-                      <td>
-                        <div className="admin-user-pill">
-                          <i />
-                          <span>{String(trace.user_id || "authenticated-user")}</span>
-                        </div>
-                      </td>
+                      <td>{String(trace.retrieval_path || trace.resolved_mode || "hybrid")}</td>
+                      <td>{formatMetric(trace.total_latency_ms, " ms")}</td>
+                      <td>{formatTimestamp(trace.created_at)}</td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="admin-empty-state">
+                <span className="material-symbols-outlined">timeline</span>
+                <strong>No traces recorded yet.</strong>
+                <p>Retrieval traces will appear here after search or ask traffic flows through the system.</p>
+              </div>
+            )}
           </div>
         </div>
 
         <aside className="admin-side-stack">
-          <article className="admin-trend-card">
-            <div className="admin-section-head compact">
-              <h3>Latency Trend (24h)</h3>
-              <span className="material-symbols-outlined">more_horiz</span>
-            </div>
-            <div className="admin-trend-bars">
-              {trendBars.map((height, index) => (
-                <div key={`${height}-${index}`} style={{ height }} className={index === 2 ? "is-primary" : ""} />
-              ))}
-            </div>
-            <div className="admin-trend-labels">
-              <span>00:00</span>
-              <span>12:00</span>
-              <span>Now</span>
+          <article className="admin-notification-card">
+            <h3>System Alerts</h3>
+            <div className="admin-notification-list">
+              {alerts.length ? alerts.map((item) => (
+                <Link key={`${String(item.title)}-${String(item.href)}`} href={String(item.href || "/console/admin")} className="admin-action-link">
+                  <strong>{String(item.title)}</strong>
+                  <span>{String(item.body)}</span>
+                </Link>
+              )) : (
+                <div className="admin-empty-state">
+                  <span className="material-symbols-outlined">verified</span>
+                  <strong>No active alerts.</strong>
+                  <p>The current overview contract does not see failed jobs, missing evals, or corpus-placement gaps right now.</p>
+                </div>
+              )}
             </div>
           </article>
 
           <article className="admin-notification-card">
-            <h3>System Notifications</h3>
+            <h3>Recent Audit Events</h3>
             <div className="admin-notification-list">
-              {notifications.map((item) => (
-                <div key={item.title} className="admin-notification-item">
-                  <i className={item.tone} />
-                  <div>
-                    <strong>{item.title}</strong>
-                    <span>{item.body}</span>
-                  </div>
+              {recentAuditEvents.length ? recentAuditEvents.map((event) => (
+                <Link key={String(event.id)} href="/console/admin/audit-log" className="admin-action-link">
+                  <strong>{String(event.action)}</strong>
+                  <span>{`${String(event.actor_email || event.actor_external_user_id || "unknown actor")} • ${formatTimestamp(event.created_at)}`}</span>
+                </Link>
+              )) : (
+                <div className="admin-empty-state">
+                  <span className="material-symbols-outlined">receipt_long</span>
+                  <strong>No audit events yet.</strong>
+                  <p>Admin-originated profile, corpus, source, job, and eval actions will appear here once they happen.</p>
                 </div>
-              ))}
+              )}
             </div>
           </article>
 
           <article className="admin-notification-card">
             <h3>Operator Quick Actions</h3>
             <div className="admin-notification-list">
-              <Link href="/console/admin/corpora" className="admin-action-link">
-                <strong>Review corpora</strong>
-                <span>Inspect corpus inventory, source counts, and create a new corpus.</span>
+              <Link href="/console/admin/sources" className="admin-action-link">
+                <strong>Inspect sources</strong>
+                <span>Review source status, corpus placement, ACL groups, and reindex/enrichment actions.</span>
               </Link>
               <Link href="/console/admin/jobs" className="admin-action-link">
                 <strong>Inspect jobs</strong>
-                <span>Open the live ingestion and enrichment queues without leaving the admin workspace.</span>
+                <span>Open the live ingestion and enrichment queue with timing and failure context.</span>
               </Link>
-              <Link href="/console/admin/evals" className="admin-action-link">
-                <strong>Run evals</strong>
-                <span>Trigger retrieval checks and compare current report availability.</span>
+              <Link href="/console/admin/audit-log" className="admin-action-link">
+                <strong>Review audit log</strong>
+                <span>Inspect stored admin mutations with actor, action, and before/after context.</span>
               </Link>
-            </div>
-          </article>
-
-          <article className="admin-system-card">
-            <img
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuAhxPaJzyf9VT-zvS81BQNEsYvxsdC4wyLL9dV2Yk-U8s-ywEl2bdInPJz8JvjdQhjt6TSRvk3HgdsSKe5mHTOtUPY1tAZ_rrLiBuqp-swVcFmprwag6fBHjmnECoBBNa6dCGda9Ha-k8YQbSzL9SotKQANULckcOrfcbaPut_B5cPSImpe7fXTjKx--ippsfPD5xLAWHBNfsKEKW_-6DEYrT1eXo8afkAjxL8SbDGUoNRsEfcw0QqgMEXEMCrc_LC7bZzIENNYO84"
-              alt="System art"
-            />
-            <div className="admin-system-overlay">
-              <p>Version 4.2.1 Stable</p>
-              <h4>Compute Efficiency: High</h4>
             </div>
           </article>
         </aside>

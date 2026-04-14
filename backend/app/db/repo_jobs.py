@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
 
@@ -16,6 +16,9 @@ class IngestionJobRow:
     triggered_by: str
     error_message: Optional[str]
     job_metadata_json: Dict
+    started_at: Optional[str]
+    completed_at: Optional[str]
+    created_at: Optional[str]
 
 
 @dataclass
@@ -29,10 +32,19 @@ class EnrichmentJobRow:
     stage: str
     error_message: Optional[str]
     job_metadata_json: Dict
+    started_at: Optional[str]
+    completed_at: Optional[str]
+    created_at: Optional[str]
+
+
+def _jsonable(value: Any) -> Any:
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return value
 
 
 def _row_to_ingestion_job(row) -> IngestionJobRow:
-    return IngestionJobRow(*row)
+    return IngestionJobRow(*[_jsonable(value) for value in row])
 
 
 def create_ingestion_job(
@@ -66,7 +78,7 @@ def create_ingestion_job(
 def get_ingestion_job(job_id: int) -> Optional[IngestionJobRow]:
     sql = text(
         """
-        SELECT id, source_id, status, stage, triggered_by, error_message, job_metadata_json
+        SELECT id, source_id, status, stage, triggered_by, error_message, job_metadata_json, started_at, completed_at, created_at
         FROM ingestion_jobs
         WHERE id = :job_id
         """
@@ -80,7 +92,7 @@ def get_ingestion_job(job_id: int) -> Optional[IngestionJobRow]:
 
 def list_ingestion_jobs(source_id: Optional[int] = None) -> List[IngestionJobRow]:
     sql = """
-        SELECT id, source_id, status, stage, triggered_by, error_message, job_metadata_json
+        SELECT id, source_id, status, stage, triggered_by, error_message, job_metadata_json, started_at, completed_at, created_at
         FROM ingestion_jobs
     """
     params = {}
@@ -162,7 +174,8 @@ def finish_enrichment_job(job_id: int, *, status: str, error_message: Optional[s
 def get_enrichment_job(job_id: int) -> Optional[EnrichmentJobRow]:
     sql = text(
         """
-        SELECT id, source_id, source_part_id, enrichment_type, artifact_version, status, stage, error_message, job_metadata_json
+        SELECT id, source_id, source_part_id, enrichment_type, artifact_version, status, stage, error_message, job_metadata_json,
+               started_at, completed_at, created_at
         FROM enrichment_jobs
         WHERE id = :job_id
         """
@@ -171,12 +184,13 @@ def get_enrichment_job(job_id: int) -> Optional[EnrichmentJobRow]:
         row = conn.execute(sql, {"job_id": job_id}).first()
     if not row:
         return None
-    return EnrichmentJobRow(*row)
+    return EnrichmentJobRow(*[_jsonable(value) for value in row])
 
 
 def list_enrichment_jobs(source_id: Optional[int] = None) -> List[EnrichmentJobRow]:
     sql = """
-        SELECT id, source_id, source_part_id, enrichment_type, artifact_version, status, stage, error_message, job_metadata_json
+        SELECT id, source_id, source_part_id, enrichment_type, artifact_version, status, stage, error_message, job_metadata_json,
+               started_at, completed_at, created_at
         FROM enrichment_jobs
     """
     params = {}
@@ -187,7 +201,7 @@ def list_enrichment_jobs(source_id: Optional[int] = None) -> List[EnrichmentJobR
 
     with engine.connect() as conn:
         rows = conn.execute(text(sql), params).fetchall()
-    return [EnrichmentJobRow(*row) for row in rows]
+    return [EnrichmentJobRow(*[_jsonable(value) for value in row]) for row in rows]
 
 
 def create_attachment_link(

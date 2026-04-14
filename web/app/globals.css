@@ -3279,7 +3279,11 @@ textarea {
 }
 
 .admin-form-grid input,
-.form-inline input {
+.admin-form-grid select,
+.admin-form-grid textarea,
+.form-inline input,
+.form-inline select,
+.form-inline textarea {
   width: 100%;
   min-width: 0;
   border-radius: 14px;
@@ -3338,6 +3342,11 @@ textarea {
 .table-row strong,
 .table-row span {
   display: block;
+}
+
+.table-row-check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
 }
 
 .table-row strong {

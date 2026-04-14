@@ -7,12 +7,14 @@ export const dynamic = "force-dynamic";
 
 const navItems = [
   { href: "/console/admin", label: "Overview", icon: "space_dashboard" },
+  { href: "/console/admin/sources", label: "Sources", icon: "description" },
   { href: "/console/admin/corpora", label: "Corpora", icon: "folder_shared" },
   { href: "/console/admin/jobs", label: "Jobs", icon: "work_history" },
   { href: "/console/admin/profiles", label: "Profiles", icon: "account_circle" },
   { href: "/console/admin/evals", label: "Evals", icon: "analytics" },
   { href: "/console/admin/traces", label: "Traces", icon: "timeline" },
   { href: "/console/admin/policies", label: "Policies", icon: "policy" },
+  { href: "/console/admin/access", label: "Access", icon: "shield_lock" },
   { href: "/console/admin/audit-log", label: "Audit Log", icon: "receipt_long" },
 ];
 

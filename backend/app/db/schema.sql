@@ -188,3 +188,37 @@ CREATE TABLE IF NOT EXISTS retrieval_traces (
 
 CREATE INDEX IF NOT EXISTS retrieval_traces_request_id_idx ON retrieval_traces(request_id);
 CREATE INDEX IF NOT EXISTS retrieval_traces_created_at_idx ON retrieval_traces(created_at);
+
+CREATE TABLE IF NOT EXISTS admin_audit_events (
+    id BIGSERIAL PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    action TEXT NOT NULL,
+    outcome TEXT NOT NULL DEFAULT 'completed',
+    actor_external_user_id TEXT,
+    actor_email TEXT,
+    actor_roles_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    resource_type TEXT,
+    resource_id TEXT,
+    resource_name TEXT,
+    source_id BIGINT,
+    corpus_name TEXT,
+    profile_type TEXT,
+    profile_name TEXT,
+    job_kind TEXT,
+    job_id BIGINT,
+    trace_id BIGINT,
+    request_id TEXT,
+    before_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    after_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    event_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS admin_audit_events_created_at_idx ON admin_audit_events(created_at);
+CREATE INDEX IF NOT EXISTS admin_audit_events_actor_idx ON admin_audit_events(actor_external_user_id);
+CREATE INDEX IF NOT EXISTS admin_audit_events_action_idx ON admin_audit_events(action);
+CREATE INDEX IF NOT EXISTS admin_audit_events_resource_idx ON admin_audit_events(resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS admin_audit_events_source_idx ON admin_audit_events(source_id);
+CREATE INDEX IF NOT EXISTS admin_audit_events_corpus_idx ON admin_audit_events(corpus_name);
+CREATE INDEX IF NOT EXISTS admin_audit_events_job_idx ON admin_audit_events(job_kind, job_id);
+CREATE INDEX IF NOT EXISTS admin_audit_events_trace_idx ON admin_audit_events(trace_id);

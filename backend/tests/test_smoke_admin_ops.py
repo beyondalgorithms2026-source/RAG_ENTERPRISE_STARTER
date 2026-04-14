@@ -440,6 +440,136 @@ class SmokeTestAdminOps(SmokeTestBase):
             settings.AUTH_ENABLED = original_auth_enabled
             main_module.authenticate_request = original_authenticate
 
+    def test_m10_1_3_1_admin_truthful_surfaces_and_audit_log(self):
+        from fastapi.testclient import TestClient
+
+        import app.api.admin as admin_api
+        import app.main as main_module
+        from app.auth.context import AuthenticatedUser
+
+        class StubEnrichmentResult:
+            def __init__(self, source_id: int):
+                self.source_id = source_id
+
+            def model_dump(self):
+                return {"status": "completed", "source_id": self.source_id, "job_id": 321}
+
+        run_migrations()
+        seeded = self._seed_retrieval_records()
+        client = TestClient(app)
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_authenticate = main_module.authenticate_request
+        original_reindex = admin_api.admin_reindex_source
+        original_enrich = admin_api.admin_rerun_enrichment
+        original_run_eval = admin_api.run_retrieval_eval
+        original_load_eval_cases = admin_api.load_eval_cases
+        try:
+            settings.AUTH_ENABLED = True
+            main_module.authenticate_request = lambda request: AuthenticatedUser(
+                user_id="admin-ops",
+                email="admin.ops@example.com",
+                roles=["admin"],
+                groups=["ops", "legal"],
+            )
+            admin_api.admin_reindex_source = lambda source_id, force=False: {
+                "status": "completed",
+                "source_id": source_id,
+                "job_id": 123,
+                "chunk_count": 1,
+                "source_part_count": 1,
+            }
+            admin_api.admin_rerun_enrichment = lambda source_id, force=False: StubEnrichmentResult(source_id)
+            admin_api.load_eval_cases = lambda: []
+            admin_api.run_retrieval_eval = lambda cases, report_path=None, debug=False: {
+                "summary": {"pass_rate_percent": 100, "total": 0, "passed": 0, "failed": 0},
+                "report_metadata": {"active_profiles": admin_api.get_active_profile_snapshot()},
+            }
+
+            profiles_response = client.get("/admin/profiles", headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(profiles_response.status_code, 200)
+            first_profile = profiles_response.json()["profiles"][0]
+            activate_response = client.post(
+                "/admin/profiles/active",
+                json={"profile_type": first_profile["profile_type"], "profile_name": first_profile["name"]},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(activate_response.status_code, 200)
+
+            create_response = client.post(
+                "/admin/corpora",
+                json={"name": "audit-ops", "description": "Audit ops corpus", "metadata_json": {}},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(create_response.status_code, 200)
+
+            assign_response = client.patch(
+                "/admin/corpora/audit-ops/sources",
+                json={"source_ids": [seeded["pdf_source_id"]], "sensitivity_label": "internal"},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(assign_response.status_code, 200)
+
+            source_update_response = client.patch(
+                f"/admin/sources/{seeded['pdf_source_id']}",
+                json={"sensitivity_label": "confidential", "acl_group_names": ["ops", "legal"]},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(source_update_response.status_code, 200)
+            self.assertEqual(source_update_response.json()["source"]["sensitivity_label"], "confidential")
+
+            reindex_response = client.post(
+                f"/admin/sources/{seeded['pdf_source_id']}/reindex",
+                json={"force": True},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(reindex_response.status_code, 200)
+
+            enrich_response = client.post(
+                f"/admin/sources/{seeded['pdf_source_id']}/enrich",
+                json={"force": True},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(enrich_response.status_code, 200)
+
+            eval_response = client.post(
+                "/admin/eval/run",
+                json={"report_kind": "retrieval"},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(eval_response.status_code, 200)
+
+            overview_response = client.get("/admin/overview", headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(overview_response.status_code, 200)
+            overview_payload = overview_response.json()
+            self.assertIsInstance(overview_payload["summary"]["source_count"], int)
+            self.assertNotEqual(overview_payload["summary"]["source_count"], "45.2k")
+            self.assertIn("alerts", overview_payload)
+
+            sources_response = client.get("/admin/sources", headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(sources_response.status_code, 200)
+            source_item = next(item for item in sources_response.json()["sources"] if item["id"] == seeded["pdf_source_id"])
+            self.assertEqual(source_item["corpus_name"], "audit-ops")
+            self.assertEqual(set(source_item["acl_groups"]), {"legal", "ops"})
+
+            access_response = client.get("/admin/access", headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(access_response.status_code, 200)
+            access_payload = access_response.json()
+            self.assertGreaterEqual(access_payload["summary"]["protected_source_count"], 1)
+            self.assertTrue(any(group["name"] == "ops" for group in access_payload["groups"]))
+
+            audit_response = client.get("/admin/audit-log", headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(audit_response.status_code, 200)
+            actions = {item["action"] for item in audit_response.json()["events"]}
+            self.assertTrue({"profile.activate", "corpus.create", "corpus.assign_sources", "source.update", "source.reindex", "source.enrich", "eval.run"}.issubset(actions))
+        finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_authenticate
+            admin_api.admin_reindex_source = original_reindex
+            admin_api.admin_rerun_enrichment = original_enrich
+            admin_api.run_retrieval_eval = original_run_eval
+            admin_api.load_eval_cases = original_load_eval_cases
+            self._delete_retrieval_records(seeded.values())
+
     def test_m2_retrieval_trace_persists_full_ask_lifecycle_and_admin_inspection(self):
         from fastapi.testclient import TestClient
 
