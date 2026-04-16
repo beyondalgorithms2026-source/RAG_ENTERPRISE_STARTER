@@ -49,7 +49,11 @@ export function HistoryPage() {
           <div className="history-empty-card">
             <span className="material-symbols-outlined">history</span>
             <strong>No chat history yet.</strong>
-            <p>Ask your first grounded question in Chat and it will appear here.</p>
+            <p>This is normal on a clean browser. Ask your first grounded question in Chat and it will appear here after the first answer is saved.</p>
+            <div className="history-empty-actions">
+              <Link href="/console/workspace/chat" className="stitch-button stitch-button-primary stitch-button-small">Open Chat</Link>
+              <Link href="/console/workspace/uploads" className="stitch-button stitch-button-secondary stitch-button-small">Upload Documents</Link>
+            </div>
           </div>
         ) : (
           threads.map((thread) => (

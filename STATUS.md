@@ -1,6 +1,6 @@
 # STATUS.md — Milestone Progress Tracker
 
-**Current Milestone:** M10.1.4 — Placeholder And CTA Hygiene Across Public And Console Surfaces
+**Current Milestone:** M11 — Admin Workspace Polish And Operational UX
 
 **Completed**
 - M0: Baseline Stable Import (baseline-import-stable)
@@ -20,6 +20,8 @@
 - M10.1.2.1: User Workspace Interaction Polish And Upload Readiness Clarity (2026-04-12)
 - M10.1.3: Admin Workspace Route Wiring And Operator Completeness (2026-04-14)
 - M10.1.3.1: Admin Trustworthiness, Operational Depth, And Audit Foundations (2026-04-14)
+- M10.1.4: Placeholder And CTA Hygiene Across Public And Console Surfaces (2026-04-14)
+- M10.1.5: First-Run Empty States And Operator Onboarding (2026-04-14)
 
 **M10 summary**
 - Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
@@ -75,6 +77,20 @@
 - Upgraded corpora, jobs, profiles, evals, traces, and audit-log pages from shallow summary surfaces into more operational routed views with detail, drill-in, and cross-links
 - See docs/m10_1_3_1_admin_trustworthiness_operational_depth_and_audit_foundations.md
 
+**M10.1.4 summary**
+- Replaced dead-end hash links across the public, login, user-console, and admin-console surfaces with real lightweight `/privacy`, `/terms`, `/security`, and `/status` pages
+- Aligned misleading public CTA copy with the actual private-beta product motion by converting register/free-trial/demo prompts into truthful request-access or console-login paths
+- Disabled decorative notification/settings and embedded-video controls with explicit explanations instead of leaving them clickable with no effect
+- Simplified the shared public navigation so every visible header/footer destination points somewhere real rather than to missing sections
+- See docs/m10_1_4_placeholder_and_cta_hygiene_across_public_and_console_surfaces.md
+
+**M10.1.5 summary**
+- Reworked the clean-DB user workspace experience so Chat, Search, History, and Sources now explain what happens first, what “indexed” means, and what to do next instead of feeling blank or broken
+- Replaced misleading source-sidebar storage chrome with truthful first-run guidance and clarified upload/search/retrieval copy so users can tell the difference between waiting on upload, indexing, retrieval, answer generation, and permission-limited visibility
+- Added first-run operator guidance in the admin overview plus explicit loading-vs-empty-vs-no-activity states across corpora, jobs, evals, and traces so a clean install reads as intentional
+- Tightened admin empty-state copy around first corpus, first source placement, first job, first trace, and first eval so operators always have a concrete next step
+- See docs/m10_1_5_first_run_empty_states_and_operator_onboarding.md
+
 **M9 summary**
 - Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline
 - Source-scoped retrieval now honors corpus default modes so different corpora behave differently without changing global settings
@@ -127,9 +143,9 @@
 - See docs/m2_retrieval_observability_and_traceability.md
 
 **Next actions**
-- Start M10.1.4: placeholder and CTA hygiene across public and console surfaces
-- Audit all visible clickable affordances and remove dead-end behavior
-- Keep truthful read-only/live-summary pages where useful while eliminating misleading actions
+- Start M11: admin workspace polish and operational UX
+- Improve operator ergonomics across jobs, sources, traces, and audit with stronger filtering, bulk workflows, and comparison UX
+- Preserve the truthful admin control-plane foundations added in M10.1.3.1 and the first-run clarity added in M10.1.5
 
 **Notes / DoD checklist (M10)**
 - [x] Anonymous users can view the homepage but cannot access `/console/*`
@@ -189,6 +205,21 @@
 - [x] Sources, corpora, jobs, profiles, evals, traces, policies, access, and audit each have a distinct operator purpose
 - [x] Audit log is backed by stored admin events, not inferred summaries
 - [x] Admin can understand what happened, who changed it, and what object was affected without using the terminal or database directly
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M10.1.4)**
+- [x] No primary CTA appears clickable while doing nothing
+- [x] Demo and trial flows set the right expectation for enterprise/private-beta reality
+- [x] Placeholder actions are intentional and legible rather than feeling broken
+- [x] Useful overview and summary surfaces remain visible while misleading dead-end affordances are removed or disabled
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M10.1.5)**
+- [x] A clean install feels intentionally empty rather than misconfigured
+- [x] User and admin both have an obvious next step to make the product useful
+- [x] Empty-state copy reduces the feeling that functionality is missing when the issue is simply lack of data
 - [x] docs/ note added
 - [x] STATUS.md updated
 

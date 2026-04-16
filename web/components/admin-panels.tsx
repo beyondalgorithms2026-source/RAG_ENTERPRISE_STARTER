@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { browserFetch } from "@/lib/api-browser";
@@ -94,12 +94,23 @@ function AdminSectionIntro({ eyebrow, title, description, badge }: AdminSectionI
   );
 }
 
-function EmptyState({ title, copy }: { title: string; copy: string }) {
+function EmptyState({
+  title,
+  copy,
+  icon = "inbox",
+  actions,
+}: {
+  title: string;
+  copy: string;
+  icon?: string;
+  actions?: ReactNode;
+}) {
   return (
     <div className="admin-empty-state">
-      <span className="material-symbols-outlined">inbox</span>
+      <span className="material-symbols-outlined">{icon}</span>
       <strong>{title}</strong>
       <p>{copy}</p>
+      {actions ? <div className="admin-empty-state-actions">{actions}</div> : null}
     </div>
   );
 }
@@ -124,8 +135,10 @@ export function CorporaAdminPanel() {
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   async function refresh() {
+    setIsLoading(true);
     try {
       const next = await browserFetch<{ corpora: GenericMap[]; sources: GenericMap[]; unassigned_source_count: number }>("/admin/corpora");
       setPayload(next);
@@ -133,6 +146,8 @@ export function CorporaAdminPanel() {
       setSelectedCorpusName((current) => current || String(next.corpora?.[0]?.name || ""));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load corpora.");
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -226,7 +241,7 @@ export function CorporaAdminPanel() {
             <span className="badge">{formatCount(payload?.unassigned_source_count, "unassigned source")}</span>
           </div>
           <div className="table-list">
-            {payload?.corpora?.length ? payload.corpora.map((corpus) => (
+            {isLoading ? <EmptyState title="Loading corpora..." copy="Fetching the current corpus registry and placement counts." icon="progress_activity" /> : payload?.corpora?.length ? payload.corpora.map((corpus) => (
               <article key={String(corpus.name)} className="table-row">
                 <div>
                   <strong>{String(corpus.name)}</strong>
@@ -240,7 +255,7 @@ export function CorporaAdminPanel() {
                   </button>
                 </div>
               </article>
-            )) : <EmptyState title="No corpora yet." copy="Create the first corpus here to move beyond a single global source bucket." />}
+            )) : <EmptyState title="No corpora yet." copy="This is normal on a clean install. Create the first corpus here, then assign uploaded sources so retrieval can be scoped intentionally." icon="folder_copy" />}
           </div>
         </section>
 
@@ -251,7 +266,7 @@ export function CorporaAdminPanel() {
               <p>Assigned sources and unassigned candidates for the selected corpus.</p>
             </div>
           </div>
-          {!selectedCorpus ? <EmptyState title="Select a corpus." copy="Choose a corpus from the inventory to inspect its assigned sources and placement workflow." /> : (
+          {!selectedCorpus ? <EmptyState title={isLoading ? "Loading corpus detail..." : "Select a corpus."} copy={isLoading ? "Waiting for corpus inventory before detail and placement actions can render." : "Choose a corpus from the inventory to inspect its assigned sources and placement workflow."} icon={isLoading ? "progress_activity" : "folder"} /> : (
             <div className="page-stack">
               <div className="table-list">
                 {assignedSources.length ? assignedSources.map((source) => (
@@ -264,7 +279,7 @@ export function CorporaAdminPanel() {
                       <span className={`badge ${statusTone(source.ingestion_status)}`}>{String(source.ingestion_status || "unknown")}</span>
                     </div>
                   </article>
-                )) : <EmptyState title="No assigned sources yet." copy="Assign sources below or use the Sources page for source-first administration." />}
+                )) : <EmptyState title="No assigned sources yet." copy={payload?.sources?.length ? "This corpus exists, but nothing is assigned to it yet. Assign sources below or use the Sources page for source-first administration." : "No sources exist yet. Upload the first file from the user workspace, then return here to assign it into this corpus."} icon="move_to_inbox" />}
               </div>
               <div className="section-head">
                 <div>
@@ -298,7 +313,7 @@ export function CorporaAdminPanel() {
                       </div>
                     </label>
                   );
-                }) : <EmptyState title="No unassigned sources." copy="All current sources already belong to a corpus." />}
+                }) : <EmptyState title="No unassigned sources." copy={payload?.sources?.length ? "All current sources already belong to a corpus." : "No uploaded sources are available yet. The first user upload will appear here once the source record is created."} icon="inventory_2" />}
               </div>
             </div>
           )}
@@ -317,8 +332,10 @@ export function SourcesAdminPanel() {
   const [draft, setDraft] = useState<SourceDraft>(sourceDraftFromItem(null));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   async function refresh() {
+    setIsLoading(true);
     try {
       const [sources, corpora] = await Promise.all([
         browserFetch<{ sources: GenericMap[] }>("/admin/sources"),
@@ -330,6 +347,8 @@ export function SourcesAdminPanel() {
       setSelectedSourceId((current) => current || sourceIdParam || String(sources.sources?.[0]?.id || ""));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load sources.");
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -407,7 +426,7 @@ export function SourcesAdminPanel() {
             </div>
           </div>
           <div className="table-list">
-            {payload.sources.length ? payload.sources.map((source) => (
+            {isLoading ? <EmptyState title="Loading sources..." copy="Fetching source records, placement state, and ACL posture." icon="progress_activity" /> : payload.sources.length ? payload.sources.map((source) => (
               <article key={String(source.id)} className="table-row">
                 <div>
                   <strong>{String(source.file_name)}</strong>
@@ -421,7 +440,7 @@ export function SourcesAdminPanel() {
                   </button>
                 </div>
               </article>
-            )) : <EmptyState title="No sources found." copy="Uploads and connector-backed sources will appear here once indexed." />}
+            )) : <EmptyState title="No sources found." copy="This is normal on a clean install. User uploads and connector-backed sources will appear here once the first source record is created." icon="upload_file" />}
           </div>
         </section>
 
@@ -432,7 +451,7 @@ export function SourcesAdminPanel() {
               <p>Placement, sensitivity, ACL groups, and admin actions for the selected source.</p>
             </div>
           </div>
-          {!selectedSource ? <EmptyState title="Select a source." copy="Choose a source from the inventory to inspect and modify its admin-facing controls." /> : (
+          {!selectedSource ? <EmptyState title={isLoading ? "Loading source detail..." : "Select a source."} copy={isLoading ? "Waiting for source inventory before detail controls can render." : "Choose a source from the inventory to inspect and modify its admin-facing controls."} icon={isLoading ? "progress_activity" : "description"} /> : (
             <div className="page-stack">
               <div className="form-inline">
                 <select value={draft.corpusName} onChange={(event) => setDraft((current) => ({ ...current, corpusName: event.target.value }))}>
@@ -485,8 +504,10 @@ export function JobsAdminPanel() {
   const [payload, setPayload] = useState<{ ingestion_jobs: GenericMap[]; enrichment_jobs: GenericMap[] }>({ ingestion_jobs: [], enrichment_jobs: [] });
   const [selectedJobKey, setSelectedJobKey] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   async function refresh() {
+    setIsLoading(true);
     try {
       const next = await browserFetch<{ ingestion_jobs: GenericMap[]; enrichment_jobs: GenericMap[] }>("/admin/jobs");
       setPayload(next);
@@ -495,6 +516,8 @@ export function JobsAdminPanel() {
       setSelectedJobKey((current) => current || (preferred ? `${String(preferred.job_kind)}:${String(preferred.id)}` : `${String(next.ingestion_jobs?.[0]?.job_kind || next.enrichment_jobs?.[0]?.job_kind || "")}:${String(next.ingestion_jobs?.[0]?.id || next.enrichment_jobs?.[0]?.id || "")}`));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load job state.");
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -529,7 +552,7 @@ export function JobsAdminPanel() {
             </div>
           </div>
           <div className="table-list">
-            {jobs.length ? jobs.map((job) => (
+            {isLoading ? <EmptyState title="Loading jobs..." copy="Fetching ingestion and enrichment queue state from the admin control plane." icon="progress_activity" /> : jobs.length ? jobs.map((job) => (
               <article key={`${String(job.job_kind)}:${String(job.id)}`} className="table-row">
                 <div>
                   <strong>{`${String(job.job_kind)} job #${String(job.id)}`}</strong>
@@ -543,7 +566,7 @@ export function JobsAdminPanel() {
                   </button>
                 </div>
               </article>
-            )) : <EmptyState title="No jobs recorded." copy="Upload, reindex, and enrichment activity will appear here when the system has work to track." />}
+            )) : <EmptyState title="No jobs recorded." copy="This is normal on a clean system. The first upload, reindex, or enrichment run will appear here as soon as the platform has indexing work to track." icon="work_history" />}
           </div>
         </section>
 
@@ -554,7 +577,7 @@ export function JobsAdminPanel() {
               <p>Execution timing, failure context, and source/corpus cross-links for the selected job.</p>
             </div>
           </div>
-          {!selectedJob ? <EmptyState title="Select a job." copy="Choose a job from the queue to inspect timing, failure context, and source relationships." /> : (
+          {!selectedJob ? <EmptyState title={isLoading ? "Loading job detail..." : "Select a job."} copy={isLoading ? "Waiting for queue data before job detail can render." : jobs.length ? "Choose a job from the queue to inspect timing, failure context, and source relationships." : "No job detail is available yet because the queue is still empty."} icon={isLoading ? "progress_activity" : "article"} /> : (
             <div className="page-stack">
               <div className="toolbar-inline">
                 {selectedJob.source_id ? <Link href={`/console/admin/sources?sourceId=${String(selectedJob.source_id)}`} className="admin-inline-link">Open source</Link> : null}
@@ -591,8 +614,10 @@ export function ProfilesAdminPanel() {
   const [history, setHistory] = useState<{ events: GenericMap[] }>({ events: [] });
   const [error, setError] = useState("");
   const [activating, setActivating] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   async function refresh() {
+    setIsLoading(true);
     try {
       const [profiles, audit] = await Promise.all([
         browserFetch<{ profiles: GenericMap[] }>("/admin/profiles"),
@@ -603,6 +628,8 @@ export function ProfilesAdminPanel() {
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load profiles.");
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -644,7 +671,7 @@ export function ProfilesAdminPanel() {
             </div>
           </div>
           <div className="table-list">
-            {payload.profiles.length ? payload.profiles.map((profile) => {
+            {isLoading ? <EmptyState title="Loading profiles..." copy="Fetching registered profile metadata and current active selections." icon="progress_activity" /> : payload.profiles.length ? payload.profiles.map((profile) => {
               const profileType = String(profile.profile_type);
               const profileName = String(profile.name);
               const key = `${profileType}:${profileName}`;
@@ -679,7 +706,7 @@ export function ProfilesAdminPanel() {
             </div>
           </div>
           <div className="table-list">
-            {history.events.length ? history.events.map((event) => (
+            {isLoading ? <EmptyState title="Loading activation history..." copy="Fetching prior profile activation events from the audit foundation." icon="progress_activity" /> : history.events.length ? history.events.map((event) => (
               <article key={String(event.id)} className="table-row">
                 <div>
                   <strong>{String(event.resource_name || event.profile_name || "Profile change")}</strong>
@@ -703,8 +730,10 @@ export function EvalsAdminPanel() {
   const [history, setHistory] = useState<{ events: GenericMap[] }>({ events: [] });
   const [running, setRunning] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   async function refresh() {
+    setIsLoading(true);
     try {
       const [reportPayload, historyPayload] = await Promise.all([
         browserFetch<{ reports: GenericMap[] }>("/admin/eval/reports"),
@@ -715,6 +744,8 @@ export function EvalsAdminPanel() {
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load eval reports.");
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -771,7 +802,7 @@ export function EvalsAdminPanel() {
             <span className="badge">{formatCount(existingReports.length, "available report")}</span>
           </div>
           <div className="table-list">
-            {reports.reports.length ? reports.reports.map((report) => (
+            {isLoading ? <EmptyState title="Loading eval state..." copy="Fetching known eval report slots and recent run history." icon="progress_activity" /> : reports.reports.length ? reports.reports.map((report) => (
               <article key={String(report.kind)} className="table-row">
                 <div>
                   <strong>{String(report.kind)}</strong>
@@ -782,7 +813,7 @@ export function EvalsAdminPanel() {
                   <span>{report.exists ? `${String((report.summary as GenericMap | undefined)?.pass_rate_percent ?? "-")}% pass` : "Run pending"}</span>
                 </div>
               </article>
-            )) : <EmptyState title="No report metadata available." copy="Run an eval above to populate this routed page." />}
+            )) : <EmptyState title="No report metadata available." copy="This is normal on a first run. Trigger a retrieval or benchmark eval above to create the first report artifact and populate this page." icon="fact_check" />}
           </div>
         </section>
 
@@ -794,7 +825,7 @@ export function EvalsAdminPanel() {
             </div>
           </div>
           <div className="table-list">
-            {history.events.length ? history.events.map((event) => (
+            {isLoading ? <EmptyState title="Loading eval history..." copy="Fetching audit-backed eval execution history." icon="progress_activity" /> : history.events.length ? history.events.map((event) => (
               <article key={String(event.id)} className="table-row">
                 <div>
                   <strong>{String(event.resource_name || event.action)}</strong>
@@ -805,7 +836,7 @@ export function EvalsAdminPanel() {
                   <span>{formatTimestamp(event.created_at)}</span>
                 </div>
               </article>
-            )) : <EmptyState title="No eval runs recorded yet." copy="Eval executions will appear here once operators start running retrieval checks." />}
+            )) : <EmptyState title="No eval runs recorded yet." copy="This is normal on a clean system. Run the first eval above to establish a baseline and confirm retrieval quality." icon="query_stats" />}
           </div>
         </section>
       </div>
@@ -823,8 +854,10 @@ export function TracesAdminPanel() {
   const [debugResult, setDebugResult] = useState<GenericMap | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   async function refresh() {
+    setIsLoading(true);
     try {
       const next = await browserFetch<{ traces: GenericMap[]; active_profiles?: GenericMap; retrieval_settings?: GenericMap }>("/admin/traces");
       setPayload(next);
@@ -833,6 +866,8 @@ export function TracesAdminPanel() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load traces.");
       setPayload({ traces: [] });
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -913,7 +948,7 @@ export function TracesAdminPanel() {
             </div>
           </div>
           <div className="table-list">
-            {payload.traces.length ? payload.traces.map((trace) => (
+            {isLoading ? <EmptyState title="Loading traces..." copy="Fetching stored retrieval traces and the latest debug-ready request records." icon="progress_activity" /> : payload.traces.length ? payload.traces.map((trace) => (
               <article key={String(trace.id)} className="table-row">
                 <div>
                   <strong>{String(trace.request_id || trace.id)}</strong>
@@ -927,7 +962,7 @@ export function TracesAdminPanel() {
                   </button>
                 </div>
               </article>
-            )) : <EmptyState title="No retrieval traces yet." copy="Ask or search activity with trace capture enabled will appear here." />}
+            )) : <EmptyState title="No retrieval traces yet." copy="This is normal on a clean system. Ask a question in the user workspace or run query debug above to generate the first stored trace." icon="timeline" />}
           </div>
         </section>
 
@@ -938,7 +973,7 @@ export function TracesAdminPanel() {
               <p>Stored debug detail for the selected retrieval request.</p>
             </div>
           </div>
-          {!traceDetail ? <EmptyState title="Select a trace." copy="Choose a trace from the list to inspect the full stored retrieval payload." /> : <JsonPanel value={traceDetail} />}
+          {!traceDetail ? <EmptyState title={isLoading ? "Loading trace detail..." : "Select a trace."} copy={isLoading ? "Waiting for the trace inventory before detail can render." : payload.traces.length ? "Choose a trace from the list to inspect the full stored retrieval payload." : "No trace detail is available yet because no retrieval traffic has been recorded."} icon={isLoading ? "progress_activity" : "article"} /> : <JsonPanel value={traceDetail} />}
         </section>
       </div>
     </div>

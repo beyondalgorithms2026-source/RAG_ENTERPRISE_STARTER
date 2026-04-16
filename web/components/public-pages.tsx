@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-function PublicHeader({ activeProduct = false }: { activeProduct?: boolean }) {
+export function PublicHeader({ activeProduct = false }: { activeProduct?: boolean }) {
   return (
     <header className="public-header">
       <div className="public-header-inner">
@@ -9,12 +9,10 @@ function PublicHeader({ activeProduct = false }: { activeProduct?: boolean }) {
             RAG Enterprise
           </Link>
           <nav className="public-nav-links">
-            <a className={activeProduct ? "is-active" : undefined} href="#product">
+            <Link className={activeProduct ? "is-active" : undefined} href="/">
               Product
-            </a>
-            <a href="#solutions">Solutions</a>
-            <a href="#docs">Docs</a>
-            <a href="#pricing">Pricing</a>
+            </Link>
+            <Link href="/watch-video-tour">Solutions</Link>
           </nav>
         </div>
         <div className="public-header-actions">
@@ -22,7 +20,7 @@ function PublicHeader({ activeProduct = false }: { activeProduct?: boolean }) {
             Console Login
           </Link>
           <Link href="/get-a-demo" className="stitch-button stitch-button-primary stitch-button-small">
-            Register
+            Request Access
           </Link>
         </div>
       </div>
@@ -30,7 +28,7 @@ function PublicHeader({ activeProduct = false }: { activeProduct?: boolean }) {
   );
 }
 
-function PublicFooter({ compact = false }: { compact?: boolean }) {
+export function PublicFooter({ compact = false }: { compact?: boolean }) {
   return (
     <footer className={`public-footer ${compact ? "is-compact" : ""}`}>
       <div className="public-footer-inner">
@@ -43,10 +41,10 @@ function PublicFooter({ compact = false }: { compact?: boolean }) {
           )}
         </div>
         <div className="public-footer-links">
-          <a href="#privacy">Privacy</a>
-          <a href="#terms">Terms</a>
-          <a href="#security">Security</a>
-          <a href="#status">Status</a>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
+          <Link href="/security">Security</Link>
+          <Link href="/status">Status</Link>
         </div>
       </div>
       {compact ? null : <div className="public-footer-copy">© 2024 RAG Enterprise. All Rights Reserved.</div>}
@@ -96,29 +94,29 @@ export function DemoPage() {
               <h2>Request a Personalized Demo</h2>
               <p>See how our platform fits your specific enterprise architecture.</p>
             </div>
-            <form className="demo-form" action="#">
+            <div className="demo-form">
               <div className="demo-form-grid">
                 <label>
                   <span>First name</span>
-                  <input placeholder="John" />
+                  <input placeholder="John" disabled />
                 </label>
                 <label>
                   <span>Last name</span>
-                  <input placeholder="Doe" />
+                  <input placeholder="Doe" disabled />
                 </label>
               </div>
               <label>
                 <span>Work email</span>
-                <input placeholder="john@company.com" type="email" />
+                <input placeholder="john@company.com" type="email" disabled />
               </label>
               <div className="demo-form-grid">
                 <label>
                   <span>Company</span>
-                  <input placeholder="Acme Corp" />
+                  <input placeholder="Acme Corp" disabled />
                 </label>
                 <label>
                   <span>Company Size</span>
-                  <select defaultValue="1-50 employees">
+                  <select defaultValue="1-50 employees" disabled>
                     <option>1-50 employees</option>
                     <option>51-250 employees</option>
                     <option>251-1000 employees</option>
@@ -128,7 +126,7 @@ export function DemoPage() {
               </div>
               <label>
                 <span>Country</span>
-                <select defaultValue="United States">
+                <select defaultValue="United States" disabled>
                   <option>United States</option>
                   <option>United Kingdom</option>
                   <option>Germany</option>
@@ -138,15 +136,15 @@ export function DemoPage() {
               </label>
               <label>
                 <span>What sparked your interest?</span>
-                <textarea placeholder="Tell us about your retrieval challenges..." rows={4} />
+                <textarea placeholder="Tell us about your retrieval challenges..." rows={4} disabled />
               </label>
-              <button type="button" className="stitch-button stitch-button-primary stitch-button-block">
-                Submit Request
-              </button>
+              <Link href="/login" className="stitch-button stitch-button-primary stitch-button-block">
+                Open Console Login
+              </Link>
               <p className="demo-form-note">
-                By submitting this form, you agree to our <a href="#privacy">Privacy Policy</a>
+                This repository does not include a live CRM-backed demo intake flow. Use Console Login for local validation or request access through your enterprise onboarding path. Review our <Link href="/privacy">Privacy Policy</Link>.
               </p>
-            </form>
+            </div>
           </div>
         </section>
       </main>
@@ -158,7 +156,7 @@ export function DemoPage() {
 export function VideoTourPage() {
   return (
     <div className="public-shell">
-      <PublicHeader activeProduct />
+      <PublicHeader />
       <main className="video-page">
         <section className="video-hero">
           <span className="video-announcement">
@@ -188,7 +186,7 @@ export function VideoTourPage() {
                 src="https://lh3.googleusercontent.com/aida-public/AB6AXuDuE0xXq0Ra72GXBBm4WEAO0ZDMbKw_-N75lyPiojP3Jub933ARZ5WffhfhfN-ZA-HqOZxShJzjnXb5cDQDEWqgMn-A4USTEJ5YXxFDeKR560kzi3YSSCCjDG71Xe3kWGQjC3Dksq0yMWkb4AzG24G8OVw7ZvcOcM0DzZS_DCFl3xwGaPReNgrn7uobkDGwMt1iNcjI-z40iz5IZI1sEIRxFryl_WQlfL-33Om4hMHBmIh1ewbDCidMsJql6XrEKHEreqnOo1apeE0"
                 alt="Dashboard display"
               />
-              <button type="button" className="video-play-button">
+              <button type="button" className="video-play-button" disabled title="Embedded video playback is not wired in this repo yet. Use the walkthrough page content or request a live demo.">
                 <span className="material-symbols-outlined icon-fill">play_arrow</span>
               </button>
               <div className="video-progress">
@@ -227,10 +225,10 @@ export function VideoTourPage() {
               <h2>A unified brain for all your data</h2>
               <p>Direct integrations with over 100+ enterprise tools. No migration needed, just secure read-only access.</p>
             </div>
-            <button type="button" className="video-inline-link">
-              View all 120+ integrations
+            <Link href="/get-a-demo" className="video-inline-link">
+              Request integration walkthrough
               <span className="material-symbols-outlined">arrow_forward</span>
-            </button>
+            </Link>
           </div>
           <div className="video-connector-grid">
             {[
@@ -306,9 +304,9 @@ export function VideoTourPage() {
         <section className="video-final-cta">
           <h2>Ready to unify your enterprise knowledge?</h2>
           <div className="video-final-actions">
-            <button type="button" className="stitch-button stitch-button-primary">
-              Start Free Trial
-            </button>
+            <Link href="/login" className="stitch-button stitch-button-primary">
+              Open Console Login
+            </Link>
             <Link href="/get-a-demo" className="stitch-button stitch-button-secondary">
               Schedule a Demo
             </Link>

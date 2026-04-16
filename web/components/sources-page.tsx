@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { browserApiUrl, browserFetch } from "@/lib/api-browser";
@@ -197,6 +198,8 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
   const showUploadFirst = view === "uploads";
   const showConnectorsFirst = view === "connectors";
   const uploadStatus = statusCopy(uploadJob, uploadFileName);
+  const indexedSourceCount = sources.filter((source) => ["indexed", "embedded"].includes(source.ingestion_status.toLowerCase())).length;
+  const processingSourceCount = sources.filter((source) => !["indexed", "embedded", "failed"].includes(source.ingestion_status.toLowerCase())).length;
 
   return (
     <div className="sources-page">
@@ -229,6 +232,7 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
             <span>Max 25 MB</span>
             <span>Grounded retrieval</span>
           </div>
+          {!uploadStatus && sources.length === 0 ? <strong className="sources-upload-status sources-upload-tip">Start with one PDF or text file. This page will show upload accepted, indexing progress, and the final ready state.</strong> : null}
           {uploadStatus ? <strong className="sources-upload-status">{uploadStatus}</strong> : null}
           <p className="sources-upload-footnote">Backend logs like `GET /corpus/jobs/*` and `GET /corpus` are normal polling while the page refreshes live upload progress.</p>
           {error ? <strong className="sources-upload-error">{error}</strong> : null}
@@ -292,8 +296,28 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
               {visibleSources.length === 0 ? (
                 <tr>
                   <td colSpan={5}>
-                    <div className="sources-empty-row">
-                      {showConnectorsFirst ? "No connected sources are visible yet." : "No indexed sources yet."}
+                    <div className="sources-empty-row sources-table-empty">
+                      {showConnectorsFirst ? (
+                        <>
+                          <strong>No connected sources are visible yet.</strong>
+                          <p>This is normal until a connector request turns into a real synced source. The request flow is live now; connector ingestion lands later.</p>
+                        </>
+                      ) : filter === "Indexed" && processingSourceCount > 0 ? (
+                        <>
+                          <strong>No files are ready yet.</strong>
+                          <p>Sources exist, but they are still parsing, chunking, or embedding. Retrieval becomes available only after indexing completes.</p>
+                        </>
+                      ) : filter === "Syncing" && indexedSourceCount > 0 ? (
+                        <>
+                          <strong>No files are currently indexing.</strong>
+                          <p>Everything visible right now is already indexed, embedded, failed, or otherwise out of the active processing lane.</p>
+                        </>
+                      ) : (
+                        <>
+                          <strong>No sources yet.</strong>
+                          <p>Upload the first file above. It will appear here after the source record is created, then move to an indexed ready state once retrieval is available.</p>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -354,11 +378,17 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
               <p>Current stage: {uploadJob.stage.replace(/_/g, " ")}</p>
               <p className="sources-connected-note">Parsing, source-parts saved, chunking, and embedding are expected backend stages. `embed.started` means vector preparation is underway and the file is not searchable yet.</p>
             </div>
+          ) : showUploadFirst ? (
+            <div className="sources-connected-empty">
+              <span className="material-symbols-outlined">upload_file</span>
+              <strong>No upload started yet.</strong>
+              <p>On a clean workspace, start with one file upload above. This panel will switch from upload accepted to indexing progress and finally to ready for retrieval.</p>
+            </div>
           ) : connectedData.length === 0 ? (
             <div className="sources-connected-empty">
               <span className="material-symbols-outlined">hub</span>
               <strong>No connected systems yet.</strong>
-              <p>Postgres, Google Drive, and Confluence requests will appear here once backend connector support is available.</p>
+              <p>Connector requests can be recorded now. Real Postgres, Google Drive, and Confluence ingestion will populate this area once backend connector support is available.</p>
             </div>
           ) : (
             <div className="sources-connected-list">
@@ -389,10 +419,10 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
       <footer className="console-footer">
         <span>Built for enterprise retrieval teams • © 2024</span>
         <div>
-          <a href="#privacy">Privacy</a>
-          <a href="#terms">Terms</a>
-          <a href="#security">Security</a>
-          <a href="#status">Status</a>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
+          <Link href="/security">Security</Link>
+          <Link href="/status">Status</Link>
         </div>
       </footer>
     </div>

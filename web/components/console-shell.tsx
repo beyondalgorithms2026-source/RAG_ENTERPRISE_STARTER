@@ -98,10 +98,10 @@ export function ConsoleShell({
               <input readOnly value="Search traces, corpora, or jobs (⌘K)" aria-label="Admin command search" />
             </div>
             <div className="admin-topbar-actions">
-              <button type="button" className="admin-icon-button" aria-label="Notifications">
+              <button type="button" className="admin-icon-button" aria-label="Notifications" disabled title="Notifications are not wired yet in this milestone.">
                 <span className="material-symbols-outlined">notifications</span>
               </button>
-              <button type="button" className="admin-icon-button" aria-label="Settings">
+              <button type="button" className="admin-icon-button" aria-label="Settings" disabled title="Settings are not wired yet in this milestone.">
                 <span className="material-symbols-outlined">settings</span>
               </button>
               <Link href="/console/admin/corpora" className="stitch-button stitch-button-primary stitch-button-small">
@@ -114,10 +114,10 @@ export function ConsoleShell({
           <footer className="console-footer">
             <span>Built for enterprise retrieval teams</span>
             <div>
-              <a href="#privacy">Privacy</a>
-              <a href="#terms">Terms</a>
-              <a href="#security">Security</a>
-              <a href="#status">Status</a>
+              <Link href="/privacy">Privacy</Link>
+              <Link href="/terms">Terms</Link>
+              <Link href="/security">Security</Link>
+              <Link href="/status">Status</Link>
             </div>
           </footer>
         </main>
@@ -149,10 +149,10 @@ export function ConsoleShell({
           )}
         </div>
         <div className="workspace-topbar-actions">
-          <button type="button" className="workspace-icon-button" aria-label="Notifications">
+          <button type="button" className="workspace-icon-button" aria-label="Notifications" disabled title="Notifications are not wired yet in this milestone.">
             <span className="material-symbols-outlined">notifications</span>
           </button>
-          <button type="button" className="workspace-icon-button" aria-label="Settings">
+          <button type="button" className="workspace-icon-button" aria-label="Settings" disabled title="Settings are not wired yet in this milestone.">
             <span className="material-symbols-outlined">settings</span>
           </button>
           <div className="workspace-avatar">
@@ -181,13 +181,15 @@ export function ConsoleShell({
               ))}
             </nav>
             {isSourcesSurface ? (
-              <div className="workspace-storage-card">
-                <div className="workspace-storage-head">
-                  <span>Storage</span>
-                  <strong>64%</strong>
-                </div>
-                <div className="workspace-storage-bar">
-                  <div />
+              <div className="workspace-storage-card workspace-guide-card">
+                <span>First Run</span>
+                <div>
+                  <strong>Start with one upload.</strong>
+                  <p className="workspace-guide-copy">Use Upload Documents, wait for the file to show as indexed, then return to Chat or Search for the first grounded run.</p>
+                  <div className="workspace-guide-links">
+                    <Link href="/console/workspace/uploads">Open uploads</Link>
+                    <Link href="/console/workspace/chat">Open chat</Link>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -195,7 +197,7 @@ export function ConsoleShell({
                 <span>Recent Threads</span>
                 <div>
                   {recentThreads.length === 0 ? (
-                    <p className="workspace-thread-empty">Ask your first grounded question.</p>
+                    <p className="workspace-thread-empty">No saved threads yet. Ask your first grounded question and the thread will appear here after the first answer completes.</p>
                   ) : (
                     recentThreads.map((thread) => (
                       <Link

@@ -112,6 +112,38 @@ function buildLocatorSummary(locator: Record<string, unknown>, heading?: string 
   return parts.join(" • ");
 }
 
+function describeAskProgress(progressLabel?: string | null) {
+  const label = (progressLabel || "").toLowerCase();
+  if (!label) {
+    return "Preparing your grounded answer run.";
+  }
+  if (label.includes("receiving question")) {
+    return "Preparing your request and opening the grounded answer workflow.";
+  }
+  if (label.includes("searching sources")) {
+    return "Retrieval is running against the sources your account can currently access.";
+  }
+  if (label.includes("retrieved") && label.includes("candidate")) {
+    return "Retrieval finished. The system is selecting grounded context before answer generation starts.";
+  }
+  if (label.includes("generating grounded answer")) {
+    return "Grounded answer generation is running against the retrieved evidence.";
+  }
+  if (label.includes("validating citations")) {
+    return "Answer text is ready and citations are being checked before the final response appears.";
+  }
+  if (label.includes("no grounded context")) {
+    return "Retrieval completed, but no usable indexed evidence matched this question.";
+  }
+  if (label.includes("answer generation failed") || label.includes("answer parsing failed")) {
+    return "Retrieval completed, but answer generation could not finish cleanly.";
+  }
+  if (label.includes("grounded answer ready")) {
+    return "Retrieval, grounding, and answer generation have finished.";
+  }
+  return "Working through retrieval, grounding, and answer generation.";
+}
+
 function readStoredEvidenceRailState(threadId: string): StoredEvidenceRailState | null {
   if (typeof window === "undefined") {
     return null;
@@ -600,7 +632,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                             <div className="chat-progress-bar">
                               <div style={{ width: `${message.progress || 0}%` }} />
                             </div>
-                            <p>Searching, grounding, and generating against your currently accessible sources.</p>
+                            <p className="chat-progress-copy">{describeAskProgress(message.progressLabel)}</p>
                           </div>
                         ) : (
                           <>
@@ -610,7 +642,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                             {isNoContextMessage(message) ? (
                               <div className="chat-no-context-card">
                                 <strong>No grounded evidence was retrieved for this question.</strong>
-                                <p>Try exact wording from the source, confirm the source finished indexing, or open My Sources to verify visibility.</p>
+                                <p>Try exact wording from the source, confirm the file finished indexing, or check My Sources to verify that the document is visible to your current account.</p>
                               </div>
                             ) : null}
                             {message.citations?.length ? (
@@ -674,6 +706,19 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                   <span className="chat-empty-kicker">Grounded Workspace</span>
                   <h2>Ask your first question to start a stitched thread.</h2>
                   <p>Threads persist in this browser, and grounded evidence appears on the right as soon as retrieval returns usable citations.</p>
+                  <div className="chat-empty-list">
+                    <span>1. Upload a file or confirm one is already visible in My Sources.</span>
+                    <span>2. Wait until the file shows as indexed and ready for retrieval.</span>
+                    <span>3. Ask here and watch retrieval, grounding, and answer generation complete in order.</span>
+                  </div>
+                  <div className="chat-empty-actions">
+                    <button type="button" className="stitch-button stitch-button-primary stitch-button-small" onClick={() => router.push("/console/workspace/uploads")}>
+                      Upload documents
+                    </button>
+                    <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => router.push("/console/workspace/sources")}>
+                      Open My Sources
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -783,9 +828,16 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                 <strong>{isNoContextMessage(latestAssistantMessage) ? "No matching evidence found." : "No retrieved sources yet."}</strong>
                 <p>
                   {isNoContextMessage(latestAssistantMessage)
-                    ? "Try exact wording from the document or confirm that the source is visible and fully indexed."
-                    : "Ask your first question and the live backend citations will appear here."}
+                    ? "Retrieval finished but found no usable indexed match in the sources visible to your account. Try exact wording from the document or confirm that indexing completed."
+                    : "Ask your first question and the live backend citations will appear here. If you just uploaded a file, wait until My Sources marks it as indexed first."}
                 </p>
+                {!isNoContextMessage(latestAssistantMessage) ? (
+                  <div className="chat-evidence-empty-actions">
+                    <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => router.push("/console/workspace/uploads")}>
+                      Check uploads
+                    </button>
+                  </div>
+                ) : null}
               </div>
             )}
             {selectedCitation ? (

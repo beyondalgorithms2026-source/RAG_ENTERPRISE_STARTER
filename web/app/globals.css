@@ -1270,6 +1270,13 @@ textarea {
   box-shadow: var(--ambient-lg);
 }
 
+.video-play-button:disabled,
+.admin-icon-button:disabled,
+.workspace-icon-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .video-play-button .material-symbols-outlined {
   font-size: 3rem;
 }
@@ -1758,6 +1765,11 @@ textarea {
   background: rgba(234, 233, 213, 0.82);
 }
 
+.admin-icon-button:disabled:hover,
+.workspace-icon-button:disabled:hover {
+  background: transparent;
+}
+
 .admin-main-content {
   flex: 1;
   width: min(1280px, calc(100% - 48px));
@@ -1889,16 +1901,83 @@ textarea {
   font-weight: 700;
 }
 
-.workspace-storage-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.workspace-guide-card > span {
+  color: rgba(118, 117, 136, 0.92);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
-.workspace-storage-head strong {
+.workspace-guide-card > div {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.workspace-guide-card strong {
+  font-size: 0.92rem;
+}
+
+.workspace-guide-copy {
+  margin: 0;
+  color: rgba(88, 99, 115, 0.92);
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+
+.workspace-guide-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.workspace-guide-links a {
   color: var(--primary-strong);
-  font-size: 0.7rem;
-  font-weight: 800;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.workspace-empty-state {
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+  padding: 24px 0;
+}
+
+.workspace-empty-card {
+  max-width: 620px;
+  border-radius: 28px;
+  padding: 34px 30px;
+  background: var(--surface-panel);
+  box-shadow: var(--ambient);
+  text-align: center;
+}
+
+.workspace-empty-icon {
+  color: var(--primary-strong);
+  font-size: 2rem;
+}
+
+.workspace-empty-card h2 {
+  margin: 16px 0 0;
+  font-size: 2rem;
+  line-height: 1.02;
+  letter-spacing: -0.05em;
+}
+
+.workspace-empty-card p {
+  margin: 14px 0 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.workspace-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 22px;
 }
 
 .workspace-storage-bar {
@@ -1956,6 +2035,74 @@ textarea {
   align-items: center;
   gap: 26px;
   flex-wrap: wrap;
+}
+
+.policy-page {
+  width: min(1080px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 44px 0 72px;
+  display: grid;
+  gap: 28px;
+}
+
+.policy-hero {
+  display: grid;
+  gap: 14px;
+  padding: 24px 0 8px;
+}
+
+.policy-eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(14, 17, 216, 0.08);
+  color: var(--primary-strong);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.policy-hero h1 {
+  margin: 0;
+  font-size: clamp(2.4rem, 5vw, 4.4rem);
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+  font-weight: 900;
+}
+
+.policy-hero p {
+  margin: 0;
+  max-width: 760px;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.policy-card-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.policy-card {
+  background: var(--surface-panel);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: var(--ambient);
+}
+
+.policy-card h2 {
+  margin: 0 0 10px;
+  font-size: 1.1rem;
+  letter-spacing: -0.04em;
+}
+
+.policy-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
 }
 
 .chat-page,
@@ -2101,6 +2248,23 @@ textarea {
   color: var(--muted);
   font-size: 1rem;
   line-height: 1.7;
+}
+
+.chat-empty-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 22px;
+  color: rgba(88, 99, 115, 0.92);
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+
+.chat-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
 }
 
 .chat-error-banner {
@@ -2521,6 +2685,10 @@ textarea {
   margin: 0;
   font-size: 0.8rem;
   line-height: 1.6;
+}
+
+.chat-evidence-empty-actions {
+  margin-top: 8px;
 }
 
 .chat-evidence-empty-inline {
@@ -2954,6 +3122,18 @@ textarea {
   text-align: center;
 }
 
+.sources-table-empty strong {
+  display: block;
+  color: var(--ink);
+  font-size: 0.98rem;
+}
+
+.sources-table-empty p {
+  margin: 10px auto 0;
+  max-width: 560px;
+  line-height: 1.6;
+}
+
 .sources-connected-card {
   margin-top: 22px;
   border-radius: 24px;
@@ -2993,6 +3173,11 @@ textarea {
   color: rgba(88, 99, 115, 0.88);
   font-size: 0.76rem;
   line-height: 1.6;
+}
+
+.sources-upload-tip {
+  display: block;
+  margin-top: 8px;
 }
 
 .sources-connected-list {
@@ -3088,6 +3273,14 @@ textarea {
 
 .history-empty-card p {
   margin: 0;
+}
+
+.history-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 8px;
 }
 
 .history-thread-card {
@@ -3416,6 +3609,13 @@ textarea {
   margin: 0;
   max-width: 460px;
   line-height: 1.6;
+}
+
+.admin-empty-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
 }
 
 .admin-inline-link,

@@ -1,31 +1,10 @@
 import Link from "next/link";
+import { PublicFooter, PublicHeader } from "@/components/public-pages";
 
 export function MarketingHome() {
   return (
     <div className="public-shell">
-      <header className="public-header">
-        <div className="public-header-inner">
-          <div className="public-header-left">
-            <Link href="/" className="public-brand">
-              RAG Enterprise
-            </Link>
-            <nav className="public-nav-links">
-              <a href="#product">Product</a>
-              <a href="#solutions">Solutions</a>
-              <a href="#docs">Docs</a>
-              <a href="#pricing">Pricing</a>
-            </nav>
-          </div>
-          <div className="public-header-actions">
-            <Link href="/login" className="public-login-link">
-              Console Login
-            </Link>
-            <Link href="/get-a-demo" className="stitch-button stitch-button-primary stitch-button-small">
-              Register
-            </Link>
-          </div>
-        </div>
-      </header>
+      <PublicHeader activeProduct />
 
       <main className="marketing-page">
         <section className="marketing-hero" id="product">
@@ -109,7 +88,7 @@ export function MarketingHome() {
           </div>
         </section>
 
-        <section className="marketing-feature-section">
+        <section className="marketing-feature-section" id="solutions">
           <div className="marketing-feature-head">
             <span>Capabilities</span>
             <h2>The new standard for retrieval teams.</h2>
@@ -178,30 +157,16 @@ export function MarketingHome() {
           <p>Deploy in your VPC or use our managed cloud. SOC2 Type II, GDPR, and HIPAA compliant.</p>
           <div className="marketing-actions">
             <Link href="/login" className="stitch-button stitch-button-white">
-              Get Started
+              Open Console Login
             </Link>
             <Link href="/get-a-demo" className="stitch-button stitch-button-outline-light">
-              Schedule Demo
+              Request Access
             </Link>
           </div>
         </section>
       </main>
 
-      <footer className="public-footer">
-        <div className="public-footer-inner">
-          <div className="public-footer-brand">
-            <span className="public-brand">RAG Enterprise</span>
-            <p>Built for enterprise retrieval teams</p>
-          </div>
-          <div className="public-footer-links">
-            <a href="#privacy">Privacy</a>
-            <a href="#terms">Terms</a>
-            <a href="#security">Security</a>
-            <a href="#status">Status</a>
-          </div>
-        </div>
-        <div className="public-footer-copy">© 2024 RAG Enterprise. All Rights Reserved.</div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

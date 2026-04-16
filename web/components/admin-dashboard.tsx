@@ -53,6 +53,12 @@ export function AdminDashboard() {
   const alerts = (payload?.alerts || []) as GenericMap[];
   const recentTraces = (payload?.recent_traces || []) as GenericMap[];
   const recentAuditEvents = (payload?.recent_audit_events || []) as GenericMap[];
+  const isFirstRun =
+    Number(summary.corpora_count || 0) === 0
+    && Number(summary.source_count || 0) === 0
+    && Number(summary.active_job_count || 0) === 0
+    && recentTraces.length === 0
+    && recentAuditEvents.length === 0;
 
   return (
     <div className="admin-dashboard">
@@ -135,13 +141,37 @@ export function AdminDashboard() {
               <div className="admin-empty-state">
                 <span className="material-symbols-outlined">timeline</span>
                 <strong>No traces recorded yet.</strong>
-                <p>Retrieval traces will appear here after search or ask traffic flows through the system.</p>
+                <p>{isFirstRun ? "This is normal on a clean install. Retrieval traces will appear after the first search, chat question, or query-debug run." : "Retrieval traces will appear here after search or ask traffic flows through the system."}</p>
               </div>
             )}
           </div>
         </div>
 
         <aside className="admin-side-stack">
+          {isFirstRun ? (
+            <article className="admin-notification-card">
+              <h3>First-Run Checklist</h3>
+              <div className="admin-notification-list">
+                <Link href="/console/admin/corpora" className="admin-action-link">
+                  <strong>Create the first corpus</strong>
+                  <span>Start the operator setup by defining at least one corpus for source placement.</span>
+                </Link>
+                <Link href="/console/admin/sources" className="admin-action-link">
+                  <strong>Wait for the first source</strong>
+                  <span>After a user upload, confirm the source record appears and eventually reaches an indexed ready state.</span>
+                </Link>
+                <Link href="/console/admin/traces" className="admin-action-link">
+                  <strong>Generate a trace</strong>
+                  <span>Ask a question or run query debug so retrieval traces become available for inspection.</span>
+                </Link>
+                <Link href="/console/admin/evals" className="admin-action-link">
+                  <strong>Run the first eval</strong>
+                  <span>Establish a baseline report after the first corpus and source setup is complete.</span>
+                </Link>
+              </div>
+            </article>
+          ) : null}
+
           <article className="admin-notification-card">
             <h3>System Alerts</h3>
             <div className="admin-notification-list">
@@ -154,7 +184,7 @@ export function AdminDashboard() {
                 <div className="admin-empty-state">
                   <span className="material-symbols-outlined">verified</span>
                   <strong>No active alerts.</strong>
-                  <p>The current overview contract does not see failed jobs, missing evals, or corpus-placement gaps right now.</p>
+                  <p>{isFirstRun ? "This is normal on a clean install. Alerts will appear once there are failed jobs, missing eval baselines, or source-placement gaps to surface." : "The current overview contract does not see failed jobs, missing evals, or corpus-placement gaps right now."}</p>
                 </div>
               )}
             </div>
@@ -172,7 +202,7 @@ export function AdminDashboard() {
                 <div className="admin-empty-state">
                   <span className="material-symbols-outlined">receipt_long</span>
                   <strong>No audit events yet.</strong>
-                  <p>Admin-originated profile, corpus, source, job, and eval actions will appear here once they happen.</p>
+                  <p>{isFirstRun ? "This is normal before the first admin action. Profile, corpus, source, job, and eval changes will start building the audit trail once operators begin working." : "Admin-originated profile, corpus, source, job, and eval actions will appear here once they happen."}</p>
                 </div>
               )}
             </div>

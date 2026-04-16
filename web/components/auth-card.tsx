@@ -81,11 +81,11 @@ export function AuthCard({
         ) : null}
 
         <footer className="login-footer-links">
-          <a href="#privacy">Privacy</a>
+          <Link href="/privacy">Privacy</Link>
           <span />
-          <a href="#terms">Terms</a>
+          <Link href="/terms">Terms</Link>
           <span />
-          <a href="#security">Security</a>
+          <Link href="/security">Security</Link>
         </footer>
 
         <div className="login-floating-art">
