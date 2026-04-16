@@ -225,6 +225,17 @@ export function AdminDashboard() {
               </Link>
             </div>
           </article>
+
+          <article className="admin-notification-card">
+            <h3>Approval Inbox</h3>
+            <div className="admin-notification-list">
+              <div className="admin-empty-state">
+                <span className="material-symbols-outlined">approval</span>
+                <strong>No approval queue wired yet.</strong>
+                <p>This milestone keeps approvals as a truthful summary/stub only. Full approval workflows land in M15; for now, operators review jobs, access posture, and audit evidence directly.</p>
+              </div>
+            </div>
+          </article>
         </aside>
       </section>
     </div>

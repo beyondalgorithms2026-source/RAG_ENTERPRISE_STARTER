@@ -1,6 +1,6 @@
 # STATUS.md — Milestone Progress Tracker
 
-**Current Milestone:** M11 — Admin Workspace Polish And Operational UX
+**Current Milestone:** M11.1 — Ingestion Queue Visibility, ETA, And Priority Governance
 
 **Completed**
 - M0: Baseline Stable Import (baseline-import-stable)
@@ -22,6 +22,7 @@
 - M10.1.3.1: Admin Trustworthiness, Operational Depth, And Audit Foundations (2026-04-14)
 - M10.1.4: Placeholder And CTA Hygiene Across Public And Console Surfaces (2026-04-14)
 - M10.1.5: First-Run Empty States And Operator Onboarding (2026-04-14)
+- M11: Admin Workspace Polish And Operational UX (2026-04-16)
 
 **M10 summary**
 - Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
@@ -91,6 +92,13 @@
 - Tightened admin empty-state copy around first corpus, first source placement, first job, first trace, and first eval so operators always have a concrete next step
 - See docs/m10_1_5_first_run_empty_states_and_operator_onboarding.md
 
+**M11 summary**
+- Added saved-view and filtering workflows across the admin sources, jobs, traces, and audit surfaces so non-developer operators can reopen the same operational slices without manually rebuilding query state each visit
+- Upgraded the sources workspace with multi-select bulk actions for corpus placement, sensitivity changes, reindexing, and enrichment on top of the existing live source controls
+- Added operator-facing queue and trace ergonomics including filtered summaries, sortable lists, latency/fallback rollups, and clearer detail selection behavior when views narrow
+- Expanded eval usability with a side-by-side report comparison view and added an explicit approval-inbox stub in the admin overview so the future workflow is visible without pretending it is fully wired yet
+- See docs/m11_admin_workspace_polish_and_operational_ux.md
+
 **M9 summary**
 - Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline
 - Source-scoped retrieval now honors corpus default modes so different corpora behave differently without changing global settings
@@ -143,9 +151,9 @@
 - See docs/m2_retrieval_observability_and_traceability.md
 
 **Next actions**
-- Start M11: admin workspace polish and operational UX
-- Improve operator ergonomics across jobs, sources, traces, and audit with stronger filtering, bulk workflows, and comparison UX
-- Preserve the truthful admin control-plane foundations added in M10.1.3.1 and the first-run clarity added in M10.1.5
+- Start M11.1: ingestion queue visibility, ETA, and priority governance
+- Upgrade upload/indexing status from raw polling into queue-aware progress and ETA contracts
+- Extend the admin control plane from operator ergonomics into true queue governance with auditable priority handling
 
 **Notes / DoD checklist (M10)**
 - [x] Anonymous users can view the homepage but cannot access `/console/*`
@@ -220,6 +228,11 @@
 - [x] A clean install feels intentionally empty rather than misconfigured
 - [x] User and admin both have an obvious next step to make the product useful
 - [x] Empty-state copy reduces the feeling that functionality is missing when the issue is simply lack of data
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M11)**
+- [x] Non-developer can operate daily workflows comfortably with less engineering assistance
 - [x] docs/ note added
 - [x] STATUS.md updated
 

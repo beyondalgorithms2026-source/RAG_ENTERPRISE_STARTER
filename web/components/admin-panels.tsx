@@ -21,6 +21,235 @@ type SourceDraft = {
   aclGroups: string;
 };
 
+type SavedViewEntry = {
+  name: string;
+  filters: Record<string, string>;
+};
+
+const ADMIN_SAVED_VIEWS_STORAGE_KEY = "rag_admin_saved_views_v1";
+
+function readSavedAdminViews(viewKey: string): SavedViewEntry[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+  try {
+    const raw = window.localStorage.getItem(ADMIN_SAVED_VIEWS_STORAGE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, SavedViewEntry[]>) : {};
+    const views = parsed?.[viewKey];
+    if (!Array.isArray(views)) {
+      return [];
+    }
+    return views.filter((entry) => typeof entry?.name === "string" && entry.filters && typeof entry.filters === "object");
+  } catch {
+    return [];
+  }
+}
+
+function writeSavedAdminViews(viewKey: string, views: SavedViewEntry[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    const raw = window.localStorage.getItem(ADMIN_SAVED_VIEWS_STORAGE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, SavedViewEntry[]>) : {};
+    parsed[viewKey] = views;
+    window.localStorage.setItem(ADMIN_SAVED_VIEWS_STORAGE_KEY, JSON.stringify(parsed));
+  } catch {
+    // Best-effort UX only.
+  }
+}
+
+function normalizeText(value: unknown) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function matchesQuery(query: string, values: unknown[]) {
+  const normalizedQuery = normalizeText(query);
+  if (!normalizedQuery) {
+    return true;
+  }
+  return values.some((value) => normalizeText(value).includes(normalizedQuery));
+}
+
+function toNumber(value: unknown) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function toTimestampValue(value: unknown) {
+  const numeric = new Date(String(value ?? "")).getTime();
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function roundNumber(value: number, digits = 0) {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
+function sortGenericMaps(items: GenericMap[], sort: string, handlers: Record<string, (left: GenericMap, right: GenericMap) => number>) {
+  const handler = handlers[sort];
+  if (!handler) {
+    return items;
+  }
+  return [...items].sort(handler);
+}
+
+function saveNamedView(
+  viewKey: string,
+  name: string,
+  filters: Record<string, string>,
+  setSavedViews: (views: SavedViewEntry[]) => void,
+) {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return;
+  }
+  const next = [
+    { name: trimmed, filters },
+    ...readSavedAdminViews(viewKey).filter((entry) => entry.name !== trimmed),
+  ].slice(0, 8);
+  writeSavedAdminViews(viewKey, next);
+  setSavedViews(next);
+}
+
+function deleteNamedView(viewKey: string, name: string, setSavedViews: (views: SavedViewEntry[]) => void) {
+  const next = readSavedAdminViews(viewKey).filter((entry) => entry.name !== name);
+  writeSavedAdminViews(viewKey, next);
+  setSavedViews(next);
+}
+
+function filtersMatch(applied: Record<string, string>, draft: Record<string, string>) {
+  const keys = new Set([...Object.keys(applied), ...Object.keys(draft)]);
+  return Array.from(keys).every((key) => String(applied[key] || "") === String(draft[key] || ""));
+}
+
+function titleCaseWords(value: unknown) {
+  return String(value || "")
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+function isActiveJobStatus(value: unknown) {
+  return ["queued", "processing", "running", "pending"].includes(normalizeText(value));
+}
+
+function jobStatusRank(value: unknown) {
+  const normalized = normalizeText(value);
+  if (["processing", "running", "queued", "pending"].includes(normalized)) {
+    return 0;
+  }
+  if (["failed", "error"].includes(normalized)) {
+    return 1;
+  }
+  if (["completed", "embedded", "indexed"].includes(normalized)) {
+    return 2;
+  }
+  return 3;
+}
+
+function formatJobStage(value: unknown) {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return "Unknown stage";
+  }
+  return `${titleCaseWords(normalized)} stage`;
+}
+
+function formatJobTrigger(value: unknown) {
+  const normalized = normalizeText(value);
+  if (normalized === "upload") {
+    return "Started from an upload request";
+  }
+  if (normalized === "admin_reindex") {
+    return "Started by an admin reindex";
+  }
+  if (normalized === "system") {
+    return "Started by the system";
+  }
+  return `Started by ${String(value || "the system")}`;
+}
+
+function formatJobSourceName(job: GenericMap) {
+  return String(job.source_file_name || "Source record pending");
+}
+
+function formatJobTimingLabel(job: GenericMap) {
+  if (isActiveJobStatus(job.status)) {
+    return `Started ${formatTimestamp(job.started_at || job.created_at)}`;
+  }
+  if (normalizeText(job.status) === "failed" || normalizeText(job.status) === "error") {
+    return job.completed_at ? `Failed ${formatTimestamp(job.completed_at)}` : "Failed before completion";
+  }
+  if (job.completed_at) {
+    return `Completed ${formatTimestamp(job.completed_at)}`;
+  }
+  return formatDuration(job.duration_seconds);
+}
+
+function buildJobOperatorSummary(job: GenericMap) {
+  const sourceName = formatJobSourceName(job);
+  const status = titleCaseWords(job.status || "unknown");
+  const stage = formatJobStage(job.stage);
+  const trigger = formatJobTrigger(job.triggered_by);
+  const corpus = job.corpus_name ? ` It is linked to the ${String(job.corpus_name)} corpus.` : " It is not linked to a corpus yet.";
+  const eta = isActiveJobStatus(job.status) ? " Estimated time remaining is not available yet." : "";
+  return `${sourceName} is currently in ${stage.toLowerCase()} with status ${status}. ${trigger}.${corpus}${eta}`;
+}
+
+function SavedViewsToolbar({
+  viewLabel,
+  draftName,
+  onDraftNameChange,
+  onSave,
+  savedViews,
+  onApply,
+  onDelete,
+}: {
+  viewLabel: string;
+  draftName: string;
+  onDraftNameChange: (value: string) => void;
+  onSave: () => void;
+  savedViews: SavedViewEntry[];
+  onApply: (entry: SavedViewEntry) => void;
+  onDelete: (entry: SavedViewEntry) => void;
+}) {
+  return (
+    <div className="admin-saved-view-stack">
+      <div className="admin-saved-view-form">
+        <input value={draftName} onChange={(event) => onDraftNameChange(event.target.value)} placeholder={`Save ${viewLabel} view`} />
+        <button type="button" className="button button-secondary" onClick={onSave} disabled={!draftName.trim()}>
+          Save view
+        </button>
+      </div>
+      {savedViews.length ? (
+        <div className="admin-saved-view-list">
+          {savedViews.map((entry) => (
+            <div key={entry.name} className="admin-saved-view-chip">
+              <button type="button" className="admin-inline-link" onClick={() => onApply(entry)}>
+                {entry.name}
+              </button>
+              <button type="button" className="admin-delete-chip" aria-label={`Delete saved view ${entry.name}`} onClick={() => onDelete(entry)}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SummaryMetricCard({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <article className={`card admin-mini-card ${tone || ""}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
+  );
+}
+
 function formatTimestamp(value: unknown) {
   if (!value) {
     return "Unavailable";
@@ -57,6 +286,9 @@ function formatFileSize(value: unknown) {
 }
 
 function formatDuration(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return "In progress";
+  }
   const seconds = Number(value);
   if (!Number.isFinite(seconds)) {
     return "In progress";
@@ -326,6 +558,7 @@ export function CorporaAdminPanel() {
 export function SourcesAdminPanel() {
   const searchParams = useSearchParams();
   const sourceIdParam = searchParams.get("sourceId");
+  const defaultFilters = { query: "", status: "all", corpus: "all", sensitivity: "all", sort: "name_asc" };
   const [payload, setPayload] = useState<{ sources: GenericMap[] }>({ sources: [] });
   const [corporaPayload, setCorporaPayload] = useState<{ corpora: GenericMap[] }>({ corpora: [] });
   const [selectedSourceId, setSelectedSourceId] = useState("");
@@ -333,6 +566,17 @@ export function SourcesAdminPanel() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [filters, setFilters] = useState({ ...defaultFilters });
+  const [draftFilters, setDraftFilters] = useState({ ...defaultFilters });
+  const [savedViews, setSavedViews] = useState<SavedViewEntry[]>([]);
+  const [savedViewName, setSavedViewName] = useState("");
+  const [selectedSourceIds, setSelectedSourceIds] = useState<number[]>([]);
+  const [bulkCorpusName, setBulkCorpusName] = useState("__keep__");
+  const [bulkSensitivityLabel, setBulkSensitivityLabel] = useState("__keep__");
+
+  useEffect(() => {
+    setSavedViews(readSavedAdminViews("sources"));
+  }, []);
 
   async function refresh() {
     setIsLoading(true);
@@ -361,9 +605,92 @@ export function SourcesAdminPanel() {
     [payload, selectedSourceId],
   );
 
+  const visibleSources = useMemo(() => {
+    const filtered = payload.sources.filter((source) => {
+      if (!matchesQuery(filters.query, [source.file_name, source.source_type, source.corpus_name, source.sensitivity_label, (source.acl_groups as string[] | undefined)?.join(", ")])) {
+        return false;
+      }
+      if (filters.status !== "all" && normalizeText(source.ingestion_status) !== filters.status) {
+        return false;
+      }
+      if (filters.corpus !== "all" && normalizeText(source.corpus_name) !== filters.corpus) {
+        return false;
+      }
+      if (filters.sensitivity !== "all" && normalizeText(source.sensitivity_label) !== filters.sensitivity) {
+        return false;
+      }
+      return true;
+    });
+
+    return sortGenericMaps(filtered, filters.sort, {
+      name_asc: (left, right) => String(left.file_name || "").localeCompare(String(right.file_name || "")),
+      name_desc: (left, right) => String(right.file_name || "").localeCompare(String(left.file_name || "")),
+      size_desc: (left, right) => toNumber(right.file_size_bytes) - toNumber(left.file_size_bytes),
+      size_asc: (left, right) => toNumber(left.file_size_bytes) - toNumber(right.file_size_bytes),
+      status: (left, right) => String(left.ingestion_status || "").localeCompare(String(right.ingestion_status || "")),
+      corpus: (left, right) => String(left.corpus_name || "").localeCompare(String(right.corpus_name || "")),
+    });
+  }, [payload.sources, filters]);
+
+  const corpusOptions = useMemo(
+    () => corporaPayload.corpora.map((corpus) => String(corpus.name)).sort((left, right) => left.localeCompare(right)),
+    [corporaPayload.corpora],
+  );
+
+  const selectionCount = selectedSourceIds.length;
+  const filteredCount = visibleSources.length;
+  const readyCount = visibleSources.filter((source) => ["indexed", "embedded"].includes(normalizeText(source.ingestion_status))).length;
+  const hasPendingFilterChanges = !filtersMatch(filters, draftFilters);
+
+  useEffect(() => {
+    setSelectedSourceId((current) => (current && visibleSources.some((item) => String(item.id) === current) ? current : String(visibleSources[0]?.id || "")));
+  }, [visibleSources]);
+
+  useEffect(() => {
+    const allSourceIds = new Set(payload.sources.map((source) => Number(source.id)));
+    setSelectedSourceIds((current) => current.filter((item) => allSourceIds.has(item)));
+  }, [payload.sources]);
+
   useEffect(() => {
     setDraft(sourceDraftFromItem(selectedSource));
   }, [selectedSource]);
+
+  function applySavedView(entry: SavedViewEntry) {
+    const nextFilters = {
+      query: String(entry.filters.query || ""),
+      status: String(entry.filters.status || "all"),
+      corpus: String(entry.filters.corpus || "all"),
+      sensitivity: String(entry.filters.sensitivity || "all"),
+      sort: String(entry.filters.sort || "name_asc"),
+    };
+    setDraftFilters(nextFilters);
+    setFilters(nextFilters);
+  }
+
+  function saveCurrentView() {
+    saveNamedView("sources", savedViewName, draftFilters, setSavedViews);
+    setSavedViewName("");
+  }
+
+  function removeSavedView(entry: SavedViewEntry) {
+    deleteNamedView("sources", entry.name, setSavedViews);
+  }
+
+  function toggleSelectedSource(sourceId: number, checked: boolean) {
+    setSelectedSourceIds((current) =>
+      checked ? [...new Set([...current, sourceId])] : current.filter((item) => item !== sourceId),
+    );
+  }
+
+  function toggleAllVisibleSources(checked: boolean) {
+    setSelectedSourceIds((current) => {
+      const visibleIds = visibleSources.map((source) => Number(source.id));
+      if (checked) {
+        return [...new Set([...current, ...visibleIds])];
+      }
+      return current.filter((item) => !visibleIds.includes(item));
+    });
+  }
 
   async function saveSource() {
     if (!selectedSource) {
@@ -408,6 +735,57 @@ export function SourcesAdminPanel() {
     }
   }
 
+  async function applyBulkSourceSettings() {
+    if (!selectedSourceIds.length || (bulkCorpusName === "__keep__" && bulkSensitivityLabel === "__keep__")) {
+      return;
+    }
+    setBusy("bulk-save");
+    try {
+      await Promise.all(
+        selectedSourceIds.map((sourceId) =>
+          browserFetch(`/admin/sources/${sourceId}`, {
+            method: "PATCH",
+            json: {
+              corpus_name: bulkCorpusName === "__keep__" ? undefined : bulkCorpusName === "__none__" ? "" : bulkCorpusName,
+              sensitivity_label: bulkSensitivityLabel === "__keep__" ? undefined : bulkSensitivityLabel,
+            },
+          }),
+        ),
+      );
+      setSelectedSourceIds([]);
+      setBulkCorpusName("__keep__");
+      setBulkSensitivityLabel("__keep__");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to bulk update sources.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function runBulkSourceAction(action: "reindex" | "enrich") {
+    if (!selectedSourceIds.length) {
+      return;
+    }
+    setBusy(`bulk-${action}`);
+    try {
+      await Promise.all(
+        selectedSourceIds.map((sourceId) =>
+          browserFetch(`/admin/sources/${sourceId}/${action}`, {
+            method: "POST",
+            json: { force: true },
+          }),
+        ),
+      );
+      setSelectedSourceIds([]);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to bulk ${action} sources.`);
+    } finally {
+      setBusy("");
+    }
+  }
+
   return (
     <div className="admin-route-page">
       <AdminSectionIntro
@@ -417,6 +795,117 @@ export function SourcesAdminPanel() {
         badge={`${payload.sources.length} sources`}
       />
       {error ? <div className="error-banner">{error}</div> : null}
+      <section className="admin-summary-cards">
+        <SummaryMetricCard label="Visible Sources" value={formatCount(filteredCount, "source")} />
+        <SummaryMetricCard label="Ready For Retrieval" value={formatCount(readyCount, "source")} tone="is-good" />
+        <SummaryMetricCard label="Selected For Bulk Actions" value={formatCount(selectionCount, "source")} tone={selectionCount ? "is-warning" : ""} />
+      </section>
+      <section className="card">
+        <div className="section-head">
+          <div>
+            <h2>Filters And Saved Views</h2>
+            <p>Reduce manual scanning by filtering the live source inventory and reusing operator views.</p>
+          </div>
+        </div>
+        <div className="admin-filter-grid admin-filter-grid-5">
+          <input value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search file, corpus, ACL group, or type" />
+          <select value={draftFilters.status} onChange={(event) => setDraftFilters((current) => ({ ...current, status: event.target.value }))}>
+            <option value="all">All statuses</option>
+            <option value="indexed">indexed</option>
+            <option value="embedded">embedded</option>
+            <option value="processing">processing</option>
+            <option value="queued">queued</option>
+            <option value="failed">failed</option>
+          </select>
+          <select value={draftFilters.corpus} onChange={(event) => setDraftFilters((current) => ({ ...current, corpus: event.target.value }))}>
+            <option value="all">All corpora</option>
+            {corpusOptions.map((corpus) => (
+              <option key={corpus} value={corpus.toLowerCase()}>{corpus}</option>
+            ))}
+            <option value="">No corpus</option>
+          </select>
+          <select value={draftFilters.sensitivity} onChange={(event) => setDraftFilters((current) => ({ ...current, sensitivity: event.target.value }))}>
+            <option value="all">All sensitivity</option>
+            <option value="public">public</option>
+            <option value="internal">internal</option>
+            <option value="confidential">confidential</option>
+          </select>
+          <select value={draftFilters.sort} onChange={(event) => setDraftFilters((current) => ({ ...current, sort: event.target.value }))}>
+            <option value="name_asc">Name A-Z</option>
+            <option value="name_desc">Name Z-A</option>
+            <option value="size_desc">Largest first</option>
+            <option value="size_asc">Smallest first</option>
+            <option value="status">Status</option>
+            <option value="corpus">Corpus</option>
+          </select>
+        </div>
+        <div className="toolbar-inline">
+          <span className={`badge ${hasPendingFilterChanges ? "is-warning" : ""}`}>{hasPendingFilterChanges ? "Unapplied filter changes" : `Showing ${filteredCount} of ${payload.sources.length} sources`}</span>
+          <button type="button" className="button button-primary" disabled={!hasPendingFilterChanges} onClick={() => setFilters({ ...draftFilters })}>
+            Apply filters
+          </button>
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => {
+              setDraftFilters({ ...defaultFilters });
+              setFilters({ ...defaultFilters });
+            }}
+          >
+            Reset filters
+          </button>
+        </div>
+        <SavedViewsToolbar
+          viewLabel="source"
+          draftName={savedViewName}
+          onDraftNameChange={setSavedViewName}
+          onSave={saveCurrentView}
+          savedViews={savedViews}
+          onApply={applySavedView}
+          onDelete={removeSavedView}
+        />
+      </section>
+      <section className="card">
+        <div className="section-head">
+          <div>
+            <h2>Bulk Actions</h2>
+            <p>Apply existing source administration workflows to multiple selected records at once.</p>
+          </div>
+          <span className="badge">{formatCount(selectionCount, "selected source")}</span>
+        </div>
+        <div className="admin-filter-grid admin-filter-grid-4">
+          <select value={bulkCorpusName} onChange={(event) => setBulkCorpusName(event.target.value)}>
+            <option value="__keep__">Keep current corpus</option>
+            <option value="__none__">Remove corpus</option>
+            {corpusOptions.map((corpus) => (
+              <option key={`bulk-${corpus}`} value={corpus}>{corpus}</option>
+            ))}
+          </select>
+          <select value={bulkSensitivityLabel} onChange={(event) => setBulkSensitivityLabel(event.target.value)}>
+            <option value="__keep__">Keep current sensitivity</option>
+            <option value="public">public</option>
+            <option value="internal">internal</option>
+            <option value="confidential">confidential</option>
+          </select>
+          <button type="button" className="button button-secondary" disabled={!visibleSources.length} onClick={() => toggleAllVisibleSources(true)}>
+            Select filtered
+          </button>
+          <button type="button" className="button button-secondary" disabled={!selectionCount} onClick={() => setSelectedSourceIds([])}>
+            Clear selection
+          </button>
+        </div>
+        <div className="toolbar-inline">
+          <button type="button" className="button button-primary" disabled={busy !== "" || !selectionCount || (bulkCorpusName === "__keep__" && bulkSensitivityLabel === "__keep__")} onClick={applyBulkSourceSettings}>
+            {busy === "bulk-save" ? "Saving..." : "Apply bulk settings"}
+          </button>
+          <button type="button" className="button button-secondary" disabled={busy !== "" || !selectionCount} onClick={() => runBulkSourceAction("reindex")}>
+            {busy === "bulk-reindex" ? "Queueing..." : "Bulk reindex"}
+          </button>
+          <button type="button" className="button button-secondary" disabled={busy !== "" || !selectionCount} onClick={() => runBulkSourceAction("enrich")}>
+            {busy === "bulk-enrich" ? "Queueing..." : "Bulk enrich"}
+          </button>
+        </div>
+      </section>
       <div className="results-grid">
         <section className="card">
           <div className="section-head">
@@ -426,9 +915,13 @@ export function SourcesAdminPanel() {
             </div>
           </div>
           <div className="table-list">
-            {isLoading ? <EmptyState title="Loading sources..." copy="Fetching source records, placement state, and ACL posture." icon="progress_activity" /> : payload.sources.length ? payload.sources.map((source) => (
-              <article key={String(source.id)} className="table-row">
+            {isLoading ? <EmptyState title="Loading sources..." copy="Fetching source records, placement state, and ACL posture." icon="progress_activity" /> : visibleSources.length ? visibleSources.map((source) => (
+              <article key={String(source.id)} className={`table-row ${selectedSourceIds.includes(Number(source.id)) ? "is-selected" : ""}`}>
                 <div>
+                  <label className="table-row-selector">
+                    <input type="checkbox" checked={selectedSourceIds.includes(Number(source.id))} onChange={(event) => toggleSelectedSource(Number(source.id), event.target.checked)} />
+                    <span className="sr-only">Select source {String(source.file_name)}</span>
+                  </label>
                   <strong>{String(source.file_name)}</strong>
                   <span className="muted-copy">{`${String(source.corpus_name || "No corpus")} • ${String(source.sensitivity_label || "internal")}`}</span>
                 </div>
@@ -440,7 +933,7 @@ export function SourcesAdminPanel() {
                   </button>
                 </div>
               </article>
-            )) : <EmptyState title="No sources found." copy="This is normal on a clean install. User uploads and connector-backed sources will appear here once the first source record is created." icon="upload_file" />}
+            )) : <EmptyState title="No sources matched this view." copy={payload.sources.length ? "The source inventory is not empty, but nothing matches the applied filter set. Apply a different saved view or reset filters to reopen the broader inventory." : "This is normal on a clean install. User uploads and connector-backed sources will appear here once the first source record is created."} icon="upload_file" />}
           </div>
         </section>
 
@@ -501,10 +994,19 @@ export function SourcesAdminPanel() {
 export function JobsAdminPanel() {
   const searchParams = useSearchParams();
   const sourceIdParam = searchParams.get("sourceId");
+  const defaultFilters = { query: "", kind: "all", status: "all", actor: "all", sort: "active_first" };
   const [payload, setPayload] = useState<{ ingestion_jobs: GenericMap[]; enrichment_jobs: GenericMap[] }>({ ingestion_jobs: [], enrichment_jobs: [] });
   const [selectedJobKey, setSelectedJobKey] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [filters, setFilters] = useState({ ...defaultFilters });
+  const [draftFilters, setDraftFilters] = useState({ ...defaultFilters });
+  const [savedViews, setSavedViews] = useState<SavedViewEntry[]>([]);
+  const [savedViewName, setSavedViewName] = useState("");
+
+  useEffect(() => {
+    setSavedViews(readSavedAdminViews("jobs"));
+  }, []);
 
   async function refresh() {
     setIsLoading(true);
@@ -529,10 +1031,73 @@ export function JobsAdminPanel() {
     () => [...payload.ingestion_jobs, ...payload.enrichment_jobs].sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || ""))),
     [payload],
   );
+  const visibleJobs = useMemo(() => {
+    const filtered = jobs.filter((job) => {
+      if (!matchesQuery(filters.query, [job.source_file_name, job.stage, job.triggered_by, job.job_kind, job.corpus_name])) {
+        return false;
+      }
+      if (filters.kind !== "all" && normalizeText(job.job_kind) !== filters.kind) {
+        return false;
+      }
+      if (filters.status !== "all" && normalizeText(job.status) !== filters.status) {
+        return false;
+      }
+      if (filters.actor !== "all" && normalizeText(job.triggered_by) !== filters.actor) {
+        return false;
+      }
+      return true;
+    });
+    return sortGenericMaps(filtered, filters.sort, {
+      active_first: (left, right) => {
+        const rankDiff = jobStatusRank(left.status) - jobStatusRank(right.status);
+        if (rankDiff !== 0) {
+          return rankDiff;
+        }
+        return toTimestampValue(right.started_at || right.created_at) - toTimestampValue(left.started_at || left.created_at);
+      },
+      newest: (left, right) => toTimestampValue(right.created_at) - toTimestampValue(left.created_at),
+      oldest: (left, right) => toTimestampValue(left.created_at) - toTimestampValue(right.created_at),
+      duration_desc: (left, right) => toNumber(right.duration_seconds) - toNumber(left.duration_seconds),
+      duration_asc: (left, right) => toNumber(left.duration_seconds) - toNumber(right.duration_seconds),
+      source: (left, right) => String(left.source_file_name || "").localeCompare(String(right.source_file_name || "")),
+    });
+  }, [jobs, filters]);
   const selectedJob = useMemo(
-    () => jobs.find((job) => `${String(job.job_kind)}:${String(job.id)}` === selectedJobKey) || null,
-    [jobs, selectedJobKey],
+    () => visibleJobs.find((job) => `${String(job.job_kind)}:${String(job.id)}` === selectedJobKey) || null,
+    [visibleJobs, selectedJobKey],
   );
+  const actorOptions = useMemo(
+    () => Array.from(new Set(jobs.map((job) => normalizeText(job.triggered_by || "system")).filter(Boolean))).sort((left, right) => left.localeCompare(right)),
+    [jobs],
+  );
+  const activeCount = visibleJobs.filter((job) => ["queued", "processing", "running", "pending"].includes(normalizeText(job.status))).length;
+  const failedCount = visibleJobs.filter((job) => ["failed", "error"].includes(normalizeText(job.status))).length;
+  const hasPendingFilterChanges = !filtersMatch(filters, draftFilters);
+
+  useEffect(() => {
+    setSelectedJobKey((current) => (current && visibleJobs.some((job) => `${String(job.job_kind)}:${String(job.id)}` === current) ? current : `${String(visibleJobs[0]?.job_kind || "")}:${String(visibleJobs[0]?.id || "")}`));
+  }, [visibleJobs]);
+
+  function applySavedView(entry: SavedViewEntry) {
+    const nextFilters = {
+      query: String(entry.filters.query || ""),
+      kind: String(entry.filters.kind || "all"),
+      status: String(entry.filters.status || "all"),
+      actor: String(entry.filters.actor || "all"),
+      sort: String(entry.filters.sort || "active_first"),
+    };
+    setDraftFilters(nextFilters);
+    setFilters(nextFilters);
+  }
+
+  function saveCurrentView() {
+    saveNamedView("jobs", savedViewName, draftFilters, setSavedViews);
+    setSavedViewName("");
+  }
+
+  function removeSavedView(entry: SavedViewEntry) {
+    deleteNamedView("jobs", entry.name, setSavedViews);
+  }
 
   return (
     <div className="admin-route-page">
@@ -543,6 +1108,74 @@ export function JobsAdminPanel() {
         badge={`${jobs.length} jobs`}
       />
       {error ? <div className="error-banner">{error}</div> : null}
+      <section className="admin-summary-cards">
+        <SummaryMetricCard label="Visible Jobs" value={formatCount(visibleJobs.length, "job")} />
+        <SummaryMetricCard label="Active" value={formatCount(activeCount, "job")} tone="is-warning" />
+        <SummaryMetricCard label="Failed" value={formatCount(failedCount, "job")} tone={failedCount ? "is-danger" : ""} />
+      </section>
+      <section className="card">
+        <div className="section-head">
+          <div>
+            <h2>Queue Views</h2>
+            <p>Filter and reuse operational job views without dropping into raw logs.</p>
+          </div>
+        </div>
+        <div className="admin-filter-grid admin-filter-grid-5">
+          <input value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search source, stage, corpus, or actor" />
+          <select value={draftFilters.kind} onChange={(event) => setDraftFilters((current) => ({ ...current, kind: event.target.value }))}>
+            <option value="all">All job kinds</option>
+            <option value="ingestion">ingestion</option>
+            <option value="enrichment">enrichment</option>
+          </select>
+          <select value={draftFilters.status} onChange={(event) => setDraftFilters((current) => ({ ...current, status: event.target.value }))}>
+            <option value="all">All statuses</option>
+            <option value="queued">queued</option>
+            <option value="processing">processing</option>
+            <option value="running">running</option>
+            <option value="completed">completed</option>
+            <option value="failed">failed</option>
+          </select>
+          <select value={draftFilters.actor} onChange={(event) => setDraftFilters((current) => ({ ...current, actor: event.target.value }))}>
+            <option value="all">All actors</option>
+            {actorOptions.map((actor) => (
+              <option key={actor} value={actor}>{actor}</option>
+            ))}
+          </select>
+          <select value={draftFilters.sort} onChange={(event) => setDraftFilters((current) => ({ ...current, sort: event.target.value }))}>
+            <option value="active_first">Active jobs first</option>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="duration_desc">Longest duration</option>
+            <option value="duration_asc">Shortest duration</option>
+            <option value="source">Source name</option>
+          </select>
+        </div>
+        <div className="toolbar-inline">
+          <span className={`badge ${hasPendingFilterChanges ? "is-warning" : ""}`}>{hasPendingFilterChanges ? "Unapplied filter changes" : `Showing ${visibleJobs.length} of ${jobs.length} jobs`}</span>
+          <button type="button" className="button button-primary" disabled={!hasPendingFilterChanges} onClick={() => setFilters({ ...draftFilters })}>
+            Apply filters
+          </button>
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => {
+              setDraftFilters({ ...defaultFilters });
+              setFilters({ ...defaultFilters });
+            }}
+          >
+            Reset filters
+          </button>
+        </div>
+        <SavedViewsToolbar
+          viewLabel="job"
+          draftName={savedViewName}
+          onDraftNameChange={setSavedViewName}
+          onSave={saveCurrentView}
+          savedViews={savedViews}
+          onApply={applySavedView}
+          onDelete={removeSavedView}
+        />
+      </section>
       <div className="results-grid">
         <section className="card">
           <div className="section-head">
@@ -552,21 +1185,22 @@ export function JobsAdminPanel() {
             </div>
           </div>
           <div className="table-list">
-            {isLoading ? <EmptyState title="Loading jobs..." copy="Fetching ingestion and enrichment queue state from the admin control plane." icon="progress_activity" /> : jobs.length ? jobs.map((job) => (
+            {isLoading ? <EmptyState title="Loading jobs..." copy="Fetching ingestion and enrichment queue state from the admin control plane." icon="progress_activity" /> : visibleJobs.length ? visibleJobs.map((job) => (
               <article key={`${String(job.job_kind)}:${String(job.id)}`} className="table-row">
                 <div>
                   <strong>{`${String(job.job_kind)} job #${String(job.id)}`}</strong>
-                  <span className="muted-copy">{`${String(job.source_file_name || "Unknown source")} • ${String(job.stage || "unknown stage")}`}</span>
+                  <span className="muted-copy">{`${formatJobSourceName(job)} • ${formatJobStage(job.stage)}`}</span>
                 </div>
                 <div className="table-metrics">
-                  <span className={`badge ${statusTone(job.status)}`}>{String(job.status || "unknown")}</span>
-                  <span>{String(job.triggered_by || "system")}</span>
+                  <span className={`badge ${statusTone(job.status)}`}>{titleCaseWords(job.status || "unknown")}</span>
+                  <span>{formatJobTrigger(job.triggered_by)}</span>
+                  <span>{formatJobTimingLabel(job)}</span>
                   <button type="button" className="button button-secondary" onClick={() => setSelectedJobKey(`${String(job.job_kind)}:${String(job.id)}`)}>
-                    Inspect
+                    Open detail
                   </button>
                 </div>
               </article>
-            )) : <EmptyState title="No jobs recorded." copy="This is normal on a clean system. The first upload, reindex, or enrichment run will appear here as soon as the platform has indexing work to track." icon="work_history" />}
+            )) : <EmptyState title="No jobs matched this view." copy={jobs.length ? "The queue is not empty, but nothing matches the applied filters. Apply a different saved view or reset filters to reopen the full queue." : "This is normal on a clean system. The first upload, reindex, or enrichment run will appear here as soon as the platform has indexing work to track."} icon="work_history" />}
           </div>
         </section>
 
@@ -579,28 +1213,47 @@ export function JobsAdminPanel() {
           </div>
           {!selectedJob ? <EmptyState title={isLoading ? "Loading job detail..." : "Select a job."} copy={isLoading ? "Waiting for queue data before job detail can render." : jobs.length ? "Choose a job from the queue to inspect timing, failure context, and source relationships." : "No job detail is available yet because the queue is still empty."} icon={isLoading ? "progress_activity" : "article"} /> : (
             <div className="page-stack">
+              <article className="table-row">
+                <div>
+                  <strong>{buildJobOperatorSummary(selectedJob)}</strong>
+                  <span className="muted-copy">{selectedJob.error_message ? `Failure reason: ${String(selectedJob.error_message)}` : normalizeText(selectedJob.status) === "completed" ? `${formatJobSourceName(selectedJob)} completed ${formatJobStage(selectedJob.stage).toLowerCase()}.` : "This view explains the current job state in plain language before the raw technical payload."}</span>
+                </div>
+                <div className="table-metrics">
+                  <span className={`badge ${statusTone(selectedJob.status)}`}>{titleCaseWords(selectedJob.status || "unknown")}</span>
+                  <span>{selectedJob.corpus_name ? `Corpus: ${String(selectedJob.corpus_name)}` : "No corpus linked yet"}</span>
+                  <span>{isActiveJobStatus(selectedJob.status) ? "ETA not available yet" : formatDuration(selectedJob.duration_seconds)}</span>
+                </div>
+              </article>
               <div className="toolbar-inline">
                 {selectedJob.source_id ? <Link href={`/console/admin/sources?sourceId=${String(selectedJob.source_id)}`} className="admin-inline-link">Open source</Link> : null}
                 {selectedJob.corpus_name ? <Link href="/console/admin/corpora" className="admin-inline-link">Open corpora</Link> : null}
               </div>
-              <JsonPanel
-                value={{
-                  id: selectedJob.id,
-                  kind: selectedJob.job_kind,
-                  status: selectedJob.status,
-                  stage: selectedJob.stage,
-                  triggered_by: selectedJob.triggered_by,
-                  duration: formatDuration(selectedJob.duration_seconds),
-                  created_at: selectedJob.created_at,
-                  started_at: selectedJob.started_at,
-                  completed_at: selectedJob.completed_at,
-                  source_id: selectedJob.source_id,
-                  source_file_name: selectedJob.source_file_name,
-                  corpus_name: selectedJob.corpus_name,
-                  error_message: selectedJob.error_message,
-                  job_metadata_json: selectedJob.job_metadata_json,
-                }}
-              />
+              <section className="card">
+                <div className="section-head">
+                  <div>
+                    <h2>Technical payload</h2>
+                    <p>Raw job fields for engineering follow-up when the plain-language summary is not enough.</p>
+                  </div>
+                </div>
+                <JsonPanel
+                  value={{
+                    id: selectedJob.id,
+                    kind: selectedJob.job_kind,
+                    status: selectedJob.status,
+                    stage: selectedJob.stage,
+                    triggered_by: selectedJob.triggered_by,
+                    duration: formatDuration(selectedJob.duration_seconds),
+                    created_at: selectedJob.created_at,
+                    started_at: selectedJob.started_at,
+                    completed_at: selectedJob.completed_at,
+                    source_id: selectedJob.source_id,
+                    source_file_name: selectedJob.source_file_name,
+                    corpus_name: selectedJob.corpus_name,
+                    error_message: selectedJob.error_message,
+                    job_metadata_json: selectedJob.job_metadata_json,
+                  }}
+                />
+              </section>
             </div>
           )}
         </section>
@@ -731,6 +1384,8 @@ export function EvalsAdminPanel() {
   const [running, setRunning] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [compareLeftKind, setCompareLeftKind] = useState("");
+  const [compareRightKind, setCompareRightKind] = useState("");
 
   async function refresh() {
     setIsLoading(true);
@@ -766,6 +1421,21 @@ export function EvalsAdminPanel() {
   }
 
   const existingReports = reports.reports.filter((report) => Boolean(report.exists));
+  const compareLeft = existingReports.find((report) => String(report.kind) === compareLeftKind) || existingReports[0] || null;
+  const compareRight = existingReports.find((report) => String(report.kind) === compareRightKind) || existingReports[1] || existingReports[0] || null;
+  const compareLeftSummary = (compareLeft?.summary || {}) as GenericMap;
+  const compareRightSummary = (compareRight?.summary || {}) as GenericMap;
+  const passRateDelta = compareLeft && compareRight ? roundNumber(toNumber(compareLeftSummary.pass_rate_percent) - toNumber(compareRightSummary.pass_rate_percent), 2) : null;
+
+  useEffect(() => {
+    if (!existingReports.length) {
+      setCompareLeftKind("");
+      setCompareRightKind("");
+      return;
+    }
+    setCompareLeftKind((current) => current || String(existingReports[0].kind));
+    setCompareRightKind((current) => current || String(existingReports[1]?.kind || existingReports[0].kind));
+  }, [existingReports]);
 
   return (
     <div className="admin-route-page">
@@ -820,6 +1490,79 @@ export function EvalsAdminPanel() {
         <section className="card">
           <div className="section-head">
             <div>
+              <h2>Compare Reports</h2>
+              <p>Quick operator comparison across the currently available report slots.</p>
+            </div>
+          </div>
+          {existingReports.length ? (
+            <div className="page-stack">
+              <div className="admin-filter-grid admin-filter-grid-2">
+                <select value={compareLeftKind} onChange={(event) => setCompareLeftKind(event.target.value)}>
+                  {existingReports.map((report) => (
+                    <option key={`left-${String(report.kind)}`} value={String(report.kind)}>{String(report.kind)}</option>
+                  ))}
+                </select>
+                <select value={compareRightKind} onChange={(event) => setCompareRightKind(event.target.value)}>
+                  {existingReports.map((report) => (
+                    <option key={`right-${String(report.kind)}`} value={String(report.kind)}>{String(report.kind)}</option>
+                  ))}
+                </select>
+              </div>
+              <section className="admin-summary-cards">
+                <SummaryMetricCard label={`${String(compareLeft?.kind || "Left")} pass rate`} value={`${String(compareLeftSummary.pass_rate_percent ?? "-")}%`} tone="is-good" />
+                <SummaryMetricCard label={`${String(compareRight?.kind || "Right")} pass rate`} value={`${String(compareRightSummary.pass_rate_percent ?? "-")}%`} tone="is-good" />
+                <SummaryMetricCard label="Pass-rate delta" value={passRateDelta === null ? "n/a" : `${passRateDelta > 0 ? "+" : ""}${passRateDelta}%`} tone={passRateDelta && passRateDelta < 0 ? "is-danger" : "is-warning"} />
+              </section>
+              <div className="results-grid">
+                {[compareLeft, compareRight].map((report, index) => {
+                  const summary = (report?.summary || {}) as GenericMap;
+                  const metadata = (report?.report_metadata || {}) as GenericMap;
+                  return (
+                    <section key={`${String(report?.kind || "report")}-${index}`} className="card admin-compare-card">
+                      <div className="section-head">
+                        <div>
+                          <h2>{String(report?.kind || `Report ${index + 1}`)}</h2>
+                          <p>{String(report?.path || "No report path")}</p>
+                        </div>
+                        <span className={`badge ${statusTone(report?.exists ? "available" : "missing")}`}>{report?.exists ? "Available" : "Missing"}</span>
+                      </div>
+                      <div className="table-list">
+                        <article className="table-row">
+                          <div>
+                            <strong>Coverage</strong>
+                            <span className="muted-copy">{`${String(summary.passed ?? "-")} passed • ${String(summary.failed ?? "-")} failed`}</span>
+                          </div>
+                          <div className="table-metrics">
+                            <span>{String(summary.total ?? "-")} total</span>
+                            <span>{`${String(summary.pass_rate_percent ?? "-")}% pass`}</span>
+                          </div>
+                        </article>
+                        <article className="table-row">
+                          <div>
+                            <strong>Evaluated Modes</strong>
+                            <span className="muted-copy">{Array.isArray(summary.evaluated_modes) && summary.evaluated_modes.length ? (summary.evaluated_modes as string[]).join(", ") : "No mode metadata"}</span>
+                          </div>
+                        </article>
+                        <article className="table-row">
+                          <div>
+                            <strong>Active Profiles Snapshot</strong>
+                            <span className="muted-copy">{JSON.stringify(metadata.active_profiles || {}, null, 0)}</span>
+                          </div>
+                        </article>
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <EmptyState title="No reports available for comparison yet." copy="Run the first eval so the operator comparison surface has report data to work with." icon="compare_arrows" />
+          )}
+        </section>
+
+        <section className="card">
+          <div className="section-head">
+            <div>
               <h2>Eval Run History</h2>
               <p>Audit-backed visibility into recent eval executions.</p>
             </div>
@@ -845,6 +1588,7 @@ export function EvalsAdminPanel() {
 }
 
 export function TracesAdminPanel() {
+  const defaultFilters = { query: "", mode: "all", fallback: "all", sort: "newest" };
   const [payload, setPayload] = useState<{ traces: GenericMap[]; active_profiles?: GenericMap; retrieval_settings?: GenericMap }>({ traces: [] });
   const [selectedTraceId, setSelectedTraceId] = useState("");
   const [traceDetail, setTraceDetail] = useState<GenericMap | null>(null);
@@ -855,6 +1599,14 @@ export function TracesAdminPanel() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [filters, setFilters] = useState({ ...defaultFilters });
+  const [draftFilters, setDraftFilters] = useState({ ...defaultFilters });
+  const [savedViews, setSavedViews] = useState<SavedViewEntry[]>([]);
+  const [savedViewName, setSavedViewName] = useState("");
+
+  useEffect(() => {
+    setSavedViews(readSavedAdminViews("traces"));
+  }, []);
 
   async function refresh() {
     setIsLoading(true);
@@ -874,6 +1626,60 @@ export function TracesAdminPanel() {
   useEffect(() => {
     refresh();
   }, []);
+
+  const visibleTraces = useMemo(() => {
+    const filtered = payload.traces.filter((trace) => {
+      if (!matchesQuery(filters.query, [trace.request_id, trace.retrieval_path, trace.resolved_mode, trace.fallback_reason])) {
+        return false;
+      }
+      if (filters.mode !== "all" && normalizeText(trace.retrieval_path || trace.resolved_mode) !== filters.mode) {
+        return false;
+      }
+      if (filters.fallback === "fallback_only" && !trace.has_fallback) {
+        return false;
+      }
+      if (filters.fallback === "direct_only" && trace.has_fallback) {
+        return false;
+      }
+      return true;
+    });
+    return sortGenericMaps(filtered, filters.sort, {
+      newest: (left, right) => toTimestampValue(right.created_at) - toTimestampValue(left.created_at),
+      oldest: (left, right) => toTimestampValue(left.created_at) - toTimestampValue(right.created_at),
+      latency_desc: (left, right) => toNumber(right.total_latency_ms || right.search_latency_ms) - toNumber(left.total_latency_ms || left.search_latency_ms),
+      latency_asc: (left, right) => toNumber(left.total_latency_ms || left.search_latency_ms) - toNumber(right.total_latency_ms || right.search_latency_ms),
+    });
+  }, [payload.traces, filters]);
+
+  const fallbackCount = visibleTraces.filter((trace) => Boolean(trace.has_fallback)).length;
+  const avgLatency = visibleTraces.length
+    ? roundNumber(visibleTraces.reduce((total, trace) => total + toNumber(trace.total_latency_ms || trace.search_latency_ms), 0) / visibleTraces.length, 1)
+    : 0;
+  const hasPendingFilterChanges = !filtersMatch(filters, draftFilters);
+
+  useEffect(() => {
+    setSelectedTraceId((current) => (current && visibleTraces.some((trace) => String(trace.id) === current) ? current : String(visibleTraces[0]?.id || "")));
+  }, [visibleTraces]);
+
+  function applySavedView(entry: SavedViewEntry) {
+    const nextFilters = {
+      query: String(entry.filters.query || ""),
+      mode: String(entry.filters.mode || "all"),
+      fallback: String(entry.filters.fallback || "all"),
+      sort: String(entry.filters.sort || "newest"),
+    };
+    setDraftFilters(nextFilters);
+    setFilters(nextFilters);
+  }
+
+  function saveCurrentView() {
+    saveNamedView("traces", savedViewName, draftFilters, setSavedViews);
+    setSavedViewName("");
+  }
+
+  function removeSavedView(entry: SavedViewEntry) {
+    deleteNamedView("traces", entry.name, setSavedViews);
+  }
 
   useEffect(() => {
     if (!selectedTraceId) {
@@ -915,6 +1721,11 @@ export function TracesAdminPanel() {
         badge={`${payload.traces.length} traces`}
       />
       {error ? <div className="error-banner">{error}</div> : null}
+      <section className="admin-summary-cards">
+        <SummaryMetricCard label="Visible Traces" value={formatCount(visibleTraces.length, "trace")} />
+        <SummaryMetricCard label="Fallbacks" value={formatCount(fallbackCount, "trace")} tone={fallbackCount ? "is-warning" : ""} />
+        <SummaryMetricCard label="Average Latency" value={visibleTraces.length ? `${avgLatency} ms` : "n/a"} />
+      </section>
       <section className="card">
         <div className="section-head">
           <div>
@@ -939,6 +1750,61 @@ export function TracesAdminPanel() {
         </div>
         {debugResult ? <JsonPanel value={debugResult} /> : null}
       </section>
+      <section className="card">
+        <div className="section-head">
+          <div>
+            <h2>Trace Views</h2>
+            <p>Reuse filtered retrieval-debug views for fallback-heavy or high-latency investigations.</p>
+          </div>
+        </div>
+        <div className="admin-filter-grid admin-filter-grid-4">
+          <input value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search request, path, or fallback reason" />
+          <select value={draftFilters.mode} onChange={(event) => setDraftFilters((current) => ({ ...current, mode: event.target.value }))}>
+            <option value="all">All modes</option>
+            <option value="hybrid">hybrid</option>
+            <option value="keyword">keyword</option>
+            <option value="vector">vector</option>
+            <option value="graph_hybrid">graph_hybrid</option>
+            <option value="full">full</option>
+          </select>
+          <select value={draftFilters.fallback} onChange={(event) => setDraftFilters((current) => ({ ...current, fallback: event.target.value }))}>
+            <option value="all">All traces</option>
+            <option value="fallback_only">Fallback only</option>
+            <option value="direct_only">Direct only</option>
+          </select>
+          <select value={draftFilters.sort} onChange={(event) => setDraftFilters((current) => ({ ...current, sort: event.target.value }))}>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="latency_desc">Latency high to low</option>
+            <option value="latency_asc">Latency low to high</option>
+          </select>
+        </div>
+        <div className="toolbar-inline">
+          <span className={`badge ${hasPendingFilterChanges ? "is-warning" : ""}`}>{hasPendingFilterChanges ? "Unapplied filter changes" : `Showing ${visibleTraces.length} of ${payload.traces.length} traces`}</span>
+          <button type="button" className="button button-primary" disabled={!hasPendingFilterChanges} onClick={() => setFilters({ ...draftFilters })}>
+            Apply filters
+          </button>
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => {
+              setDraftFilters({ ...defaultFilters });
+              setFilters({ ...defaultFilters });
+            }}
+          >
+            Reset filters
+          </button>
+        </div>
+        <SavedViewsToolbar
+          viewLabel="trace"
+          draftName={savedViewName}
+          onDraftNameChange={setSavedViewName}
+          onSave={saveCurrentView}
+          savedViews={savedViews}
+          onApply={applySavedView}
+          onDelete={removeSavedView}
+        />
+      </section>
       <div className="results-grid">
         <section className="card">
           <div className="section-head">
@@ -948,7 +1814,7 @@ export function TracesAdminPanel() {
             </div>
           </div>
           <div className="table-list">
-            {isLoading ? <EmptyState title="Loading traces..." copy="Fetching stored retrieval traces and the latest debug-ready request records." icon="progress_activity" /> : payload.traces.length ? payload.traces.map((trace) => (
+            {isLoading ? <EmptyState title="Loading traces..." copy="Fetching stored retrieval traces and the latest debug-ready request records." icon="progress_activity" /> : visibleTraces.length ? visibleTraces.map((trace) => (
               <article key={String(trace.id)} className="table-row">
                 <div>
                   <strong>{String(trace.request_id || trace.id)}</strong>
@@ -962,7 +1828,7 @@ export function TracesAdminPanel() {
                   </button>
                 </div>
               </article>
-            )) : <EmptyState title="No retrieval traces yet." copy="This is normal on a clean system. Ask a question in the user workspace or run query debug above to generate the first stored trace." icon="timeline" />}
+            )) : <EmptyState title="No traces matched this view." copy={payload.traces.length ? "Stored traces exist, but nothing matches the current filters. Reset filters or apply a different saved view." : "This is normal on a clean system. Ask a question in the user workspace or run query debug above to generate the first stored trace."} icon="timeline" />}
           </div>
         </section>
 
@@ -972,6 +1838,7 @@ export function TracesAdminPanel() {
               <h2>{traceDetail ? `Trace #${String(traceDetail.id)}` : "Trace detail"}</h2>
               <p>Stored debug detail for the selected retrieval request.</p>
             </div>
+            {traceDetail?.request_id ? <Link href={`/console/admin/audit-log`} className="admin-inline-link">Open audit log</Link> : null}
           </div>
           {!traceDetail ? <EmptyState title={isLoading ? "Loading trace detail..." : "Select a trace."} copy={isLoading ? "Waiting for the trace inventory before detail can render." : payload.traces.length ? "Choose a trace from the list to inspect the full stored retrieval payload." : "No trace detail is available yet because no retrieval traffic has been recorded."} icon={isLoading ? "progress_activity" : "article"} /> : <JsonPanel value={traceDetail} />}
         </section>
@@ -1153,13 +2020,23 @@ export function AccessAdminPanel() {
 }
 
 export function AuditLogAdminPanel() {
-  const [filters, setFilters] = useState({ action: "", resourceType: "", outcome: "" });
+  const defaultFilters = { query: "", action: "", resourceType: "", outcome: "", actor: "", sort: "newest" };
+  const [filters, setFilters] = useState({ ...defaultFilters });
+  const [draftFilters, setDraftFilters] = useState({ ...defaultFilters });
   const [payload, setPayload] = useState<{ events: GenericMap[] }>({ events: [] });
   const [selectedEventId, setSelectedEventId] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [savedViews, setSavedViews] = useState<SavedViewEntry[]>([]);
+  const [savedViewName, setSavedViewName] = useState("");
+
+  useEffect(() => {
+    setSavedViews(readSavedAdminViews("audit"));
+  }, []);
 
   async function refresh() {
     const params = new URLSearchParams();
+    setIsLoading(true);
     if (filters.action) {
       params.set("action", filters.action);
     }
@@ -1177,6 +2054,8 @@ export function AuditLogAdminPanel() {
     } catch (err) {
       setPayload({ events: [] });
       setError(err instanceof Error ? err.message : "Failed to load audit log.");
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -1184,10 +2063,56 @@ export function AuditLogAdminPanel() {
     refresh();
   }, [filters.action, filters.resourceType, filters.outcome]);
 
+  const visibleEvents = useMemo(() => {
+    const filtered = payload.events.filter((event) => {
+      if (!matchesQuery(filters.query, [event.action, event.resource_name, event.resource_id, event.actor_email, event.actor_external_user_id, event.resource_type])) {
+        return false;
+      }
+      if (filters.actor && !matchesQuery(filters.actor, [event.actor_email, event.actor_external_user_id])) {
+        return false;
+      }
+      return true;
+    });
+    return sortGenericMaps(filtered, filters.sort, {
+      newest: (left, right) => toTimestampValue(right.created_at) - toTimestampValue(left.created_at),
+      oldest: (left, right) => toTimestampValue(left.created_at) - toTimestampValue(right.created_at),
+      action: (left, right) => String(left.action || "").localeCompare(String(right.action || "")),
+    });
+  }, [payload.events, filters.query, filters.actor, filters.sort]);
+
   const selectedEvent = useMemo(
-    () => payload.events.find((item) => String(item.id) === selectedEventId) || null,
-    [payload, selectedEventId],
+    () => visibleEvents.find((item) => String(item.id) === selectedEventId) || null,
+    [visibleEvents, selectedEventId],
   );
+
+  const failedEvents = visibleEvents.filter((event) => normalizeText(event.outcome) === "failed").length;
+  const hasPendingFilterChanges = !filtersMatch(filters, draftFilters);
+
+  useEffect(() => {
+    setSelectedEventId((current) => (current && visibleEvents.some((event) => String(event.id) === current) ? current : String(visibleEvents[0]?.id || "")));
+  }, [visibleEvents]);
+
+  function applySavedView(entry: SavedViewEntry) {
+    const nextFilters = {
+      query: String(entry.filters.query || ""),
+      action: String(entry.filters.action || ""),
+      resourceType: String(entry.filters.resourceType || ""),
+      outcome: String(entry.filters.outcome || ""),
+      actor: String(entry.filters.actor || ""),
+      sort: String(entry.filters.sort || "newest"),
+    };
+    setDraftFilters(nextFilters);
+    setFilters(nextFilters);
+  }
+
+  function saveCurrentView() {
+    saveNamedView("audit", savedViewName, draftFilters, setSavedViews);
+    setSavedViewName("");
+  }
+
+  function removeSavedView(entry: SavedViewEntry) {
+    deleteNamedView("audit", entry.name, setSavedViews);
+  }
 
   return (
     <div className="admin-route-page">
@@ -1198,6 +2123,10 @@ export function AuditLogAdminPanel() {
         badge={`${payload.events.length} events`}
       />
       {error ? <div className="error-banner">{error}</div> : null}
+      <section className="admin-summary-cards">
+        <SummaryMetricCard label="Visible Events" value={formatCount(visibleEvents.length, "event")} />
+        <SummaryMetricCard label="Failed Outcomes" value={formatCount(failedEvents, "event")} tone={failedEvents ? "is-danger" : ""} />
+      </section>
       <section className="card">
         <div className="section-head">
           <div>
@@ -1205,15 +2134,49 @@ export function AuditLogAdminPanel() {
             <p>Filter the stored admin audit stream by action, resource type, and outcome.</p>
           </div>
         </div>
-        <div className="form-inline">
-          <input value={filters.action} onChange={(event) => setFilters((current) => ({ ...current, action: event.target.value }))} placeholder="Action, e.g. profile.activate" />
-          <input value={filters.resourceType} onChange={(event) => setFilters((current) => ({ ...current, resourceType: event.target.value }))} placeholder="Resource type, e.g. source" />
-          <select value={filters.outcome} onChange={(event) => setFilters((current) => ({ ...current, outcome: event.target.value }))}>
+        <div className="admin-filter-grid admin-filter-grid-3">
+          <input value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search action, actor, or resource" />
+          <input value={draftFilters.action} onChange={(event) => setDraftFilters((current) => ({ ...current, action: event.target.value }))} placeholder="Action, e.g. profile.activate" />
+          <input value={draftFilters.resourceType} onChange={(event) => setDraftFilters((current) => ({ ...current, resourceType: event.target.value }))} placeholder="Resource type, e.g. source" />
+        </div>
+        <div className="admin-filter-grid admin-filter-grid-3">
+          <input value={draftFilters.actor} onChange={(event) => setDraftFilters((current) => ({ ...current, actor: event.target.value }))} placeholder="Actor email or id" />
+          <select value={draftFilters.outcome} onChange={(event) => setDraftFilters((current) => ({ ...current, outcome: event.target.value }))}>
             <option value="">Any outcome</option>
             <option value="completed">completed</option>
             <option value="failed">failed</option>
           </select>
+          <select value={draftFilters.sort} onChange={(event) => setDraftFilters((current) => ({ ...current, sort: event.target.value }))}>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="action">Action</option>
+          </select>
         </div>
+        <div className="toolbar-inline">
+          <span className={`badge ${hasPendingFilterChanges ? "is-warning" : ""}`}>{hasPendingFilterChanges ? "Unapplied filter changes" : `Showing ${visibleEvents.length} of ${payload.events.length} events`}</span>
+          <button type="button" className="button button-primary" disabled={!hasPendingFilterChanges} onClick={() => setFilters({ ...draftFilters })}>
+            Apply filters
+          </button>
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => {
+              setDraftFilters({ ...defaultFilters });
+              setFilters({ ...defaultFilters });
+            }}
+          >
+            Reset filters
+          </button>
+        </div>
+        <SavedViewsToolbar
+          viewLabel="audit"
+          draftName={savedViewName}
+          onDraftNameChange={setSavedViewName}
+          onSave={saveCurrentView}
+          savedViews={savedViews}
+          onApply={applySavedView}
+          onDelete={removeSavedView}
+        />
       </section>
       <div className="results-grid">
         <section className="card">
@@ -1224,7 +2187,7 @@ export function AuditLogAdminPanel() {
             </div>
           </div>
           <div className="table-list">
-            {payload.events.length ? payload.events.map((event) => (
+            {isLoading ? <EmptyState title="Loading audit log..." copy="Fetching stored admin events with the current server-side filters applied." icon="progress_activity" /> : visibleEvents.length ? visibleEvents.map((event) => (
               <article key={String(event.id)} className="table-row">
                 <div>
                   <strong>{String(event.action)}</strong>
@@ -1238,7 +2201,7 @@ export function AuditLogAdminPanel() {
                   </button>
                 </div>
               </article>
-            )) : <EmptyState title="No audit events matched." copy="Admin mutations will appear here once operators perform profile, corpus, source, job, or eval actions." />}
+            )) : <EmptyState title="No audit events matched." copy={payload.events.length ? "Audit events exist, but nothing matches the current query or saved view. Reset filters to reopen the broader stream." : "Admin mutations will appear here once operators perform profile, corpus, source, job, or eval actions."} />}
           </div>
         </section>
 
