@@ -111,6 +111,11 @@ def list_admin_audit_events(
     resource_type: Optional[str] = None,
     outcome: Optional[str] = None,
     actor_external_user_id: Optional[str] = None,
+    actor_query: Optional[str] = None,
+    source_id: Optional[int] = None,
+    job_id: Optional[int] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     sql = """
         SELECT id, event_type, action, outcome,
@@ -135,6 +140,21 @@ def list_admin_audit_events(
     if actor_external_user_id:
         filters.append("actor_external_user_id = :actor_external_user_id")
         params["actor_external_user_id"] = actor_external_user_id
+    if actor_query:
+        filters.append("(actor_external_user_id ILIKE :actor_query OR actor_email ILIKE :actor_query)")
+        params["actor_query"] = f"%{actor_query}%"
+    if source_id is not None:
+        filters.append("source_id = :source_id")
+        params["source_id"] = source_id
+    if job_id is not None:
+        filters.append("job_id = :job_id")
+        params["job_id"] = job_id
+    if from_ts:
+        filters.append("created_at >= :from_ts")
+        params["from_ts"] = from_ts
+    if to_ts:
+        filters.append("created_at <= :to_ts")
+        params["to_ts"] = to_ts
     if filters:
         sql += " WHERE " + " AND ".join(filters)
     sql += " ORDER BY created_at DESC, id DESC LIMIT :limit OFFSET :offset"

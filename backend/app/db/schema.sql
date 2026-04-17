@@ -57,7 +57,11 @@ CREATE TABLE IF NOT EXISTS ingestion_jobs (
     source_id BIGINT REFERENCES sources(id) ON DELETE SET NULL,
     status TEXT NOT NULL,
     stage TEXT NOT NULL DEFAULT 'queued',
+    priority INTEGER NOT NULL DEFAULT 100,
     triggered_by TEXT NOT NULL DEFAULT 'system',
+    owner_external_user_id TEXT,
+    owner_email TEXT,
+    owner_display_name TEXT,
     error_message TEXT,
     job_metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     started_at TIMESTAMPTZ,
@@ -222,3 +226,25 @@ CREATE INDEX IF NOT EXISTS admin_audit_events_source_idx ON admin_audit_events(s
 CREATE INDEX IF NOT EXISTS admin_audit_events_corpus_idx ON admin_audit_events(corpus_name);
 CREATE INDEX IF NOT EXISTS admin_audit_events_job_idx ON admin_audit_events(job_kind, job_id);
 CREATE INDEX IF NOT EXISTS admin_audit_events_trace_idx ON admin_audit_events(trace_id);
+
+CREATE TABLE IF NOT EXISTS ingestion_priority_requests (
+    id BIGSERIAL PRIMARY KEY,
+    job_id BIGINT NOT NULL REFERENCES ingestion_jobs(id) ON DELETE CASCADE,
+    source_id BIGINT REFERENCES sources(id) ON DELETE SET NULL,
+    requester_external_user_id TEXT,
+    requester_email TEXT,
+    requester_display_name TEXT,
+    requested_priority INTEGER NOT NULL DEFAULT 200,
+    reason TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'submitted',
+    review_reason TEXT,
+    reviewed_by_external_user_id TEXT,
+    reviewed_by_email TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    reviewed_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS ingestion_priority_requests_job_idx ON ingestion_priority_requests(job_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ingestion_priority_requests_status_idx ON ingestion_priority_requests(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS ingestion_priority_requests_requester_idx ON ingestion_priority_requests(requester_external_user_id, created_at DESC);

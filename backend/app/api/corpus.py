@@ -2,11 +2,20 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from app.auth.context import get_current_user
 from app.db.repo_chunks import fetch_chunk_context
-from app.db.repo_jobs import get_ingestion_job
+from app.db.repo_admin_audit import insert_admin_audit_event
+from app.db.repo_jobs import get_ingestion_job, list_ingestion_jobs
+from app.db.repo_priority_requests import (
+    create_priority_request,
+    expire_stale_priority_requests,
+    get_latest_priority_request_for_job,
+    list_priority_requests,
+)
 from app.db.repo_sources import get_source_by_id, list_sources
+from app.ingestion.queue_metrics import priority_request_payload, summarize_ingestion_queue
 from app.ingestion.jobs import delete_uploaded_source
 from app.ingestion.jobs import _source_file_absolute_path
 
@@ -25,6 +34,32 @@ class CorpusItem(BaseModel):
     ingestion_status: str
     enrichment_status: str
     source_metadata_json: Dict[str, Any]
+    latest_ingestion_job: Optional[Dict[str, Any]] = None
+
+
+class EtaWindowItem(BaseModel):
+    seconds: float
+    lower_seconds: float
+    upper_seconds: float
+    confidence: str
+
+
+class PriorityRequestItem(BaseModel):
+    id: int
+    job_id: int
+    source_id: Optional[int] = None
+    requester_external_user_id: Optional[str] = None
+    requester_email: Optional[str] = None
+    requester_display_name: Optional[str] = None
+    requested_priority: int
+    reason: str
+    status: str
+    review_reason: Optional[str] = None
+    reviewed_by_external_user_id: Optional[str] = None
+    reviewed_by_email: Optional[str] = None
+    created_at: Optional[str] = None
+    reviewed_at: Optional[str] = None
+    expires_at: Optional[str] = None
 
 
 class IngestionJobItem(BaseModel):
@@ -32,9 +67,32 @@ class IngestionJobItem(BaseModel):
     source_id: Optional[int] = None
     status: str
     stage: str
+    stage_label: Optional[str] = None
+    priority: int = 100
     triggered_by: str
+    owner_external_user_id: Optional[str] = None
+    owner_email: Optional[str] = None
+    owner_display_name: Optional[str] = None
     error_message: Optional[str] = None
     job_metadata_json: Dict[str, Any]
+    estimated_total_seconds: Optional[float] = None
+    estimated_remaining_seconds: Optional[float] = None
+    eta_window: Optional[EtaWindowItem] = None
+    wait_window: Optional[EtaWindowItem] = None
+    eta_confidence: Optional[str] = None
+    queue_position: Optional[int] = None
+    jobs_ahead: Optional[int] = None
+    queue_delay_message: Optional[str] = None
+    source_file_name: Optional[str] = None
+    source_type: Optional[str] = None
+    file_size_bytes: Optional[int] = None
+    corpus_name: Optional[str] = None
+    priority_request: Optional[PriorityRequestItem] = None
+
+
+class QueuePriorityRequestCreate(BaseModel):
+    reason: str = Field(default="")
+    requested_priority: int = Field(default=200, ge=120, le=300)
 
 
 class DeleteCorpusResponse(BaseModel):
@@ -63,17 +121,76 @@ class ChunkContextResponse(BaseModel):
     neighbors: List[ChunkContextItem] = []
 
 
+def _enriched_ingestion_jobs() -> list[dict[str, Any]]:
+    expire_stale_priority_requests()
+    sources = list_sources()
+    source_lookup = {int(source.id): source for source in sources}
+    latest_requests: dict[int, Any] = {}
+    for request in list_priority_requests(limit=200):
+        latest_requests.setdefault(request.job_id, request)
+    payloads, _ = summarize_ingestion_queue(list_ingestion_jobs(), source_lookup, latest_requests)
+    return payloads
+
+
 @router.get("/corpus", response_model=List[CorpusItem])
 def corpus_list_endpoint():
-    return [CorpusItem(**row.__dict__) for row in list_sources()]
+    latest_job_by_source: dict[int, dict[str, Any]] = {}
+    for job in _enriched_ingestion_jobs():
+        source_id = job.get("source_id")
+        if source_id is None:
+            continue
+        latest_job_by_source.setdefault(int(source_id), job)
+    return [
+        CorpusItem(**row.__dict__, latest_ingestion_job=latest_job_by_source.get(int(row.id)))
+        for row in list_sources()
+    ]
 
 
 @router.get("/corpus/jobs/{job_id}", response_model=IngestionJobItem)
 def job_status_endpoint(job_id: int):
-    row = get_ingestion_job(job_id)
+    row = next((job for job in _enriched_ingestion_jobs() if int(job["id"]) == job_id), None)
     if row is None:
         raise HTTPException(status_code=404, detail={"error": "job_not_found", "job_id": job_id})
-    return IngestionJobItem(**row.__dict__)
+    return IngestionJobItem(**row)
+
+
+@router.post("/corpus/jobs/{job_id}/priority-request", response_model=PriorityRequestItem)
+def submit_priority_request(job_id: int, body: QueuePriorityRequestCreate):
+    job = get_ingestion_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail={"error": "job_not_found", "job_id": job_id})
+    actor = get_current_user()
+    if actor is None:
+        raise HTTPException(status_code=401, detail={"error": "authentication_required", "message": "Authentication is required before submitting a priority request."})
+    if job.owner_external_user_id and actor.user_id != job.owner_external_user_id and "admin" not in actor.roles:
+        raise HTTPException(status_code=403, detail={"error": "not_job_owner", "message": "Only the original uploader can request priority for this job."})
+    if str(job.status).lower() not in {"queued", "processing", "running", "paused"}:
+        raise HTTPException(status_code=400, detail={"error": "job_not_actionable", "message": "Priority can be requested only while indexing is still active or waiting."})
+    if not (job.owner_external_user_id or job.owner_email):
+        raise HTTPException(status_code=400, detail={"error": "owner_missing", "message": "This job does not have a recorded owner for user-side priority requests."})
+    request_id = create_priority_request(
+        job_id=job_id,
+        source_id=job.source_id,
+        requested_priority=body.requested_priority,
+        reason=body.reason,
+    )
+    request = get_latest_priority_request_for_job(job_id)
+    insert_admin_audit_event(
+        event_type="queue",
+        action="queue.priority_request.submitted",
+        resource_type="ingestion_job",
+        resource_id=str(job_id),
+        resource_name=str(job.source_id or job_id),
+        source_id=job.source_id,
+        job_kind="ingestion",
+        job_id=job_id,
+        event_json={
+            "request_id": request_id,
+            "requested_priority": body.requested_priority,
+            "reason": body.reason,
+        },
+    )
+    return PriorityRequestItem(**(priority_request_payload(request) or {}))
 
 
 @router.delete("/corpus/{source_id}", response_model=DeleteCorpusResponse)

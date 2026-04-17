@@ -53,6 +53,7 @@ export function AdminDashboard() {
   const alerts = (payload?.alerts || []) as GenericMap[];
   const recentTraces = (payload?.recent_traces || []) as GenericMap[];
   const recentAuditEvents = (payload?.recent_audit_events || []) as GenericMap[];
+  const queueSummary = (payload?.queue_summary || {}) as GenericMap;
   const isFirstRun =
     Number(summary.corpora_count || 0) === 0
     && Number(summary.source_count || 0) === 0
@@ -101,6 +102,41 @@ export function AdminDashboard() {
           </div>
           <h3>{summary.latest_eval_pass_rate === null || summary.latest_eval_pass_rate === undefined ? "Unavailable" : `${String(summary.latest_eval_pass_rate)}%`}</h3>
           <p>Last Eval Pass Rate</p>
+        </article>
+      </section>
+
+      <section className="admin-stat-grid">
+        <article className="admin-stat-card">
+          <div className="admin-stat-head">
+            <span className="material-symbols-outlined">schedule</span>
+            <span>Queue</span>
+          </div>
+          <h3>{formatMetric(queueSummary.backlog_count)}</h3>
+          <p>Waiting Jobs</p>
+        </article>
+        <article className="admin-stat-card">
+          <div className="admin-stat-head">
+            <span className="material-symbols-outlined">group_work</span>
+            <span>Workers</span>
+          </div>
+          <h3>{formatMetric(queueSummary.active_workers)}</h3>
+          <p>Active Indexers</p>
+        </article>
+        <article className="admin-stat-card">
+          <div className="admin-stat-head">
+            <span className="material-symbols-outlined">priority_high</span>
+            <span>Requests</span>
+          </div>
+          <h3>{formatMetric(summary.pending_priority_request_count)}</h3>
+          <p>Pending Priority Reviews</p>
+        </article>
+        <article className="admin-stat-card">
+          <div className="admin-stat-head">
+            <span className="material-symbols-outlined">tune</span>
+            <span>Throughput</span>
+          </div>
+          <h3>{formatMetric(queueSummary.average_chunks_per_minute)}</h3>
+          <p>Avg Chunks / Min</p>
         </article>
       </section>
 
@@ -217,7 +253,7 @@ export function AdminDashboard() {
               </Link>
               <Link href="/console/admin/jobs" className="admin-action-link">
                 <strong>Inspect jobs</strong>
-                <span>Open the live ingestion and enrichment queue with timing and failure context.</span>
+                <span>Open the live ingestion queue with ETA, owner, priority requests, and bounded queue controls.</span>
               </Link>
               <Link href="/console/admin/audit-log" className="admin-action-link">
                 <strong>Review audit log</strong>

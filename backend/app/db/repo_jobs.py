@@ -13,7 +13,11 @@ class IngestionJobRow:
     source_id: Optional[int]
     status: str
     stage: str
+    priority: int
     triggered_by: str
+    owner_external_user_id: Optional[str]
+    owner_email: Optional[str]
+    owner_display_name: Optional[str]
     error_message: Optional[str]
     job_metadata_json: Dict
     started_at: Optional[str]
@@ -52,13 +56,23 @@ def create_ingestion_job(
     source_id: Optional[int],
     status: str,
     stage: str = "queued",
+    priority: int = 100,
     triggered_by: str = "system",
+    owner_external_user_id: Optional[str] = None,
+    owner_email: Optional[str] = None,
+    owner_display_name: Optional[str] = None,
     job_metadata_json: Optional[Dict] = None,
 ) -> int:
     sql = text(
         """
-        INSERT INTO ingestion_jobs (source_id, status, stage, triggered_by, job_metadata_json, started_at)
-        VALUES (:source_id, :status, :stage, :triggered_by, CAST(:job_metadata_json AS jsonb), now())
+        INSERT INTO ingestion_jobs (
+            source_id, status, stage, priority, triggered_by,
+            owner_external_user_id, owner_email, owner_display_name, job_metadata_json
+        )
+        VALUES (
+            :source_id, :status, :stage, :priority, :triggered_by,
+            :owner_external_user_id, :owner_email, :owner_display_name, CAST(:job_metadata_json AS jsonb)
+        )
         RETURNING id
         """
     )
@@ -69,7 +83,11 @@ def create_ingestion_job(
                 "source_id": source_id,
                 "status": status,
                 "stage": stage,
+                "priority": priority,
                 "triggered_by": triggered_by,
+                "owner_external_user_id": owner_external_user_id,
+                "owner_email": owner_email,
+                "owner_display_name": owner_display_name,
                 "job_metadata_json": json.dumps(job_metadata_json or {}),
             },
         ).scalar_one()
@@ -78,7 +96,9 @@ def create_ingestion_job(
 def get_ingestion_job(job_id: int) -> Optional[IngestionJobRow]:
     sql = text(
         """
-        SELECT id, source_id, status, stage, triggered_by, error_message, job_metadata_json, started_at, completed_at, created_at
+        SELECT id, source_id, status, stage, priority, triggered_by,
+               owner_external_user_id, owner_email, owner_display_name,
+               error_message, job_metadata_json, started_at, completed_at, created_at
         FROM ingestion_jobs
         WHERE id = :job_id
         """
@@ -92,7 +112,9 @@ def get_ingestion_job(job_id: int) -> Optional[IngestionJobRow]:
 
 def list_ingestion_jobs(source_id: Optional[int] = None) -> List[IngestionJobRow]:
     sql = """
-        SELECT id, source_id, status, stage, triggered_by, error_message, job_metadata_json, started_at, completed_at, created_at
+        SELECT id, source_id, status, stage, priority, triggered_by,
+               owner_external_user_id, owner_email, owner_display_name,
+               error_message, job_metadata_json, started_at, completed_at, created_at
         FROM ingestion_jobs
     """
     params = {}
@@ -103,6 +125,101 @@ def list_ingestion_jobs(source_id: Optional[int] = None) -> List[IngestionJobRow
 
     with engine.connect() as conn:
         rows = conn.execute(text(sql), params).fetchall()
+    return [_row_to_ingestion_job(row) for row in rows]
+
+
+def claim_next_ingestion_job() -> Optional[IngestionJobRow]:
+    sql = text(
+        """
+        WITH next_job AS (
+            SELECT id
+            FROM ingestion_jobs
+            WHERE status = 'queued'
+            ORDER BY priority DESC, created_at ASC, id ASC
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+        )
+        UPDATE ingestion_jobs ij
+        SET status = 'processing',
+            stage = CASE WHEN ij.stage IN ('queued', 'uploaded', 'admin_reindex', 'retry_queued', 'requeue_requested') THEN 'parsing' ELSE ij.stage END,
+            started_at = COALESCE(ij.started_at, now()),
+            error_message = NULL
+        FROM next_job
+        WHERE ij.id = next_job.id
+        RETURNING ij.id, ij.source_id, ij.status, ij.stage, ij.priority, ij.triggered_by,
+                  ij.owner_external_user_id, ij.owner_email, ij.owner_display_name,
+                  ij.error_message, ij.job_metadata_json, ij.started_at, ij.completed_at, ij.created_at
+        """
+    )
+    with engine.begin() as conn:
+        row = conn.execute(sql).first()
+    if not row:
+        return None
+    return _row_to_ingestion_job(row)
+
+
+def update_ingestion_job(
+    job_id: int,
+    *,
+    status: Optional[str] = None,
+    stage: Optional[str] = None,
+    priority: Optional[int] = None,
+    error_message: Optional[str] = None,
+    started_at_now: bool = False,
+    completed_at_now: bool = False,
+    clear_completed_at: bool = False,
+    clear_started_at: bool = False,
+    job_metadata_json: Optional[Dict] = None,
+) -> bool:
+    updates = []
+    params: Dict[str, Any] = {"job_id": job_id}
+    if status is not None:
+        updates.append("status = :status")
+        params["status"] = status
+    if stage is not None:
+        updates.append("stage = :stage")
+        params["stage"] = stage
+    if priority is not None:
+        updates.append("priority = :priority")
+        params["priority"] = priority
+    if error_message is not None:
+        updates.append("error_message = :error_message")
+        params["error_message"] = error_message
+    if job_metadata_json is not None:
+        updates.append("job_metadata_json = CAST(:job_metadata_json AS jsonb)")
+        params["job_metadata_json"] = json.dumps(job_metadata_json)
+    if started_at_now:
+        updates.append("started_at = now()")
+    if completed_at_now:
+        updates.append("completed_at = now()")
+    if clear_completed_at:
+        updates.append("completed_at = NULL")
+    if clear_started_at:
+        updates.append("started_at = NULL")
+    if not updates:
+        return False
+    sql = text(f"UPDATE ingestion_jobs SET {', '.join(updates)} WHERE id = :job_id")
+    with engine.begin() as conn:
+        result = conn.execute(sql, params)
+    return result.rowcount > 0
+
+
+def list_recent_completed_ingestion_jobs(limit: int = 20) -> List[IngestionJobRow]:
+    sql = text(
+        """
+        SELECT id, source_id, status, stage, priority, triggered_by,
+               owner_external_user_id, owner_email, owner_display_name,
+               error_message, job_metadata_json, started_at, completed_at, created_at
+        FROM ingestion_jobs
+        WHERE status = 'completed'
+          AND started_at IS NOT NULL
+          AND completed_at IS NOT NULL
+        ORDER BY completed_at DESC, id DESC
+        LIMIT :limit
+        """
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(sql, {"limit": limit}).fetchall()
     return [_row_to_ingestion_job(row) for row in rows]
 
 

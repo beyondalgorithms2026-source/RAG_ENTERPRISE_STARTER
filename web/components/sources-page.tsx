@@ -12,6 +12,7 @@ type SourceItem = {
   ingestion_status: string;
   enrichment_status: string;
   source_metadata_json: Record<string, unknown>;
+  latest_ingestion_job?: IngestionJob | null;
 };
 
 type UploadResult = {
@@ -25,9 +26,41 @@ type IngestionJob = {
   source_id?: number | null;
   status: string;
   stage: string;
+  stage_label?: string | null;
+  priority?: number;
   triggered_by: string;
   error_message?: string | null;
   job_metadata_json: Record<string, unknown>;
+  estimated_total_seconds?: number | null;
+  estimated_remaining_seconds?: number | null;
+  eta_window?: EtaWindow | null;
+  wait_window?: EtaWindow | null;
+  eta_confidence?: string | null;
+  queue_position?: number | null;
+  jobs_ahead?: number | null;
+  queue_delay_message?: string | null;
+  source_file_name?: string | null;
+  source_type?: string | null;
+  file_size_bytes?: number | null;
+  corpus_name?: string | null;
+  priority_request?: PriorityRequest | null;
+};
+
+type EtaWindow = {
+  seconds: number;
+  lower_seconds: number;
+  upper_seconds: number;
+  confidence: string;
+};
+
+type PriorityRequest = {
+  id: number;
+  requested_priority: number;
+  reason: string;
+  status: string;
+  review_reason?: string | null;
+  reviewed_at?: string | null;
+  created_at?: string | null;
 };
 
 type ConnectorRequest = {
@@ -56,17 +89,17 @@ function statusCopy(job: IngestionJob | null, fileName: string | null) {
   if (!job || !fileName) {
     return "";
   }
-  const stage = job.stage.replace(/_/g, " ");
+  const stage = formatStage(job);
   if (job.status === "failed") {
     return `${fileName} failed during ${stage}. ${job.error_message || ""}`.trim();
   }
   if (job.status === "completed") {
     return `${fileName} is indexed and ready for search and ask.`;
   }
-  if (stage === "embed") {
-    return `${fileName} is embedding now. Retrieval is not ready until indexing finishes.`;
+  if (normalizeJobState(job.status) === "queued") {
+    return `${fileName} is waiting in the indexing queue. ${job.queue_delay_message || "The system is estimating when work will begin."}`;
   }
-  return `${fileName} is ${job.status} during ${stage}.`;
+  return `${fileName} is currently in ${stage}. ${job.queue_delay_message || "Retrieval is not ready until indexing finishes."}`;
 }
 
 function readinessCopy(status: string) {
@@ -83,6 +116,74 @@ function readinessCopy(status: string) {
   return "Still processing. This file is not searchable yet.";
 }
 
+function normalizeJobState(value: string | null | undefined) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function titleCaseWords(value: string | null | undefined) {
+  return String(value || "")
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function isActiveJob(job: IngestionJob | null | undefined) {
+  return ["queued", "processing", "running", "paused"].includes(normalizeJobState(job?.status));
+}
+
+function formatStage(job: IngestionJob | null | undefined) {
+  if (!job) {
+    return "indexing";
+  }
+  return String(job.stage_label || job.stage || "indexing").replace(/_/g, " ");
+}
+
+function formatDurationSeconds(seconds: number | null | undefined) {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) {
+    return "Unavailable";
+  }
+  if (seconds < 60) {
+    return `${Math.max(Math.round(seconds), 1)} sec`;
+  }
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder ? `${hours} hr ${remainder} min` : `${hours} hr`;
+}
+
+function formatEtaWindow(window: EtaWindow | null | undefined) {
+  if (!window) {
+    return "ETA not available yet";
+  }
+  const lower = formatDurationSeconds(window.lower_seconds);
+  const upper = formatDurationSeconds(window.upper_seconds);
+  return lower === upper ? lower : `${lower} to ${upper}`;
+}
+
+function priorityStatusCopy(request: PriorityRequest | null | undefined) {
+  if (!request) {
+    return "";
+  }
+  const normalized = normalizeJobState(request.status);
+  if (normalized === "approved") {
+    return "Priority request approved. The queue estimate above reflects the updated priority.";
+  }
+  if (normalized === "denied") {
+    return `Priority request denied${request.review_reason ? `: ${request.review_reason}` : "."}`;
+  }
+  if (normalized === "expired") {
+    return "Priority request expired before an admin reviewed it.";
+  }
+  if (normalized === "under_review") {
+    return "Priority request is under admin review.";
+  }
+  return "Priority request submitted and waiting for admin review.";
+}
+
 export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads" | "connectors" }) {
   const [sources, setSources] = useState<SourceItem[]>([]);
   const [connectorRequests, setConnectorRequests] = useState<ConnectorRequest[]>([]);
@@ -91,6 +192,10 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
   const [uploading, setUploading] = useState(false);
   const [filter, setFilter] = useState("All Sources");
   const [error, setError] = useState("");
+  const [priorityReason, setPriorityReason] = useState("");
+  const [priorityLevel, setPriorityLevel] = useState("200");
+  const [priorityBusy, setPriorityBusy] = useState(false);
+  const [priorityFeedback, setPriorityFeedback] = useState("");
 
   async function refresh() {
     try {
@@ -118,20 +223,22 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
   }, [connectorRequests]);
 
   useEffect(() => {
-    if (!uploadJob || uploadJob.status === "completed" || uploadJob.status === "failed") {
+    if (!isActiveJob(uploadJob) && !sources.some((source) => isActiveJob(source.latest_ingestion_job))) {
       return;
     }
     const timer = window.setTimeout(async () => {
       try {
-        const next = await browserFetch<IngestionJob>(`/corpus/jobs/${uploadJob.id}`);
-        setUploadJob(next);
         await refresh();
+        if (uploadJob?.id) {
+          const next = await browserFetch<IngestionJob>(`/corpus/jobs/${uploadJob.id}`);
+          setUploadJob(next);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to refresh upload job.");
       }
     }, 1200);
     return () => window.clearTimeout(timer);
-  }, [uploadJob]);
+  }, [sources, uploadJob]);
 
   async function onFileSelected(file: File | null) {
     if (!file) {
@@ -200,6 +307,32 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
   const uploadStatus = statusCopy(uploadJob, uploadFileName);
   const indexedSourceCount = sources.filter((source) => ["indexed", "embedded"].includes(source.ingestion_status.toLowerCase())).length;
   const processingSourceCount = sources.filter((source) => !["indexed", "embedded", "failed"].includes(source.ingestion_status.toLowerCase())).length;
+  const activeRequestableJob = uploadJob && isActiveJob(uploadJob) ? uploadJob : sources.find((source) => isActiveJob(source.latest_ingestion_job))?.latest_ingestion_job || null;
+
+  async function submitPriorityRequest() {
+    if (!activeRequestableJob) {
+      return;
+    }
+    setPriorityBusy(true);
+    setPriorityFeedback("");
+    try {
+      const next = await browserFetch<PriorityRequest>(`/corpus/jobs/${activeRequestableJob.id}/priority-request`, {
+        method: "POST",
+        json: {
+          reason: priorityReason,
+          requested_priority: Number(priorityLevel),
+        },
+      });
+      setUploadJob((current) => (current && current.id === activeRequestableJob.id ? { ...current, priority_request: next, priority: next.requested_priority } : current));
+      setPriorityFeedback(priorityStatusCopy(next));
+      setPriorityReason("");
+      await refresh();
+    } catch (err) {
+      setPriorityFeedback(err instanceof Error ? err.message : "Failed to submit priority request.");
+    } finally {
+      setPriorityBusy(false);
+    }
+  }
 
   return (
     <div className="sources-page">
@@ -324,6 +457,7 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
               ) : (
                 visibleSources.map((source) => {
                   const indexed = ["indexed", "embedded"].includes(source.ingestion_status.toLowerCase());
+                  const activeJob = isActiveJob(source.latest_ingestion_job) ? source.latest_ingestion_job : null;
                   return (
                     <tr key={source.id}>
                       <td>
@@ -336,9 +470,14 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
                         <div className="sources-status-stack">
                           <span className={`sources-status-pill ${indexed ? "is-indexed" : "is-syncing"}`}>
                             <i />
-                            {indexed ? "Indexed" : source.ingestion_status}
+                            {indexed ? "Indexed" : activeJob ? formatStage(activeJob) : source.ingestion_status}
                           </span>
-                          <small className="sources-status-copy">{readinessCopy(source.ingestion_status)}</small>
+                          <small className="sources-status-copy">
+                            {activeJob
+                              ? `${activeJob.queue_position ? `Queue #${activeJob.queue_position} • ` : ""}${formatEtaWindow(activeJob.eta_window)} • ${titleCaseWords(activeJob.eta_confidence || "low")} confidence`
+                              : readinessCopy(source.ingestion_status)}
+                          </small>
+                          {activeJob?.priority_request ? <small className="sources-status-copy">{priorityStatusCopy(activeJob.priority_request)}</small> : null}
                         </div>
                       </td>
                       <td>{source.source_type}</td>
@@ -372,11 +511,40 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
                 <span className="material-symbols-outlined">sync</span>
                 <div>
                   <strong>{uploadFileName}</strong>
-                  <span>{uploadJob.status}</span>
+                  <span>{titleCaseWords(uploadJob.status)}</span>
                 </div>
               </div>
-              <p>Current stage: {uploadJob.stage.replace(/_/g, " ")}</p>
-              <p className="sources-connected-note">Parsing, source-parts saved, chunking, and embedding are expected backend stages. `embed.started` means vector preparation is underway and the file is not searchable yet.</p>
+              <p>Current stage: {formatStage(uploadJob)}</p>
+              <p>Estimated completion: {formatEtaWindow(uploadJob.eta_window)} {uploadJob.eta_confidence ? `(${uploadJob.eta_confidence} confidence)` : ""}</p>
+              <p>{uploadJob.queue_delay_message || "The queue will update this estimate if earlier enterprise jobs change materially."}</p>
+              {uploadJob.priority_request ? <p className="sources-connected-note">{priorityStatusCopy(uploadJob.priority_request)}</p> : null}
+              {isActiveJob(uploadJob) ? (
+                <div className="page-stack">
+                  <div className="sources-upload-chips">
+                    <span>{uploadJob.queue_position ? `Queue position ${uploadJob.queue_position}` : "Being processed now"}</span>
+                    <span>{uploadJob.jobs_ahead ? `${uploadJob.jobs_ahead} ahead` : "No earlier jobs ahead"}</span>
+                  </div>
+                  <textarea
+                    value={priorityReason}
+                    onChange={(event) => setPriorityReason(event.target.value)}
+                    placeholder="Need faster indexing? Explain why this file should be prioritized."
+                    rows={3}
+                  />
+                  <div className="toolbar-inline">
+                    <select value={priorityLevel} onChange={(event) => setPriorityLevel(event.target.value)}>
+                      <option value="200">Urgent</option>
+                      <option value="160">High</option>
+                      <option value="120">Elevated</option>
+                    </select>
+                    <button type="button" className="stitch-button stitch-button-primary" disabled={priorityBusy} onClick={submitPriorityRequest}>
+                      {priorityBusy ? "Submitting..." : uploadJob.priority_request ? "Update Priority Request" : "Request Priority Review"}
+                    </button>
+                  </div>
+                  <p className="sources-connected-note">Priority requests do not skip governance. They enter the admin queue for review and can update ETA if approved.</p>
+                  {priorityFeedback ? <strong className="sources-upload-status">{priorityFeedback}</strong> : null}
+                </div>
+              ) : null}
+              <p className="sources-connected-note">Parsing, chunking, embedding, and indexing/enrichment are expected backend stages. Retrieval becomes available only after the job reaches completed.</p>
             </div>
           ) : showUploadFirst ? (
             <div className="sources-connected-empty">

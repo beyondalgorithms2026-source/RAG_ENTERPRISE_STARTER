@@ -17,7 +17,9 @@ from .api.admin import router as admin_router
 from .auth.context import reset_current_user, set_current_user
 from .auth.service import AuthError, authenticate_request
 from .core.config import settings
+from .db.migrate import run_migrations
 from .db.repo_acl import sync_authenticated_user
+from .ingestion.queue_runtime import start_ingestion_queue_worker
 
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
 
@@ -69,6 +71,12 @@ app.include_router(compare_router)
 app.include_router(upload_router)
 app.include_router(corpus_router)
 app.include_router(admin_router)
+
+
+@app.on_event("startup")
+def start_background_workers() -> None:
+    run_migrations()
+    start_ingestion_queue_worker()
 
 
 @app.get("/", include_in_schema=False)

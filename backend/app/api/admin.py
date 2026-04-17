@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from app.auth.dependencies import require_admin_user
@@ -15,20 +16,31 @@ from app.db.repo_acl import assign_document_acl, list_access_summary, list_sourc
 from app.db.repo_admin_audit import insert_admin_audit_event, list_admin_audit_events
 from app.db.repo_corpora import get_corpus, list_corpora, upsert_corpus
 from app.db.repo_jobs import (
+    create_ingestion_job,
     get_enrichment_job,
     get_ingestion_job,
     list_enrichment_jobs,
     list_ingestion_jobs,
+    update_ingestion_job,
+)
+from app.db.repo_priority_requests import (
+    expire_stale_priority_requests,
+    get_latest_priority_request_for_job,
+    get_priority_request,
+    list_priority_requests,
+    update_priority_request_status,
 )
 from app.db.repo_profiles import get_active_profile_name, get_profile, list_profiles, set_active_profile
-from app.db.repo_sources import get_source_by_id, list_sources, update_source_admin_fields
+from app.db.repo_sources import get_source_by_id, list_sources, update_source_admin_fields, update_source_status
 from app.db.repo_traces import get_trace, get_trace_by_id, list_traces
 from app.eval.compare_eval import DEFAULT_REPORT_FILE as BENCHMARK_REPORT_FILE
 from app.eval.compare_eval import load_benchmark_cases, run_mode_benchmark
 from app.eval.retrieval_eval import DEFAULT_REPORT_FILE as RETRIEVAL_REPORT_FILE
 from app.eval.retrieval_eval import load_eval_cases, run_retrieval_eval
 from app.ingestion.enrichment import admin_rerun_enrichment
-from app.ingestion.jobs import admin_reindex_source
+from app.ingestion.jobs import admin_reindex_source, _reset_source_for_reindex
+from app.ingestion.queue_metrics import priority_request_payload, summarize_ingestion_queue
+from app.ingestion.queue_runtime import poke_ingestion_queue
 from app.profiles.models import PROFILE_TYPE_MODELS
 from app.profiles.resolver import get_active_profile_snapshot, get_effective_reranker, get_effective_retrieval, invalidate_cache
 
@@ -91,6 +103,22 @@ class QueryTraceRequest(BaseModel):
     exact_phrase_bias: Optional[str] = None
     expand_neighbors: bool = False
     force_rare_keyword_scan: bool = False
+
+
+class QueuePriorityUpdateRequest(BaseModel):
+    priority: int = Field(ge=50, le=300)
+    reason: str = ""
+    preview_only: bool = False
+
+
+class QueuePriorityDecisionRequest(BaseModel):
+    decision: str = Field(pattern="^(under_review|approved|denied)$")
+    reason: str = ""
+
+
+class QueueControlRequest(BaseModel):
+    action: str = Field(pattern="^(pause|resume|cancel|requeue|retry)$")
+    reason: str = ""
 
 
 def _report_summary(kind: str, path: Path) -> dict[str, Any]:
@@ -160,6 +188,55 @@ def _source_payload_with_acl(row, acl_map: dict[int, list[str]]) -> dict[str, An
     payload["corpus_name"] = (row.source_metadata_json or {}).get("corpus")
     payload["acl_groups"] = acl_map.get(int(row.id), [])
     return payload
+
+
+def _source_row_lookup() -> dict[int, Any]:
+    return {int(row.id): row for row in list_sources()}
+
+
+def _latest_priority_requests_by_job() -> dict[int, Any]:
+    expire_stale_priority_requests()
+    latest: dict[int, Any] = {}
+    for request in list_priority_requests(limit=300):
+        latest.setdefault(int(request.job_id), request)
+    return latest
+
+
+def _ingestion_queue_payloads(*, source_id: Optional[int] = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    source_lookup = _source_row_lookup()
+    jobs = list_ingestion_jobs(source_id=source_id)
+    priority_lookup = _latest_priority_requests_by_job()
+    return summarize_ingestion_queue(jobs, source_lookup, priority_lookup)
+
+
+def _preview_priority_change(job_id: int, new_priority: int) -> dict[str, Any]:
+    source_lookup = _source_row_lookup()
+    jobs = list_ingestion_jobs()
+    priority_lookup = _latest_priority_requests_by_job()
+    before_payloads, _ = summarize_ingestion_queue(jobs, source_lookup, priority_lookup)
+    adjusted_jobs = []
+    for job in jobs:
+        if int(job.id) == job_id:
+            job.priority = new_priority
+        adjusted_jobs.append(job)
+    after_payloads, _ = summarize_ingestion_queue(adjusted_jobs, source_lookup, priority_lookup)
+    before_by_id = {int(item["id"]): item for item in before_payloads}
+    impacted = []
+    for after in after_payloads:
+        before = before_by_id.get(int(after["id"]))
+        if before is None:
+            continue
+        if before.get("queue_position") != after.get("queue_position") or before.get("eta_window") != after.get("eta_window"):
+            impacted.append(
+                {
+                    "job_id": after["id"],
+                    "before_queue_position": before.get("queue_position"),
+                    "after_queue_position": after.get("queue_position"),
+                    "before_eta_seconds": (before.get("eta_window") or {}).get("seconds"),
+                    "after_eta_seconds": (after.get("eta_window") or {}).get("seconds"),
+                }
+            )
+    return {"impacted_jobs": impacted[:25], "job_count": len(impacted)}
 
 
 @router.get("/profiles")
@@ -261,6 +338,7 @@ def get_profile_metadata():
 def get_admin_overview():
     corpora = list_corpora()
     sources = list_sources()
+    ingestion_jobs, queue_summary = _ingestion_queue_payloads()
     source_lookup = {
         int(row.id): {
             "file_name": row.file_name,
@@ -268,12 +346,12 @@ def get_admin_overview():
         }
         for row in sources
     }
-    ingestion_jobs = [_job_payload(row, kind="ingestion", source_lookup=source_lookup) for row in list_ingestion_jobs()]
     enrichment_jobs = [_job_payload(row, kind="enrichment", source_lookup=source_lookup) for row in list_enrichment_jobs()]
     traces = [_trace_payload(row) for row in list_traces(limit=6, offset=0)]
     reports = [_report_summary(kind, path) for kind, path in _EVAL_REPORT_FILES.items()]
     audit_events = list_admin_audit_events(limit=5)
     latest_report = next((report for report in reports if report["exists"]), None)
+    priority_requests = [request for request in _latest_priority_requests_by_job().values() if request.status in {"submitted", "under_review"}]
 
     alerts: list[dict[str, Any]] = []
     failed_jobs = [job for job in [*ingestion_jobs, *enrichment_jobs] if str(job.get("status", "")).lower() in {"failed", "error"}]
@@ -305,6 +383,15 @@ def get_admin_overview():
                 "href": "/console/admin/evals",
             }
         )
+    if priority_requests:
+        alerts.append(
+            {
+                "tone": "warning",
+                "title": "Priority requests are waiting for review",
+                "body": f"{len(priority_requests)} user-submitted indexing priority request(s) need operator attention.",
+                "href": "/console/admin/jobs",
+            }
+        )
     fallback_traces = [trace for trace in traces if trace.get("has_fallback")]
     if fallback_traces:
         alerts.append(
@@ -328,11 +415,13 @@ def get_admin_overview():
             "active_job_count": len(active_jobs),
             "latest_eval_pass_rate": (latest_report or {}).get("summary", {}).get("pass_rate_percent"),
             "latest_eval_kind": latest_report["kind"] if latest_report else None,
+            "pending_priority_request_count": len(priority_requests),
         },
         "alerts": alerts,
         "recent_traces": traces[:4],
         "recent_audit_events": audit_events,
         "reports": reports,
+        "queue_summary": queue_summary,
     }
 
 
@@ -537,34 +626,172 @@ def trigger_enrichment(source_id: int, body: ReindexRequest):
 
 @router.get("/jobs")
 def get_jobs(source_id: Optional[int] = None):
-    sources = list_sources()
     source_lookup = {
         int(row.id): {
             "file_name": row.file_name,
             "corpus_name": (row.source_metadata_json or {}).get("corpus"),
         }
-        for row in sources
+        for row in list_sources()
     }
+    ingestion_jobs, queue_summary = _ingestion_queue_payloads(source_id=source_id)
     return {
-        "ingestion_jobs": [_job_payload(row, kind="ingestion", source_lookup=source_lookup) for row in list_ingestion_jobs(source_id=source_id)],
+        "ingestion_jobs": ingestion_jobs,
         "enrichment_jobs": [_job_payload(row, kind="enrichment", source_lookup=source_lookup) for row in list_enrichment_jobs(source_id=source_id)],
+        "queue_summary": queue_summary,
+        "priority_requests": [priority_request_payload(request) for request in list_priority_requests(limit=100) if priority_request_payload(request)],
     }
 
 
 @router.get("/jobs/ingestion/{job_id}")
 def get_ingestion_job_status(job_id: int):
+    payload = next((job for job in _ingestion_queue_payloads()[0] if int(job["id"]) == job_id), None)
+    if payload is None:
+        raise HTTPException(status_code=404, detail={"error": "job_not_found", "job_id": job_id})
+    return payload
+
+
+@router.post("/jobs/ingestion/{job_id}/priority")
+def update_ingestion_job_priority(job_id: int, body: QueuePriorityUpdateRequest):
     row = get_ingestion_job(job_id)
     if row is None:
         raise HTTPException(status_code=404, detail={"error": "job_not_found", "job_id": job_id})
-    source_lookup = {}
-    if row.source_id is not None:
+    if str(row.status).lower() not in {"queued", "paused"}:
+        raise HTTPException(status_code=400, detail={"error": "priority_change_not_supported", "message": "Only waiting jobs can be reprioritized safely in this environment."})
+    impact = _preview_priority_change(job_id, body.priority)
+    if body.preview_only:
+        return {"status": "preview", "job_id": job_id, "priority": body.priority, "impact": impact}
+    update_ingestion_job(job_id, priority=body.priority)
+    insert_admin_audit_event(
+        event_type="queue",
+        action="queue.priority.updated",
+        resource_type="ingestion_job",
+        resource_id=str(job_id),
+        resource_name=str(row.source_id or job_id),
+        source_id=row.source_id,
+        job_kind="ingestion",
+        job_id=job_id,
+        before_json={"priority": row.priority},
+        after_json={"priority": body.priority},
+        event_json={"reason": body.reason, "impact": impact},
+    )
+    poke_ingestion_queue()
+    return {"status": "updated", "job": get_ingestion_job_status(job_id), "impact": impact}
+
+
+@router.post("/jobs/ingestion/{job_id}/priority-request/{request_id}")
+def review_ingestion_priority_request(job_id: int, request_id: int, body: QueuePriorityDecisionRequest):
+    row = get_ingestion_job(job_id)
+    request = get_priority_request(request_id)
+    if row is None or request is None or int(request.job_id) != job_id:
+        raise HTTPException(status_code=404, detail={"error": "priority_request_not_found", "job_id": job_id, "request_id": request_id})
+    before_status = request.status
+    update_priority_request_status(request_id, status=body.decision, review_reason=body.reason)
+    impact = None
+    if body.decision == "approved" and str(row.status).lower() in {"queued", "paused"}:
+        impact = _preview_priority_change(job_id, int(request.requested_priority))
+        update_ingestion_job(job_id, priority=int(request.requested_priority))
+        poke_ingestion_queue()
+    insert_admin_audit_event(
+        event_type="queue",
+        action="queue.priority_request.reviewed",
+        resource_type="priority_request",
+        resource_id=str(request_id),
+        resource_name=str(row.source_id or job_id),
+        source_id=row.source_id,
+        job_kind="ingestion",
+        job_id=job_id,
+        before_json={"status": before_status},
+        after_json={"status": body.decision},
+        event_json={"reason": body.reason, "impact": impact},
+    )
+    return {
+        "status": "updated",
+        "request": priority_request_payload(get_priority_request(request_id)),
+        "job": get_ingestion_job_status(job_id),
+        "impact": impact,
+    }
+
+
+@router.post("/jobs/ingestion/{job_id}/control")
+def control_ingestion_job(job_id: int, body: QueueControlRequest):
+    row = get_ingestion_job(job_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail={"error": "job_not_found", "job_id": job_id})
+    action = body.action
+    normalized_status = str(row.status).lower()
+    if normalized_status in {"processing", "running"} and action in {"pause", "cancel", "requeue", "retry"}:
+        raise HTTPException(status_code=400, detail={"error": "running_job_not_supported", "message": "Running jobs cannot be safely reordered or interrupted in this environment. Wait for completion, then retry or requeue if needed."})
+
+    result: dict[str, Any]
+    if action == "pause":
+        if normalized_status != "queued":
+            raise HTTPException(status_code=400, detail={"error": "pause_not_allowed", "message": "Only queued jobs can be paused."})
+        update_ingestion_job(job_id, status="paused", stage="paused")
+        if row.source_id is not None:
+            update_source_status(row.source_id, ingestion_status="paused")
+        result = {"status": "paused", "job": get_ingestion_job_status(job_id)}
+    elif action == "resume":
+        if normalized_status != "paused":
+            raise HTTPException(status_code=400, detail={"error": "resume_not_allowed", "message": "Only paused jobs can be resumed."})
+        update_ingestion_job(job_id, status="queued", stage="queued")
+        if row.source_id is not None:
+            update_source_status(row.source_id, ingestion_status="queued")
+        poke_ingestion_queue()
+        result = {"status": "queued", "job": get_ingestion_job_status(job_id)}
+    elif action == "cancel":
+        if normalized_status not in {"queued", "paused"}:
+            raise HTTPException(status_code=400, detail={"error": "cancel_not_allowed", "message": "Only waiting jobs can be cancelled."})
+        update_ingestion_job(job_id, status="cancelled", stage="cancelled", completed_at_now=True)
+        if row.source_id is not None:
+            update_source_status(row.source_id, ingestion_status="cancelled")
+        result = {"status": "cancelled", "job": get_ingestion_job_status(job_id)}
+    elif action == "requeue":
+        if normalized_status not in {"paused", "cancelled"}:
+            raise HTTPException(status_code=400, detail={"error": "requeue_not_allowed", "message": "Only paused or cancelled jobs can be requeued."})
+        update_ingestion_job(job_id, status="queued", stage="queued", clear_started_at=True, clear_completed_at=True, error_message="")
+        if row.source_id is not None:
+            update_source_status(row.source_id, ingestion_status="queued")
+        poke_ingestion_queue()
+        result = {"status": "queued", "job": get_ingestion_job_status(job_id)}
+    else:
+        if normalized_status not in {"failed", "cancelled"}:
+            raise HTTPException(status_code=400, detail={"error": "retry_not_allowed", "message": "Only failed or cancelled jobs can be retried."})
+        if row.source_id is None:
+            raise HTTPException(status_code=400, detail={"error": "source_missing", "message": "The source record is required before retrying this job."})
         source = get_source_by_id(row.source_id)
-        if source is not None:
-            source_lookup[int(source.id)] = {
-                "file_name": source.file_name,
-                "corpus_name": (source.source_metadata_json or {}).get("corpus"),
-            }
-    return _job_payload(row, kind="ingestion", source_lookup=source_lookup)
+        if source is None:
+            raise HTTPException(status_code=404, detail={"error": "source_not_found", "source_id": row.source_id})
+        _reset_source_for_reindex(row.source_id)
+        new_job_id = create_ingestion_job(
+            source_id=row.source_id,
+            status="queued",
+            stage="queued",
+            priority=max(int(row.priority), 120),
+            triggered_by="admin_retry",
+            owner_external_user_id=row.owner_external_user_id,
+            owner_email=row.owner_email,
+            owner_display_name=row.owner_display_name,
+            job_metadata_json={
+                **dict(row.job_metadata_json or {}),
+                "retry_of_job_id": row.id,
+                "queue_stage_label": "queued",
+            },
+        )
+        poke_ingestion_queue()
+        result = {"status": "queued", "job": get_ingestion_job_status(new_job_id), "retry_of_job_id": job_id}
+
+    insert_admin_audit_event(
+        event_type="queue",
+        action=f"queue.job.{action}",
+        resource_type="ingestion_job",
+        resource_id=str(job_id),
+        resource_name=str(row.source_id or job_id),
+        source_id=row.source_id,
+        job_kind="ingestion",
+        job_id=job_id,
+        event_json={"reason": body.reason, "result": result},
+    )
+    return result
 
 
 @router.get("/jobs/enrichment/{job_id}")
@@ -690,6 +917,11 @@ def get_admin_audit_log(
     resource_type: Optional[str] = None,
     outcome: Optional[str] = None,
     actor_external_user_id: Optional[str] = None,
+    actor_query: Optional[str] = None,
+    source_id: Optional[int] = None,
+    job_id: Optional[int] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
 ):
     if limit < 1 or limit > 100:
         raise HTTPException(status_code=400, detail="limit must be between 1 and 100")
@@ -701,5 +933,40 @@ def get_admin_audit_log(
             resource_type=resource_type,
             outcome=outcome,
             actor_external_user_id=actor_external_user_id,
+            actor_query=actor_query,
+            source_id=source_id,
+            job_id=job_id,
+            from_ts=from_ts,
+            to_ts=to_ts,
         )
     }
+
+
+@router.get("/audit-log/export")
+def export_admin_audit_log(
+    action: Optional[str] = None,
+    resource_type: Optional[str] = None,
+    outcome: Optional[str] = None,
+    actor_external_user_id: Optional[str] = None,
+    actor_query: Optional[str] = None,
+    source_id: Optional[int] = None,
+    job_id: Optional[int] = None,
+    from_ts: Optional[str] = None,
+    to_ts: Optional[str] = None,
+):
+    rows = list_admin_audit_events(
+        limit=500,
+        offset=0,
+        action=action,
+        resource_type=resource_type,
+        outcome=outcome,
+        actor_external_user_id=actor_external_user_id,
+        actor_query=actor_query,
+        source_id=source_id,
+        job_id=job_id,
+        from_ts=from_ts,
+        to_ts=to_ts,
+    )
+    body = "\n".join(json.dumps(row, ensure_ascii=True) for row in rows)
+    headers = {"Content-Disposition": 'attachment; filename="admin-audit-log.jsonl"'}
+    return PlainTextResponse(content=body, headers=headers, media_type="application/jsonl")

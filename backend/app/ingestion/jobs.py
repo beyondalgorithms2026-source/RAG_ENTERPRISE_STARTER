@@ -12,9 +12,10 @@ from app.adapters import ParsedSourceDocument, parse_source_bytes
 from app.corpus_policies import get_corpus_policy, resolve_policy_name_from_source_metadata
 from app.core.config import REPO_ROOT, settings
 from app.core.logging import log_event, logger
+from app.auth.context import get_current_user
 from app.db.db import engine
 from app.db.repo_chunks import check_chunks_exist, delete_chunks_for_source, insert_chunks
-from app.db.repo_jobs import create_ingestion_job, finish_ingestion_job
+from app.db.repo_jobs import create_ingestion_job, finish_ingestion_job, get_ingestion_job, update_ingestion_job
 from app.db.repo_source_parts import delete_source_parts_for_source, insert_source_part
 from app.db.repo_sources import (
     delete_source,
@@ -133,10 +134,14 @@ def _persist_upload_bytes(*, storage_path: str, content: bytes) -> Path:
 
 def _build_upload_metadata(*, file_name: str, content_type: Optional[str], hash_sha256: str) -> Dict[str, Any]:
     previous_source = get_latest_source_by_name(file_name)
+    actor = get_current_user()
     metadata = {
         "original_file_name": file_name,
         "upload_content_type": content_type,
         "reupload_of_source_id": previous_source.id if previous_source and previous_source.hash_sha256 != hash_sha256 else None,
+        "uploaded_by_external_user_id": actor.user_id if actor else None,
+        "uploaded_by_email": actor.email if actor else None,
+        "uploaded_by_display_name": actor.name if actor else None,
     }
     metadata["corpus_policy"] = resolve_policy_name_from_source_metadata(metadata)
     return metadata
@@ -152,6 +157,7 @@ def _queue_upload_source(
     storage_path: str,
     metadata: Dict[str, Any],
 ) -> tuple[int, int]:
+    actor = get_current_user()
     source_id = upsert_source(
         storage_path=storage_path,
         file_name=file_name,
@@ -166,9 +172,19 @@ def _queue_upload_source(
     job_id = create_ingestion_job(
         source_id=source_id,
         status="queued",
-        stage="uploaded",
+        stage="queued",
+        priority=100,
         triggered_by="upload",
-        job_metadata_json={"hash_sha256": hash_sha256, "storage_path": storage_path},
+        owner_external_user_id=actor.user_id if actor else None,
+        owner_email=actor.email if actor else None,
+        owner_display_name=actor.name if actor else None,
+        job_metadata_json={
+            "hash_sha256": hash_sha256,
+            "storage_path": storage_path,
+            "file_size_bytes": file_size_bytes,
+            "source_type": source_type,
+            "queue_stage_label": "queued",
+        },
     )
     return source_id, job_id
 
@@ -184,17 +200,25 @@ def _chunk_preview_path(storage_path: str) -> Path:
 
 
 def _update_ingestion_job_stage(job_id: int, *, status: str, stage: str, error_message: Optional[str] = None) -> None:
-    sql = text(
-        """
-        UPDATE ingestion_jobs
-        SET status = :status,
-            stage = :stage,
-            error_message = :error_message
-        WHERE id = :job_id
-        """
+    current = get_ingestion_job(job_id)
+    next_metadata = dict(current.job_metadata_json or {}) if current else {}
+    next_metadata["queue_stage_label"] = stage
+    update_ingestion_job(
+        job_id,
+        status=status,
+        stage=stage,
+        error_message=error_message,
+        job_metadata_json=next_metadata,
     )
-    with engine.begin() as conn:
-        conn.execute(sql, {"job_id": job_id, "status": status, "stage": stage, "error_message": error_message})
+
+
+def _merge_ingestion_job_metadata(job_id: int, patch: Dict[str, Any]) -> None:
+    current = get_ingestion_job(job_id)
+    if current is None:
+        return
+    next_metadata = dict(current.job_metadata_json or {})
+    next_metadata.update(patch)
+    update_ingestion_job(job_id, job_metadata_json=next_metadata)
 
 
 def _source_file_absolute_path(storage_path: str) -> Path:
@@ -237,6 +261,7 @@ def _link_chunks_to_source_parts(chunks: list[Dict[str, Any]], source_part_ids: 
 
 def _ingest_uploaded_source(*, source_id: int, source_type: str, file_name: str, storage_path: str, job_id: int) -> Dict[str, Any]:
     try:
+        update_source_status(source_id, ingestion_status="processing")
         log_event("upload.ingestion.started", source_id=source_id, job_id=job_id, stage="ingestion", status="processing")
         _update_ingestion_job_stage(job_id, status="processing", stage="parsing")
         log_event("parse.started", source_id=source_id, job_id=job_id, stage="parse", status="processing")
@@ -247,8 +272,9 @@ def _ingest_uploaded_source(*, source_id: int, source_type: str, file_name: str,
             persist_debug_artifact=False,
         )
         log_event("parse.completed", source_id=source_id, job_id=job_id, stage="parse", status="completed")
+        _merge_ingestion_job_metadata(job_id, {"parsed_part_count": len(parsed.parts)})
 
-        _update_ingestion_job_stage(job_id, status="processing", stage="source_parts")
+        _update_ingestion_job_stage(job_id, status="processing", stage="indexing_enrichment")
         source_part_ids = _persist_source_parts(source_id, parsed)
         log_event(
             "source_parts.completed",
@@ -269,6 +295,7 @@ def _ingest_uploaded_source(*, source_id: int, source_type: str, file_name: str,
             delete_chunks_for_source(source_id)
         insert_chunks(source_id, linked_chunks)
         update_source_status(source_id, ingestion_status="chunked")
+        _merge_ingestion_job_metadata(job_id, {"actual_chunk_count": len(linked_chunks)})
         log_event(
             "chunk.completed",
             source_id=source_id,
@@ -415,7 +442,7 @@ async def process_upload(
         metadata=metadata,
     )
     log_event("upload.accepted", source_id=source_id, job_id=job_id, stage="upload", status="accepted")
-    if wait_for_completion or background_tasks is None:
+    if wait_for_completion:
         _run_ingestion_job(
             source_id=source_id,
             source_type=source_type,
@@ -424,14 +451,9 @@ async def process_upload(
             job_id=job_id,
         )
     else:
-        background_tasks.add_task(
-            _run_ingestion_job,
-            source_id=source_id,
-            source_type=source_type,
-            file_name=file_name,
-            storage_path=storage_path,
-            job_id=job_id,
-        )
+        from app.ingestion.queue_runtime import poke_ingestion_queue
+
+        poke_ingestion_queue()
     return {
         "status": "queued",
         "source_id": source_id,
@@ -502,22 +524,42 @@ def admin_reindex_source(*, source_id: int, force: bool = False) -> Dict[str, An
     job_id = create_ingestion_job(
         source_id=source_id,
         status="queued",
-        stage="admin_reindex",
+        stage="queued",
+        priority=150,
         triggered_by="admin_reindex",
-        job_metadata_json={"force": force, "storage_path": source.storage_path},
+        owner_external_user_id=None,
+        owner_email=None,
+        owner_display_name=None,
+        job_metadata_json={
+            "force": force,
+            "storage_path": source.storage_path,
+            "file_size_bytes": source.file_size_bytes,
+            "source_type": source.source_type,
+            "queue_stage_label": "queued",
+        },
     )
-    stats = _ingest_uploaded_source(
-        source_id=source_id,
+    from app.ingestion.queue_runtime import poke_ingestion_queue
+
+    poke_ingestion_queue()
+    log_event("admin.reindex.queued", source_id=source_id, job_id=job_id, stage="admin_reindex", status="queued")
+    return {
+        "status": "queued",
+        "source_id": source_id,
+        "job_id": job_id,
+    }
+
+
+def run_queued_ingestion_job(job_id: int) -> None:
+    job = get_ingestion_job(job_id)
+    if job is None or job.source_id is None:
+        raise ValueError(f"Ingestion job {job_id} not found")
+    source = get_source_by_id(job.source_id)
+    if source is None:
+        raise ValueError(f"Source {job.source_id} not found")
+    _ingest_uploaded_source(
+        source_id=source.id,
         source_type=source.source_type,
         file_name=source.file_name,
         storage_path=source.storage_path,
         job_id=job_id,
     )
-    log_event("admin.reindex.completed", source_id=source_id, job_id=job_id, stage="admin_reindex", status="completed")
-    return {
-        "status": "completed",
-        "source_id": source_id,
-        "job_id": job_id,
-        "chunk_count": stats["chunk_count"],
-        "source_part_count": stats["source_part_count"],
-    }

@@ -1,6 +1,6 @@
 # STATUS.md — Milestone Progress Tracker
 
-**Current Milestone:** M11.1 — Ingestion Queue Visibility, ETA, And Priority Governance
+**Current Milestone:** M12 — Cloud DB And Structured Source Connectors
 
 **Completed**
 - M0: Baseline Stable Import (baseline-import-stable)
@@ -23,6 +23,7 @@
 - M10.1.4: Placeholder And CTA Hygiene Across Public And Console Surfaces (2026-04-14)
 - M10.1.5: First-Run Empty States And Operator Onboarding (2026-04-14)
 - M11: Admin Workspace Polish And Operational UX (2026-04-16)
+- M11.1: Ingestion Queue Visibility, ETA, And Priority Governance (2026-04-16)
 
 **M10 summary**
 - Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
@@ -99,6 +100,13 @@
 - Expanded eval usability with a side-by-side report comparison view and added an explicit approval-inbox stub in the admin overview so the future workflow is visible without pretending it is fully wired yet
 - See docs/m11_admin_workspace_polish_and_operational_ux.md
 
+**M11.1 summary**
+- Replaced raw upload polling with queue-aware indexing status that exposes current stage, ETA window, confidence, queue-delay messaging, and admin-reviewed priority-request state on the user workspace
+- Shifted ingestion onto a real priority-aware queue worker with waiting-job ownership, bounded pause/resume/cancel/requeue/retry controls, and ETA recomputation based on file size, chunk discovery, and recent throughput
+- Upgraded the admin jobs workspace into a real queue console with backlog and throughput summary cards, owner/stage/priority/source-type filters, priority preview and approval actions, and explicit queue-governance controls
+- Extended the admin audit foundation for queue operations with stored request/decision/reprioritization/control events plus filterable/exportable JSONL audit output for enterprise review workflows
+- See docs/m11_1_ingestion_queue_visibility_eta_and_priority_governance.md
+
 **M9 summary**
 - Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline
 - Source-scoped retrieval now honors corpus default modes so different corpora behave differently without changing global settings
@@ -151,9 +159,9 @@
 - See docs/m2_retrieval_observability_and_traceability.md
 
 **Next actions**
-- Start M11.1: ingestion queue visibility, ETA, and priority governance
-- Upgrade upload/indexing status from raw polling into queue-aware progress and ETA contracts
-- Extend the admin control plane from operator ergonomics into true queue governance with auditable priority handling
+- Start M12: cloud DB and structured source connectors
+- Replace connector request-only flows with real DB connector configuration and ingestion visibility where backend support lands
+- Preserve metadata filters and ACL trimming as structured sources join the retrieval path
 
 **Notes / DoD checklist (M10)**
 - [x] Anonymous users can view the homepage but cannot access `/console/*`
@@ -233,6 +241,16 @@
 
 **Notes / DoD checklist (M11)**
 - [x] Non-developer can operate daily workflows comfortably with less engineering assistance
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M11.1)**
+- [x] Users can see more than a raw status poll and are no longer forced to guess whether indexing delay is normal
+- [x] ETA is present when reasonably inferable and degrades gracefully when confidence is low
+- [x] Users can submit a priority request without bypassing governance
+- [x] Admin can inspect the queue at both file and user level and take bounded, auditable action
+- [x] Reprioritization updates affected queued-job timing/status rather than leaving stale expectations in place
+- [x] Every queue-control and priority decision is audit-recorded with actor, reason, and impact
 - [x] docs/ note added
 - [x] STATUS.md updated
 

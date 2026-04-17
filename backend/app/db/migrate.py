@@ -240,6 +240,40 @@ def _create_corpora_table() -> None:
         conn.execute(text(ddl))
 
 
+def _patch_ingestion_queue_tables() -> None:
+    ddl = """
+    ALTER TABLE ingestion_jobs ADD COLUMN IF NOT EXISTS priority INTEGER NOT NULL DEFAULT 100;
+    ALTER TABLE ingestion_jobs ADD COLUMN IF NOT EXISTS owner_external_user_id TEXT;
+    ALTER TABLE ingestion_jobs ADD COLUMN IF NOT EXISTS owner_email TEXT;
+    ALTER TABLE ingestion_jobs ADD COLUMN IF NOT EXISTS owner_display_name TEXT;
+    CREATE INDEX IF NOT EXISTS ingestion_jobs_priority_idx ON ingestion_jobs(priority, created_at, id);
+    CREATE INDEX IF NOT EXISTS ingestion_jobs_owner_idx ON ingestion_jobs(owner_external_user_id);
+
+    CREATE TABLE IF NOT EXISTS ingestion_priority_requests (
+        id BIGSERIAL PRIMARY KEY,
+        job_id BIGINT NOT NULL REFERENCES ingestion_jobs(id) ON DELETE CASCADE,
+        source_id BIGINT REFERENCES sources(id) ON DELETE SET NULL,
+        requester_external_user_id TEXT,
+        requester_email TEXT,
+        requester_display_name TEXT,
+        requested_priority INTEGER NOT NULL DEFAULT 200,
+        reason TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'submitted',
+        review_reason TEXT,
+        reviewed_by_external_user_id TEXT,
+        reviewed_by_email TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        reviewed_at TIMESTAMPTZ,
+        expires_at TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS ingestion_priority_requests_job_idx ON ingestion_priority_requests(job_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS ingestion_priority_requests_status_idx ON ingestion_priority_requests(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS ingestion_priority_requests_requester_idx ON ingestion_priority_requests(requester_external_user_id, created_at DESC);
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def _seed_default_profiles() -> None:
     from app.core.config import settings
     from app.db.repo_profiles import seed_default_profiles
@@ -292,6 +326,11 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P009",
             description="Create corpora registry table for admin control plane",
             runner=_create_corpora_table,
+        ),
+        MigrationStep(
+            step_id="MIG-P010",
+            description="Patch ingestion job tables for queue priority ownership and user escalation requests",
+            runner=_patch_ingestion_queue_tables,
         ),
     ]
 

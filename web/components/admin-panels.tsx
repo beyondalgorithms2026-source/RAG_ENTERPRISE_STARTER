@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
-import { browserFetch } from "@/lib/api-browser";
+import { browserApiUrl, browserFetch } from "@/lib/api-browser";
 
 type GenericMap = Record<string, unknown>;
 
@@ -175,9 +175,45 @@ function formatJobSourceName(job: GenericMap) {
   return String(job.source_file_name || "Source record pending");
 }
 
+function formatJobOwner(job: GenericMap) {
+  return String(job.owner_display_name || job.owner_email || job.owner_external_user_id || "Unknown owner");
+}
+
+function formatEtaWindow(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return "ETA unavailable";
+  }
+  const payload = value as Record<string, unknown>;
+  const lower = formatDuration(payload.lower_seconds);
+  const upper = formatDuration(payload.upper_seconds);
+  return lower === upper ? lower : `${lower} to ${upper}`;
+}
+
+function formatQueuePosition(job: GenericMap) {
+  const position = Number(job.queue_position);
+  if (!Number.isFinite(position) || position <= 0) {
+    return "Active now";
+  }
+  return `Queue #${position}`;
+}
+
+function formatPriorityLabel(value: unknown) {
+  const priority = Number(value || 0);
+  if (priority >= 200) {
+    return "Urgent";
+  }
+  if (priority >= 150) {
+    return "High";
+  }
+  if (priority >= 120) {
+    return "Elevated";
+  }
+  return "Normal";
+}
+
 function formatJobTimingLabel(job: GenericMap) {
   if (isActiveJobStatus(job.status)) {
-    return `Started ${formatTimestamp(job.started_at || job.created_at)}`;
+    return `${formatQueuePosition(job)} • ${formatEtaWindow(job.eta_window)}`;
   }
   if (normalizeText(job.status) === "failed" || normalizeText(job.status) === "error") {
     return job.completed_at ? `Failed ${formatTimestamp(job.completed_at)}` : "Failed before completion";
@@ -193,9 +229,12 @@ function buildJobOperatorSummary(job: GenericMap) {
   const status = titleCaseWords(job.status || "unknown");
   const stage = formatJobStage(job.stage);
   const trigger = formatJobTrigger(job.triggered_by);
+  const owner = ` It belongs to ${formatJobOwner(job)}.`;
   const corpus = job.corpus_name ? ` It is linked to the ${String(job.corpus_name)} corpus.` : " It is not linked to a corpus yet.";
-  const eta = isActiveJobStatus(job.status) ? " Estimated time remaining is not available yet." : "";
-  return `${sourceName} is currently in ${stage.toLowerCase()} with status ${status}. ${trigger}.${corpus}${eta}`;
+  const eta = isActiveJobStatus(job.status)
+    ? ` ${String(job.status).toLowerCase() === "queued" ? "Estimated completion" : "Estimated time remaining"} is ${formatEtaWindow(job.eta_window)}.`
+    : "";
+  return `${sourceName} is currently in ${stage.toLowerCase()} with status ${status}. ${trigger}.${owner}${corpus}${eta}`;
 }
 
 function SavedViewsToolbar({
@@ -292,6 +331,9 @@ function formatDuration(value: unknown) {
   const seconds = Number(value);
   if (!Number.isFinite(seconds)) {
     return "In progress";
+  }
+  if (seconds === 0) {
+    return "Pending timing";
   }
   if (seconds < 1) {
     return `${Math.round(seconds * 1000)} ms`;
@@ -994,8 +1036,8 @@ export function SourcesAdminPanel() {
 export function JobsAdminPanel() {
   const searchParams = useSearchParams();
   const sourceIdParam = searchParams.get("sourceId");
-  const defaultFilters = { query: "", kind: "all", status: "all", actor: "all", sort: "active_first" };
-  const [payload, setPayload] = useState<{ ingestion_jobs: GenericMap[]; enrichment_jobs: GenericMap[] }>({ ingestion_jobs: [], enrichment_jobs: [] });
+  const defaultFilters = { query: "", kind: "all", status: "all", owner: "all", stage: "all", priority: "all", sourceType: "all", sort: "active_first" };
+  const [payload, setPayload] = useState<{ ingestion_jobs: GenericMap[]; enrichment_jobs: GenericMap[]; queue_summary?: GenericMap; priority_requests?: GenericMap[] }>({ ingestion_jobs: [], enrichment_jobs: [], queue_summary: {}, priority_requests: [] });
   const [selectedJobKey, setSelectedJobKey] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -1003,6 +1045,11 @@ export function JobsAdminPanel() {
   const [draftFilters, setDraftFilters] = useState({ ...defaultFilters });
   const [savedViews, setSavedViews] = useState<SavedViewEntry[]>([]);
   const [savedViewName, setSavedViewName] = useState("");
+  const [busyAction, setBusyAction] = useState("");
+  const [priorityValue, setPriorityValue] = useState("200");
+  const [priorityReason, setPriorityReason] = useState("");
+  const [reviewReason, setReviewReason] = useState("");
+  const [priorityPreview, setPriorityPreview] = useState<GenericMap | null>(null);
 
   useEffect(() => {
     setSavedViews(readSavedAdminViews("jobs"));
@@ -1011,7 +1058,7 @@ export function JobsAdminPanel() {
   async function refresh() {
     setIsLoading(true);
     try {
-      const next = await browserFetch<{ ingestion_jobs: GenericMap[]; enrichment_jobs: GenericMap[] }>("/admin/jobs");
+      const next = await browserFetch<{ ingestion_jobs: GenericMap[]; enrichment_jobs: GenericMap[]; queue_summary?: GenericMap; priority_requests?: GenericMap[] }>("/admin/jobs");
       setPayload(next);
       setError("");
       const preferred = [...next.ingestion_jobs, ...next.enrichment_jobs].find((job) => String(job.source_id || "") === String(sourceIdParam || ""));
@@ -1031,9 +1078,11 @@ export function JobsAdminPanel() {
     () => [...payload.ingestion_jobs, ...payload.enrichment_jobs].sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || ""))),
     [payload],
   );
+  const queueSummary = (payload.queue_summary || {}) as GenericMap;
+  const priorityRequests = (payload.priority_requests || []) as GenericMap[];
   const visibleJobs = useMemo(() => {
     const filtered = jobs.filter((job) => {
-      if (!matchesQuery(filters.query, [job.source_file_name, job.stage, job.triggered_by, job.job_kind, job.corpus_name])) {
+      if (!matchesQuery(filters.query, [job.source_file_name, job.stage, job.stage_label, job.triggered_by, job.job_kind, job.corpus_name, job.owner_display_name, job.owner_email, job.source_type])) {
         return false;
       }
       if (filters.kind !== "all" && normalizeText(job.job_kind) !== filters.kind) {
@@ -1042,7 +1091,19 @@ export function JobsAdminPanel() {
       if (filters.status !== "all" && normalizeText(job.status) !== filters.status) {
         return false;
       }
-      if (filters.actor !== "all" && normalizeText(job.triggered_by) !== filters.actor) {
+      if (filters.owner !== "all" && normalizeText(job.owner_email || job.owner_display_name || job.owner_external_user_id || job.triggered_by) !== filters.owner) {
+        return false;
+      }
+      if (filters.stage !== "all" && normalizeText(job.stage_label || job.stage) !== filters.stage) {
+        return false;
+      }
+      if (filters.priority !== "all") {
+        const label = normalizeText(formatPriorityLabel(job.priority));
+        if (filters.priority !== label) {
+          return false;
+        }
+      }
+      if (filters.sourceType !== "all" && normalizeText(job.source_type) !== filters.sourceType) {
         return false;
       }
       return true;
@@ -1053,7 +1114,11 @@ export function JobsAdminPanel() {
         if (rankDiff !== 0) {
           return rankDiff;
         }
-        return toTimestampValue(right.started_at || right.created_at) - toTimestampValue(left.started_at || left.created_at);
+        const queueDiff = toNumber(left.queue_position || 999999) - toNumber(right.queue_position || 999999);
+        if (queueDiff !== 0) {
+          return queueDiff;
+        }
+        return toTimestampValue(left.created_at) - toTimestampValue(right.created_at);
       },
       newest: (left, right) => toTimestampValue(right.created_at) - toTimestampValue(left.created_at),
       oldest: (left, right) => toTimestampValue(left.created_at) - toTimestampValue(right.created_at),
@@ -1062,17 +1127,28 @@ export function JobsAdminPanel() {
       source: (left, right) => String(left.source_file_name || "").localeCompare(String(right.source_file_name || "")),
     });
   }, [jobs, filters]);
-  const selectedJob = useMemo(
-    () => visibleJobs.find((job) => `${String(job.job_kind)}:${String(job.id)}` === selectedJobKey) || null,
-    [visibleJobs, selectedJobKey],
+  const ownerOptions = useMemo(
+    () => Array.from(new Set(jobs.map((job) => normalizeText(job.owner_email || job.owner_display_name || job.owner_external_user_id || job.triggered_by)).filter(Boolean))).sort((left, right) => left.localeCompare(right)),
+    [jobs],
   );
-  const actorOptions = useMemo(
-    () => Array.from(new Set(jobs.map((job) => normalizeText(job.triggered_by || "system")).filter(Boolean))).sort((left, right) => left.localeCompare(right)),
+  const stageOptions = useMemo(
+    () => Array.from(new Set(jobs.map((job) => normalizeText(job.stage_label || job.stage)).filter(Boolean))).sort((left, right) => left.localeCompare(right)),
+    [jobs],
+  );
+  const sourceTypeOptions = useMemo(
+    () => Array.from(new Set(jobs.map((job) => normalizeText(job.source_type)).filter(Boolean))).sort((left, right) => left.localeCompare(right)),
     [jobs],
   );
   const activeCount = visibleJobs.filter((job) => ["queued", "processing", "running", "pending"].includes(normalizeText(job.status))).length;
   const failedCount = visibleJobs.filter((job) => ["failed", "error"].includes(normalizeText(job.status))).length;
+  const pendingPriorityCount = priorityRequests.filter((request) => ["submitted", "under_review"].includes(normalizeText(request.status))).length;
   const hasPendingFilterChanges = !filtersMatch(filters, draftFilters);
+  const selectedJob = useMemo(
+    () => visibleJobs.find((job) => `${String(job.job_kind)}:${String(job.id)}` === selectedJobKey) || null,
+    [visibleJobs, selectedJobKey],
+  );
+  const selectedPriorityRequest = selectedJob?.priority_request && typeof selectedJob.priority_request === "object" ? selectedJob.priority_request as GenericMap : null;
+  const selectedIngestionJob = selectedJob && normalizeText(selectedJob.job_kind) === "ingestion" ? selectedJob : null;
 
   useEffect(() => {
     setSelectedJobKey((current) => (current && visibleJobs.some((job) => `${String(job.job_kind)}:${String(job.id)}` === current) ? current : `${String(visibleJobs[0]?.job_kind || "")}:${String(visibleJobs[0]?.id || "")}`));
@@ -1083,7 +1159,10 @@ export function JobsAdminPanel() {
       query: String(entry.filters.query || ""),
       kind: String(entry.filters.kind || "all"),
       status: String(entry.filters.status || "all"),
-      actor: String(entry.filters.actor || "all"),
+      owner: String(entry.filters.owner || "all"),
+      stage: String(entry.filters.stage || "all"),
+      priority: String(entry.filters.priority || "all"),
+      sourceType: String(entry.filters.sourceType || "all"),
       sort: String(entry.filters.sort || "active_first"),
     };
     setDraftFilters(nextFilters);
@@ -1099,12 +1178,101 @@ export function JobsAdminPanel() {
     deleteNamedView("jobs", entry.name, setSavedViews);
   }
 
+  async function previewPriorityChange() {
+    if (!selectedIngestionJob) {
+      return;
+    }
+    setBusyAction("priority-preview");
+    try {
+      const next = await browserFetch<{ impact: GenericMap }>("/admin/jobs/ingestion/" + String(selectedIngestionJob.id) + "/priority", {
+        method: "POST",
+        json: {
+          priority: Number(priorityValue),
+          reason: priorityReason,
+          preview_only: true,
+        },
+      });
+      setPriorityPreview((next.impact || {}) as GenericMap);
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to preview priority impact.");
+    } finally {
+      setBusyAction("");
+    }
+  }
+
+  async function applyPriorityChange() {
+    if (!selectedIngestionJob) {
+      return;
+    }
+    setBusyAction("priority-apply");
+    try {
+      await browserFetch("/admin/jobs/ingestion/" + String(selectedIngestionJob.id) + "/priority", {
+        method: "POST",
+        json: {
+          priority: Number(priorityValue),
+          reason: priorityReason,
+          preview_only: false,
+        },
+      });
+      setPriorityPreview(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update job priority.");
+    } finally {
+      setBusyAction("");
+    }
+  }
+
+  async function reviewPriorityRequest(decision: "under_review" | "approved" | "denied") {
+    if (!selectedIngestionJob || !selectedPriorityRequest?.id) {
+      return;
+    }
+    setBusyAction(`request-${decision}`);
+    try {
+      await browserFetch(`/admin/jobs/ingestion/${String(selectedIngestionJob.id)}/priority-request/${String(selectedPriorityRequest.id)}`, {
+        method: "POST",
+        json: {
+          decision,
+          reason: reviewReason,
+        },
+      });
+      setReviewReason("");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to review priority request.");
+    } finally {
+      setBusyAction("");
+    }
+  }
+
+  async function runQueueControl(action: "pause" | "resume" | "cancel" | "requeue" | "retry") {
+    if (!selectedIngestionJob) {
+      return;
+    }
+    setBusyAction(`control-${action}`);
+    try {
+      await browserFetch(`/admin/jobs/ingestion/${String(selectedIngestionJob.id)}/control`, {
+        method: "POST",
+        json: {
+          action,
+          reason: reviewReason || priorityReason,
+        },
+      });
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to ${action} job.`);
+    } finally {
+      setBusyAction("");
+    }
+  }
+
   return (
     <div className="admin-route-page">
       <AdminSectionIntro
         eyebrow="Interactive"
         title="Jobs"
-        description="Monitor ingestion and enrichment queues with real status, timing, actor, and related source context."
+        description="Monitor ingestion and enrichment queues with real status, ETA, owner, governance controls, and related source context."
         badge={`${jobs.length} jobs`}
       />
       {error ? <div className="error-banner">{error}</div> : null}
@@ -1112,16 +1280,23 @@ export function JobsAdminPanel() {
         <SummaryMetricCard label="Visible Jobs" value={formatCount(visibleJobs.length, "job")} />
         <SummaryMetricCard label="Active" value={formatCount(activeCount, "job")} tone="is-warning" />
         <SummaryMetricCard label="Failed" value={formatCount(failedCount, "job")} tone={failedCount ? "is-danger" : ""} />
+        <SummaryMetricCard label="Priority Requests" value={formatCount(pendingPriorityCount, "request")} tone={pendingPriorityCount ? "is-warning" : ""} />
+      </section>
+      <section className="admin-summary-cards">
+        <SummaryMetricCard label="Backlog" value={formatCount(queueSummary.backlog_count, "waiting job")} />
+        <SummaryMetricCard label="Workers" value={formatCount(queueSummary.active_workers, "active worker")} />
+        <SummaryMetricCard label="Oldest Wait" value={formatDuration(queueSummary.oldest_wait_seconds)} tone={toNumber(queueSummary.oldest_wait_seconds) > 600 ? "is-warning" : ""} />
+        <SummaryMetricCard label="Avg Throughput" value={`${roundNumber(toNumber(queueSummary.average_chunks_per_minute), 1)} chunks/min`} />
       </section>
       <section className="card">
         <div className="section-head">
           <div>
             <h2>Queue Views</h2>
-            <p>Filter and reuse operational job views without dropping into raw logs.</p>
+            <p>Filter by wait state, owner, stage, and priority, then reuse those queue views without dropping into raw logs.</p>
           </div>
         </div>
         <div className="admin-filter-grid admin-filter-grid-5">
-          <input value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search source, stage, corpus, or actor" />
+          <input value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search source, stage, corpus, owner, or source type" />
           <select value={draftFilters.kind} onChange={(event) => setDraftFilters((current) => ({ ...current, kind: event.target.value }))}>
             <option value="all">All job kinds</option>
             <option value="ingestion">ingestion</option>
@@ -1132,13 +1307,35 @@ export function JobsAdminPanel() {
             <option value="queued">queued</option>
             <option value="processing">processing</option>
             <option value="running">running</option>
+            <option value="paused">paused</option>
             <option value="completed">completed</option>
             <option value="failed">failed</option>
           </select>
-          <select value={draftFilters.actor} onChange={(event) => setDraftFilters((current) => ({ ...current, actor: event.target.value }))}>
-            <option value="all">All actors</option>
-            {actorOptions.map((actor) => (
-              <option key={actor} value={actor}>{actor}</option>
+          <select value={draftFilters.owner} onChange={(event) => setDraftFilters((current) => ({ ...current, owner: event.target.value }))}>
+            <option value="all">All owners</option>
+            {ownerOptions.map((owner) => (
+              <option key={owner} value={owner}>{owner}</option>
+            ))}
+          </select>
+          <select value={draftFilters.stage} onChange={(event) => setDraftFilters((current) => ({ ...current, stage: event.target.value }))}>
+            <option value="all">All stages</option>
+            {stageOptions.map((stage) => (
+              <option key={stage} value={stage}>{stage}</option>
+            ))}
+          </select>
+        </div>
+        <div className="admin-filter-grid admin-filter-grid-5">
+          <select value={draftFilters.priority} onChange={(event) => setDraftFilters((current) => ({ ...current, priority: event.target.value }))}>
+            <option value="all">All priorities</option>
+            <option value="urgent">urgent</option>
+            <option value="high">high</option>
+            <option value="elevated">elevated</option>
+            <option value="normal">normal</option>
+          </select>
+          <select value={draftFilters.sourceType} onChange={(event) => setDraftFilters((current) => ({ ...current, sourceType: event.target.value }))}>
+            <option value="all">All source types</option>
+            {sourceTypeOptions.map((sourceType) => (
+              <option key={sourceType} value={sourceType}>{sourceType}</option>
             ))}
           </select>
           <select value={draftFilters.sort} onChange={(event) => setDraftFilters((current) => ({ ...current, sort: event.target.value }))}>
@@ -1181,7 +1378,7 @@ export function JobsAdminPanel() {
           <div className="section-head">
             <div>
               <h2>Live Job Queue</h2>
-              <p>Unified ingestion and enrichment view with truthful job metadata.</p>
+              <p>Unified ingestion and enrichment queue with truthful stage, ETA, owner, and priority state.</p>
             </div>
           </div>
           <div className="table-list">
@@ -1189,11 +1386,11 @@ export function JobsAdminPanel() {
               <article key={`${String(job.job_kind)}:${String(job.id)}`} className="table-row">
                 <div>
                   <strong>{`${String(job.job_kind)} job #${String(job.id)}`}</strong>
-                  <span className="muted-copy">{`${formatJobSourceName(job)} • ${formatJobStage(job.stage)}`}</span>
+                  <span className="muted-copy">{`${formatJobSourceName(job)} • ${formatJobStage(job.stage_label || job.stage)} • ${formatJobOwner(job)}`}</span>
                 </div>
                 <div className="table-metrics">
                   <span className={`badge ${statusTone(job.status)}`}>{titleCaseWords(job.status || "unknown")}</span>
-                  <span>{formatJobTrigger(job.triggered_by)}</span>
+                  <span>{formatPriorityLabel(job.priority)}</span>
                   <span>{formatJobTimingLabel(job)}</span>
                   <button type="button" className="button button-secondary" onClick={() => setSelectedJobKey(`${String(job.job_kind)}:${String(job.id)}`)}>
                     Open detail
@@ -1216,17 +1413,83 @@ export function JobsAdminPanel() {
               <article className="table-row">
                 <div>
                   <strong>{buildJobOperatorSummary(selectedJob)}</strong>
-                  <span className="muted-copy">{selectedJob.error_message ? `Failure reason: ${String(selectedJob.error_message)}` : normalizeText(selectedJob.status) === "completed" ? `${formatJobSourceName(selectedJob)} completed ${formatJobStage(selectedJob.stage).toLowerCase()}.` : "This view explains the current job state in plain language before the raw technical payload."}</span>
+                  <span className="muted-copy">{selectedJob.error_message ? `Failure reason: ${String(selectedJob.error_message)}` : normalizeText(selectedJob.status) === "completed" ? `${formatJobSourceName(selectedJob)} completed ${formatJobStage(selectedJob.stage).toLowerCase()}.` : String(selectedJob.queue_delay_message || "This view explains the current job state in plain language before the raw technical payload.")}</span>
                 </div>
                 <div className="table-metrics">
                   <span className={`badge ${statusTone(selectedJob.status)}`}>{titleCaseWords(selectedJob.status || "unknown")}</span>
                   <span>{selectedJob.corpus_name ? `Corpus: ${String(selectedJob.corpus_name)}` : "No corpus linked yet"}</span>
-                  <span>{isActiveJobStatus(selectedJob.status) ? "ETA not available yet" : formatDuration(selectedJob.duration_seconds)}</span>
+                  <span>{isActiveJobStatus(selectedJob.status) ? formatEtaWindow(selectedJob.eta_window) : formatDuration(selectedJob.duration_seconds)}</span>
                 </div>
               </article>
+              {selectedIngestionJob ? (
+                <section className="card">
+                  <div className="section-head">
+                    <div>
+                      <h2>Queue Governance</h2>
+                      <p>Raise or lower waiting-job priority, review user escalation requests, and apply bounded queue controls.</p>
+                    </div>
+                  </div>
+                  <div className="page-stack">
+                    <div className="admin-summary-cards">
+                      <SummaryMetricCard label="Owner" value={formatJobOwner(selectedIngestionJob)} />
+                      <SummaryMetricCard label="Priority" value={formatPriorityLabel(selectedIngestionJob.priority)} tone={toNumber(selectedIngestionJob.priority) >= 150 ? "is-warning" : ""} />
+                      <SummaryMetricCard label="Queue Position" value={formatQueuePosition(selectedIngestionJob)} />
+                      <SummaryMetricCard label="ETA" value={formatEtaWindow(selectedIngestionJob.eta_window)} />
+                    </div>
+                    <div className="admin-filter-grid admin-filter-grid-3">
+                      <select value={priorityValue} onChange={(event) => setPriorityValue(event.target.value)}>
+                        <option value="200">Urgent</option>
+                        <option value="160">High</option>
+                        <option value="120">Elevated</option>
+                        <option value="100">Normal</option>
+                        <option value="80">Lower priority</option>
+                      </select>
+                      <input value={priorityReason} onChange={(event) => setPriorityReason(event.target.value)} placeholder="Reason for reprioritization or queue action" />
+                      <div className="toolbar-inline">
+                        <button type="button" className="button button-secondary" disabled={!selectedIngestionJob || busyAction !== ""} onClick={previewPriorityChange}>
+                          {busyAction === "priority-preview" ? "Previewing..." : "Preview impact"}
+                        </button>
+                        <button type="button" className="button button-primary" disabled={!selectedIngestionJob || busyAction !== ""} onClick={applyPriorityChange}>
+                          {busyAction === "priority-apply" ? "Saving..." : "Update priority"}
+                        </button>
+                      </div>
+                    </div>
+                    {priorityPreview ? <JsonPanel value={priorityPreview} /> : null}
+                    <div className="toolbar-inline">
+                      <button type="button" className="button button-secondary" disabled={!selectedIngestionJob || busyAction !== ""} onClick={() => runQueueControl("pause")}>Pause</button>
+                      <button type="button" className="button button-secondary" disabled={!selectedIngestionJob || busyAction !== ""} onClick={() => runQueueControl("resume")}>Resume</button>
+                      <button type="button" className="button button-secondary" disabled={!selectedIngestionJob || busyAction !== ""} onClick={() => runQueueControl("cancel")}>Cancel</button>
+                      <button type="button" className="button button-secondary" disabled={!selectedIngestionJob || busyAction !== ""} onClick={() => runQueueControl("requeue")}>Requeue</button>
+                      <button type="button" className="button button-secondary" disabled={!selectedIngestionJob || busyAction !== ""} onClick={() => runQueueControl("retry")}>Retry</button>
+                    </div>
+                    {selectedPriorityRequest ? (
+                      <div className="page-stack">
+                        <article className="table-row">
+                          <div>
+                            <strong>{`Priority request #${String(selectedPriorityRequest.id)}`}</strong>
+                            <span className="muted-copy">{`${titleCaseWords(selectedPriorityRequest.status || "submitted")} • Requested priority ${String(selectedPriorityRequest.requested_priority || "")}`}</span>
+                          </div>
+                          <div className="table-metrics">
+                            <span>{String(selectedPriorityRequest.reason || "No user reason provided.")}</span>
+                          </div>
+                        </article>
+                        <div className="admin-filter-grid admin-filter-grid-3">
+                          <input value={reviewReason} onChange={(event) => setReviewReason(event.target.value)} placeholder="Review note for the requester and audit trail" />
+                          <button type="button" className="button button-secondary" disabled={busyAction !== ""} onClick={() => reviewPriorityRequest("under_review")}>Mark under review</button>
+                          <div className="toolbar-inline">
+                            <button type="button" className="button button-primary" disabled={busyAction !== ""} onClick={() => reviewPriorityRequest("approved")}>Approve request</button>
+                            <button type="button" className="button button-secondary" disabled={busyAction !== ""} onClick={() => reviewPriorityRequest("denied")}>Deny request</button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </section>
+              ) : null}
               <div className="toolbar-inline">
                 {selectedJob.source_id ? <Link href={`/console/admin/sources?sourceId=${String(selectedJob.source_id)}`} className="admin-inline-link">Open source</Link> : null}
                 {selectedJob.corpus_name ? <Link href="/console/admin/corpora" className="admin-inline-link">Open corpora</Link> : null}
+                <Link href="/console/admin/audit-log" className="admin-inline-link">Open queue audit</Link>
               </div>
               <section className="card">
                 <div className="section-head">
@@ -1246,6 +1509,16 @@ export function JobsAdminPanel() {
                     created_at: selectedJob.created_at,
                     started_at: selectedJob.started_at,
                     completed_at: selectedJob.completed_at,
+                    queue_position: selectedJob.queue_position,
+                    eta_window: selectedJob.eta_window,
+                    wait_window: selectedJob.wait_window,
+                    priority: selectedJob.priority,
+                    priority_request: selectedJob.priority_request,
+                    owner: {
+                      display_name: selectedJob.owner_display_name,
+                      email: selectedJob.owner_email,
+                      external_user_id: selectedJob.owner_external_user_id,
+                    },
                     source_id: selectedJob.source_id,
                     source_file_name: selectedJob.source_file_name,
                     corpus_name: selectedJob.corpus_name,
@@ -2020,7 +2293,7 @@ export function AccessAdminPanel() {
 }
 
 export function AuditLogAdminPanel() {
-  const defaultFilters = { query: "", action: "", resourceType: "", outcome: "", actor: "", sort: "newest" };
+  const defaultFilters = { query: "", action: "", resourceType: "", outcome: "", actor: "", sourceId: "", jobId: "", fromTs: "", toTs: "", sort: "newest" };
   const [filters, setFilters] = useState({ ...defaultFilters });
   const [draftFilters, setDraftFilters] = useState({ ...defaultFilters });
   const [payload, setPayload] = useState<{ events: GenericMap[] }>({ events: [] });
@@ -2046,6 +2319,21 @@ export function AuditLogAdminPanel() {
     if (filters.outcome) {
       params.set("outcome", filters.outcome);
     }
+    if (filters.actor) {
+      params.set("actor_query", filters.actor);
+    }
+    if (filters.sourceId) {
+      params.set("source_id", filters.sourceId);
+    }
+    if (filters.jobId) {
+      params.set("job_id", filters.jobId);
+    }
+    if (filters.fromTs) {
+      params.set("from_ts", new Date(filters.fromTs).toISOString());
+    }
+    if (filters.toTs) {
+      params.set("to_ts", new Date(filters.toTs).toISOString());
+    }
     try {
       const next = await browserFetch<{ events: GenericMap[] }>(`/admin/audit-log${params.toString() ? `?${params.toString()}` : ""}`);
       setPayload(next);
@@ -2061,14 +2349,11 @@ export function AuditLogAdminPanel() {
 
   useEffect(() => {
     refresh();
-  }, [filters.action, filters.resourceType, filters.outcome]);
+  }, [filters.action, filters.resourceType, filters.outcome, filters.actor, filters.sourceId, filters.jobId, filters.fromTs, filters.toTs]);
 
   const visibleEvents = useMemo(() => {
     const filtered = payload.events.filter((event) => {
       if (!matchesQuery(filters.query, [event.action, event.resource_name, event.resource_id, event.actor_email, event.actor_external_user_id, event.resource_type])) {
-        return false;
-      }
-      if (filters.actor && !matchesQuery(filters.actor, [event.actor_email, event.actor_external_user_id])) {
         return false;
       }
       return true;
@@ -2099,6 +2384,10 @@ export function AuditLogAdminPanel() {
       resourceType: String(entry.filters.resourceType || ""),
       outcome: String(entry.filters.outcome || ""),
       actor: String(entry.filters.actor || ""),
+      sourceId: String(entry.filters.sourceId || ""),
+      jobId: String(entry.filters.jobId || ""),
+      fromTs: String(entry.filters.fromTs || ""),
+      toTs: String(entry.filters.toTs || ""),
       sort: String(entry.filters.sort || "newest"),
     };
     setDraftFilters(nextFilters);
@@ -2112,6 +2401,35 @@ export function AuditLogAdminPanel() {
 
   function removeSavedView(entry: SavedViewEntry) {
     deleteNamedView("audit", entry.name, setSavedViews);
+  }
+
+  function exportAuditLog() {
+    const params = new URLSearchParams();
+    if (filters.action) {
+      params.set("action", filters.action);
+    }
+    if (filters.resourceType) {
+      params.set("resource_type", filters.resourceType);
+    }
+    if (filters.outcome) {
+      params.set("outcome", filters.outcome);
+    }
+    if (filters.actor) {
+      params.set("actor_query", filters.actor);
+    }
+    if (filters.sourceId) {
+      params.set("source_id", filters.sourceId);
+    }
+    if (filters.jobId) {
+      params.set("job_id", filters.jobId);
+    }
+    if (filters.fromTs) {
+      params.set("from_ts", new Date(filters.fromTs).toISOString());
+    }
+    if (filters.toTs) {
+      params.set("to_ts", new Date(filters.toTs).toISOString());
+    }
+    window.open(browserApiUrl(`/admin/audit-log/export${params.toString() ? `?${params.toString()}` : ""}`), "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -2141,6 +2459,12 @@ export function AuditLogAdminPanel() {
         </div>
         <div className="admin-filter-grid admin-filter-grid-3">
           <input value={draftFilters.actor} onChange={(event) => setDraftFilters((current) => ({ ...current, actor: event.target.value }))} placeholder="Actor email or id" />
+          <input value={draftFilters.sourceId} onChange={(event) => setDraftFilters((current) => ({ ...current, sourceId: event.target.value }))} placeholder="Source id" />
+          <input value={draftFilters.jobId} onChange={(event) => setDraftFilters((current) => ({ ...current, jobId: event.target.value }))} placeholder="Job id" />
+        </div>
+        <div className="admin-filter-grid admin-filter-grid-3">
+          <input type="datetime-local" value={draftFilters.fromTs} onChange={(event) => setDraftFilters((current) => ({ ...current, fromTs: event.target.value }))} />
+          <input type="datetime-local" value={draftFilters.toTs} onChange={(event) => setDraftFilters((current) => ({ ...current, toTs: event.target.value }))} />
           <select value={draftFilters.outcome} onChange={(event) => setDraftFilters((current) => ({ ...current, outcome: event.target.value }))}>
             <option value="">Any outcome</option>
             <option value="completed">completed</option>
@@ -2156,6 +2480,9 @@ export function AuditLogAdminPanel() {
           <span className={`badge ${hasPendingFilterChanges ? "is-warning" : ""}`}>{hasPendingFilterChanges ? "Unapplied filter changes" : `Showing ${visibleEvents.length} of ${payload.events.length} events`}</span>
           <button type="button" className="button button-primary" disabled={!hasPendingFilterChanges} onClick={() => setFilters({ ...draftFilters })}>
             Apply filters
+          </button>
+          <button type="button" className="button button-secondary" onClick={exportAuditLog}>
+            Export JSONL
           </button>
           <button
             type="button"
