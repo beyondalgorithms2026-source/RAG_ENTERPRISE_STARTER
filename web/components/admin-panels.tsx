@@ -5,6 +5,7 @@ import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { browserApiUrl, browserFetch } from "@/lib/api-browser";
+import { findThreadMessageByRequestId } from "@/lib/workspace";
 
 type GenericMap = Record<string, unknown>;
 
@@ -131,6 +132,14 @@ function titleCaseWords(value: unknown) {
     .join(" ");
 }
 
+function questionPreview(value: unknown) {
+  const text = String(value || "").trim().replace(/\s+/g, " ");
+  if (!text) {
+    return "Open trace";
+  }
+  return text.length > 72 ? `${text.slice(0, 69)}...` : text;
+}
+
 function isActiveJobStatus(value: unknown) {
   return ["queued", "processing", "running", "pending"].includes(normalizeText(value));
 }
@@ -154,7 +163,18 @@ function formatJobStage(value: unknown) {
   if (!normalized) {
     return "Unknown stage";
   }
-  return `${titleCaseWords(normalized)} stage`;
+  const labels: Record<string, string> = {
+    queued: "Waiting in queue",
+    parsing: "Reading document",
+    chunking: "Splitting into searchable sections",
+    embedding: "Building semantic index",
+    "indexing/enrichment": "Finalizing retrieval data",
+    paused: "Paused",
+    cancelled: "Cancelled",
+    completed: "Completed",
+    failed: "Failed",
+  };
+  return labels[normalized] || titleCaseWords(normalized);
 }
 
 function formatJobTrigger(value: unknown) {
@@ -172,7 +192,19 @@ function formatJobTrigger(value: unknown) {
 }
 
 function formatJobSourceName(job: GenericMap) {
-  return String(job.source_file_name || "Source record pending");
+  if (job.source_file_name) {
+    return String(job.source_file_name);
+  }
+  if (normalizeText(job.triggered_by) === "upload") {
+    return "Uploaded file awaiting source details";
+  }
+  if (normalizeText(job.triggered_by) === "admin_reindex") {
+    return `Admin reindex for source #${String(job.source_id || job.id || "pending")}`;
+  }
+  if (normalizeText(job.triggered_by) === "admin_retry") {
+    return `Retry job for source #${String(job.source_id || job.id || "pending")}`;
+  }
+  return `Queued source job #${String(job.id || "pending")}`;
 }
 
 function formatJobOwner(job: GenericMap) {
@@ -224,17 +256,50 @@ function formatJobTimingLabel(job: GenericMap) {
   return formatDuration(job.duration_seconds);
 }
 
+function formatJobHeadline(job: GenericMap) {
+  const sourceName = formatJobSourceName(job);
+  const stage = formatJobStage(job.stage_label || job.stage);
+  const normalizedStatus = normalizeText(job.status);
+  if (normalizedStatus === "completed") {
+    return `${sourceName} completed indexing`;
+  }
+  if (normalizedStatus === "failed" || normalizedStatus === "error") {
+    return `${sourceName} needs attention`;
+  }
+  return `${sourceName} is ${stage.toLowerCase()}`;
+}
+
+function formatJobSubline(job: GenericMap) {
+  const parts = [formatJobOwner(job)];
+  if (job.corpus_name) {
+    parts.push(`${String(job.corpus_name)} corpus`);
+  }
+  if (job.source_type) {
+    parts.push(String(job.source_type).toUpperCase());
+  }
+  return parts.join(" • ");
+}
+
 function buildJobOperatorSummary(job: GenericMap) {
   const sourceName = formatJobSourceName(job);
   const status = titleCaseWords(job.status || "unknown");
-  const stage = formatJobStage(job.stage);
+  const stage = formatJobStage(job.stage_label || job.stage);
   const trigger = formatJobTrigger(job.triggered_by);
   const owner = ` It belongs to ${formatJobOwner(job)}.`;
   const corpus = job.corpus_name ? ` It is linked to the ${String(job.corpus_name)} corpus.` : " It is not linked to a corpus yet.";
   const eta = isActiveJobStatus(job.status)
     ? ` ${String(job.status).toLowerCase() === "queued" ? "Estimated completion" : "Estimated time remaining"} is ${formatEtaWindow(job.eta_window)}.`
     : "";
-  return `${sourceName} is currently in ${stage.toLowerCase()} with status ${status}. ${trigger}.${owner}${corpus}${eta}`;
+  return `${sourceName} is currently ${stage.toLowerCase()} with status ${status}. ${trigger}.${owner}${corpus}${eta}`;
+}
+
+function traceLinkTarget(trace: GenericMap) {
+  const requestId = String(trace.request_id || "");
+  const target = requestId ? findThreadMessageByRequestId(requestId) : null;
+  if (target) {
+    return `/console/workspace/chat/${target.threadId}#message-${target.messageId}`;
+  }
+  return `/console/admin/traces`;
 }
 
 function SavedViewsToolbar({
@@ -1385,8 +1450,8 @@ export function JobsAdminPanel() {
             {isLoading ? <EmptyState title="Loading jobs..." copy="Fetching ingestion and enrichment queue state from the admin control plane." icon="progress_activity" /> : visibleJobs.length ? visibleJobs.map((job) => (
               <article key={`${String(job.job_kind)}:${String(job.id)}`} className="table-row">
                 <div>
-                  <strong>{`${String(job.job_kind)} job #${String(job.id)}`}</strong>
-                  <span className="muted-copy">{`${formatJobSourceName(job)} • ${formatJobStage(job.stage_label || job.stage)} • ${formatJobOwner(job)}`}</span>
+                  <strong>{formatJobHeadline(job)}</strong>
+                  <span className="muted-copy">{formatJobSubline(job)}</span>
                 </div>
                 <div className="table-metrics">
                   <span className={`badge ${statusTone(job.status)}`}>{titleCaseWords(job.status || "unknown")}</span>
@@ -1413,7 +1478,7 @@ export function JobsAdminPanel() {
               <article className="table-row">
                 <div>
                   <strong>{buildJobOperatorSummary(selectedJob)}</strong>
-                  <span className="muted-copy">{selectedJob.error_message ? `Failure reason: ${String(selectedJob.error_message)}` : normalizeText(selectedJob.status) === "completed" ? `${formatJobSourceName(selectedJob)} completed ${formatJobStage(selectedJob.stage).toLowerCase()}.` : String(selectedJob.queue_delay_message || "This view explains the current job state in plain language before the raw technical payload.")}</span>
+                  <span className="muted-copy">{selectedJob.error_message ? `Failure reason: ${String(selectedJob.error_message)}` : normalizeText(selectedJob.status) === "completed" ? `${formatJobSourceName(selectedJob)} completed indexing successfully.` : String(selectedJob.queue_delay_message || "This view explains the current job state in plain language before the raw technical payload.")}</span>
                 </div>
                 <div className="table-metrics">
                   <span className={`badge ${statusTone(selectedJob.status)}`}>{titleCaseWords(selectedJob.status || "unknown")}</span>
@@ -1902,7 +1967,7 @@ export function TracesAdminPanel() {
 
   const visibleTraces = useMemo(() => {
     const filtered = payload.traces.filter((trace) => {
-      if (!matchesQuery(filters.query, [trace.request_id, trace.retrieval_path, trace.resolved_mode, trace.fallback_reason])) {
+      if (!matchesQuery(filters.query, [trace.question, trace.request_id, trace.retrieval_path, trace.resolved_mode, trace.fallback_reason])) {
         return false;
       }
       if (filters.mode !== "all" && normalizeText(trace.retrieval_path || trace.resolved_mode) !== filters.mode) {
@@ -1929,10 +1994,51 @@ export function TracesAdminPanel() {
     ? roundNumber(visibleTraces.reduce((total, trace) => total + toNumber(trace.total_latency_ms || trace.search_latency_ms), 0) / visibleTraces.length, 1)
     : 0;
   const hasPendingFilterChanges = !filtersMatch(filters, draftFilters);
+  const groupedTraces = useMemo(() => {
+    const groups: Array<{
+      key: string;
+      question: string;
+      traces: GenericMap[];
+      selected: GenericMap;
+      latestCreatedAt: number;
+    }> = [];
+    for (const trace of visibleTraces) {
+      const normalizedQuestion = normalizeText(trace.question);
+      const createdAt = toTimestampValue(trace.created_at);
+      const existing = groups.find(
+        (group) =>
+          group.key === normalizedQuestion &&
+          Math.abs(group.latestCreatedAt - createdAt) <= 2 * 60 * 1000,
+      );
+      if (!existing) {
+        groups.push({
+          key: normalizedQuestion,
+          question: String(trace.question || ""),
+          traces: [trace],
+          selected: trace,
+          latestCreatedAt: createdAt,
+        });
+        continue;
+      }
+      existing.traces.push(trace);
+      if (createdAt > existing.latestCreatedAt) {
+        existing.latestCreatedAt = createdAt;
+      }
+      if (!existing.selected.answer_path && trace.answer_path) {
+        existing.selected = trace;
+      } else if (existing.selected.answer_path === trace.answer_path && createdAt > toTimestampValue(existing.selected.created_at)) {
+        existing.selected = trace;
+      }
+    }
+    return groups.map((group) => ({
+      ...group,
+      traces: [...group.traces].sort((left, right) => toTimestampValue(right.created_at) - toTimestampValue(left.created_at)),
+    }));
+  }, [visibleTraces]);
 
   useEffect(() => {
-    setSelectedTraceId((current) => (current && visibleTraces.some((trace) => String(trace.id) === current) ? current : String(visibleTraces[0]?.id || "")));
-  }, [visibleTraces]);
+    setSelectedTraceId((current) => (current && groupedTraces.some((group) => String(group.selected.id) === current) ? current : String(groupedTraces[0]?.selected.id || "")));
+  }, [groupedTraces]);
 
   function applySavedView(entry: SavedViewEntry) {
     const nextFilters = {
@@ -2031,7 +2137,7 @@ export function TracesAdminPanel() {
           </div>
         </div>
         <div className="admin-filter-grid admin-filter-grid-4">
-          <input value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search request, path, or fallback reason" />
+          <input value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search question, path, or fallback reason" />
           <select value={draftFilters.mode} onChange={(event) => setDraftFilters((current) => ({ ...current, mode: event.target.value }))}>
             <option value="all">All modes</option>
             <option value="hybrid">hybrid</option>
@@ -2082,27 +2188,36 @@ export function TracesAdminPanel() {
         <section className="card">
           <div className="section-head">
             <div>
-              <h2>Recent Retrieval Traces</h2>
-              <p>Stored traces with fallback and latency context.</p>
+              <h2>Recent Retrieval Traces**</h2>
+              <p>Stored traces with readable question labels, fallback context, and latency details.</p>
             </div>
           </div>
           <div className="table-list">
-            {isLoading ? <EmptyState title="Loading traces..." copy="Fetching stored retrieval traces and the latest debug-ready request records." icon="progress_activity" /> : visibleTraces.length ? visibleTraces.map((trace) => (
-              <article key={String(trace.id)} className="table-row">
+            {isLoading ? <EmptyState title="Loading traces..." copy="Fetching stored retrieval traces and the latest debug-ready request records." icon="progress_activity" /> : groupedTraces.length ? groupedTraces.map((group) => (
+              <article key={`${group.key}-${String(group.selected.id)}`} className="table-row">
                 <div>
-                  <strong>{String(trace.request_id || trace.id)}</strong>
-                  <span className="muted-copy">{String(trace.retrieval_path || trace.resolved_mode || "hybrid")}</span>
+                  <strong>
+                    <Link href={traceLinkTarget(group.selected)} className="admin-inline-link">
+                      {questionPreview(group.question)}
+                    </Link>
+                  </strong>
+                  <span className="muted-copy">{String(group.selected.retrieval_path || group.selected.resolved_mode || "hybrid")}</span>
                 </div>
                 <div className="table-metrics">
-                  <span className={`badge ${statusTone(trace.has_fallback ? "warning" : "available")}`}>{trace.has_fallback ? "Fallback" : "Direct"}</span>
-                  <span>{String(trace.total_latency_ms || trace.search_latency_ms || "-")} ms</span>
-                  <button type="button" className="button button-secondary" onClick={() => setSelectedTraceId(String(trace.id))}>
+                  <span className={`badge ${statusTone(group.traces.some((trace) => trace.has_fallback) ? "warning" : "available")}`}>{group.traces.some((trace) => trace.has_fallback) ? "Fallback" : "Direct"}</span>
+                  <span>{String(group.selected.total_latency_ms || group.selected.search_latency_ms || "-")} ms</span>
+                  <button type="button" className="button button-secondary" onClick={() => setSelectedTraceId(String(group.selected.id))}>
                     Inspect
                   </button>
                 </div>
               </article>
             )) : <EmptyState title="No traces matched this view." copy={payload.traces.length ? "Stored traces exist, but nothing matches the current filters. Reset filters or apply a different saved view." : "This is normal on a clean system. Ask a question in the user workspace or run query debug above to generate the first stored trace."} icon="timeline" />}
           </div>
+          {groupedTraces.length ? (
+            <div className="toolbar-inline" style={{ justifyContent: "flex-end" }}>
+              <span className="muted-copy"><strong>**</strong> answer retrieval + <strong>*</strong> preview retrieval</span>
+            </div>
+          ) : null}
         </section>
 
         <section className="card">

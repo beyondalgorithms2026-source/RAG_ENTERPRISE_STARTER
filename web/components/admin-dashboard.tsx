@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
+import { findThreadMessageByRequestId } from "@/lib/workspace";
 
 type GenericMap = Record<string, unknown>;
 
@@ -31,6 +32,14 @@ function formatTimestamp(value: unknown) {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function questionPreview(value: unknown) {
+  const text = String(value || "").trim().replace(/\s+/g, " ");
+  if (!text) {
+    return "Open trace";
+  }
+  return text.length > 72 ? `${text.slice(0, 69)}...` : text;
 }
 
 export function AdminDashboard() {
@@ -162,7 +171,18 @@ export function AdminDashboard() {
                     <tr key={String(trace.id)}>
                       <td>
                         <div className="admin-trace-intent">
-                          <strong>{String(trace.request_id || trace.id)}</strong>
+                          {(() => {
+                            const requestId = String(trace.request_id || "");
+                            const target = requestId ? findThreadMessageByRequestId(requestId) : null;
+                            const href = target
+                              ? `/console/workspace/chat/${target.threadId}#message-${target.messageId}`
+                              : `/console/admin/traces`;
+                            return (
+                              <Link href={href} className="admin-inline-link">
+                                {questionPreview(trace.question)}
+                              </Link>
+                            );
+                          })()}
                           <span>{String(trace.fallback_reason || "No fallback recorded")}</span>
                         </div>
                       </td>

@@ -474,6 +474,11 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
         throw new Error("No final result returned by /ask/stream.");
       }
 
+      const retrievalTrace =
+        finalResult.debug_info && typeof finalResult.debug_info.retrieval_trace === "object"
+          ? (finalResult.debug_info.retrieval_trace as Record<string, unknown>)
+          : null;
+
       patchThread(threadId, (thread) => ({
         ...thread,
         messages: thread.messages.map((message) =>
@@ -482,6 +487,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                 ...message,
                 status: "completed",
                 content: finalResult.answer || "No answer returned.",
+                requestId: String(retrievalTrace?.request_id || ""),
                 citations: finalResult.citations,
                 mode: finalResult.mode,
                 debugInfo: finalResult.debug_info,
@@ -617,7 +623,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                     <div className="chat-user-bubble">{message.content}</div>
                   </div>
                 ) : (
-                  <div key={message.id} className="chat-answer-row">
+                  <div key={message.id} id={`message-${message.id}`} className="chat-answer-row">
                     <div className="chat-answer-avatar">
                       <span className="material-symbols-outlined icon-fill">auto_awesome</span>
                     </div>

@@ -21,6 +21,11 @@ type UploadResult = {
   file_name: string;
 };
 
+type BatchUploadResult = {
+  uploaded_count: number;
+  items: UploadResult[];
+};
+
 type IngestionJob = {
   id: number;
   source_id?: number | null;
@@ -240,18 +245,28 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
     return () => window.clearTimeout(timer);
   }, [sources, uploadJob]);
 
-  async function onFileSelected(file: File | null) {
-    if (!file) {
+  async function onFilesSelected(fileList: FileList | null) {
+    if (!fileList?.length) {
       return;
     }
+    const files = Array.from(fileList);
     setUploading(true);
-    setUploadFileName(file.name);
+    setUploadFileName(files.length === 1 ? files[0].name : `${files.length} files selected`);
     setUploadJob(null);
     setError("");
     const formData = new FormData();
-    formData.append("file", file);
     try {
-      const response = await fetch(browserApiUrl("/upload"), {
+      let selectedJobId: number | null = null;
+      let uploadLabel = files.length === 1 ? files[0].name : `${files.length} files selected`;
+      const endpoint = files.length === 1 ? "/upload" : "/upload/batch";
+      if (files.length === 1) {
+        formData.append("file", files[0]);
+      } else {
+        for (const file of files) {
+          formData.append("files", file);
+        }
+      }
+      const response = await fetch(browserApiUrl(endpoint), {
         method: "POST",
         body: formData,
         credentials: "include",
@@ -259,9 +274,22 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
       if (!response.ok) {
         throw new Error((await response.text()) || "Upload failed.");
       }
-      const payload = (await response.json()) as UploadResult;
-      const job = await browserFetch<IngestionJob>(`/corpus/jobs/${payload.job_id}`);
-      setUploadJob(job);
+      if (files.length === 1) {
+        const payload = (await response.json()) as UploadResult;
+        selectedJobId = payload.job_id;
+        uploadLabel = payload.file_name;
+      } else {
+        const payload = (await response.json()) as BatchUploadResult;
+        selectedJobId = payload.items[0]?.job_id ?? null;
+        if (payload.items.length > 0) {
+          uploadLabel = `${payload.items.length} files queued`;
+        }
+      }
+      setUploadFileName(uploadLabel);
+      if (selectedJobId) {
+        const job = await browserFetch<IngestionJob>(`/corpus/jobs/${selectedJobId}`);
+        setUploadJob(job);
+      }
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
@@ -355,17 +383,17 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
 
       <div className="sources-top-grid">
         <label className={`sources-upload-card ${uploading ? "is-uploading" : ""}`}>
-          <input type="file" hidden onChange={(event) => onFileSelected(event.target.files?.[0] || null)} />
+          <input type="file" multiple hidden onChange={(event) => onFilesSelected(event.target.files)} />
           <div className="sources-upload-icon">
             <span className="material-symbols-outlined">upload_file</span>
           </div>
           <h3>Upload Documents</h3>
-          <p>Use this page for direct file onboarding. A file is searchable only after indexing finishes; parsing and chunking alone are not enough.</p>
+          <p>Use this page for direct file onboarding. One or many files can be queued together, and each becomes searchable only after indexing finishes.</p>
           <div className="sources-upload-chips">
             <span>Max 25 MB</span>
             <span>Grounded retrieval</span>
           </div>
-          {!uploadStatus && sources.length === 0 ? <strong className="sources-upload-status sources-upload-tip">Start with one PDF or text file. This page will show upload accepted, indexing progress, and the final ready state.</strong> : null}
+          {!uploadStatus && sources.length === 0 ? <strong className="sources-upload-status sources-upload-tip">Start with one or more PDF or text files. This page will show upload acceptance, indexing progress, and the final ready state.</strong> : null}
           {uploadStatus ? <strong className="sources-upload-status">{uploadStatus}</strong> : null}
           <p className="sources-upload-footnote">Backend logs like `GET /corpus/jobs/*` and `GET /corpus` are normal polling while the page refreshes live upload progress.</p>
           {error ? <strong className="sources-upload-error">{error}</strong> : null}

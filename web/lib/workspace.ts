@@ -5,6 +5,7 @@ export type ThreadMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  requestId?: string | null;
   status?: "pending" | "completed" | "failed";
   progressLabel?: string | null;
   progress?: number | null;
@@ -61,4 +62,18 @@ export function updateThreadRecord(threadId: string, updater: (thread: ThreadRec
   const nextThreads = readThreads().map((thread) => (thread.id === threadId ? updater(thread) : thread));
   writeThreads(nextThreads);
   return nextThreads;
+}
+
+export function findThreadMessageByRequestId(requestId: string): { threadId: string; messageId: string } | null {
+  if (!requestId) {
+    return null;
+  }
+  for (const thread of readThreads()) {
+    for (const message of thread.messages) {
+      if (message.requestId === requestId) {
+        return { threadId: thread.id, messageId: message.id };
+      }
+    }
+  }
+  return null;
 }
