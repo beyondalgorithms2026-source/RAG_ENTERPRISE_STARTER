@@ -462,8 +462,106 @@ function sourceDraftFromItem(source: GenericMap | null): SourceDraft {
   };
 }
 
+function isPlainRecord(value: unknown): value is GenericMap {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function formatDataKey(value: unknown) {
+  return titleCaseWords(String(value ?? "").replace(/[.-]/g, "_")) || "Value";
+}
+
+function formatDataValue(value: unknown) {
+  if (value === null) {
+    return "null";
+  }
+  if (value === undefined) {
+    return "Not provided";
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  if (typeof value === "number") {
+    return String(value);
+  }
+  const text = String(value);
+  return text.trim() ? text : "Empty";
+}
+
+function DataReader({ value, depth = 0 }: { value: unknown; depth?: number }) {
+  if (Array.isArray(value)) {
+    if (!value.length) {
+      return <span className="data-reader-empty">Empty list</span>;
+    }
+    return (
+      <div className="data-reader-table" data-depth={depth}>
+        {value.map((item, index) => (
+          <div className="data-reader-row" key={`${depth}-${index}`}>
+            <div className="data-reader-key">{`Item ${index + 1}`}</div>
+            <div className="data-reader-value">
+              {isPlainRecord(item) || Array.isArray(item) ? <DataReader value={item} depth={depth + 1} /> : formatDataValue(item)}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (isPlainRecord(value)) {
+    const entries = Object.entries(value);
+    if (!entries.length) {
+      return <span className="data-reader-empty">No fields</span>;
+    }
+    return (
+      <div className="data-reader-table" data-depth={depth}>
+        {entries.map(([key, item]) => (
+          <div className="data-reader-row" key={`${depth}-${key}`}>
+            <div className="data-reader-key">{formatDataKey(key)}</div>
+            <div className="data-reader-value">
+              {isPlainRecord(item) || Array.isArray(item) ? <DataReader value={item} depth={depth + 1} /> : formatDataValue(item)}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return <span className="data-reader-empty">{formatDataValue(value)}</span>;
+}
+
 function JsonPanel({ value }: { value: unknown }) {
-  return <pre className="json-panel">{JSON.stringify(value ?? {}, null, 2)}</pre>;
+  const [activeTab, setActiveTab] = useState<"reader" | "json">("reader");
+
+  return (
+    <div className="data-panel">
+      <div className="data-panel-tabs" role="tablist" aria-label="Payload view mode">
+        <button
+          type="button"
+          className={activeTab === "reader" ? "is-active" : ""}
+          onClick={() => setActiveTab("reader")}
+          role="tab"
+          aria-selected={activeTab === "reader"}
+        >
+          Reader
+        </button>
+        <button
+          type="button"
+          className={activeTab === "json" ? "is-active" : ""}
+          onClick={() => setActiveTab("json")}
+          role="tab"
+          aria-selected={activeTab === "json"}
+        >
+          Raw JSON
+        </button>
+      </div>
+      {activeTab === "reader" ? (
+        <div className="data-reader-panel" role="tabpanel">
+          <DataReader value={value ?? {}} />
+        </div>
+      ) : (
+        <pre className="json-panel" role="tabpanel">{JSON.stringify(value ?? {}, null, 2)}</pre>
+      )}
+    </div>
+  );
 }
 
 export function CorporaAdminPanel() {

@@ -60,33 +60,35 @@ export function ConsoleShell({
     return (
       <div className="admin-shell">
         <aside className="admin-sidebar">
-          <div className="admin-sidebar-head">
-            <h2>Admin</h2>
-            <p>Management</p>
-          </div>
-          <nav className="admin-sidebar-nav">
-            {navItems.map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`admin-sidebar-link ${
-                  pathname === item.href ? "is-active" : ""
-                }`}
-              >
-                <span className="material-symbols-outlined">{item.icon}</span>
-                <span>{item.label}</span>
-              </Link>
-            ))}
-          </nav>
-          <div className="admin-user-card">
-            <img src={brandAvatar} alt={viewer.name || viewer.email || viewer.user_id} />
-            <div>
-              <strong>{viewer.name || viewer.email || viewer.user_id}</strong>
-              <span>{hasAdminRole(viewer) ? "SYSTEM ADMIN" : viewer.roles.join(", ").toUpperCase()}</span>
+          <div className="admin-sidebar-scroll">
+            <div className="admin-sidebar-head">
+              <h2>RAG Enterprise</h2>
+              <p>Admin Console</p>
             </div>
-            <span className="material-symbols-outlined">unfold_more</span>
+            <nav className="admin-sidebar-nav">
+              {navItems.map((item) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className={`admin-sidebar-link ${
+                    pathname.startsWith(item.href) ? "is-active" : ""
+                  }`}
+                >
+                  <span className="material-symbols-outlined">{item.icon}</span>
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+            </nav>
           </div>
-          <div className="admin-logout-wrap">
+          <div className="admin-sidebar-footer">
+            <div className="admin-user-card">
+              <img src={brandAvatar} alt={viewer.name || viewer.email || viewer.user_id} />
+              <div>
+                <strong>{viewer.name || viewer.email || viewer.user_id}</strong>
+                <span>{hasAdminRole(viewer) ? "SYSTEM ADMIN" : viewer.roles.join(", ").toUpperCase()}</span>
+              </div>
+            </div>
+            <span>Built for enterprise retrieval teams</span>
             <LogoutButton />
           </div>
         </aside>
