@@ -1,6 +1,6 @@
 # STATUS.md — Milestone Progress Tracker
 
-**Current Milestone:** M12 — Cloud DB And Structured Source Connectors
+**Current Milestone:** M14 — Tool Actions With Policy Gate
 
 **Completed**
 - M0: Baseline Stable Import (baseline-import-stable)
@@ -24,6 +24,8 @@
 - M10.1.5: First-Run Empty States And Operator Onboarding (2026-04-14)
 - M11: Admin Workspace Polish And Operational UX (2026-04-16)
 - M11.1: Ingestion Queue Visibility, ETA, And Priority Governance (2026-04-16)
+- M12: Cloud DB And Structured Source Connectors (2026-04-20)
+- M13: Enterprise Email And Attachment Ingestion (2026-04-21)
 
 **M10 summary**
 - Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
@@ -107,6 +109,21 @@
 - Extended the admin audit foundation for queue operations with stored request/decision/reprioritization/control events plus filterable/exportable JSONL audit output for enterprise review workflows
 - See docs/m11_1_ingestion_queue_visibility_eta_and_priority_governance.md
 
+**M12 summary**
+- Added persisted Postgres/MySQL connector configuration with sync cursors and connector audit events
+- Added read-only DB row ingestion that serializes rows into `db_row` sources, source parts, chunks, row provenance, and `db_rows` corpus policy metadata
+- Preserved metadata filters such as `customer_id` and `region` in locator/provenance fields so they are enforced with SQL-level ACL trimming during retrieval
+- Added a dedicated admin connector governance page for scoped request review, DB setup, schema inspection, sync preview, cursor/status visibility, and approved row syncs
+- Kept the user connector workspace focused on scoped connector requests, Google Drive file request details, email archive requests, and connected-source visibility
+- See docs/m12_cloud_db_and_structured_source_connectors.md
+
+**M13 summary**
+- Kept uploaded `.eml` parsing while preserving header/body-aware chunks and `email_casework` corpus policy routing
+- Added a mailbox/archive email connector abstraction that normalizes enterprise email records into the same parsed source model as uploaded email
+- Added attachment child-source ingestion for supported attachment file types, with parent-child links stored in `attachments`
+- Extended connector request screens so Email Archive and Google Drive file requests carry visible scope details and user-visible review status
+- See docs/m13_enterprise_email_and_attachment_ingestion.md
+
 **M9 summary**
 - Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline
 - Source-scoped retrieval now honors corpus default modes so different corpora behave differently without changing global settings
@@ -159,9 +176,9 @@
 - See docs/m2_retrieval_observability_and_traceability.md
 
 **Next actions**
-- Start M12: cloud DB and structured source connectors
-- Replace connector request-only flows with real DB connector configuration and ingestion visibility where backend support lands
-- Preserve metadata filters and ACL trimming as structured sources join the retrieval path
+- Start M14: tool actions with policy gate
+- Add tool registry and policy gate
+- Audit every tool invocation request, payload, and status
 
 **Notes / DoD checklist (M10)**
 - [x] Anonymous users can view the homepage but cannot access `/console/*`
@@ -251,6 +268,24 @@
 - [x] Admin can inspect the queue at both file and user level and take bounded, auditable action
 - [x] Reprioritization updates affected queued-job timing/status rather than leaving stale expectations in place
 - [x] Every queue-control and priority decision is audit-recorded with actor, reason, and impact
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M12)**
+- [x] Can ingest DB rows into a corpus-backed `db_row` source
+- [x] Can query synced DB rows with metadata filters preserved
+- [x] Filters are enforced alongside SQL-level ACL trimming
+- [x] Admin connector screen exposes DB configuration, schema preview, sync preview, sync, and visibility
+- [x] User connector screen supports request submission and approved connected-source visibility
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M13)**
+- [x] Uploaded `.eml` support remains intact
+- [x] Email ingestion is no longer limited conceptually to uploaded `.eml`
+- [x] Mailbox/archive records normalize into email header/body source parts
+- [x] Supported attachments can be modeled as searchable child sources
+- [x] Source and connector pages expose email/mailbox-style request flows
 - [x] docs/ note added
 - [x] STATUS.md updated
 

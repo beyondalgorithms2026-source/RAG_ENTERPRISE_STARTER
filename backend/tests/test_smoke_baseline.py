@@ -2,6 +2,157 @@ from tests.smoke_test_base import *
 
 
 class SmokeTestBaseline(SmokeTestBase):
+    def test_m12_db_row_serialization_preserves_filter_metadata(self):
+        from app.connectors.db import serialize_db_row
+        from app.db.repo_connectors import DbConnectorRow
+
+        connector = DbConnectorRow(
+            id=12,
+            name="support cases",
+            connector_type="postgres",
+            db_url="postgresql://example",
+            table_name="customer_cases",
+            id_column="id",
+            updated_at_column="updated_at",
+            text_columns_json=["title", "body"],
+            metadata_columns_json=["customer_id", "region"],
+            corpus_name="db_rows",
+            acl_group_names_json=["support"],
+            status="configured",
+            last_cursor_updated_at=None,
+            last_cursor_id=None,
+            last_run_at=None,
+            last_error=None,
+            connector_metadata_json={},
+        )
+
+        parsed = serialize_db_row(
+            connector,
+            {
+                "id": 42,
+                "updated_at": "2026-04-20T10:00:00Z",
+                "title": "Renewal blocker",
+                "body": "Acme needs the EU data-processing addendum.",
+                "customer_id": "acme",
+                "region": "eu",
+            },
+        )
+        chunks = chunk_parsed_document(parsed, policy_name="db_rows")
+
+        self.assertEqual(parsed.source_type, "db_row")
+        self.assertEqual(parsed.metadata["customer_id"], "acme")
+        self.assertEqual(chunks[0]["locator_json"]["region"], "eu")
+        self.assertEqual(chunks[0]["provenance_json"]["parser_route"], "structured_row_serialization")
+        self.assertIn("Renewal blocker", chunks[0]["chunk_text"])
+
+    def test_m12_db_connector_ingests_queryable_acl_scoped_rows(self):
+        from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
+        from app.db.repo_acl import sync_authenticated_user
+        from app.db.repo_connectors import upsert_db_connector
+        import app.connectors.db as db_connector_module
+
+        suffix = uuid4().hex[:8]
+        table_name = f"m12_cases_{suffix}"
+        connector_id = None
+        source_ids: list[int] = []
+        user = AuthenticatedUser(user_id=f"m12-user-{suffix}", email=f"m12-{suffix}@example.test", groups=["support"])
+        token = set_current_user(user)
+        original_process_embeddings = db_connector_module.process_embeddings
+        original_run_enrichment = db_connector_module.run_post_ingestion_enrichment
+        db_connector_module.process_embeddings = lambda *, force=False, source_id=None: {"chunks_embedded": 1}
+        db_connector_module.run_post_ingestion_enrichment = lambda **kwargs: None
+        try:
+            sync_authenticated_user(user)
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        f"""
+                        CREATE TABLE {table_name} (
+                            id INTEGER PRIMARY KEY,
+                            updated_at TIMESTAMPTZ NOT NULL,
+                            title TEXT NOT NULL,
+                            body TEXT NOT NULL,
+                            customer_id TEXT NOT NULL,
+                            region TEXT NOT NULL
+                        )
+                        """
+                    )
+                )
+                conn.execute(
+                    text(f"INSERT INTO {table_name} (id, updated_at, title, body, customer_id, region) VALUES (1, now(), 'Renewal blocker', 'Acme needs contract support', 'acme', 'eu')")
+                )
+            connector_id = upsert_db_connector(
+                name=f"m12-{suffix}",
+                connector_type="postgres",
+                db_url=settings.DATABASE_URL,
+                table_name=table_name,
+                id_column="id",
+                updated_at_column="updated_at",
+                text_columns=["title", "body"],
+                metadata_columns=["customer_id", "region"],
+                corpus_name="db_rows",
+                acl_group_names=["support"],
+            )
+
+            result = db_connector_module.ingest_db_connector(connector_id, row_limit=10)
+            source_ids = result["source_ids"]
+            response = perform_search(
+                SearchRequest(
+                    question="contract support",
+                    k=5,
+                    mode="keyword",
+                    filters=SearchFilters(source_id=source_ids[0], metadata_filters={"customer_id": "acme", "region": "eu"}),
+                    debug=True,
+                )
+            )
+
+            self.assertEqual(result["rows_ingested"], 1)
+            self.assertTrue(response.results)
+            self.assertEqual(response.debug_info["structured_filters"], {"customer_id": "acme", "region": "eu"})
+            self.assertEqual(response.results[0].source_type, "db_row")
+        finally:
+            db_connector_module.process_embeddings = original_process_embeddings
+            db_connector_module.run_post_ingestion_enrichment = original_run_enrichment
+            reset_current_user(token)
+            for source_id in source_ids:
+                self._delete_seed_source(source_id)
+            with engine.begin() as conn:
+                if connector_id is not None:
+                    conn.execute(text("DELETE FROM db_connectors WHERE id = :connector_id"), {"connector_id": connector_id})
+                conn.execute(text(f"DROP TABLE IF EXISTS {table_name}"))
+
+    def test_m12_connector_requests_can_be_reviewed(self):
+        from app.db.repo_connectors import create_connector_request, list_connector_requests, update_connector_request_review
+
+        suffix = uuid4().hex[:8]
+        request_id = create_connector_request(
+            connector_type="database",
+            requested_system=f"m12-request-{suffix}",
+            business_reason="Need governed case search.",
+            requested_scope_json={"tables": ["customer_cases"]},
+            requester_external_user_id=f"requester-{suffix}",
+            requester_email=f"requester-{suffix}@example.test",
+            requester_display_name="Requester",
+        )
+        try:
+            requests = list_connector_requests(requester_external_user_id=f"requester-{suffix}")
+            self.assertEqual(requests[0].id, request_id)
+            self.assertEqual(requests[0].status, "submitted")
+
+            reviewed = update_connector_request_review(
+                request_id=request_id,
+                status="approved",
+                review_reason="Approved for DB connector setup.",
+                reviewed_by_external_user_id="admin",
+                reviewed_by_email="admin@example.test",
+            )
+            self.assertIsNotNone(reviewed)
+            self.assertEqual(reviewed.status, "approved")
+            self.assertEqual(reviewed.review_reason, "Approved for DB connector setup.")
+        finally:
+            with engine.begin() as conn:
+                conn.execute(text("DELETE FROM connector_requests WHERE id = :request_id"), {"request_id": request_id})
+
     def test_m9_transcript_policy_adds_speaker_and_time_metadata(self):
         from app.adapters.models import ParsedSourceDocument, ParsedSourcePart
 
@@ -858,12 +1009,28 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertTrue(checks["keyword index exists on chunks.search_tsv"])
         self.assertTrue(checks["vector index exists on chunks.embedding"])
         self.assertTrue(checks["enrichment_jobs.artifact_version column exists"])
+        self.assertTrue(checks["db_connectors table exists"])
 
     def test_migration_plan_exposes_ordered_patch_steps(self):
         from app.db.migrate import describe_migration_plan
 
         plan = describe_migration_plan()
-        self.assertEqual([item["step_id"] for item in plan], ["MIG-P001", "MIG-P002", "MIG-P003", "MIG-P004"])
+        self.assertEqual(
+            [item["step_id"] for item in plan],
+            [
+                "MIG-P001",
+                "MIG-P002",
+                "MIG-P003",
+                "MIG-P004",
+                "MIG-P005",
+                "MIG-P006",
+                "MIG-P007",
+                "MIG-P008",
+                "MIG-P009",
+                "MIG-P010",
+                "MIG-P011",
+            ],
+        )
         self.assertTrue(all(item["description"] for item in plan))
 
     def test_vector_mode_returns_embedded_chunk_match(self):
@@ -1522,6 +1689,78 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertEqual(parsed.metadata["attachment_count"], 1)
         self.assertIn("HTML body fallback", parsed.parts[1].content_text)
         self.assertEqual(parsed.parts[1].locator_json["body_format"], "text/html_fallback")
+
+    def test_m13_email_connector_record_normalizes_to_email_document(self):
+        from app.connectors.email import EmailAttachmentRecord, EmailMessageRecord, parsed_document_from_email_record
+
+        parsed = parsed_document_from_email_record(
+            EmailMessageRecord(
+                subject="Case escalation",
+                body_text="Please review the renewal attachment.",
+                from_email="sender@example.test",
+                to_email="support@example.test",
+                message_id="<m13@example.test>",
+                mailbox="support",
+                folder="Escalations",
+                attachments=[
+                    EmailAttachmentRecord(
+                        file_name="notes.txt",
+                        content_type="text/plain",
+                        content_bytes=b"renewal attachment text",
+                    )
+                ],
+            )
+        )
+
+        self.assertEqual(parsed.source_type, "email_message")
+        self.assertEqual(parsed.metadata["source_kind"], "mailbox_archive")
+        self.assertEqual(parsed.metadata["attachment_count"], 1)
+        self.assertEqual(parsed.parts[0].locator_json["mailbox"], "support")
+        self.assertEqual(parsed.attachments[0].content_bytes, b"renewal attachment text")
+
+    def test_m13_email_upload_creates_searchable_attachment_child_source(self):
+        from email.message import EmailMessage
+        import app.ingestion.jobs as jobs_module
+
+        message = EmailMessage()
+        message["From"] = "sender@example.test"
+        message["To"] = "support@example.test"
+        message["Subject"] = "Attachment case"
+        message["Message-ID"] = f"<m13-{uuid4().hex}@example.test>"
+        message.set_content("The attachment has the implementation details.")
+        message.add_attachment("M13 child attachment searchable text.", subtype="plain", filename="m13-notes.txt")
+
+        upload = UploadFile(
+            filename=f"m13-{uuid4().hex[:8]}.eml",
+            file=BytesIO(message.as_bytes()),
+            headers={"content-type": "message/rfc822"},
+        )
+        original_process_embeddings = jobs_module.process_embeddings
+        original_run_enrichment = jobs_module.run_post_ingestion_enrichment
+        jobs_module.process_embeddings = lambda *, force=False, source_id=None: {"chunks_embedded": 99}
+        jobs_module.run_post_ingestion_enrichment = lambda **kwargs: None
+        result = None
+        child_source_ids: list[int] = []
+        try:
+            result = asyncio.run(process_upload(upload))
+            with engine.connect() as conn:
+                attachment_rows = conn.execute(
+                    text("SELECT child_source_id FROM attachments WHERE parent_source_id = :source_id"),
+                    {"source_id": result["source_id"]},
+                ).fetchall()
+            self.assertEqual(len(attachment_rows), 1)
+            child_source_ids = [int(row[0]) for row in attachment_rows]
+            child_source = get_source_by_id(child_source_ids[0])
+            self.assertIsNotNone(child_source)
+            self.assertEqual(child_source.source_type, "txt")
+            self.assertEqual(child_source.ingestion_status, "embedded")
+        finally:
+            jobs_module.process_embeddings = original_process_embeddings
+            jobs_module.run_post_ingestion_enrichment = original_run_enrichment
+            for child_source_id in child_source_ids:
+                self._delete_seed_source(child_source_id)
+            if result:
+                self._delete_seed_source(result["source_id"])
 
     def test_parse_pdf_to_canonical_representation(self):
         content = (FIXTURE_DIR / "sample.pdf").read_bytes()

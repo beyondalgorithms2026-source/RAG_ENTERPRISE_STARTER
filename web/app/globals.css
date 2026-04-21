@@ -3383,6 +3383,103 @@ textarea {
   gap: 20px;
 }
 
+.admin-card {
+  border-radius: 18px;
+  padding: 22px;
+  background: var(--surface-panel);
+  box-shadow: var(--ambient);
+}
+
+.admin-card h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.admin-section-intro {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-section-intro span {
+  color: var(--primary-strong);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.admin-section-intro h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+}
+
+.admin-section-intro p {
+  max-width: 760px;
+  margin: 0;
+  color: rgba(88, 99, 115, 0.92);
+}
+
+.admin-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--surface-low);
+}
+
+.admin-list-item-stacked {
+  display: grid;
+  align-items: stretch;
+}
+
+.admin-list-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.request-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(198, 197, 217, 0.55);
+}
+
+.request-detail-grid p {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.request-detail-grid strong {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.request-detail-grid span {
+  color: rgba(88, 99, 115, 0.92);
+}
+
+.admin-list-item p {
+  margin: 6px 0;
+  color: rgba(88, 99, 115, 0.92);
+}
+
+.admin-list-item small,
+.empty-copy {
+  color: rgba(118, 117, 136, 0.9);
+}
+
 .admin-route-intro {
   display: flex;
   align-items: flex-start;
@@ -3508,6 +3605,10 @@ textarea {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.form-span-3 {
+  grid-column: 1 / -1;
+}
+
 .form-inline {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -3531,6 +3632,7 @@ textarea {
 .admin-form-grid input,
 .admin-form-grid select,
 .admin-form-grid textarea,
+.request-detail-grid textarea,
 .admin-filter-grid input,
 .admin-filter-grid select,
 .admin-filter-grid textarea,

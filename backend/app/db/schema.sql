@@ -248,3 +248,49 @@ CREATE TABLE IF NOT EXISTS ingestion_priority_requests (
 CREATE INDEX IF NOT EXISTS ingestion_priority_requests_job_idx ON ingestion_priority_requests(job_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS ingestion_priority_requests_status_idx ON ingestion_priority_requests(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS ingestion_priority_requests_requester_idx ON ingestion_priority_requests(requester_external_user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS db_connectors (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    connector_type TEXT NOT NULL,
+    db_url TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    id_column TEXT NOT NULL DEFAULT 'id',
+    updated_at_column TEXT NOT NULL DEFAULT 'updated_at',
+    text_columns_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    metadata_columns_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    corpus_name TEXT,
+    acl_group_names_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    status TEXT NOT NULL DEFAULT 'configured',
+    last_cursor_updated_at TEXT,
+    last_cursor_id TEXT,
+    last_run_at TIMESTAMPTZ,
+    last_error TEXT,
+    connector_metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS db_connectors_type_idx ON db_connectors(connector_type);
+CREATE INDEX IF NOT EXISTS db_connectors_status_idx ON db_connectors(status);
+
+CREATE TABLE IF NOT EXISTS connector_requests (
+    id BIGSERIAL PRIMARY KEY,
+    connector_type TEXT NOT NULL,
+    requested_system TEXT NOT NULL,
+    business_reason TEXT NOT NULL DEFAULT '',
+    requested_scope_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status TEXT NOT NULL DEFAULT 'submitted',
+    review_reason TEXT,
+    requester_external_user_id TEXT,
+    requester_email TEXT,
+    requester_display_name TEXT,
+    reviewed_by_external_user_id TEXT,
+    reviewed_by_email TEXT,
+    reviewed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS connector_requests_status_idx ON connector_requests(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS connector_requests_requester_idx ON connector_requests(requester_external_user_id, created_at DESC);

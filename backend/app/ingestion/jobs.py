@@ -14,8 +14,9 @@ from app.core.config import REPO_ROOT, settings
 from app.core.logging import log_event, logger
 from app.auth.context import get_current_user
 from app.db.db import engine
+from app.db.repo_acl import assign_document_acl, list_source_acl_map
 from app.db.repo_chunks import check_chunks_exist, delete_chunks_for_source, insert_chunks
-from app.db.repo_jobs import create_ingestion_job, finish_ingestion_job, get_ingestion_job, update_ingestion_job
+from app.db.repo_jobs import create_attachment_link, create_ingestion_job, finish_ingestion_job, get_ingestion_job, update_ingestion_job
 from app.db.repo_source_parts import delete_source_parts_for_source, insert_source_part
 from app.db.repo_sources import (
     delete_source,
@@ -52,6 +53,16 @@ def _file_extension(file_name: str) -> str:
 
 def _compute_sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
+
+
+def _source_type_from_attachment(file_name: str, content_type: Optional[str]) -> Optional[str]:
+    extension = _file_extension(file_name)
+    if extension not in settings.ALLOWED_UPLOAD_EXTENSIONS:
+        return None
+    allowed_mimes = _EXTENSION_TO_MIME.get(extension, set())
+    if content_type and allowed_mimes and content_type not in allowed_mimes:
+        return None
+    return extension
 
 
 def _ensure_upload_dir() -> Path:
@@ -132,7 +143,7 @@ def _persist_upload_bytes(*, storage_path: str, content: bytes) -> Path:
     return absolute_path
 
 
-def _build_upload_metadata(*, file_name: str, content_type: Optional[str], hash_sha256: str) -> Dict[str, Any]:
+def _build_upload_metadata(*, file_name: str, source_type: str, content_type: Optional[str], hash_sha256: str) -> Dict[str, Any]:
     previous_source = get_latest_source_by_name(file_name)
     actor = get_current_user()
     metadata = {
@@ -143,6 +154,8 @@ def _build_upload_metadata(*, file_name: str, content_type: Optional[str], hash_
         "uploaded_by_email": actor.email if actor else None,
         "uploaded_by_display_name": actor.name if actor else None,
     }
+    if source_type == "eml":
+        metadata["corpus_policy"] = "email_casework"
     metadata["corpus_policy"] = resolve_policy_name_from_source_metadata(metadata)
     return metadata
 
@@ -259,6 +272,71 @@ def _link_chunks_to_source_parts(chunks: list[Dict[str, Any]], source_part_ids: 
     return linked_chunks
 
 
+def _ingest_email_attachment_children(*, parent_source_id: int, parsed: ParsedSourceDocument, job_id: int) -> Dict[str, Any]:
+    if parsed.source_type not in {"eml", "email_message"}:
+        return {"attachment_count": len(parsed.attachments), "child_source_ids": []}
+
+    child_source_ids: list[int] = []
+    parent_acl_groups = list_source_acl_map().get(parent_source_id, [])
+    for index, attachment in enumerate(parsed.attachments):
+        content = attachment.content_bytes or b""
+        source_type = _source_type_from_attachment(attachment.file_name, attachment.content_type)
+        if not content or source_type is None:
+            continue
+
+        hash_sha256 = _compute_sha256_bytes(content)
+        storage_path = _storage_path_for(f"attachment-{parent_source_id}-{attachment.file_name}", hash_sha256)
+        _persist_upload_bytes(storage_path=storage_path, content=content)
+        metadata = {
+            "parent_source_id": parent_source_id,
+            "parent_source_type": parsed.source_type,
+            "attachment_index": index,
+            "attachment_content_id": attachment.content_id,
+            "attachment_disposition": attachment.content_disposition,
+            "attachment_of_email": True,
+            "corpus_policy": "email_casework",
+        }
+        source_id = upsert_source(
+            storage_path=storage_path,
+            file_name=attachment.file_name,
+            source_type=source_type,
+            hash_sha256=hash_sha256,
+            mime_type=attachment.content_type,
+            file_size_bytes=len(content),
+            ingestion_status="processing",
+            enrichment_status="not_started",
+            source_metadata_json=metadata,
+        )
+        if parent_acl_groups:
+            assign_document_acl(source_id=source_id, group_names=parent_acl_groups)
+        child_parsed = parse_source_bytes(source_type, content, attachment.file_name)
+        delete_source_parts_for_source(source_id)
+        child_part_ids = _persist_source_parts(source_id, child_parsed)
+        chunks = chunk_parsed_document(child_parsed, policy_name="email_casework")
+        linked_chunks = _link_chunks_to_source_parts(chunks, child_part_ids)
+        if check_chunks_exist(source_id):
+            delete_chunks_for_source(source_id)
+        insert_chunks(source_id, linked_chunks)
+        process_embeddings(force=False, source_id=source_id)
+        update_source_status(source_id, ingestion_status="embedded")
+        run_post_ingestion_enrichment(
+            source_id=source_id,
+            source_part_count=len(child_part_ids),
+            chunk_count=len(linked_chunks),
+            record_job=False,
+        )
+        create_attachment_link(
+            parent_source_id=parent_source_id,
+            child_source_id=source_id,
+            attachment_metadata_json=attachment.to_dict(),
+        )
+        child_source_ids.append(source_id)
+
+    if child_source_ids:
+        _merge_ingestion_job_metadata(job_id, {"attachment_child_source_ids": child_source_ids})
+    return {"attachment_count": len(parsed.attachments), "child_source_ids": child_source_ids}
+
+
 def _ingest_uploaded_source(*, source_id: int, source_type: str, file_name: str, storage_path: str, job_id: int) -> Dict[str, Any]:
     try:
         update_source_status(source_id, ingestion_status="processing")
@@ -273,6 +351,16 @@ def _ingest_uploaded_source(*, source_id: int, source_type: str, file_name: str,
         )
         log_event("parse.completed", source_id=source_id, job_id=job_id, stage="parse", status="completed")
         _merge_ingestion_job_metadata(job_id, {"parsed_part_count": len(parsed.parts)})
+        attachment_stats = _ingest_email_attachment_children(parent_source_id=source_id, parsed=parsed, job_id=job_id)
+        if attachment_stats["child_source_ids"]:
+            log_event(
+                "email.attachments.completed",
+                source_id=source_id,
+                job_id=job_id,
+                stage="attachments",
+                status="completed",
+                reason=f"{len(attachment_stats['child_source_ids'])} child source(s)",
+            )
 
         _update_ingestion_job_stage(job_id, status="processing", stage="indexing_enrichment")
         source_part_ids = _persist_source_parts(source_id, parsed)
@@ -431,7 +519,7 @@ async def process_upload(
     storage_path = _storage_path_for(file_name, hash_sha256)
     _persist_upload_bytes(storage_path=storage_path, content=content)
 
-    metadata = _build_upload_metadata(file_name=file_name, content_type=upload.content_type, hash_sha256=hash_sha256)
+    metadata = _build_upload_metadata(file_name=file_name, source_type=source_type, content_type=upload.content_type, hash_sha256=hash_sha256)
     source_id, job_id = _queue_upload_source(
         file_name=file_name,
         source_type=source_type,

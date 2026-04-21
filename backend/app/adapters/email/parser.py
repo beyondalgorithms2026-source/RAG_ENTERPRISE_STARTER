@@ -85,6 +85,7 @@ def parse_eml_bytes(content: bytes, file_name: str) -> ParsedSourceDocument:
                 size_bytes=len(payload),
                 content_disposition=attachment.get_content_disposition(),
                 content_id=attachment.get("Content-ID"),
+                content_bytes=payload,
             )
         )
 

@@ -1,12 +1,16 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from app.auth.context import get_current_user
+from app.auth.dependencies import require_admin_user
 from app.db.repo_chunks import fetch_chunk_context
 from app.db.repo_admin_audit import insert_admin_audit_event
+from app.db.repo_connectors import DbConnectorRow, list_db_connectors, upsert_db_connector
+from app.db.repo_connectors import create_connector_request, list_connector_requests, update_connector_request_review
 from app.db.repo_jobs import get_ingestion_job, list_ingestion_jobs
 from app.db.repo_priority_requests import (
     create_priority_request,
@@ -15,9 +19,11 @@ from app.db.repo_priority_requests import (
     list_priority_requests,
 )
 from app.db.repo_sources import get_source_by_id, list_sources
+from app.db.repo_source_parts import list_source_parts
 from app.ingestion.queue_metrics import priority_request_payload, summarize_ingestion_queue
 from app.ingestion.jobs import delete_uploaded_source
 from app.ingestion.jobs import _source_file_absolute_path
+from app.connectors.db import ingest_db_connector, inspect_db_connector_schema, preview_db_connector_sync
 
 
 router = APIRouter()
@@ -121,6 +127,78 @@ class ChunkContextResponse(BaseModel):
     neighbors: List[ChunkContextItem] = []
 
 
+class DbConnectorCreate(BaseModel):
+    name: str
+    connector_type: Literal["postgres", "mysql"] = "postgres"
+    db_url: str
+    table_name: str
+    id_column: str = "id"
+    updated_at_column: str = "updated_at"
+    text_columns: List[str] = Field(default_factory=list)
+    metadata_columns: List[str] = Field(default_factory=list)
+    corpus_name: Optional[str] = None
+    acl_group_names: List[str] = Field(default_factory=list)
+
+
+class DbConnectorItem(BaseModel):
+    id: int
+    name: str
+    connector_type: str
+    table_name: str
+    id_column: str
+    updated_at_column: str
+    text_columns: List[str]
+    metadata_columns: List[str]
+    corpus_name: Optional[str] = None
+    acl_group_names: List[str]
+    status: str
+    last_cursor_updated_at: Optional[str] = None
+    last_cursor_id: Optional[str] = None
+    last_run_at: Optional[str] = None
+    last_error: Optional[str] = None
+    connector_metadata_json: Dict[str, Any]
+
+
+class DbConnectorSyncRequest(BaseModel):
+    row_limit: int = Field(default=200, ge=1, le=1000)
+
+
+class DbConnectorSyncResponse(BaseModel):
+    status: str
+    connector_id: int
+    rows_ingested: int
+    source_ids: List[int]
+
+
+class ConnectorRequestCreate(BaseModel):
+    connector_type: str = "database"
+    requested_system: str
+    business_reason: str = ""
+    requested_scope_json: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ConnectorRequestReview(BaseModel):
+    status: Literal["under_review", "approved", "denied"]
+    review_reason: str = ""
+
+
+class ConnectorRequestItem(BaseModel):
+    id: int
+    connector_type: str
+    requested_system: str
+    business_reason: str
+    requested_scope_json: Dict[str, Any]
+    status: str
+    review_reason: Optional[str] = None
+    requester_external_user_id: Optional[str] = None
+    requester_email: Optional[str] = None
+    requester_display_name: Optional[str] = None
+    reviewed_by_external_user_id: Optional[str] = None
+    reviewed_by_email: Optional[str] = None
+    reviewed_at: Optional[str] = None
+    created_at: Optional[str] = None
+
+
 def _enriched_ingestion_jobs() -> list[dict[str, Any]]:
     expire_stale_priority_requests()
     sources = list_sources()
@@ -130,6 +208,31 @@ def _enriched_ingestion_jobs() -> list[dict[str, Any]]:
         latest_requests.setdefault(request.job_id, request)
     payloads, _ = summarize_ingestion_queue(list_ingestion_jobs(), source_lookup, latest_requests)
     return payloads
+
+
+def _connector_payload(row: DbConnectorRow) -> DbConnectorItem:
+    return DbConnectorItem(
+        id=row.id,
+        name=row.name,
+        connector_type=row.connector_type,
+        table_name=row.table_name,
+        id_column=row.id_column,
+        updated_at_column=row.updated_at_column,
+        text_columns=row.text_columns_json,
+        metadata_columns=row.metadata_columns_json,
+        corpus_name=row.corpus_name,
+        acl_group_names=row.acl_group_names_json,
+        status=row.status,
+        last_cursor_updated_at=row.last_cursor_updated_at,
+        last_cursor_id=row.last_cursor_id,
+        last_run_at=row.last_run_at,
+        last_error=row.last_error,
+        connector_metadata_json=row.connector_metadata_json,
+    )
+
+
+def _connector_request_payload(row) -> ConnectorRequestItem:
+    return ConnectorRequestItem(**row.__dict__)
 
 
 @router.get("/corpus", response_model=List[CorpusItem])
@@ -144,6 +247,147 @@ def corpus_list_endpoint():
         CorpusItem(**row.__dict__, latest_ingestion_job=latest_job_by_source.get(int(row.id)))
         for row in list_sources()
     ]
+
+
+@router.get("/connectors/db", response_model=List[DbConnectorItem])
+def db_connector_list_endpoint():
+    return [_connector_payload(row) for row in list_db_connectors()]
+
+
+@router.get("/connectors/requests", response_model=List[ConnectorRequestItem])
+def connector_request_list_endpoint():
+    actor = get_current_user()
+    requester_id = None if actor and "admin" in {role.lower() for role in actor.roles} else actor.user_id if actor else None
+    return [_connector_request_payload(row) for row in list_connector_requests(requester_external_user_id=requester_id)]
+
+
+@router.post("/connectors/requests", response_model=ConnectorRequestItem)
+def connector_request_create_endpoint(body: ConnectorRequestCreate):
+    actor = get_current_user()
+    request_id = create_connector_request(
+        connector_type=body.connector_type.strip() or "database",
+        requested_system=body.requested_system.strip(),
+        business_reason=body.business_reason.strip(),
+        requested_scope_json=body.requested_scope_json,
+        requester_external_user_id=actor.user_id if actor else None,
+        requester_email=actor.email if actor else None,
+        requester_display_name=actor.name if actor else None,
+    )
+    request = next(row for row in list_connector_requests(limit=20) if row.id == request_id)
+    insert_admin_audit_event(
+        event_type="connector",
+        action="connector.request.submitted",
+        resource_type="connector_request",
+        resource_id=str(request_id),
+        resource_name=body.requested_system,
+        after_json=request.__dict__,
+    )
+    return _connector_request_payload(request)
+
+
+@router.post("/connectors/requests/{request_id}/review", response_model=ConnectorRequestItem)
+def connector_request_review_endpoint(request_id: int, body: ConnectorRequestReview, _admin=Depends(require_admin_user)):
+    actor = get_current_user()
+    request = update_connector_request_review(
+        request_id=request_id,
+        status=body.status,
+        review_reason=body.review_reason,
+        reviewed_by_external_user_id=actor.user_id if actor else None,
+        reviewed_by_email=actor.email if actor else None,
+    )
+    if request is None:
+        raise HTTPException(status_code=404, detail={"error": "connector_request_not_found", "request_id": request_id})
+    insert_admin_audit_event(
+        event_type="connector",
+        action="connector.request.reviewed",
+        resource_type="connector_request",
+        resource_id=str(request_id),
+        resource_name=request.requested_system,
+        after_json=request.__dict__,
+    )
+    return _connector_request_payload(request)
+
+
+@router.post("/connectors/db", response_model=DbConnectorItem)
+def db_connector_create_endpoint(body: DbConnectorCreate, _admin=Depends(require_admin_user)):
+    if not body.name.strip():
+        raise HTTPException(status_code=400, detail={"error": "connector_name_required"})
+    if not body.text_columns:
+        raise HTTPException(status_code=400, detail={"error": "text_columns_required"})
+    connector_id = upsert_db_connector(
+        name=body.name.strip(),
+        connector_type=body.connector_type,
+        db_url=body.db_url.strip(),
+        table_name=body.table_name.strip(),
+        id_column=body.id_column.strip(),
+        updated_at_column=body.updated_at_column.strip(),
+        text_columns=[column.strip() for column in body.text_columns if column.strip()],
+        metadata_columns=[column.strip() for column in body.metadata_columns if column.strip()],
+        corpus_name=body.corpus_name.strip() if body.corpus_name and body.corpus_name.strip() else None,
+        acl_group_names=[group.strip() for group in body.acl_group_names if group.strip()],
+        connector_metadata_json={"source": "console"},
+    )
+    insert_admin_audit_event(
+        event_type="connector",
+        action="connector.db.configured",
+        resource_type="db_connector",
+        resource_id=str(connector_id),
+        resource_name=body.name.strip(),
+        corpus_name=body.corpus_name,
+        after_json={
+            "connector_id": connector_id,
+            "connector_type": body.connector_type,
+            "table_name": body.table_name,
+            "id_column": body.id_column,
+            "updated_at_column": body.updated_at_column,
+            "text_columns": body.text_columns,
+            "metadata_columns": body.metadata_columns,
+            "corpus_name": body.corpus_name,
+            "acl_group_names": body.acl_group_names,
+        },
+    )
+    return _connector_payload(next(row for row in list_db_connectors() if row.id == connector_id))
+
+
+@router.post("/connectors/db/{connector_id}/sync", response_model=DbConnectorSyncResponse)
+def db_connector_sync_endpoint(connector_id: int, body: DbConnectorSyncRequest, _admin=Depends(require_admin_user)):
+    try:
+        result = ingest_db_connector(connector_id, row_limit=body.row_limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail={"error": "connector_not_found", "message": str(exc)}) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail={"error": "connector_sync_failed", "message": str(exc)}) from exc
+    insert_admin_audit_event(
+        event_type="connector",
+        action="connector.db.synced",
+        resource_type="db_connector",
+        resource_id=str(connector_id),
+        job_kind="ingestion",
+        after_json=result,
+    )
+    return DbConnectorSyncResponse(**result)
+
+
+@router.get("/connectors/db/{connector_id}/schema")
+def db_connector_schema_endpoint(connector_id: int, _admin=Depends(require_admin_user)):
+    connector = next((row for row in list_db_connectors() if row.id == connector_id), None)
+    if connector is None:
+        raise HTTPException(status_code=404, detail={"error": "connector_not_found", "connector_id": connector_id})
+    try:
+        return inspect_db_connector_schema(connector)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail={"error": "connector_schema_failed", "message": str(exc)}) from exc
+
+
+@router.post("/connectors/db/{connector_id}/preview")
+def db_connector_preview_endpoint(connector_id: int, body: DbConnectorSyncRequest, _admin=Depends(require_admin_user)):
+    connector = next((row for row in list_db_connectors() if row.id == connector_id), None)
+    if connector is None:
+        raise HTTPException(status_code=404, detail={"error": "connector_not_found", "connector_id": connector_id})
+    try:
+        return preview_db_connector_sync(connector, row_limit=body.row_limit)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail={"error": "connector_preview_failed", "message": str(exc)}) from exc
 
 
 @router.get("/corpus/jobs/{job_id}", response_model=IngestionJobItem)
@@ -231,6 +475,11 @@ def corpus_source_file_endpoint(source_id: int):
     source = get_source_by_id(source_id)
     if source is None:
         raise HTTPException(status_code=404, detail={"error": "source_not_found", "source_id": source_id})
+
+    if source.source_type == "db_row":
+        parts = list_source_parts(source_id)
+        body = "\n\n".join(part.content_text or "" for part in parts).strip()
+        return PlainTextResponse(body or source.file_name, media_type="text/plain")
 
     absolute_path = _source_file_absolute_path(source.storage_path)
     if not absolute_path.exists():

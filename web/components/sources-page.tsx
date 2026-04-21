@@ -69,12 +69,34 @@ type PriorityRequest = {
 };
 
 type ConnectorRequest = {
-  id: string;
-  system: string;
-  createdAt: string;
+  id: number;
+  connector_type: string;
+  requested_system: string;
+  business_reason: string;
+  requested_scope_json: Record<string, unknown>;
+  status: string;
+  review_reason?: string | null;
+  created_at?: string | null;
 };
 
-const CONNECTOR_STORAGE = "rag_console_connector_requests_stitch_v1";
+type DbConnector = {
+  id: number;
+  name: string;
+  connector_type: "postgres" | "mysql" | string;
+  table_name: string;
+  id_column: string;
+  updated_at_column: string;
+  text_columns: string[];
+  metadata_columns: string[];
+  corpus_name?: string | null;
+  acl_group_names: string[];
+  status: string;
+  last_cursor_updated_at?: string | null;
+  last_cursor_id?: string | null;
+  last_run_at?: string | null;
+  last_error?: string | null;
+  connector_metadata_json: Record<string, unknown>;
+};
 
 function iconForSource(source: SourceItem) {
   const type = source.source_type.toLowerCase();
@@ -189,9 +211,11 @@ function priorityStatusCopy(request: PriorityRequest | null | undefined) {
   return "Priority request submitted and waiting for admin review.";
 }
 
-export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads" | "connectors" }) {
+export function SourcesPage({ view = "sources", canManageConnectors = false }: { view?: "sources" | "uploads" | "connectors"; canManageConnectors?: boolean }) {
   const [sources, setSources] = useState<SourceItem[]>([]);
   const [connectorRequests, setConnectorRequests] = useState<ConnectorRequest[]>([]);
+  const [dbConnectors, setDbConnectors] = useState<DbConnector[]>([]);
+  const [connectorFeedback, setConnectorFeedback] = useState("");
   const [uploadJob, setUploadJob] = useState<IngestionJob | null>(null);
   const [uploadFileName, setUploadFileName] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -201,11 +225,27 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
   const [priorityLevel, setPriorityLevel] = useState("200");
   const [priorityBusy, setPriorityBusy] = useState(false);
   const [priorityFeedback, setPriorityFeedback] = useState("");
+  const [connectorDraft, setConnectorDraft] = useState({
+    requested_system: "Postgres",
+    connector_type: "database",
+    business_reason: "",
+    database_hint: "",
+    table_or_scope: "",
+    drive_file_name: "",
+    drive_file_url: "",
+    access_note: "",
+  });
 
   async function refresh() {
     try {
-      const payload = await browserFetch<SourceItem[]>("/corpus");
+      const [payload, connectorPayload, requestPayload] = await Promise.all([
+        browserFetch<SourceItem[]>("/corpus"),
+        browserFetch<DbConnector[]>("/connectors/db"),
+        browserFetch<ConnectorRequest[]>("/connectors/requests"),
+      ]);
       setSources(payload);
+      setDbConnectors(connectorPayload);
+      setConnectorRequests(requestPayload);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load sources.");
@@ -214,18 +254,7 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
 
   useEffect(() => {
     refresh();
-    try {
-      const raw = localStorage.getItem(CONNECTOR_STORAGE);
-      const parsed = raw ? (JSON.parse(raw) as ConnectorRequest[]) : [];
-      setConnectorRequests(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      setConnectorRequests([]);
-    }
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem(CONNECTOR_STORAGE, JSON.stringify(connectorRequests));
-  }, [connectorRequests]);
 
   useEffect(() => {
     if (!isActiveJob(uploadJob) && !sources.some((source) => isActiveJob(source.latest_ingestion_job))) {
@@ -300,11 +329,40 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
     }
   }
 
-  function addConnectorRequest(system: string) {
-    setConnectorRequests((prev) => [
-      { id: Math.random().toString(36).slice(2, 10), system, createdAt: new Date().toISOString() },
-      ...prev,
-    ]);
+  function chooseConnectorRequest(system: string) {
+    const connectorType = system === "Postgres" || system === "MySQL" ? "database" : system.toLowerCase().replace(/\s+/g, "_");
+    setConnectorDraft((current) => ({
+      ...current,
+      requested_system: system,
+      connector_type: connectorType,
+      business_reason: current.business_reason || `Need ${system} content available in governed search.`,
+    }));
+    setConnectorFeedback(`${system} selected. Add scope details and submit the request.`);
+  }
+
+  async function addConnectorRequest() {
+    setConnectorFeedback("");
+    try {
+      await browserFetch<ConnectorRequest>("/connectors/requests", {
+        method: "POST",
+        json: {
+          connector_type: connectorDraft.connector_type,
+          requested_system: connectorDraft.requested_system,
+          business_reason: connectorDraft.business_reason,
+          requested_scope_json: {
+            database_hint: connectorDraft.database_hint,
+            table_or_scope: connectorDraft.table_or_scope,
+            drive_file_name: connectorDraft.drive_file_name,
+            drive_file_url: connectorDraft.drive_file_url,
+            access_note: connectorDraft.access_note,
+          },
+        },
+      });
+      setConnectorFeedback(`${connectorDraft.requested_system} request submitted. Track the status below.`);
+      await refresh();
+    } catch (err) {
+      setConnectorFeedback(err instanceof Error ? err.message : "Failed to submit connector request.");
+    }
   }
 
   const visibleSources = sources.filter((source) => {
@@ -322,6 +380,8 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
     const lowerType = source.source_type.toLowerCase();
     return (
       lowerType.includes("database") ||
+      lowerType.includes("db_row") ||
+      lowerType.includes("email") ||
       lowerType.includes("postgres") ||
       lowerType.includes("sql") ||
       typeof metadata.connector === "string" ||
@@ -371,11 +431,11 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
             {showUploadFirst
               ? "Add files, watch indexing stages, and confirm when a source is ready for grounded retrieval."
               : showConnectorsFirst
-                ? "Request connectors now, then track available connected sources as backend connector support lands."
+                ? "Request a specific connected source and track admin review, approval, denial, and synced data."
                 : "Manage visible sources, uploads, and connector requests from one grounded workspace."}
           </p>
         </div>
-        <button type="button" className="stitch-button stitch-button-primary" onClick={() => addConnectorRequest("Requested Connector")}>
+        <button type="button" className="stitch-button stitch-button-primary" onClick={() => chooseConnectorRequest("Postgres")}>
           <span className="material-symbols-outlined">add_link</span>
           Request New Connector
         </button>
@@ -404,27 +464,57 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
           <div className="sources-connector-grid">
             {[
               ["database", "Postgres"],
+              ["database", "MySQL"],
               ["add_to_drive", "Google Drive"],
-              ["library_books", "Confluence"],
+              ["alternate_email", "Email Archive"],
             ].map(([icon, label]) => (
-              <button key={label} type="button" className="sources-connector-button" onClick={() => addConnectorRequest(label)}>
+              <button
+                key={label}
+                type="button"
+                className="sources-connector-button"
+                onClick={() => chooseConnectorRequest(label)}
+              >
                 <span className="material-symbols-outlined">{icon}</span>
                 <span>{label}</span>
-                <small>Request flow live</small>
+                <small>Select</small>
               </button>
             ))}
           </div>
           {connectorRequests[0] ? (
             <div className="sources-connector-note">
-              Latest request: <strong>{connectorRequests[0].system}</strong>
+              Latest request: <strong>{connectorRequests[0].requested_system}</strong> · {titleCaseWords(connectorRequests[0].status)}
             </div>
           ) : (
             <div className="sources-connector-note">
-              Requests are stored locally for now; full connector configuration lands in later milestones.
+              Requests go to admins for scope review, connector setup, and governed sync.
             </div>
           )}
+          {connectorFeedback ? <div className="sources-connector-note"><strong>{connectorFeedback}</strong></div> : null}
         </aside>
       </div>
+
+      {showConnectorsFirst ? (
+        <section className="sources-table-section">
+          <div className="sources-connected-card sources-request-card">
+            <div className="sources-table-head">
+              <h2>Connector Request</h2>
+              {canManageConnectors ? <Link href="/console/admin/connectors" className="stitch-button stitch-button-secondary">Open Admin Connectors</Link> : null}
+            </div>
+            <div className="admin-form-grid">
+              <label><span>System</span><select value={connectorDraft.requested_system} onChange={(event) => chooseConnectorRequest(event.target.value)}><option>Postgres</option><option>MySQL</option><option>Google Drive</option><option>Email Archive</option></select></label>
+              <label><span>Business Reason</span><input value={connectorDraft.business_reason} onChange={(event) => setConnectorDraft((current) => ({ ...current, business_reason: event.target.value }))} placeholder="Why this data is needed" /></label>
+              <label><span>Database Or Workspace</span><input value={connectorDraft.database_hint} onChange={(event) => setConnectorDraft((current) => ({ ...current, database_hint: event.target.value }))} placeholder="CRM prod, finance DB, Drive folder" /></label>
+              <label><span>Table Or Scope</span><input value={connectorDraft.table_or_scope} onChange={(event) => setConnectorDraft((current) => ({ ...current, table_or_scope: event.target.value }))} placeholder="schema.table, mailbox, folder, labels" /></label>
+              <label><span>Drive File Name</span><input value={connectorDraft.drive_file_name} onChange={(event) => setConnectorDraft((current) => ({ ...current, drive_file_name: event.target.value }))} placeholder="Only for Google Drive" /></label>
+              <label><span>Drive File URL</span><input value={connectorDraft.drive_file_url} onChange={(event) => setConnectorDraft((current) => ({ ...current, drive_file_url: event.target.value }))} placeholder="Shared Google Drive URL" /></label>
+              <label className="form-span-3"><span>Access Note</span><textarea value={connectorDraft.access_note} onChange={(event) => setConnectorDraft((current) => ({ ...current, access_note: event.target.value }))} rows={3} placeholder="Owner, sensitivity, requested ACL group, or admin access instructions" /></label>
+            </div>
+            <div className="toolbar-inline">
+              <button type="button" className="stitch-button stitch-button-primary" onClick={addConnectorRequest}>Submit Request</button>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="sources-table-section">
         <div className="sources-table-head">
@@ -461,7 +551,7 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
                       {showConnectorsFirst ? (
                         <>
                           <strong>No connected sources are visible yet.</strong>
-                          <p>This is normal until a connector request turns into a real synced source. The request flow is live now; connector ingestion lands later.</p>
+                          <p>This is normal until an admin configures and syncs an approved connector.</p>
                         </>
                       ) : filter === "Indexed" && processingSourceCount > 0 ? (
                         <>
@@ -580,14 +670,43 @@ export function SourcesPage({ view = "sources" }: { view?: "sources" | "uploads"
               <strong>No upload started yet.</strong>
               <p>On a clean workspace, start with one file upload above. This panel will switch from upload accepted to indexing progress and finally to ready for retrieval.</p>
             </div>
-          ) : connectedData.length === 0 ? (
+          ) : dbConnectors.length === 0 && connectedData.length === 0 && (!showConnectorsFirst || connectorRequests.length === 0) ? (
             <div className="sources-connected-empty">
               <span className="material-symbols-outlined">hub</span>
               <strong>No connected systems yet.</strong>
-              <p>Connector requests can be recorded now. Real Postgres, Google Drive, and Confluence ingestion will populate this area once backend connector support is available.</p>
+              <p>Approved and synced connector data appears here with corpus and readiness status.</p>
             </div>
           ) : (
             <div className="sources-connected-list">
+              {showConnectorsFirst && connectorRequests.map((request) => (
+                <article key={`request-${request.id}`} className="sources-connected-item">
+                  <div className="sources-connected-head">
+                    <span className="material-symbols-outlined">fact_check</span>
+                    <div>
+                      <strong>{request.requested_system}</strong>
+                      <span>{titleCaseWords(request.status)} · {request.created_at || "submitted"}</span>
+                    </div>
+                  </div>
+                  <p>{request.business_reason || "No reason supplied."}</p>
+                  {request.review_reason ? <p className="sources-connected-note">{request.review_reason}</p> : null}
+                </article>
+              ))}
+              {dbConnectors.map((connector) => (
+                <article key={`db-connector-${connector.id}`} className="sources-connected-item">
+                  <div className="sources-connected-head">
+                    <span className="material-symbols-outlined">database</span>
+                    <div>
+                      <strong>{connector.name}</strong>
+                      <span>{connector.connector_type} · {connector.table_name}</span>
+                    </div>
+                  </div>
+                  <p>Status: {titleCaseWords(connector.status)}. Cursor: {connector.last_cursor_updated_at || "not synced"} / {connector.last_cursor_id || "none"}.</p>
+                  <p>Text: {connector.text_columns.join(", ")}. Filters: {connector.metadata_columns.length ? connector.metadata_columns.join(", ") : "none"}.</p>
+                  {connector.acl_group_names.length ? <p>ACL groups: {connector.acl_group_names.join(", ")}</p> : <p>No explicit ACL groups configured; local dev bypass still follows backend ACL rules.</p>}
+                  {connector.last_error ? <p className="sources-connected-note">{connector.last_error}</p> : null}
+                  {canManageConnectors ? <Link href="/console/admin/connectors" className="stitch-button stitch-button-secondary">Manage</Link> : null}
+                </article>
+              ))}
               {connectedData.map((source) => (
                 <article key={`connected-${source.id}`} className="sources-connected-item">
                   <div className="sources-connected-head">

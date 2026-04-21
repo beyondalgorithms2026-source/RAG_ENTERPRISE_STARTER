@@ -464,6 +464,24 @@ def _chunk_text_parts(parts: Iterable[ParsedSourcePart], *, source_type: str, po
     return chunks
 
 
+def _chunk_db_rows(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> List[ChunkRecord]:
+    chunks: List[ChunkRecord] = []
+    next_index = 0
+    for part in parts:
+        table_name = part.locator_json.get("table", "table")
+        row_id = part.locator_json.get("row_id", part.part_index + 1)
+        part_chunks = _chunk_single_part(
+            start_index=next_index,
+            part=part,
+            section_path=f"db_row:{table_name}:{row_id}",
+            chunk_strategy="structured_row_serialization",
+            policy=policy,
+        )
+        chunks.extend(part_chunks)
+        next_index += len(part_chunks)
+    return chunks
+
+
 def chunk_parsed_document(parsed: ParsedSourceDocument, *, policy_name: Optional[str] = None) -> List[Dict[str, Any]]:
     parts = list(parsed.parts)
     resolved_policy = get_corpus_policy(policy_name or parsed.metadata.get("corpus_policy"))
@@ -475,10 +493,12 @@ def chunk_parsed_document(parsed: ParsedSourceDocument, *, policy_name: Optional
         chunks = _chunk_pptx(parts, policy=resolved_policy)
     elif parsed.source_type == "xlsx":
         chunks = _chunk_xlsx(parts, policy=resolved_policy)
-    elif parsed.source_type == "eml":
+    elif parsed.source_type in {"eml", "email_message"}:
         chunks = _chunk_email(parts, policy=resolved_policy)
     elif parsed.source_type in {"txt", "md"}:
         chunks = _chunk_text_parts(parts, source_type=parsed.source_type, policy=resolved_policy)
+    elif parsed.source_type == "db_row":
+        chunks = _chunk_db_rows(parts, policy=resolved_policy)
     else:
         chunks = []
     return [
