@@ -124,6 +124,7 @@
 - Kept uploaded `.eml` parsing while preserving header/body-aware chunks and `email_casework` corpus policy routing
 - Added a mailbox/archive email connector abstraction that normalizes enterprise email records into the same parsed source model as uploaded email
 - Added attachment child-source ingestion for supported attachment file types, with parent-child links stored in `attachments`
+- Added ingestion-time NUL character sanitization for parsed email/PDF attachment text and metadata so valid real-world attachments do not fail Postgres persistence
 - Extended connector request screens so Email Archive and Google Drive file requests carry visible scope details and user-visible review status
 - See docs/m13_enterprise_email_and_attachment_ingestion.md
 
@@ -309,6 +310,7 @@
 - [x] Email ingestion is no longer limited conceptually to uploaded `.eml`
 - [x] Mailbox/archive records normalize into email header/body source parts
 - [x] Supported attachments can be modeled as searchable child sources
+- [x] Parsed email and attachment text is sanitized before DB persistence for Postgres-incompatible NUL characters
 - [x] Source and connector pages expose email/mailbox-style request flows
 - [x] docs/ note added
 - [x] STATUS.md updated

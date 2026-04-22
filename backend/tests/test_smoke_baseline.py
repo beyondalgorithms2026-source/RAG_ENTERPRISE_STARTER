@@ -1810,6 +1810,47 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertEqual(parsed.parts[0].locator_json["mailbox"], "support")
         self.assertEqual(parsed.attachments[0].content_bytes, b"renewal attachment text")
 
+    def test_m13_ingestion_sanitizes_nul_text_before_persistence(self):
+        from app.adapters import ParsedAttachment, ParsedSourceDocument, ParsedSourcePart
+        from app.ingestion.jobs import _sanitize_parsed_document
+
+        parsed = _sanitize_parsed_document(
+            ParsedSourceDocument(
+                source_type="pdf",
+                title="Invoice\x00receipt",
+                metadata={"invoice": "JQLBJNIL\x000002", "nested": ["2296\x001887"]},
+                parts=[
+                    ParsedSourcePart(
+                        part_type="page",
+                        part_index=0,
+                        title="Page\x001",
+                        locator_json={"label": "Page\x001"},
+                        content_text="Invoice number JQLBJNIL\x000002",
+                        provenance_json={"parser": "pdf\x00extractor"},
+                    )
+                ],
+                attachments=[
+                    ParsedAttachment(
+                        file_name="receipt\x00.pdf",
+                        content_type="application/pdf\x00",
+                        content_bytes=b"raw\x00bytes remain raw",
+                    )
+                ],
+                warnings=["warn\x00ing"],
+            )
+        )
+
+        self.assertEqual(parsed.title, "Invoicereceipt")
+        self.assertEqual(parsed.metadata["invoice"], "JQLBJNIL0002")
+        self.assertEqual(parsed.metadata["nested"][0], "22961887")
+        self.assertEqual(parsed.parts[0].content_text, "Invoice number JQLBJNIL0002")
+        self.assertEqual(parsed.parts[0].locator_json["label"], "Page1")
+        self.assertEqual(parsed.parts[0].provenance_json["parser"], "pdfextractor")
+        self.assertEqual(parsed.attachments[0].file_name, "receipt.pdf")
+        self.assertEqual(parsed.attachments[0].content_type, "application/pdf")
+        self.assertEqual(parsed.attachments[0].content_bytes, b"raw\x00bytes remain raw")
+        self.assertEqual(parsed.warnings[0], "warning")
+
     def test_m13_email_upload_creates_searchable_attachment_child_source(self):
         from email.message import EmailMessage
         import app.ingestion.jobs as jobs_module

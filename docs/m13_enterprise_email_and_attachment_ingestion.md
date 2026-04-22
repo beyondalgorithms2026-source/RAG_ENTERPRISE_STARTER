@@ -4,4 +4,5 @@
 - Added a mailbox/archive connector abstraction in `backend/app/connectors/email.py` so enterprise email records can normalize into the same parsed header/body model as uploaded email.
 - Email attachments now carry payload bytes through parsing and supported attachment types can become searchable child sources.
 - Attachment relationships are persisted in `attachments` with parent and child source IDs, preserving source provenance for retrieval and review.
+- Parsed email and attachment text/metadata is sanitized before persistence to remove Postgres-incompatible NUL characters from real-world PDF/email extraction output.
 - User connector requests now include Email Archive scope fields and Google Drive file request details; admins can inspect scope, write review notes, approve/deny, and use database requests as setup drafts.

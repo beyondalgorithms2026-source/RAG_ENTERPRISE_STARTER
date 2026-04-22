@@ -32,6 +32,9 @@ from app.ingestion.chunking import chunk_parsed_document
 from app.ingestion.enrichment import run_post_ingestion_enrichment
 
 
+NUL_CHARACTER = "\x00"
+
+
 _EXTENSION_TO_MIME = {
     "pdf": {"application/pdf"},
     "docx": {"application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
@@ -41,6 +44,39 @@ _EXTENSION_TO_MIME = {
     "txt": {"text/plain", "application/octet-stream"},
     "md": {"text/markdown", "text/x-markdown", "text/plain", "application/octet-stream"},
 }
+
+
+def _strip_nul_text(value: str) -> str:
+    return value.replace(NUL_CHARACTER, "")
+
+
+def _sanitize_text_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return _strip_nul_text(value)
+    if isinstance(value, list):
+        return [_sanitize_text_value(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_sanitize_text_value(item) for item in value)
+    if isinstance(value, dict):
+        return {_sanitize_text_value(key): _sanitize_text_value(item) for key, item in value.items()}
+    return value
+
+
+def _sanitize_parsed_document(parsed: ParsedSourceDocument) -> ParsedSourceDocument:
+    parsed.title = _sanitize_text_value(parsed.title)
+    parsed.metadata = _sanitize_text_value(parsed.metadata)
+    parsed.warnings = _sanitize_text_value(parsed.warnings)
+    for part in parsed.parts:
+        part.title = _sanitize_text_value(part.title)
+        part.locator_json = _sanitize_text_value(part.locator_json)
+        part.content_text = _sanitize_text_value(part.content_text)
+        part.provenance_json = _sanitize_text_value(part.provenance_json)
+    for attachment in parsed.attachments:
+        attachment.file_name = _sanitize_text_value(attachment.file_name)
+        attachment.content_type = _sanitize_text_value(attachment.content_type)
+        attachment.content_disposition = _sanitize_text_value(attachment.content_disposition)
+        attachment.content_id = _sanitize_text_value(attachment.content_id)
+    return parsed
 
 
 def _safe_filename(file_name: str) -> str:
@@ -309,7 +345,7 @@ def _ingest_email_attachment_children(*, parent_source_id: int, parsed: ParsedSo
         )
         if parent_acl_groups:
             assign_document_acl(source_id=source_id, group_names=parent_acl_groups)
-        child_parsed = parse_source_bytes(source_type, content, attachment.file_name)
+        child_parsed = _sanitize_parsed_document(parse_source_bytes(source_type, content, attachment.file_name))
         delete_source_parts_for_source(source_id)
         child_part_ids = _persist_source_parts(source_id, child_parsed)
         chunks = chunk_parsed_document(child_parsed, policy_name="email_casework")
@@ -453,7 +489,7 @@ def parse_uploaded_source_file(
 ) -> ParsedSourceDocument:
     absolute_path = Path(REPO_ROOT) / storage_path
     content = absolute_path.read_bytes()
-    parsed = parse_source_bytes(source_type, content, file_name)
+    parsed = _sanitize_parsed_document(parse_source_bytes(source_type, content, file_name))
     if persist_debug_artifact:
         debug_path = _debug_artifact_path(storage_path)
         debug_path.parent.mkdir(parents=True, exist_ok=True)
