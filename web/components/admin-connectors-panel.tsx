@@ -47,6 +47,19 @@ type SyncPreview = {
   first_row?: Record<string, unknown> | null;
 };
 
+type SetupDraft = {
+  name: string;
+  connector_type: string;
+  db_url: string;
+  table_name: string;
+  id_column: string;
+  updated_at_column: string;
+  text_columns: string;
+  metadata_columns: string;
+  corpus_name: string;
+  acl_group_names: string;
+};
+
 function splitCsv(value: string) {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
 }
@@ -62,6 +75,7 @@ export function AdminConnectorsPanel() {
   const [previewById, setPreviewById] = useState<Record<number, SyncPreview>>({});
   const [expandedRequestId, setExpandedRequestId] = useState<number | null>(null);
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
+  const [setupDrafts, setSetupDrafts] = useState<Record<number, SetupDraft>>({});
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [form, setForm] = useState({
@@ -76,6 +90,7 @@ export function AdminConnectorsPanel() {
     corpus_name: "db_rows",
     acl_group_names: "",
   });
+  const activeRequests = requests.filter((request) => ["submitted", "under_review"].includes(request.status));
 
   async function refresh() {
     const [nextConnectors, nextRequests] = await Promise.all([
@@ -118,13 +133,38 @@ export function AdminConnectorsPanel() {
     return typeof value === "string" && value.trim() ? value : "Not supplied";
   }
 
-  function useRequestAsDraft(request: ConnectorRequest) {
-    setForm((current) => ({
-      ...current,
-      name: current.name || `${request.requested_system} ${request.id}`,
+  function defaultSetupDraft(request: ConnectorRequest): SetupDraft {
+    const tableOrScope = scopeValue(request, "table_or_scope");
+    return {
+      name: `${request.requested_system} request ${request.id}`,
       connector_type: request.requested_system === "MySQL" ? "mysql" : "postgres",
-      table_name: scopeValue(request, "table_or_scope") === "Not supplied" ? current.table_name : scopeValue(request, "table_or_scope"),
-    }));
+      db_url: scopeValue(request, "database_hint") === "Not supplied" ? "" : scopeValue(request, "database_hint"),
+      table_name: tableOrScope === "Not supplied" ? "" : tableOrScope,
+      id_column: "id",
+      updated_at_column: "updated_at",
+      text_columns: "",
+      metadata_columns: "customer_id,region",
+      corpus_name: "db_rows",
+      acl_group_names: "",
+    };
+  }
+
+  function setupDraftFor(request: ConnectorRequest) {
+    return setupDrafts[request.id] || defaultSetupDraft(request);
+  }
+
+  function updateSetupDraft(request: ConnectorRequest, patch: Partial<SetupDraft>) {
+    setSetupDrafts((current) => ({ ...current, [request.id]: { ...setupDraftFor(request), ...patch } }));
+  }
+
+  function openRequest(request: ConnectorRequest) {
+    setExpandedRequestId(expandedRequestId === request.id ? null : request.id);
+    setSetupDrafts((current) => current[request.id] ? current : { ...current, [request.id]: defaultSetupDraft(request) });
+  }
+
+  function useRequestAsDraft(request: ConnectorRequest) {
+    const draft = setupDraftFor(request);
+    setForm(draft);
     setExpandedRequestId(request.id);
     setFeedback("Request details copied into the DB connector draft. Add the connection URL and column mapping before saving.");
   }
@@ -140,6 +180,38 @@ export function AdminConnectorsPanel() {
       await refresh();
     } catch (err) {
       setFeedback(err instanceof Error ? err.message : "Failed to review request.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function approveWithConnector(request: ConnectorRequest) {
+    const draft = setupDraftFor(request);
+    setBusy(true);
+    setFeedback("");
+    try {
+      const connector = await browserFetch<DbConnector>("/connectors/db", {
+        method: "POST",
+        json: {
+          ...draft,
+          text_columns: splitCsv(draft.text_columns),
+          metadata_columns: splitCsv(draft.metadata_columns),
+          acl_group_names: splitCsv(draft.acl_group_names),
+          corpus_name: draft.corpus_name.trim() || null,
+        },
+      });
+      await browserFetch<ConnectorRequest>(`/connectors/requests/${request.id}/review`, {
+        method: "POST",
+        json: {
+          status: "approved",
+          review_reason: reviewReasons[request.id] || `Approved and configured as connector ${connector.name}.`,
+        },
+      });
+      setExpandedRequestId(null);
+      setFeedback(`Request approved and connector ${connector.name} saved.`);
+      await refresh();
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : "Failed to approve and configure connector.");
     } finally {
       setBusy(false);
     }
@@ -186,11 +258,11 @@ export function AdminConnectorsPanel() {
 
       <section className="admin-card page-stack">
         <h2>Connector Requests</h2>
-        {requests.length === 0 ? (
-          <p className="empty-copy">No connector requests yet.</p>
+        {activeRequests.length === 0 ? (
+          <p className="empty-copy">No active connector requests. Approved and denied requests remain available in Audit Log.</p>
         ) : (
           <div className="admin-list">
-            {requests.map((request) => (
+            {activeRequests.map((request) => (
               <article key={request.id} className="admin-list-item admin-list-item-stacked">
                 <div className="admin-list-main">
                   <div>
@@ -199,7 +271,7 @@ export function AdminConnectorsPanel() {
                     <small>{request.requester_email || "Unknown requester"} · {titleCase(request.status)}</small>
                   </div>
                   <div className="toolbar-inline">
-                    <button type="button" className="stitch-button stitch-button-secondary" disabled={busy} onClick={() => setExpandedRequestId(expandedRequestId === request.id ? null : request.id)}>View Request</button>
+                    <button type="button" className="stitch-button stitch-button-secondary" disabled={busy} onClick={() => openRequest(request)}>View Request</button>
                     <button type="button" className="stitch-button stitch-button-secondary" disabled={busy || request.connector_type !== "database"} onClick={() => useRequestAsDraft(request)}>Use For DB Setup</button>
                     <button type="button" className="stitch-button stitch-button-secondary" disabled={busy} onClick={() => reviewRequest(request.id, "under_review")}>Mark Reviewing</button>
                     <button type="button" className="stitch-button stitch-button-primary" disabled={busy} onClick={() => reviewRequest(request.id, "approved")}>Approve</button>
@@ -207,13 +279,43 @@ export function AdminConnectorsPanel() {
                   </div>
                 </div>
                 {expandedRequestId === request.id ? (
-                  <div className="request-detail-grid">
-                    <p><strong>Database or workspace</strong><span>{scopeValue(request, "database_hint")}</span></p>
-                    <p><strong>Table, folder, or mailbox</strong><span>{scopeValue(request, "table_or_scope")}</span></p>
-                    <p><strong>Drive file</strong><span>{scopeValue(request, "drive_file_name")}</span></p>
-                    <p><strong>Drive URL</strong><span>{scopeValue(request, "drive_file_url")}</span></p>
-                    <p className="form-span-3"><strong>Access note</strong><span>{scopeValue(request, "access_note")}</span></p>
-                    <label className="form-span-3"><span>Review Note</span><textarea value={reviewReasons[request.id] || ""} onChange={(event) => setReviewReasons((current) => ({ ...current, [request.id]: event.target.value }))} rows={3} placeholder="Explain what was approved, denied, or still needed." /></label>
+                  <div className="request-detail-panel">
+                    <div className="request-detail-table">
+                      {[
+                        ["Database or workspace", scopeValue(request, "database_hint")],
+                        ["Table, folder, or mailbox", scopeValue(request, "table_or_scope")],
+                        ["Drive file", scopeValue(request, "drive_file_name")],
+                        ["Drive URL", scopeValue(request, "drive_file_url")],
+                        ["Access note", scopeValue(request, "access_note")],
+                      ].map(([label, value]) => (
+                        <div key={label} className="request-detail-row">
+                          <strong>{label}</strong>
+                          <span>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {request.connector_type === "database" ? (
+                      <div className="request-setup-box">
+                        <h3>Approve With DB Connector Setup</h3>
+                        <div className="admin-form-grid">
+                          <label><span>Name</span><input value={setupDraftFor(request).name} onChange={(event) => updateSetupDraft(request, { name: event.target.value })} /></label>
+                          <label><span>Type</span><select value={setupDraftFor(request).connector_type} onChange={(event) => updateSetupDraft(request, { connector_type: event.target.value })}><option value="postgres">Postgres</option><option value="mysql">MySQL</option></select></label>
+                          <label><span>Connection URL</span><input value={setupDraftFor(request).db_url} onChange={(event) => updateSetupDraft(request, { db_url: event.target.value })} placeholder="postgresql://user:pass@host:5432/db" /></label>
+                          <label><span>Table</span><input value={setupDraftFor(request).table_name} onChange={(event) => updateSetupDraft(request, { table_name: event.target.value })} placeholder="public.customer_cases" /></label>
+                          <label><span>ID Column</span><input value={setupDraftFor(request).id_column} onChange={(event) => updateSetupDraft(request, { id_column: event.target.value })} /></label>
+                          <label><span>Updated At Column</span><input value={setupDraftFor(request).updated_at_column} onChange={(event) => updateSetupDraft(request, { updated_at_column: event.target.value })} /></label>
+                          <label><span>Text Columns</span><input value={setupDraftFor(request).text_columns} onChange={(event) => updateSetupDraft(request, { text_columns: event.target.value })} placeholder="title,body,notes" /></label>
+                          <label><span>Metadata Filters</span><input value={setupDraftFor(request).metadata_columns} onChange={(event) => updateSetupDraft(request, { metadata_columns: event.target.value })} placeholder="customer_id,region" /></label>
+                          <label><span>Corpus</span><input value={setupDraftFor(request).corpus_name} onChange={(event) => updateSetupDraft(request, { corpus_name: event.target.value })} /></label>
+                          <label><span>ACL Groups</span><input value={setupDraftFor(request).acl_group_names} onChange={(event) => updateSetupDraft(request, { acl_group_names: event.target.value })} placeholder="support,finance" /></label>
+                        </div>
+                      </div>
+                    ) : null}
+                    <label><span>Review Note</span><textarea value={reviewReasons[request.id] || ""} onChange={(event) => setReviewReasons((current) => ({ ...current, [request.id]: event.target.value }))} rows={3} placeholder="Explain what was approved, denied, or still needed." /></label>
+                    <div className="toolbar-inline">
+                      {request.connector_type === "database" ? <button type="button" className="stitch-button stitch-button-primary" disabled={busy} onClick={() => approveWithConnector(request)}>Approve + Save Connector</button> : null}
+                      <button type="button" className="stitch-button stitch-button-secondary" disabled={busy} onClick={() => reviewRequest(request.id, "denied")}>Deny Request</button>
+                    </div>
                   </div>
                 ) : null}
               </article>
