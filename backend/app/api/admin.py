@@ -13,6 +13,7 @@ from app.core.config import REPO_ROOT
 from app.core.logging import logger
 from app.core_rag.retrieval import SearchFilters, SearchRequest, perform_search
 from app.db.repo_acl import assign_document_acl, list_access_summary, list_source_acl_map
+from app.db.repo_actions import list_approval_requests, top_failed_queries
 from app.db.repo_admin_audit import insert_admin_audit_event, list_admin_audit_events
 from app.db.repo_corpora import get_corpus, list_corpora, upsert_corpus
 from app.db.repo_jobs import (
@@ -352,6 +353,8 @@ def get_admin_overview():
     audit_events = list_admin_audit_events(limit=5)
     latest_report = next((report for report in reports if report["exists"]), None)
     priority_requests = [request for request in _latest_priority_requests_by_job().values() if request.status in {"submitted", "under_review"}]
+    pending_approvals = [request for request in list_approval_requests(limit=200) if request.status == "pending"]
+    failed_queries = top_failed_queries(limit=5)
 
     alerts: list[dict[str, Any]] = []
     failed_jobs = [job for job in [*ingestion_jobs, *enrichment_jobs] if str(job.get("status", "")).lower() in {"failed", "error"}]
@@ -392,6 +395,24 @@ def get_admin_overview():
                 "href": "/console/admin/jobs",
             }
         )
+    if pending_approvals:
+        alerts.append(
+            {
+                "tone": "warning",
+                "title": "Approvals are waiting",
+                "body": f"{len(pending_approvals)} sensitive output or tool action approval request(s) need review.",
+                "href": "/console/admin/actions",
+            }
+        )
+    if failed_queries:
+        alerts.append(
+            {
+                "tone": "info",
+                "title": "Missing-evidence feedback captured",
+                "body": f"{len(failed_queries)} query pattern(s) have missing-evidence or not-helpful feedback.",
+                "href": "/console/admin/actions",
+            }
+        )
     fallback_traces = [trace for trace in traces if trace.get("has_fallback")]
     if fallback_traces:
         alerts.append(
@@ -416,6 +437,8 @@ def get_admin_overview():
             "latest_eval_pass_rate": (latest_report or {}).get("summary", {}).get("pass_rate_percent"),
             "latest_eval_kind": latest_report["kind"] if latest_report else None,
             "pending_priority_request_count": len(priority_requests),
+            "pending_approval_count": len(pending_approvals),
+            "failed_query_pattern_count": len(failed_queries),
         },
         "alerts": alerts,
         "recent_traces": traces[:4],

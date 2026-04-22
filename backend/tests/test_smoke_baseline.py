@@ -2,6 +2,97 @@ from tests.smoke_test_base import *
 
 
 class SmokeTestBaseline(SmokeTestBase):
+    def test_m14_tool_policy_allows_and_denies_with_audit_rows(self):
+        from app.api.actions import ToolInvokeRequest, invoke_tool
+        from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
+        from app.db.repo_actions import list_tool_invocations
+
+        suffix = uuid4().hex[:8]
+        user = AuthenticatedUser(user_id=f"m14-user-{suffix}", email=f"m14-{suffix}@example.test", roles=["user"], groups=[])
+        token = set_current_user(user)
+        try:
+            denied = invoke_tool(ToolInvokeRequest(tool_name="send_email", corpus_name="legal", payload={"to": "a@example.test"}), user)
+            allowed = invoke_tool(ToolInvokeRequest(tool_name="generate_report", corpus_name="legal", payload={"artifact_type": "csv"}), user)
+        finally:
+            reset_current_user(token)
+
+        self.assertEqual(denied.status, "denied")
+        self.assertEqual(denied.denial_reason, "role_not_allowed")
+        self.assertEqual(allowed.status, "completed")
+        rows = list_tool_invocations(limit=10)
+        self.assertTrue(any(row.id == denied.invocation_id and row.status == "denied" for row in rows))
+        self.assertTrue(any(row.id == allowed.invocation_id and row.status == "completed" for row in rows))
+
+    def test_m15_sensitive_answer_is_held_for_approval(self):
+        from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
+        from app.core_rag import answering as answering_module
+        from app.core_rag.answering import AskRequest
+        from app.core_rag.retrieval import SearchResponse, SearchResultItem
+        from app.db.repo_actions import get_approval_request
+
+        suffix = uuid4().hex[:8]
+        user = AuthenticatedUser(user_id=f"m15-user-{suffix}", email=f"m15-{suffix}@example.test", roles=["user"], groups=[])
+        token = set_current_user(user)
+        original_search = answering_module.perform_search
+        original_generate = answering_module.generate_answer
+        answering_module.perform_search = lambda request: SearchResponse(
+            results=[
+                SearchResultItem(
+                    chunk_id=1,
+                    source_id=1,
+                    source_part_id=None,
+                    file_name="hr.txt",
+                    source_type="txt",
+                    heading="HR",
+                    locator=None,
+                    snippet="Salary data exists.",
+                    score=1.0,
+                )
+            ],
+            latency_ms=1,
+            mode="hybrid",
+            debug_info={"request_id": f"m15-{suffix}"},
+        )
+        answering_module.generate_answer = lambda system, user: {"success": True, "content": '{"answer":"Salary is supported [S1]","citations":["S1"]}'}
+        try:
+            response = answering_module.perform_ask(AskRequest(question="What is the salary?", mode="hybrid"))
+        finally:
+            answering_module.perform_search = original_search
+            answering_module.generate_answer = original_generate
+            reset_current_user(token)
+
+        approval = response.debug_info["approval"]
+        self.assertIn("pending human approval", response.answer)
+        self.assertEqual(response.citations, [])
+        self.assertEqual(get_approval_request(approval["approval_id"]).status, "pending")
+
+    def test_m16_missing_evidence_records_feedback_and_clarification_contract(self):
+        from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
+        from app.core_rag import answering as answering_module
+        from app.core_rag.answering import AskRequest
+        from app.core_rag.retrieval import SearchResponse
+        from app.db.repo_actions import list_query_feedback
+
+        suffix = uuid4().hex[:8]
+        user = AuthenticatedUser(user_id=f"m16-user-{suffix}", email=f"m16-{suffix}@example.test", roles=["user"], groups=[])
+        token = set_current_user(user)
+        original_search = answering_module.perform_search
+        answering_module.perform_search = lambda request: SearchResponse(
+            results=[],
+            latency_ms=1,
+            mode="hybrid",
+            debug_info={"request_id": f"m16-{suffix}"},
+        )
+        try:
+            response = answering_module.perform_ask(AskRequest(question="Where is the latest renewal plan?", mode="hybrid"))
+        finally:
+            answering_module.perform_search = original_search
+            reset_current_user(token)
+
+        self.assertEqual(response.answer, "Not found in provided sources.")
+        self.assertTrue(response.debug_info["clarification"]["missing_source_supported"])
+        self.assertTrue(any(row.request_id == f"m16-{suffix}" and row.feedback_type == "missing_evidence" for row in list_query_feedback(limit=20)))
+
     def test_m12_db_row_serialization_preserves_filter_metadata(self):
         from app.connectors.db import serialize_db_row
         from app.db.repo_connectors import DbConnectorRow
@@ -1029,6 +1120,7 @@ class SmokeTestBaseline(SmokeTestBase):
                 "MIG-P009",
                 "MIG-P010",
                 "MIG-P011",
+                "MIG-P012",
             ],
         )
         self.assertTrue(all(item["description"] for item in plan))

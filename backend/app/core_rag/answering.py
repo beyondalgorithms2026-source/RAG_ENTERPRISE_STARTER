@@ -6,7 +6,11 @@ from typing import Any, Callable, List, Optional
 from pydantic import BaseModel, Field
 
 from app.core.logging import log_event, logger
+from app.actions.policy import clarification_contract, sensitivity_requires_approval
 from app.core_rag.retrieval import SearchFilters, SearchMode, SearchRequest, perform_search
+from app.auth.context import get_current_user
+from app.db.repo_actions import create_approval_request, create_query_feedback
+from app.db.repo_sources import get_source_by_id
 from app.llm.client import generate_answer
 from app.llm.prompts import REPAIR_PROMPT, SECOND_PASS_PROMPT, SYSTEM_PROMPT, generate_second_pass_prompt, generate_user_prompt
 
@@ -53,6 +57,10 @@ class AskResponse(BaseModel):
     latency_ms: int = 0
     debug_info: Optional[dict[str, Any]] = None
     mode: Optional[str] = None
+
+
+def _not_found_answer(question: str) -> str:
+    return "Not found in provided sources."
 
 
 class CompareRequest(BaseModel):
@@ -257,6 +265,66 @@ def _merge_debug_info(*, retrieval_trace: Optional[dict[str, Any]], answer_gener
     return debug_info
 
 
+def _citation_sensitivity_payload(citations: list[CitationItem]) -> list[dict[str, Any]]:
+    payload = []
+    for citation in citations:
+        source = get_source_by_id(citation.source_id)
+        payload.append(
+            {
+                "source_id": citation.source_id,
+                "file_name": citation.file_name,
+                "sensitivity_label": source.sensitivity_label if source else None,
+            }
+        )
+    return payload
+
+
+def _record_missing_evidence_feedback(*, question: str, retrieval_trace: Optional[dict[str, Any]], answer_path: str) -> None:
+    try:
+        actor = get_current_user()
+        create_query_feedback(
+            question=question,
+            feedback_type="missing_evidence",
+            rating=None,
+            reason="automatic_not_found",
+            suggested_source=None,
+            request_id=str((retrieval_trace or {}).get("request_id") or "") or None,
+            answer_path=answer_path,
+            actor=actor,
+            metadata_json={"automatic": True},
+        )
+    except Exception as exc:
+        logger.debug("Failed to record missing evidence feedback: %s", exc)
+
+
+def _maybe_gate_sensitive_answer(*, request: AskRequest, answer_text: str, citations: list[CitationItem], debug_info: dict[str, Any]) -> Optional[AskResponse]:
+    needs_approval, reasons = sensitivity_requires_approval(
+        question=request.question,
+        citations=_citation_sensitivity_payload(citations),
+    )
+    if not needs_approval:
+        return None
+    actor = get_current_user()
+    approval_id = create_approval_request(
+        approval_type="sensitive_answer",
+        reason=", ".join(reasons),
+        actor=actor,
+        requested_payload_json={"question": request.question, "mode": request.mode, "reasons": reasons},
+        response_payload_json={"answer": answer_text, "citations": [citation.model_dump() for citation in citations], "debug_info": debug_info},
+    )
+    gated_debug = dict(debug_info)
+    gated_debug["approval"] = {"approval_id": approval_id, "status": "pending", "reasons": reasons}
+    gated_debug["clarification"] = clarification_contract(request.question, answer_path="pending_approval", evidence_count=len(citations))
+    return AskResponse(
+        answer=f"This answer may contain sensitive information and is pending human approval. Approval request #{approval_id} has been queued.",
+        citations=[],
+        used_chunks_count=len(citations),
+        latency_ms=0,
+        debug_info=gated_debug,
+        mode=request.mode,
+    )
+
+
 def _record_answer_trace(
     *,
     retrieval_trace: Optional[dict[str, Any]],
@@ -422,12 +490,17 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
         if progress_callback:
             progress_callback(100, "No grounded context found")
         log_event("ask.completed", stage="ask", status="completed", requested_mode=request.mode, resolved_mode=search_response.mode, reason="no_context")
+        _record_missing_evidence_feedback(question=request.question, retrieval_trace=retrieval_trace, answer_path="not_found")
         return AskResponse(
-            answer="Not found in provided sources.",
+            answer=_not_found_answer(request.question),
             used_chunks_count=0,
             latency_ms=ask_latency_ms,
             mode=search_response.mode,
-            debug_info={"retrieval_trace": retrieval_trace},
+            debug_info={
+                "retrieval_trace": retrieval_trace,
+                "answer_generation_path": "not_found",
+                "clarification": clarification_contract(request.question, answer_path="not_found", evidence_count=0),
+            },
         )
 
     if progress_callback:
@@ -445,12 +518,13 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
             progress_callback(100, "Answer generation failed")
         log_event("ask.failed", level=40, stage="ask", status="failed", requested_mode=request.mode, resolved_mode=search_response.mode, reason=str(llm_response.get("error")))
         return AskResponse(
-            answer="Not found in provided sources.",
+            answer=_not_found_answer(request.question),
             latency_ms=ask_latency_ms,
             debug_info=_merge_debug_info(
                 retrieval_trace=retrieval_trace,
                 answer_generation_path="not_found",
                 error=str(llm_response.get("error")),
+                extra={"clarification": clarification_contract(request.question, answer_path="not_found", evidence_count=0)},
             ),
             mode=search_response.mode,
         )
@@ -474,12 +548,13 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
             progress_callback(100, "Answer parsing failed")
         log_event("ask.failed", level=40, stage="ask", status="failed", requested_mode=request.mode, resolved_mode=search_response.mode, reason="json_parse_failed")
         return AskResponse(
-            answer="Not found in provided sources.",
+            answer=_not_found_answer(request.question),
             latency_ms=ask_latency_ms,
             debug_info=_merge_debug_info(
                 retrieval_trace=retrieval_trace,
                 answer_generation_path="not_found",
                 error="JSON parse failed on both generation strings",
+                extra={"clarification": clarification_contract(request.question, answer_path="not_found", evidence_count=0)},
             ),
             mode=search_response.mode,
         )
@@ -536,6 +611,8 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
         answer_generation_path = "not_found"
     if answer_generation_path == "not_found":
         final_citations = []
+        _record_missing_evidence_feedback(question=request.question, retrieval_trace=search_response.debug_info, answer_path="not_found")
+        answer_text = _not_found_answer(request.question)
 
     if progress_callback:
         progress_callback(100, "Grounded answer ready")
@@ -548,17 +625,29 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
         fallback_reason=fallback_reason,
     )
 
+    debug_info = _merge_debug_info(
+        retrieval_trace=retrieval_trace,
+        answer_generation_path=answer_generation_path,
+        fallback_reason=fallback_reason,
+        extra={"clarification": clarification_contract(request.question, answer_path=answer_generation_path, evidence_count=len(final_citations))},
+    )
+    gated_response = _maybe_gate_sensitive_answer(
+        request=request,
+        answer_text=answer_text,
+        citations=final_citations,
+        debug_info=debug_info,
+    )
+    if gated_response is not None:
+        gated_response.latency_ms = ask_latency_ms
+        return gated_response
+
     return AskResponse(
         answer=answer_text,
         citations=final_citations,
         used_chunks_count=len(context_blocks),
         latency_ms=ask_latency_ms,
         mode=search_response.mode,
-        debug_info=_merge_debug_info(
-            retrieval_trace=retrieval_trace,
-            answer_generation_path=answer_generation_path,
-            fallback_reason=fallback_reason,
-        ),
+        debug_info=debug_info,
     )
 
 

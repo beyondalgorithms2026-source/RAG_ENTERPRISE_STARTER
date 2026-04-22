@@ -201,6 +201,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   const [collapsedEvidenceSections, setCollapsedEvidenceSections] = useState<Record<string, boolean>>({});
   const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<string, FeedbackState>>({});
   const [actionFlashByMessageId, setActionFlashByMessageId] = useState<Record<string, string>>({});
+  const [missingSourceByMessageId, setMissingSourceByMessageId] = useState<Record<string, string>>({});
   const evidenceSectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => {
@@ -545,12 +546,72 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
     }, 1200);
   }
 
-  function setFeedback(messageId: string, feedback: Exclude<FeedbackState, null>) {
-    setFeedbackByMessageId((current) => {
-      const nextValue = current[messageId] === feedback ? null : feedback;
-      return { ...current, [messageId]: nextValue };
+  function questionForAssistant(messageId: string) {
+    const messages = activeThread?.messages || [];
+    const index = messages.findIndex((message) => message.id === messageId);
+    for (let pointer = index - 1; pointer >= 0; pointer -= 1) {
+      if (messages[pointer]?.role === "user") {
+        return messages[pointer].content;
+      }
+    }
+    return "";
+  }
+
+  async function submitFeedback(message: ThreadMessage, feedback: Exclude<FeedbackState, null>) {
+    const debugInfo = message.debugInfo || {};
+    const retrievalTrace = typeof debugInfo.retrieval_trace === "object" ? debugInfo.retrieval_trace as Record<string, unknown> : {};
+    await browserFetch<{ status: string }>("/feedback", {
+      method: "POST",
+      json: {
+        question: questionForAssistant(message.id),
+        feedback_type: feedback === "up" ? "helpful" : "not_helpful",
+        rating: feedback,
+        request_id: message.requestId || String(retrievalTrace.request_id || ""),
+        answer_path: String(debugInfo.answer_generation_path || ""),
+        metadata_json: { message_id: message.id },
+      },
     });
-    flashAction(messageId, feedback === "up" ? "Marked helpful" : "Marked not helpful");
+  }
+
+  async function setFeedback(message: ThreadMessage, feedback: Exclude<FeedbackState, null>) {
+    setFeedbackByMessageId((current) => {
+      const nextValue = current[message.id] === feedback ? null : feedback;
+      return { ...current, [message.id]: nextValue };
+    });
+    try {
+      await submitFeedback(message, feedback);
+      flashAction(message.id, feedback === "up" ? "Marked helpful" : "Marked not helpful");
+    } catch {
+      flashAction(message.id, "Feedback saved locally only");
+    }
+  }
+
+  async function submitMissingSource(message: ThreadMessage) {
+    const suggestedSource = (missingSourceByMessageId[message.id] || "").trim();
+    if (!suggestedSource) {
+      flashAction(message.id, "Add a source hint first");
+      return;
+    }
+    const debugInfo = message.debugInfo || {};
+    const retrievalTrace = typeof debugInfo.retrieval_trace === "object" ? debugInfo.retrieval_trace as Record<string, unknown> : {};
+    try {
+      await browserFetch<{ status: string }>("/feedback", {
+        method: "POST",
+        json: {
+          question: questionForAssistant(message.id),
+          feedback_type: "missing_evidence",
+          reason: "user_suggested_source",
+          suggested_source: suggestedSource,
+          request_id: message.requestId || String(retrievalTrace.request_id || ""),
+          answer_path: "not_found",
+          metadata_json: { message_id: message.id },
+        },
+      });
+      setMissingSourceByMessageId((current) => ({ ...current, [message.id]: "" }));
+      flashAction(message.id, "Source suggestion sent");
+    } catch {
+      flashAction(message.id, "Could not send suggestion");
+    }
   }
 
   async function copyAnswer(message: ThreadMessage) {
@@ -648,7 +709,17 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                             {isNoContextMessage(message) ? (
                               <div className="chat-no-context-card">
                                 <strong>No grounded evidence was retrieved for this question.</strong>
-                                <p>Try exact wording from the source, confirm the file finished indexing, or check My Sources to verify that the document is visible to your current account.</p>
+                                <p>Try exact wording from the source, confirm the file finished indexing, or tell admins where this information should exist.</p>
+                                <div className="chat-missing-source-form">
+                                  <input
+                                    value={missingSourceByMessageId[message.id] || ""}
+                                    onChange={(event) => setMissingSourceByMessageId((current) => ({ ...current, [message.id]: event.target.value }))}
+                                    placeholder="Source name, link, connector, or upload hint"
+                                  />
+                                  <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => submitMissingSource(message)}>
+                                    Send
+                                  </button>
+                                </div>
                               </div>
                             ) : null}
                             {message.citations?.length ? (
@@ -683,7 +754,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                           type="button"
                           aria-label="Helpful"
                           className={`chat-feedback-button ${feedbackByMessageId[message.id] === "up" ? "is-active" : ""}`}
-                          onClick={() => setFeedback(message.id, "up")}
+                          onClick={() => setFeedback(message, "up")}
                         >
                           <span className="material-symbols-outlined">thumb_up</span>
                         </button>
@@ -691,7 +762,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                           type="button"
                           aria-label="Not helpful"
                           className={`chat-feedback-button ${feedbackByMessageId[message.id] === "down" ? "is-active" : ""}`}
-                          onClick={() => setFeedback(message.id, "down")}
+                          onClick={() => setFeedback(message, "down")}
                         >
                           <span className="material-symbols-outlined">thumb_down</span>
                         </button>

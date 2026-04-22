@@ -294,3 +294,56 @@ CREATE TABLE IF NOT EXISTS connector_requests (
 
 CREATE INDEX IF NOT EXISTS connector_requests_status_idx ON connector_requests(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS connector_requests_requester_idx ON connector_requests(requester_external_user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS tool_invocations (
+    id BIGSERIAL PRIMARY KEY,
+    tool_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    actor_external_user_id TEXT,
+    actor_email TEXT,
+    actor_roles_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    corpus_name TEXT,
+    request_payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    result_payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    denial_reason TEXT,
+    approval_request_id BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    completed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS tool_invocations_tool_status_idx ON tool_invocations(tool_name, status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS approval_requests (
+    id BIGSERIAL PRIMARY KEY,
+    approval_type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    reason TEXT NOT NULL DEFAULT '',
+    requester_external_user_id TEXT,
+    requester_email TEXT,
+    requester_display_name TEXT,
+    requested_payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    response_payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    reviewed_by_external_user_id TEXT,
+    reviewed_by_email TEXT,
+    review_reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    reviewed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS approval_requests_status_idx ON approval_requests(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS approval_requests_requester_idx ON approval_requests(requester_external_user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS query_feedback (
+    id BIGSERIAL PRIMARY KEY,
+    question TEXT NOT NULL,
+    feedback_type TEXT NOT NULL,
+    rating TEXT,
+    reason TEXT NOT NULL DEFAULT '',
+    suggested_source TEXT,
+    request_id TEXT,
+    answer_path TEXT,
+    actor_external_user_id TEXT,
+    actor_email TEXT,
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS query_feedback_type_idx ON query_feedback(feedback_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS query_feedback_request_idx ON query_feedback(request_id);

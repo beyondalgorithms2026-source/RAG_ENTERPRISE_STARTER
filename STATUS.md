@@ -1,6 +1,6 @@
 # STATUS.md — Milestone Progress Tracker
 
-**Current Milestone:** M14 — Tool Actions With Policy Gate
+**Current Milestone:** M17 — Fast/Slow And Budget-Aware Query Policies
 
 **Completed**
 - M0: Baseline Stable Import (baseline-import-stable)
@@ -26,6 +26,9 @@
 - M11.1: Ingestion Queue Visibility, ETA, And Priority Governance (2026-04-16)
 - M12: Cloud DB And Structured Source Connectors (2026-04-20)
 - M13: Enterprise Email And Attachment Ingestion (2026-04-21)
+- M14: Tool Actions With Policy Gate (2026-04-21)
+- M15: Human Approval Workflow For Sensitive Outputs/Actions (2026-04-21)
+- M16: Fallback, Clarification, And Feedback Loop (2026-04-21)
 
 **M10 summary**
 - Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
@@ -124,6 +127,27 @@
 - Extended connector request screens so Email Archive and Google Drive file requests carry visible scope details and user-visible review status
 - See docs/m13_enterprise_email_and_attachment_ingestion.md
 
+**M14 summary**
+- Added a governed tool registry for email, Slack, calendar, and report-generation actions
+- Added role and corpus policy gates before tool execution
+- Persisted tool invocation requests, completions, approval waits, and denials
+- Logged blocked and allowed tool attempts into the admin audit trail
+- See docs/m14_tool_actions_with_policy_gate.md
+
+**M15 summary**
+- Added rules-based sensitive detection for compensation, personal identifiers, secrets, and sensitive source labels
+- Held sensitive answers behind approval requests instead of releasing the generated content
+- Added approval review APIs and an admin Actions console for approving or denying requests with reason
+- Wired approval decisions into the audit trail
+- See docs/m15_human_approval_workflow.md
+
+**M16 summary**
+- Added backend clarification metadata for missing evidence, ambiguous wording/date/entity signals, and source suggestions
+- Automatically records missing-evidence feedback for no-context answers
+- Persisted helpful/not-helpful feedback and missing-source hints from chat
+- Added admin visibility for top failed queries and recent feedback in the Actions console
+- See docs/m16_fallback_clarification_feedback_loop.md
+
 **M9 summary**
 - Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline
 - Source-scoped retrieval now honors corpus default modes so different corpora behave differently without changing global settings
@@ -176,9 +200,9 @@
 - See docs/m2_retrieval_observability_and_traceability.md
 
 **Next actions**
-- Start M14: tool actions with policy gate
-- Add tool registry and policy gate
-- Audit every tool invocation request, payload, and status
+- Start M17: fast/slow and budget-aware query policies
+- Add latency/token budget-aware orchestration
+- Make fast and slow retrieval policies explicit and measurable
 
 **Notes / DoD checklist (M10)**
 - [x] Anonymous users can view the homepage but cannot access `/console/*`
@@ -286,6 +310,32 @@
 - [x] Mailbox/archive records normalize into email header/body source parts
 - [x] Supported attachments can be modeled as searchable child sources
 - [x] Source and connector pages expose email/mailbox-style request flows
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M14)**
+- [x] Tool invocation works for allowed users
+- [x] Denied actions are blocked and logged
+- [x] Role and corpus policy gate exists
+- [x] Tool invocation request, payload, status, and result/denial are persisted
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M15)**
+- [x] Sensitive query triggers approval path
+- [x] Nothing sensitive is released without approval
+- [x] Approval queue stores pending approvals
+- [x] Admin can approve or deny with reason
+- [x] Full audit trail exists
+- [x] docs/ note added
+- [x] STATUS.md updated
+
+**Notes / DoD checklist (M16)**
+- [x] Missing-evidence queries do not hallucinate
+- [x] Feedback is captured and visible
+- [x] Missing source hints are captured from the user chat
+- [x] Clarification path has backend/product contract
+- [x] Admin can see top failed queries
 - [x] docs/ note added
 - [x] STATUS.md updated
 
