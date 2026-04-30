@@ -953,7 +953,7 @@ Key design rules:
 A milestone is “done” only if:
 1. It includes tests/evals to prove nothing regressed.
 2. It produces an artifact (report/log/UI capability) that an operator can use.
-3. It updates `STATUS.md` and adds a short note in `docs/` describing the change.
+3. It updates `STATUS.md` and adds a short note in `docs/milestones/` describing the change.
 4. It has a rollback story (config or git tag).
 5. Retrieval-related changes include an observable trace and a measurable before/after comparison.
 

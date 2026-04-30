@@ -18,7 +18,7 @@
 - Never break baseline correctness or citations.
 - Security trimming (ACL) must happen inside retrieval queries (SQL-level), never only in UI.
 - Always update STATUS.md after every milestone.
-- Add a short note in docs/ describing the change (create the folder if needed).
+- Add a short milestone/change note in `docs/milestones/` describing the change (create the folder if needed).
 
 ## 3. How to work with me
 - I will work milestone-by-milestone.

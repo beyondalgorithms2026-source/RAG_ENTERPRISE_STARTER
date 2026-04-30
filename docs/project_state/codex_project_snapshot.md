@@ -49,7 +49,7 @@ Use this project snapshot to restore working context. Reconstruct the local setu
 - `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/backend/tests/fixtures/eval/README.md`
 - `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/docker-compose.yml`
 - `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/docs/_master_docs/README.md`
-- `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/docs/m10_1_polished_ui_with_test_users.md`
+- `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/docs/milestones/m10_1_polished_ui_with_test_users.md`
 - `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/web/package.json`
 
 ## Package Scripts

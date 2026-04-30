@@ -26,4 +26,4 @@ Missing enterprise levers (semantic cache, full query rewriting/HyDE, field-weig
 - Query Plane: Auth → ACL trimming → retrieval routing → rerank → generation → citations + logging
 
 **Milestone order reminder**  
-Follow the exact order in 02_Enterprise_RAG_Project_Plan_Milestones.md (we are now at M1 or later — M0 baseline import is already complete).
+Follow the exact order in `docs/02_Enterprise_RAG_Project_Plan_Milestones.md` (we are now at M1 or later — M0 baseline import is already complete).
