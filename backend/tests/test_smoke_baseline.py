@@ -2,6 +2,394 @@ from tests.smoke_test_base import *
 
 
 class SmokeTestBaseline(SmokeTestBase):
+    def test_m16_1_access_request_route_approve_and_grant_enables_retrieval(self):
+        from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
+        from app.db.repo_acl import assign_document_acl, sync_authenticated_user
+        from app.db.repo_access_requests import (
+            create_access_request,
+            decide_inbox_item,
+            grant_access_request,
+            list_inbox_items,
+            route_access_request,
+        )
+
+        suffix = uuid4().hex[:8]
+        with engine.begin() as conn:
+            source_id = conn.execute(
+                text(
+                    """
+                    INSERT INTO sources (
+                        file_name, storage_path, source_type, sensitivity_label, hash_sha256, file_size_bytes,
+                        ingestion_status, enrichment_status, source_metadata_json
+                    )
+                    VALUES (
+                        :file_name, :storage_path, 'pdf', 'confidential', :hash_sha256, 100,
+                        'embedded', 'not_started', CAST(:metadata AS jsonb)
+                    )
+                    RETURNING id
+                    """
+                ),
+                {
+                    "file_name": f"m16-1-{suffix}.pdf",
+                    "storage_path": f"tests/m16-1-{suffix}.pdf",
+                    "hash_sha256": (suffix + "m16") * 4,
+                    "metadata": json.dumps({"corpus": "legal"}),
+                },
+            ).scalar_one()
+        insert_chunks(
+            source_id,
+            [
+                {
+                    "chunk_index": 0,
+                    "heading": "Protected contract",
+                    "section_path": "page:1",
+                    "chunk_text": "contracttokenm161 protected answer text",
+                    "token_count": 4,
+                    "locator_json": {"page": 1},
+                    "provenance_json": {"test": "m16_1"},
+                }
+            ],
+        )
+        with engine.connect() as conn:
+            chunk_id = conn.execute(text("SELECT id FROM chunks WHERE source_id = :source_id"), {"source_id": source_id}).scalar_one()
+        update_chunk_embeddings([(chunk_id, [1.0] + [0.0] * 383)])
+        assign_document_acl(source_id=source_id, group_names=["legal-team"])
+
+        requester = AuthenticatedUser(user_id=f"m161-user-{suffix}", email=f"m161-user-{suffix}@example.test", roles=["user"], groups=[])
+        admin = AuthenticatedUser(user_id=f"m161-admin-{suffix}", email=f"m161-admin-{suffix}@example.test", roles=["admin", "user"], groups=["legal-admins"])
+        approver = AuthenticatedUser(user_id=f"m161-approver-{suffix}", email=f"m161-approver-{suffix}@example.test", roles=["approver", "user"], groups=[])
+        for actor in (requester, admin, approver):
+            sync_authenticated_user(actor)
+
+        token = set_current_user(requester)
+        try:
+            before = perform_search(SearchRequest(question="contracttokenm161", k=5, mode="keyword"))
+            request_row = create_access_request(
+                question="Need the protected contract terms",
+                business_reason="Need temporary access for case review",
+                source_hint="Protected contract",
+                request_id=f"m16-1-{suffix}",
+                answer_path="not_found",
+                actor=requester,
+                metadata_json={"test": True},
+            )
+        finally:
+            reset_current_user(token)
+
+        self.assertFalse(before.results)
+
+        token = set_current_user(admin)
+        try:
+            routed = route_access_request(
+                access_request_id=request_row.id,
+                source_ids=[source_id],
+                admin_actor=admin,
+                business_approver={
+                    "contact_external_user_id": approver.user_id,
+                    "contact_email": approver.email,
+                    "contact_display_name": "Approver",
+                },
+                acl_manager=None,
+                requester_manager=None,
+                review_reason="Route to source owner",
+            )
+        finally:
+            reset_current_user(token)
+        self.assertEqual(routed.status, "awaiting_business_approval")
+
+        token = set_current_user(approver)
+        try:
+            inbox_items = list_inbox_items(actor=approver)
+            self.assertTrue(inbox_items)
+            approved = decide_inbox_item(
+                inbox_item_id=inbox_items[0].id,
+                actor=approver,
+                decision="approve_24h",
+                decision_reason="Approve temporary review access",
+            )
+        finally:
+            reset_current_user(token)
+        self.assertEqual(approved.status, "business_approved")
+        self.assertEqual(approved.approved_duration_hours, 24)
+
+        token = set_current_user(admin)
+        try:
+            granted = grant_access_request(access_request_id=request_row.id, actor=admin)
+        finally:
+            reset_current_user(token)
+        self.assertEqual(granted.status, "grant_completed")
+        self.assertIsNotNone(granted.expires_at)
+
+        token = set_current_user(requester)
+        try:
+            after = perform_search(SearchRequest(question="contracttokenm161", k=5, mode="keyword"))
+        finally:
+            reset_current_user(token)
+
+        self.assertTrue(after.results)
+        self.assertEqual(after.results[0].source_id, source_id)
+
+        self._delete_retrieval_records([source_id])
+
+    def test_m16_1_clarification_marks_access_limited_no_answer_without_leak(self):
+        from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
+        from app.db.repo_acl import assign_document_acl, sync_authenticated_user
+        from app.core_rag.answering import perform_ask
+
+        suffix = uuid4().hex[:8]
+        with engine.begin() as conn:
+            source_id = conn.execute(
+                text(
+                    """
+                    INSERT INTO sources (
+                        file_name, storage_path, source_type, sensitivity_label, hash_sha256, file_size_bytes,
+                        ingestion_status, enrichment_status, source_metadata_json
+                    )
+                    VALUES (
+                        :file_name, :storage_path, 'pdf', 'confidential', :hash_sha256, 100,
+                        'embedded', 'not_started', CAST(:metadata AS jsonb)
+                    )
+                    RETURNING id
+                    """
+                ),
+                {
+                    "file_name": f"hidden-{suffix}.pdf",
+                    "storage_path": f"tests/hidden-{suffix}.pdf",
+                    "hash_sha256": (suffix + "hidden") * 4,
+                    "metadata": json.dumps({"corpus": "legal"}),
+                },
+            ).scalar_one()
+        assign_document_acl(source_id=source_id, group_names=["finance"])
+
+        requester = AuthenticatedUser(user_id=f"m161-clarify-{suffix}", email=f"m161-clarify-{suffix}@example.test", roles=["user"], groups=[])
+        sync_authenticated_user(requester)
+        token = set_current_user(requester)
+        try:
+            response = perform_ask(
+                AskRequest(
+                    question="Find the latest contract terms",
+                    mode="keyword",
+                    filters=SearchFilters(source_id=source_id),
+                    dry_run=False,
+                )
+            )
+        finally:
+            reset_current_user(token)
+            self._delete_retrieval_records([source_id])
+
+        clarification = response.debug_info["clarification"]
+        self.assertEqual(response.answer, "Not found in provided sources.")
+        self.assertTrue(clarification["access_limited_possible"])
+        self.assertTrue(clarification["request_access_supported"])
+        self.assertNotIn("hidden-", str(clarification))
+
+    def test_m16_1_route_without_source_ids_and_approver_maps_sources_on_approval(self):
+        from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
+        from app.db.repo_acl import assign_document_acl, sync_authenticated_user
+        from app.db.repo_access_requests import (
+            create_access_request,
+            decide_inbox_item,
+            get_access_request,
+            grant_access_request,
+            list_access_request_targets,
+            list_inbox_items,
+            route_access_request,
+        )
+
+        suffix = uuid4().hex[:8]
+        with engine.begin() as conn:
+            source_id = conn.execute(
+                text(
+                    """
+                    INSERT INTO sources (
+                        file_name, storage_path, source_type, sensitivity_label, hash_sha256, file_size_bytes,
+                        ingestion_status, enrichment_status, source_metadata_json
+                    )
+                    VALUES (
+                        :file_name, :storage_path, 'pdf', 'confidential', :hash_sha256, 100,
+                        'embedded', 'not_started', CAST(:metadata AS jsonb)
+                    )
+                    RETURNING id
+                    """
+                ),
+                {
+                    "file_name": f"m16-1-sourcefree-{suffix}.pdf",
+                    "storage_path": f"tests/m16-1-sourcefree-{suffix}.pdf",
+                    "hash_sha256": (suffix + "srcfree") * 4,
+                    "metadata": json.dumps({"corpus": "legal"}),
+                },
+            ).scalar_one()
+        insert_chunks(
+            source_id,
+            [
+                {
+                    "chunk_index": 0,
+                    "heading": "Protected contract",
+                    "section_path": "page:1",
+                    "chunk_text": "contracttokenm161sourcefree protected answer text",
+                    "token_count": 4,
+                    "locator_json": {"page": 1},
+                    "provenance_json": {"test": "m16_1_sourcefree"},
+                }
+            ],
+        )
+        with engine.connect() as conn:
+            chunk_id = conn.execute(text("SELECT id FROM chunks WHERE source_id = :source_id"), {"source_id": source_id}).scalar_one()
+        update_chunk_embeddings([(chunk_id, [1.0] + [0.0] * 383)])
+        assign_document_acl(source_id=source_id, group_names=["legal-team"])
+
+        requester = AuthenticatedUser(user_id=f"m161-requester-{suffix}", email=f"m161-requester-{suffix}@example.test", roles=["user"], groups=[])
+        admin = AuthenticatedUser(user_id=f"m161-admin-{suffix}", email=f"m161-admin-{suffix}@example.test", roles=["admin", "user"], groups=["legal-admins"])
+        approver = AuthenticatedUser(user_id=f"m161-approver-{suffix}", email=f"m161-approver-{suffix}@example.test", roles=["approver", "user"], groups=[])
+        for actor in (requester, admin, approver):
+            sync_authenticated_user(actor)
+
+        request_row = create_access_request(
+            question="Need the protected contract terms",
+            business_reason="Need temporary access for contract review",
+            source_hint=None,
+            request_id=f"m16-1-sourcefree-{suffix}",
+            answer_path="not_found",
+            actor=requester,
+            metadata_json={"suggested_approver_email": approver.email},
+        )
+
+        routed = route_access_request(
+            access_request_id=request_row.id,
+            source_ids=[],
+            admin_actor=admin,
+            business_approver={
+                "contact_external_user_id": approver.user_id,
+                "contact_email": approver.email,
+                "contact_display_name": "Approver",
+            },
+            acl_manager=None,
+            requester_manager=None,
+            review_reason="Route without exact source id; approver will map source.",
+        )
+        self.assertEqual(routed.status, "awaiting_business_approval")
+        self.assertEqual(list_access_request_targets(request_row.id), [])
+
+        token = set_current_user(approver)
+        try:
+            inbox_items = list_inbox_items(actor=approver)
+            approved = decide_inbox_item(
+                inbox_item_id=inbox_items[0].id,
+                actor=approver,
+                decision="approve_24h",
+                decision_reason="Approver mapped the correct protected source.",
+                selected_source_ids=[source_id],
+            )
+        finally:
+            reset_current_user(token)
+
+        self.assertEqual(approved.status, "business_approved")
+        self.assertEqual([target.source_id for target in list_access_request_targets(request_row.id)], [source_id])
+
+        granted = grant_access_request(access_request_id=request_row.id, actor=admin)
+        self.assertEqual(granted.status, "grant_completed")
+
+        token = set_current_user(requester)
+        try:
+            after = perform_search(SearchRequest(question="contracttokenm161sourcefree", k=5, mode="keyword"))
+        finally:
+            reset_current_user(token)
+        self.assertTrue(after.results)
+        self.assertEqual(after.results[0].source_id, source_id)
+        self._delete_retrieval_records([source_id])
+
+    def test_m16_1_approver_can_return_request_with_alternate_approver_suggestion(self):
+        from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
+        from app.db.repo_acl import sync_authenticated_user
+        from app.db.repo_access_requests import create_access_request, decide_inbox_item, get_access_request, list_inbox_items, route_access_request
+
+        suffix = uuid4().hex[:8]
+        requester = AuthenticatedUser(user_id=f"m161-requester-reroute-{suffix}", email=f"requester-reroute-{suffix}@example.test", roles=["user"], groups=[])
+        admin = AuthenticatedUser(user_id=f"m161-admin-reroute-{suffix}", email=f"admin-reroute-{suffix}@example.test", roles=["admin", "user"], groups=["legal-admins"])
+        wrong_approver = AuthenticatedUser(user_id=f"m161-wrong-{suffix}", email=f"wrong-{suffix}@example.test", roles=["approver", "user"], groups=[])
+        for actor in (requester, admin, wrong_approver):
+            sync_authenticated_user(actor)
+
+        request_row = create_access_request(
+            question="Need access to the Falcon contract",
+            business_reason="Need temporary access for a contract review",
+            source_hint="Falcon contract",
+            request_id=f"m16-1-reroute-{suffix}",
+            answer_path="not_found",
+            actor=requester,
+            metadata_json={"suggested_approver_email": wrong_approver.email},
+        )
+        routed = route_access_request(
+            access_request_id=request_row.id,
+            source_ids=[],
+            admin_actor=admin,
+            business_approver={
+                "contact_external_user_id": wrong_approver.user_id,
+                "contact_email": wrong_approver.email,
+                "contact_display_name": "Wrong Approver",
+            },
+            acl_manager=None,
+            requester_manager=None,
+            review_reason="Initial route based on requester suggestion.",
+        )
+        self.assertEqual(routed.status, "awaiting_business_approval")
+
+        token = set_current_user(wrong_approver)
+        try:
+            inbox_items = list_inbox_items(actor=wrong_approver)
+            returned = decide_inbox_item(
+                inbox_item_id=inbox_items[0].id,
+                actor=wrong_approver,
+                decision="return_reroute",
+                decision_reason="Not the real owner. Route to legal owner instead.",
+                alternate_business_approver={
+                    "contact_email": f"legal-owner-{suffix}@example.test",
+                    "contact_display_name": "Legal Owner",
+                },
+            )
+        finally:
+            reset_current_user(token)
+
+        self.assertEqual(returned.status, "triaged")
+        refreshed = get_access_request(request_row.id)
+        self.assertEqual(refreshed.business_approval_status, "returned")
+        self.assertEqual((refreshed.metadata_json.get("approver_return") or {}).get("decision"), "return_reroute")
+        self.assertEqual(
+            ((refreshed.metadata_json.get("approver_return") or {}).get("alternate_business_approver") or {}).get("contact_email"),
+            f"legal-owner-{suffix}@example.test",
+        )
+
+    def test_m16_1_create_access_request_accepts_contact_shaped_requester_manager(self):
+        from app.auth.context import AuthenticatedUser
+        from app.db.repo_acl import sync_authenticated_user
+        from app.db.repo_access_requests import create_access_request
+
+        suffix = uuid4().hex[:8]
+        requester = AuthenticatedUser(
+            user_id=f"m161-requester-manager-{suffix}",
+            email=f"requester-manager-{suffix}@example.test",
+            roles=["user"],
+            groups=[],
+        )
+        sync_authenticated_user(requester)
+
+        row = create_access_request(
+            question="Need access to protected legal material",
+            business_reason="Required for project delivery",
+            source_hint="Falcon contract",
+            request_id=f"m16-1-manager-{suffix}",
+            answer_path="not_found",
+            actor=requester,
+            requester_manager={
+                "contact_email": f"manager-{suffix}@example.test",
+                "contact_display_name": "Line Manager",
+            },
+            metadata_json={"test": "requester_manager_contact_shape"},
+        )
+
+        self.assertEqual(row.requester_manager_email, f"manager-{suffix}@example.test")
+        self.assertEqual(row.requester_manager_display_name, "Line Manager")
+
     def test_m14_tool_policy_allows_and_denies_with_audit_rows(self):
         from app.api.actions import ToolInvokeRequest, invoke_tool
         from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user

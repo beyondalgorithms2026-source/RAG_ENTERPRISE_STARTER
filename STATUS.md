@@ -29,6 +29,7 @@
 - M14: Tool Actions With Policy Gate (2026-04-21)
 - M15: Human Approval Workflow For Sensitive Outputs/Actions (2026-04-21)
 - M16: Fallback, Clarification, And Feedback Loop (2026-04-21)
+- M16.1: Access-Limited Retrieval, Routed Business Approval, And Time-Bound Access Grants (2026-05-19)
 
 **M10 summary**
 - Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
@@ -148,6 +149,14 @@
 - Persisted helpful/not-helpful feedback and missing-source hints from chat
 - Added admin visibility for top failed queries and recent feedback in the Actions console
 - See docs/milestones/m16_fallback_clarification_feedback_loop.md
+
+**M16.1 summary**
+- Preserved SQL-level ACL enforcement while adding an access-limited clarification state for protected-source no-answer cases
+- Added a dedicated access-request workflow with admin triage, routed business approver inbox tasks, and admin-executed temporary direct source grants
+- Added workspace surfaces for requester tracking, approver decisions, and in-app notifications with email-ready payload persistence
+- Extended access posture and retrieval behavior so approved temporary grants change results only for the intended user and only until expiry
+- Refined the access-request workflow so requesters can provide business context plus optional suggested approver/manager details, admins can route without exact source ids, and approvers can map sources or return misrouted requests with alternate approver suggestions
+- See docs/milestones/m16_1_access_limited_retrieval_routed_business_approval_and_time_bound_access_grants.md
 
 **M9 summary**
 - Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline

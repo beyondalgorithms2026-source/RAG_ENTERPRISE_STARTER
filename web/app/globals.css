@@ -973,6 +973,11 @@ textarea {
   padding: 0 24px 24px;
 }
 
+.dev-login-stack {
+  display: grid;
+  gap: 10px;
+}
+
 .dev-login-form label {
   display: grid;
   gap: 8px;
@@ -1782,6 +1787,41 @@ textarea {
   gap: 14px;
 }
 
+.console-viewer-chip {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 240px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: rgba(234, 233, 213, 0.82);
+}
+
+.console-viewer-chip-copy {
+  min-width: 0;
+}
+
+.console-viewer-chip-copy strong,
+.console-viewer-chip-copy span,
+.workspace-viewer-summary strong,
+.workspace-viewer-summary span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.console-viewer-chip-copy strong,
+.workspace-viewer-summary strong {
+  font-size: 0.8rem;
+}
+
+.console-viewer-chip-copy span,
+.workspace-viewer-summary span {
+  color: rgba(88, 99, 115, 0.84);
+  font-size: 0.7rem;
+}
+
 .admin-icon-button,
 .workspace-icon-button {
   width: 40px;
@@ -2033,6 +2073,14 @@ textarea {
   gap: 12px;
   margin-top: auto;
   padding-top: 16px;
+}
+
+.workspace-viewer-summary {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--surface-high);
 }
 
 .workspace-sidebar-footer span {
@@ -2739,6 +2787,85 @@ textarea {
   padding: 12px 14px;
   background: rgba(255, 255, 255, 0.86);
   box-shadow: inset 0 0 0 1px rgba(198, 197, 217, 0.7);
+}
+
+.chat-access-request-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.chat-access-request-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.chat-access-request-field {
+  display: grid;
+  gap: 6px;
+}
+
+.chat-access-request-field label {
+  color: var(--ink);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.chat-access-request-field label span {
+  color: #b42318;
+}
+
+.chat-access-request-field input,
+.chat-access-request-field textarea {
+  width: 100%;
+  min-width: 0;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: inset 0 0 0 1px rgba(198, 197, 217, 0.7);
+}
+
+.chat-access-request-field input.is-invalid,
+.chat-access-request-field textarea.is-invalid {
+  box-shadow: inset 0 0 0 1px rgba(180, 35, 24, 0.9);
+  background: rgba(255, 244, 242, 0.96);
+}
+
+.chat-access-request-error {
+  color: #b42318;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.chat-access-request-notice {
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.chat-access-request-notice.is-error {
+  background: rgba(255, 236, 233, 0.92);
+  color: #912018;
+}
+
+.chat-access-request-notice.is-success {
+  background: rgba(232, 245, 233, 0.92);
+  color: #1f5f36;
+}
+
+.chat-access-request-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 860px) {
+  .chat-access-request-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .chat-evidence-empty-inline {

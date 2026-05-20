@@ -52,6 +52,60 @@ class DevAuthTests(unittest.TestCase):
         self.assertEqual(response.json()["redirect_path"], "/console/workspace/chat")
         self.assertIn(settings.AUTH_COOKIE_NAME, response.headers.get("set-cookie", ""))
 
+    def test_local_dev_assume_endpoint_sets_cookie_for_custom_identity(self):
+        client = TestClient(app)
+        response = client.post(
+            "/auth/local-dev-assume",
+            json={
+                "email": "requester@ragenterprise.local",
+                "name": "M161 Requester",
+                "user_id": "m161-requester",
+                "roles": ["user"],
+                "groups": [],
+                "next_path": "/console/workspace/requests",
+                "manager_email": "manager@ragenterprise.local",
+                "manager_display_name": "M161 Manager",
+                "manager_external_user_id": "m161-manager",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["redirect_path"], "/console/workspace/requests")
+        self.assertEqual(payload["user"]["email"], "requester@ragenterprise.local")
+        self.assertEqual(payload["user"]["raw_claims"]["manager_email"], "manager@ragenterprise.local")
+        self.assertIn(settings.AUTH_COOKIE_NAME, response.headers.get("set-cookie", ""))
+
+    def test_access_request_requires_business_reason(self):
+        import app.main as main_module
+
+        original_sync = main_module.sync_authenticated_user
+        main_module.sync_authenticated_user = lambda user: None
+        client = TestClient(app)
+        try:
+            login = client.post(
+                "/auth/local-dev-assume",
+                json={
+                    "email": "requester@ragenterprise.local",
+                    "name": "M161 Requester",
+                    "user_id": "m161-requester",
+                    "roles": ["user"],
+                    "groups": [],
+                },
+            )
+            self.assertEqual(login.status_code, 200)
+            response = client.post(
+                "/access-requests",
+                json={
+                    "question": "Need access to the Falcon contract",
+                    "business_reason": "   ",
+                    "source_hint": "Falcon contract",
+                },
+            )
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.json()["detail"]["error"], "business_reason_required")
+        finally:
+            main_module.sync_authenticated_user = original_sync
+
     def test_auth_providers_degrades_gracefully_in_local_dev_mode(self):
         client = TestClient(app)
         response = client.get("/auth/providers")

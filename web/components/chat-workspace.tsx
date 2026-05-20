@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { browserApiUrl, browserFetch } from "@/lib/api-browser";
 import type { AskResponse, SearchResponse } from "@/lib/types";
-import { readThreads, THREADS_UPDATED_EVENT, ThreadMessage, ThreadRecord, updateThreadRecord, upsertThreadRecord } from "@/lib/workspace";
+import { readThreads, THREADS_UPDATED_EVENT, ThreadMessage, ThreadRecord, updateThreadRecord, upsertThreadRecord, writeThreads } from "@/lib/workspace";
 
 type CitationContextItem = {
   id: number;
@@ -39,6 +39,36 @@ type StoredEvidenceRailState = {
   selectedEvidenceMessageId: string | null;
   selectedCitationId: string | null;
   collapsedEvidenceSections: Record<string, boolean>;
+};
+
+type AccessRequestDraft = {
+  sourceHint: string;
+  businessReason: string;
+  suggestedApproverEmail: string;
+  suggestedApproverDisplayName: string;
+  requesterManagerEmail: string;
+  requesterManagerDisplayName: string;
+  requesterComment: string;
+};
+
+type AccessRequestErrors = Partial<Record<keyof AccessRequestDraft, string>>;
+
+type AccessRequestNotice = {
+  tone: "error" | "success";
+  text: string;
+};
+
+type ApprovalResolution = {
+  id: number;
+  approval_type: string;
+  status: string;
+  reason: string;
+  review_reason?: string | null;
+  response_payload_json?: {
+    answer?: string | null;
+    citations?: ThreadMessage["citations"];
+    debug_info?: Record<string, unknown> | null;
+  } | null;
 };
 
 const EVIDENCE_RAIL_STORAGE_KEY = "rag_console_evidence_rail_v1";
@@ -78,6 +108,20 @@ function formatSourceTitle(fileName: string) {
 
 function isNoContextMessage(message: ThreadMessage | null | undefined) {
   return (message?.content || "").trim() === "Not found in provided sources.";
+}
+
+function accessClarification(message: ThreadMessage | null | undefined) {
+  const clarification = message?.debugInfo && typeof message.debugInfo.clarification === "object"
+    ? (message.debugInfo.clarification as Record<string, unknown>)
+    : null;
+  return clarification;
+}
+
+function approvalDetails(message: ThreadMessage | null | undefined) {
+  const approval = message?.debugInfo && typeof message.debugInfo.approval === "object"
+    ? (message.debugInfo.approval as Record<string, unknown>)
+    : null;
+  return approval;
 }
 
 function safeJsonParse(value: unknown) {
@@ -202,6 +246,10 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<string, FeedbackState>>({});
   const [actionFlashByMessageId, setActionFlashByMessageId] = useState<Record<string, string>>({});
   const [missingSourceByMessageId, setMissingSourceByMessageId] = useState<Record<string, string>>({});
+  const [accessRequestDraftByMessageId, setAccessRequestDraftByMessageId] = useState<Record<string, AccessRequestDraft>>({});
+  const [accessRequestErrorsByMessageId, setAccessRequestErrorsByMessageId] = useState<Record<string, AccessRequestErrors>>({});
+  const [accessRequestNoticeByMessageId, setAccessRequestNoticeByMessageId] = useState<Record<string, AccessRequestNotice>>({});
+  const [submittingAccessRequestByMessageId, setSubmittingAccessRequestByMessageId] = useState<Record<string, boolean>>({});
   const evidenceSectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => {
@@ -270,6 +318,19 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   const hasConversation = Boolean(activeThread?.messages.length);
   const showEvidence = hasConversation && evidenceSections.some((item) => item.citations.length > 0);
   const totalEvidenceCount = evidenceSections.reduce((total, item) => total + item.citations.length, 0);
+  const pendingSensitiveApprovalIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const thread of threads) {
+      for (const message of thread.messages) {
+        const approval = approvalDetails(message);
+        const approvalId = Number(approval?.approval_id);
+        if (approval?.status === "pending" && Number.isFinite(approvalId) && approvalId > 0) {
+          ids.add(approvalId);
+        }
+      }
+    }
+    return Array.from(ids);
+  }, [threads]);
   const activeRetrievalPath =
     String(
       (searchSummary?.debug_info as { retrieval_path_used?: string } | undefined)?.retrieval_path_used ||
@@ -354,6 +415,93 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
       active = false;
     };
   }, [selectedCitation]);
+
+  useEffect(() => {
+    if (!pendingSensitiveApprovalIds.length) {
+      return;
+    }
+    let active = true;
+    function syncResolvedSensitiveApprovals(approvals: ApprovalResolution[]) {
+      const approvalById = new Map<number, ApprovalResolution>();
+      for (const approval of approvals) {
+        approvalById.set(approval.id, approval);
+      }
+      const nextThreads: ThreadRecord[] = readThreads().map((thread) => ({
+        ...thread,
+        messages: thread.messages.map((message) => {
+          const approval = approvalDetails(message);
+          const approvalId = Number(approval?.approval_id);
+          if (approval?.status !== "pending" || !Number.isFinite(approvalId) || approvalId <= 0) {
+            return message;
+          }
+          const resolved = approvalById.get(approvalId);
+          if (!resolved || resolved.status === "pending") {
+            return message;
+          }
+          if (resolved.status === "approved") {
+            const resolvedPayload = resolved.response_payload_json || {};
+            const resolvedMessage: ThreadMessage = {
+              ...message,
+              content: typeof resolvedPayload.answer === "string" && resolvedPayload.answer.trim() ? resolvedPayload.answer : message.content,
+              citations: Array.isArray(resolvedPayload.citations) ? resolvedPayload.citations : message.citations,
+              debugInfo: {
+                ...(message.debugInfo || {}),
+                ...((resolvedPayload.debug_info && typeof resolvedPayload.debug_info === "object") ? resolvedPayload.debug_info : {}),
+                approval: {
+                  ...(approval || {}),
+                  approval_id: approvalId,
+                  status: "approved",
+                  review_reason: resolved.review_reason || null,
+                },
+              },
+              status: "completed",
+            };
+            return resolvedMessage;
+          }
+          if (resolved.status === "denied") {
+            const resolvedMessage: ThreadMessage = {
+              ...message,
+              content: resolved.review_reason
+                ? `This answer was denied during sensitive-information review. Reviewer note: ${resolved.review_reason}`
+                : "This answer was denied during sensitive-information review.",
+              citations: [],
+              debugInfo: {
+                ...(message.debugInfo || {}),
+                approval: {
+                  ...(approval || {}),
+                  approval_id: approvalId,
+                  status: "denied",
+                  review_reason: resolved.review_reason || null,
+                },
+              },
+              status: "completed",
+            };
+            return resolvedMessage;
+          }
+          return message;
+        }),
+      }));
+      writeThreads(nextThreads);
+      setThreads(nextThreads);
+    }
+    async function refreshApprovals() {
+      try {
+        const payload = await browserFetch<{ approvals: ApprovalResolution[] }>("/approvals");
+        if (!active) {
+          return;
+        }
+        syncResolvedSensitiveApprovals(payload.approvals || []);
+      } catch {
+        // Keep polling silent; pending approval text remains visible until the next successful refresh.
+      }
+    }
+    refreshApprovals();
+    const intervalId = window.setInterval(refreshApprovals, 5000);
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [pendingSensitiveApprovalIds.join("|")]);
 
   function syncThreads(nextThreads: ThreadRecord[]) {
     setThreads(nextThreads);
@@ -557,6 +705,62 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
     return "";
   }
 
+  function accessRequestDraftFor(messageId: string): AccessRequestDraft {
+    return accessRequestDraftByMessageId[messageId] || {
+      sourceHint: missingSourceByMessageId[messageId] || "",
+      businessReason: "",
+      suggestedApproverEmail: "",
+      suggestedApproverDisplayName: "",
+      requesterManagerEmail: "",
+      requesterManagerDisplayName: "",
+      requesterComment: "",
+    };
+  }
+
+  function patchAccessRequestDraft(messageId: string, patch: Partial<AccessRequestDraft>) {
+    setAccessRequestDraftByMessageId((current) => ({
+      ...current,
+      [messageId]: {
+        ...accessRequestDraftFor(messageId),
+        ...patch,
+      },
+    }));
+    setAccessRequestErrorsByMessageId((current) => {
+      const next = { ...(current[messageId] || {}) };
+      for (const key of Object.keys(patch) as Array<keyof AccessRequestDraft>) {
+        delete next[key];
+      }
+      return { ...current, [messageId]: next };
+    });
+    setAccessRequestNoticeByMessageId((current) => {
+      if (!current[messageId]) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[messageId];
+      return next;
+    });
+  }
+
+  function isPlausibleEmail(value: string) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  }
+
+  function validateAccessRequestDraft(messageId: string): AccessRequestErrors {
+    const draft = accessRequestDraftFor(messageId);
+    const errors: AccessRequestErrors = {};
+    if (!draft.businessReason.trim()) {
+      errors.businessReason = "Business reason is required.";
+    }
+    if (draft.suggestedApproverEmail.trim() && !isPlausibleEmail(draft.suggestedApproverEmail)) {
+      errors.suggestedApproverEmail = "Enter a valid approver email.";
+    }
+    if (draft.requesterManagerEmail.trim() && !isPlausibleEmail(draft.requesterManagerEmail)) {
+      errors.requesterManagerEmail = "Enter a valid manager email.";
+    }
+    return errors;
+  }
+
   async function submitFeedback(message: ThreadMessage, feedback: Exclude<FeedbackState, null>) {
     const debugInfo = message.debugInfo || {};
     const retrievalTrace = typeof debugInfo.retrieval_trace === "object" ? debugInfo.retrieval_trace as Record<string, unknown> : {};
@@ -587,9 +791,12 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   }
 
   async function submitMissingSource(message: ThreadMessage) {
-    const suggestedSource = (missingSourceByMessageId[message.id] || "").trim();
+    const suggestedSource = accessRequestDraftFor(message.id).sourceHint.trim();
     if (!suggestedSource) {
-      flashAction(message.id, "Add a source hint first");
+      setAccessRequestNoticeByMessageId((current) => ({
+        ...current,
+        [message.id]: { tone: "error", text: "Add a file, link, connector, or source hint first." },
+      }));
       return;
     }
     const debugInfo = message.debugInfo || {};
@@ -608,9 +815,75 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
         },
       });
       setMissingSourceByMessageId((current) => ({ ...current, [message.id]: "" }));
-      flashAction(message.id, "Source suggestion sent");
-    } catch {
-      flashAction(message.id, "Could not send suggestion");
+      patchAccessRequestDraft(message.id, { sourceHint: "" });
+      setAccessRequestNoticeByMessageId((current) => ({
+        ...current,
+        [message.id]: { tone: "success", text: "Source hint sent to admins." },
+      }));
+    } catch (err) {
+      setAccessRequestNoticeByMessageId((current) => ({
+        ...current,
+        [message.id]: { tone: "error", text: err instanceof Error ? err.message : "Could not send suggestion." },
+      }));
+    }
+  }
+
+  async function submitAccessRequest(message: ThreadMessage) {
+    const draft = accessRequestDraftFor(message.id);
+    const debugInfo = message.debugInfo || {};
+    const retrievalTrace = typeof debugInfo.retrieval_trace === "object" ? (debugInfo.retrieval_trace as Record<string, unknown>) : {};
+    const errors = validateAccessRequestDraft(message.id);
+    if (Object.keys(errors).length) {
+      setAccessRequestErrorsByMessageId((current) => ({ ...current, [message.id]: errors }));
+      setAccessRequestNoticeByMessageId((current) => ({
+        ...current,
+        [message.id]: { tone: "error", text: "Fix the highlighted fields before requesting access." },
+      }));
+      return;
+    }
+    setSubmittingAccessRequestByMessageId((current) => ({ ...current, [message.id]: true }));
+    try {
+      const result = await browserFetch<{ status: string; access_request: { id: number } }>("/access-requests", {
+        method: "POST",
+        json: {
+          question: questionForAssistant(message.id),
+          business_reason: draft.businessReason.trim(),
+          source_hint: draft.sourceHint.trim() || null,
+          suggested_approver_email: draft.suggestedApproverEmail.trim() || null,
+          suggested_approver_display_name: draft.suggestedApproverDisplayName.trim() || null,
+          requester_manager_email: draft.requesterManagerEmail.trim() || null,
+          requester_manager_display_name: draft.requesterManagerDisplayName.trim() || null,
+          requester_comment: draft.requesterComment.trim() || null,
+          request_id: message.requestId || String(retrievalTrace.request_id || ""),
+          answer_path: "not_found",
+          metadata_json: { message_id: message.id },
+        },
+      });
+      setMissingSourceByMessageId((current) => ({ ...current, [message.id]: "" }));
+      setAccessRequestDraftByMessageId((current) => ({
+        ...current,
+        [message.id]: {
+          sourceHint: "",
+          businessReason: "",
+          suggestedApproverEmail: "",
+          suggestedApproverDisplayName: "",
+          requesterManagerEmail: "",
+          requesterManagerDisplayName: "",
+          requesterComment: "",
+        },
+      }));
+      setAccessRequestErrorsByMessageId((current) => ({ ...current, [message.id]: {} }));
+      setAccessRequestNoticeByMessageId((current) => ({
+        ...current,
+        [message.id]: { tone: "success", text: `Access request #${result.access_request.id} sent for admin review.` },
+      }));
+    } catch (err) {
+      setAccessRequestNoticeByMessageId((current) => ({
+        ...current,
+        [message.id]: { tone: "error", text: err instanceof Error ? err.message : "Could not send access request." },
+      }));
+    } finally {
+      setSubmittingAccessRequestByMessageId((current) => ({ ...current, [message.id]: false }));
     }
   }
 
@@ -709,17 +982,103 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                             {isNoContextMessage(message) ? (
                               <div className="chat-no-context-card">
                                 <strong>No grounded evidence was retrieved for this question.</strong>
-                                <p>Try exact wording from the source, confirm the file finished indexing, or tell admins where this information should exist.</p>
-                                <div className="chat-missing-source-form">
-                                  <input
-                                    value={missingSourceByMessageId[message.id] || ""}
-                                    onChange={(event) => setMissingSourceByMessageId((current) => ({ ...current, [message.id]: event.target.value }))}
-                                    placeholder="Source name, link, connector, or upload hint"
-                                  />
-                                  <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => submitMissingSource(message)}>
-                                    Send
-                                  </button>
-                                </div>
+                                <p>{String(accessClarification(message)?.access_message || "Try exact wording from the source, confirm the file finished indexing, or tell admins where this information should exist.")}</p>
+                                <p>If you know the likely owner, team, project, or manager, add that context before requesting access. Without it, routing can become a needle-in-a-haystack exercise for admins.</p>
+                                {accessClarification(message)?.request_access_supported ? (
+                                  <div className="chat-access-request-form">
+                                    <div className="chat-access-request-field">
+                                      <label htmlFor={`source-hint-${message.id}`}>File, link, connector, or source hint</label>
+                                      <input
+                                        id={`source-hint-${message.id}`}
+                                        value={accessRequestDraftFor(message.id).sourceHint}
+                                        onChange={(event) => patchAccessRequestDraft(message.id, { sourceHint: event.target.value })}
+                                        placeholder="Optional. Add any document, contract, customer, or upload clue"
+                                      />
+                                    </div>
+                                    <div className="chat-access-request-field">
+                                      <label htmlFor={`business-reason-${message.id}`}>Business reason <span>*</span></label>
+                                      <textarea
+                                        id={`business-reason-${message.id}`}
+                                        rows={2}
+                                        className={accessRequestErrorsByMessageId[message.id]?.businessReason ? "is-invalid" : ""}
+                                        value={accessRequestDraftFor(message.id).businessReason}
+                                        onChange={(event) => patchAccessRequestDraft(message.id, { businessReason: event.target.value })}
+                                        placeholder="Explain what you are trying to complete and why access is needed"
+                                      />
+                                      {accessRequestErrorsByMessageId[message.id]?.businessReason ? <span className="chat-access-request-error">{accessRequestErrorsByMessageId[message.id]?.businessReason}</span> : null}
+                                    </div>
+                                    <div className="chat-access-request-grid">
+                                      <div className="chat-access-request-field">
+                                        <label htmlFor={`approver-email-${message.id}`}>Suggested approver email</label>
+                                        <input
+                                          id={`approver-email-${message.id}`}
+                                          className={accessRequestErrorsByMessageId[message.id]?.suggestedApproverEmail ? "is-invalid" : ""}
+                                          value={accessRequestDraftFor(message.id).suggestedApproverEmail}
+                                          onChange={(event) => patchAccessRequestDraft(message.id, { suggestedApproverEmail: event.target.value })}
+                                          placeholder="Optional"
+                                        />
+                                        {accessRequestErrorsByMessageId[message.id]?.suggestedApproverEmail ? <span className="chat-access-request-error">{accessRequestErrorsByMessageId[message.id]?.suggestedApproverEmail}</span> : null}
+                                      </div>
+                                      <div className="chat-access-request-field">
+                                        <label htmlFor={`approver-name-${message.id}`}>Suggested approver name</label>
+                                        <input
+                                          id={`approver-name-${message.id}`}
+                                          value={accessRequestDraftFor(message.id).suggestedApproverDisplayName}
+                                          onChange={(event) => patchAccessRequestDraft(message.id, { suggestedApproverDisplayName: event.target.value })}
+                                          placeholder="Optional"
+                                        />
+                                      </div>
+                                      <div className="chat-access-request-field">
+                                        <label htmlFor={`manager-email-${message.id}`}>Manager email</label>
+                                        <input
+                                          id={`manager-email-${message.id}`}
+                                          className={accessRequestErrorsByMessageId[message.id]?.requesterManagerEmail ? "is-invalid" : ""}
+                                          value={accessRequestDraftFor(message.id).requesterManagerEmail}
+                                          onChange={(event) => patchAccessRequestDraft(message.id, { requesterManagerEmail: event.target.value })}
+                                          placeholder="Optional"
+                                        />
+                                        {accessRequestErrorsByMessageId[message.id]?.requesterManagerEmail ? <span className="chat-access-request-error">{accessRequestErrorsByMessageId[message.id]?.requesterManagerEmail}</span> : null}
+                                      </div>
+                                      <div className="chat-access-request-field">
+                                        <label htmlFor={`manager-name-${message.id}`}>Manager name</label>
+                                        <input
+                                          id={`manager-name-${message.id}`}
+                                          value={accessRequestDraftFor(message.id).requesterManagerDisplayName}
+                                          onChange={(event) => patchAccessRequestDraft(message.id, { requesterManagerDisplayName: event.target.value })}
+                                          placeholder="Optional"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="chat-access-request-field">
+                                      <label htmlFor={`requester-comment-${message.id}`}>Extra context for admin</label>
+                                      <textarea
+                                        id={`requester-comment-${message.id}`}
+                                        rows={2}
+                                        value={accessRequestDraftFor(message.id).requesterComment}
+                                        onChange={(event) => patchAccessRequestDraft(message.id, { requesterComment: event.target.value })}
+                                        placeholder="Optional. Add urgency, project, customer, case, contract, or routing context"
+                                      />
+                                    </div>
+                                    {accessRequestNoticeByMessageId[message.id] ? (
+                                      <div className={`chat-access-request-notice is-${accessRequestNoticeByMessageId[message.id].tone}`}>
+                                        {accessRequestNoticeByMessageId[message.id].text}
+                                      </div>
+                                    ) : null}
+                                    <div className="chat-access-request-actions">
+                                      <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => submitMissingSource(message)}>
+                                        Send Hint Only
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="stitch-button stitch-button-primary stitch-button-small"
+                                        onClick={() => submitAccessRequest(message)}
+                                        disabled={Boolean(submittingAccessRequestByMessageId[message.id])}
+                                      >
+                                        {submittingAccessRequestByMessageId[message.id] ? "Submitting..." : "Request Access"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : null}
                               </div>
                             ) : null}
                             {message.citations?.length ? (

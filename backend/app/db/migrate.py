@@ -383,6 +383,148 @@ def _create_tools_approvals_feedback_tables() -> None:
         conn.execute(text(ddl))
 
 
+def _create_access_request_tables() -> None:
+    ddl = """
+    CREATE TABLE IF NOT EXISTS source_access_contacts (
+        id BIGSERIAL PRIMARY KEY,
+        source_id BIGINT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+        contact_role TEXT NOT NULL,
+        contact_external_user_id TEXT,
+        contact_email TEXT,
+        contact_display_name TEXT,
+        contact_metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS source_access_contacts_source_role_idx ON source_access_contacts(source_id, contact_role);
+    CREATE INDEX IF NOT EXISTS source_access_contacts_email_idx ON source_access_contacts(contact_email);
+
+    CREATE TABLE IF NOT EXISTS access_requests (
+        id BIGSERIAL PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'submitted',
+        question TEXT NOT NULL,
+        business_reason TEXT NOT NULL DEFAULT '',
+        source_hint TEXT,
+        request_id TEXT,
+        answer_path TEXT,
+        requester_external_user_id TEXT,
+        requester_email TEXT,
+        requester_display_name TEXT,
+        requester_manager_external_user_id TEXT,
+        requester_manager_email TEXT,
+        requester_manager_display_name TEXT,
+        approved_duration_hours INTEGER,
+        business_approval_status TEXT,
+        business_approval_decision TEXT,
+        business_approval_reason TEXT,
+        business_approved_at TIMESTAMPTZ,
+        granted_at TIMESTAMPTZ,
+        expires_at TIMESTAMPTZ,
+        granted_by_external_user_id TEXT,
+        granted_by_email TEXT,
+        review_reason TEXT,
+        metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS access_requests_status_idx ON access_requests(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS access_requests_requester_idx ON access_requests(requester_external_user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS access_request_targets (
+        id BIGSERIAL PRIMARY KEY,
+        access_request_id BIGINT NOT NULL REFERENCES access_requests(id) ON DELETE CASCADE,
+        source_id BIGINT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'mapped',
+        mapped_by_external_user_id TEXT,
+        mapped_by_email TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (access_request_id, source_id)
+    );
+    CREATE INDEX IF NOT EXISTS access_request_targets_request_idx ON access_request_targets(access_request_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS access_request_routing (
+        id BIGSERIAL PRIMARY KEY,
+        access_request_id BIGINT NOT NULL UNIQUE REFERENCES access_requests(id) ON DELETE CASCADE,
+        admin_coordinator_external_user_id TEXT,
+        admin_coordinator_email TEXT,
+        business_approver_external_user_id TEXT,
+        business_approver_email TEXT,
+        business_approver_display_name TEXT,
+        acl_manager_external_user_id TEXT,
+        acl_manager_email TEXT,
+        acl_manager_display_name TEXT,
+        requester_manager_external_user_id TEXT,
+        requester_manager_email TEXT,
+        requester_manager_display_name TEXT,
+        routed_at TIMESTAMPTZ,
+        responded_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS user_source_access_grants (
+        id BIGSERIAL PRIMARY KEY,
+        access_request_id BIGINT REFERENCES access_requests(id) ON DELETE SET NULL,
+        source_id BIGINT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+        grantee_external_user_id TEXT,
+        grantee_email TEXT,
+        grant_reason TEXT NOT NULL DEFAULT '',
+        granted_by_external_user_id TEXT,
+        granted_by_email TEXT,
+        starts_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        expires_at TIMESTAMPTZ NOT NULL,
+        revoked_at TIMESTAMPTZ,
+        revoked_by_external_user_id TEXT,
+        revoked_by_email TEXT,
+        metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS user_source_access_grants_user_idx ON user_source_access_grants(grantee_external_user_id, expires_at DESC);
+    CREATE INDEX IF NOT EXISTS user_source_access_grants_email_idx ON user_source_access_grants(grantee_email, expires_at DESC);
+    CREATE INDEX IF NOT EXISTS user_source_access_grants_source_idx ON user_source_access_grants(source_id, expires_at DESC);
+
+    CREATE TABLE IF NOT EXISTS notification_events (
+        id BIGSERIAL PRIMARY KEY,
+        access_request_id BIGINT REFERENCES access_requests(id) ON DELETE CASCADE,
+        event_type TEXT NOT NULL,
+        recipient_external_user_id TEXT,
+        recipient_email TEXT,
+        recipient_display_name TEXT,
+        recipient_role TEXT,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        email_subject TEXT,
+        email_payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        status TEXT NOT NULL DEFAULT 'unread',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        read_at TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS notification_events_recipient_idx ON notification_events(recipient_external_user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS notification_events_email_idx ON notification_events(recipient_email, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS approval_inbox_items (
+        id BIGSERIAL PRIMARY KEY,
+        access_request_id BIGINT NOT NULL REFERENCES access_requests(id) ON DELETE CASCADE,
+        routing_id BIGINT REFERENCES access_request_routing(id) ON DELETE CASCADE,
+        assigned_external_user_id TEXT,
+        assigned_email TEXT,
+        assigned_display_name TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        decision TEXT,
+        decision_reason TEXT,
+        request_payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        resolution_payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        decided_at TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS approval_inbox_items_assignee_idx ON approval_inbox_items(assigned_external_user_id, status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS approval_inbox_items_email_idx ON approval_inbox_items(assigned_email, status, created_at DESC);
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def _seed_default_profiles() -> None:
     from app.core.config import settings
     from app.db.repo_profiles import seed_default_profiles
@@ -450,6 +592,11 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P012",
             description="Create tool invocation, approval workflow, and query feedback tables",
             runner=_create_tools_approvals_feedback_tables,
+        ),
+        MigrationStep(
+            step_id="MIG-P013",
+            description="Create access request routing, direct grants, and notification tables",
+            runner=_create_access_request_tables,
         ),
     ]
 

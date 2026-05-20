@@ -33,7 +33,15 @@ def sync_authenticated_user(user: Optional[AuthenticatedUser]) -> None:
                 "email": user.email,
                 "display_name": user.name,
                 "provider_issuer": user.issuer,
-                "user_metadata_json": json.dumps({"roles": user.roles, "groups": user.groups}),
+                "user_metadata_json": json.dumps(
+                    {
+                        "roles": user.roles,
+                        "groups": user.groups,
+                        "manager_email": user.raw_claims.get("manager_email") or user.raw_claims.get("managerEmail"),
+                        "manager_display_name": user.raw_claims.get("manager_display_name") or user.raw_claims.get("manager_name"),
+                        "manager_external_user_id": user.raw_claims.get("manager_external_user_id") or user.raw_claims.get("manager_id"),
+                    }
+                ),
             },
         ).scalar_one()
 
@@ -132,6 +140,8 @@ def list_source_acl_map() -> dict[int, list[str]]:
 
 
 def list_access_summary() -> dict[str, Any]:
+    from app.db.repo_access_requests import get_active_grant_counts, list_access_requests
+
     users_sql = text(
         """
         SELECT
@@ -213,14 +223,18 @@ def list_access_summary() -> dict[str, Any]:
         ]
 
     protected_sources = sum(1 for item in source_acl if item["groups"])
+    grant_summary = get_active_grant_counts()
     return {
         "users": users,
         "groups": groups,
         "source_acl": source_acl,
+        "access_requests": [row.__dict__ for row in list_access_requests(limit=50)],
         "summary": {
             "user_count": len(users),
             "group_count": len(groups),
             "protected_source_count": protected_sources,
             "open_source_count": len(source_acl) - protected_sources,
+            "active_grant_count": grant_summary["active_grants"],
+            "expired_grant_count": grant_summary["expired_grants"],
         },
     }

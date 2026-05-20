@@ -2,6 +2,7 @@ import re
 from typing import Any, Dict, Optional
 
 from app.auth.context import AuthenticatedUser
+from app.db.repo_acl import current_acl_context, list_access_summary
 
 
 TOOL_REGISTRY: Dict[str, Dict[str, Any]] = {
@@ -71,7 +72,13 @@ def sensitivity_requires_approval(*, question: str, citations: list[Any]) -> tup
     return bool(reasons), sorted(set(reasons))
 
 
-def clarification_contract(question: str, *, answer_path: Optional[str], evidence_count: int) -> dict[str, Any]:
+def clarification_contract(
+    question: str,
+    *,
+    answer_path: Optional[str],
+    evidence_count: int,
+    source_scoped: bool = False,
+) -> dict[str, Any]:
     lowered = (question or "").lower()
     suggestions = []
     if re.search(r"\b(this|that|it|they|last quarter|recent|latest|soon)\b", lowered):
@@ -82,8 +89,29 @@ def clarification_contract(question: str, *, answer_path: Optional[str], evidenc
         suggestions.append("try_exact_quote_or_source_scope")
     if answer_path == "not_found" or evidence_count == 0:
         suggestions.append("suggest_source_link_or_upload")
+    acl_context = current_acl_context()
+    access_limited_possible = False
+    if (answer_path == "not_found" or evidence_count == 0) and not acl_context.get("local_dev_full_access"):
+        try:
+            access_summary = list_access_summary().get("summary") or {}
+        except Exception:
+            access_summary = {}
+        protected_source_count = int(access_summary.get("protected_source_count") or 0)
+        exact_lookup_like = bool(
+            re.search(r"\b(find|where|show|invoice|salary|policy|contract|customer|case|order|latest|specific)\b", lowered)
+            or '"' in question
+        )
+        access_limited_possible = protected_source_count > 0 and (source_scoped or exact_lookup_like)
     return {
         "clarification_needed": bool(suggestions),
         "suggestions": sorted(set(suggestions)),
         "missing_source_supported": answer_path == "not_found" or evidence_count == 0,
+        "access_limited_possible": access_limited_possible,
+        "request_access_supported": access_limited_possible,
+        "request_access_request_id": None,
+        "access_message": (
+            "Your current access may limit the documents available for a reliable answer."
+            if access_limited_possible
+            else None
+        ),
     }

@@ -55,6 +55,9 @@ export function ConsoleShell({
   const brandAvatar = variant === "admin"
     ? "https://lh3.googleusercontent.com/aida-public/AB6AXuDDzrfI0fplKu_x0sR5zlA8iGmugYhn3F22d-IqQgfODwZm1RJyD-UzdaxUzvE52YtoSYoL3C8tPAvcx2Qx7LIACk57feFQJ7Cw1BpAoMHWSFgXl1G4R2rdhmVPg9f-aVViy3MBJPPSTc96lWhLkXmI-SlNTZXgmL8XVvvn85wqod38m2ebrX62rGP6SgmLGqz0UTLeauV_0rEwSnNS8TzucqerLolx81wW-QRAmapfiGTTbgVJTJMcllvsec7fvP3C7EM3czcwIRg"
     : "https://lh3.googleusercontent.com/aida-public/AB6AXuACPUt-vFdpDEFkTykPrDK7qWDXayI-mTENz12neiecYsTFwJcauq2SyXQIlPs1icim8vWLYPo-1eATxYkQeXUrE1bxqk93oQwngnIvnhKlzQxk8QRI97HUkzaGZjV43CgcmygoyRZLwtmXmqHStwx_LK5ISY31JrhpkesypNorp8pIGSBHx65TQ9Sa2PShgRk2KhhRNaLjKKb_hrddPTJZhA5qk17WxUp4Mjjf3ENB2PbD4fnxXXRYKiwow_MZXjn4J7Qw-dz5kw8";
+  const viewerPrimary = viewer.name || viewer.email || viewer.user_id;
+  const viewerSecondary = viewer.email || viewer.user_id;
+  const viewerRoleLabel = viewer.roles.length ? viewer.roles.join(", ").toUpperCase() : "USER";
 
   if (variant === "admin") {
     return (
@@ -82,10 +85,10 @@ export function ConsoleShell({
           </div>
           <div className="admin-sidebar-footer">
             <div className="admin-user-card">
-              <img src={brandAvatar} alt={viewer.name || viewer.email || viewer.user_id} />
+              <img src={brandAvatar} alt={viewerPrimary} />
               <div>
-                <strong>{viewer.name || viewer.email || viewer.user_id}</strong>
-                <span>{hasAdminRole(viewer) ? "SYSTEM ADMIN" : viewer.roles.join(", ").toUpperCase()}</span>
+                <strong>{viewerPrimary}</strong>
+                <span>{hasAdminRole(viewer) ? "SYSTEM ADMIN" : viewerRoleLabel}</span>
               </div>
             </div>
             <span>Built for enterprise retrieval teams</span>
@@ -100,9 +103,15 @@ export function ConsoleShell({
               <input readOnly value="Search traces, corpora, or jobs (⌘K)" aria-label="Admin command search" />
             </div>
             <div className="admin-topbar-actions">
-              <button type="button" className="admin-icon-button" aria-label="Notifications" disabled title="Notifications are not wired yet in this milestone.">
+              <div className="console-viewer-chip" title={viewerSecondary}>
+                <div className="console-viewer-chip-copy">
+                  <strong>{viewerPrimary}</strong>
+                  <span>{viewerSecondary}</span>
+                </div>
+              </div>
+              <Link href="/console/admin/access" className="admin-icon-button" aria-label="Notifications" title="Open access requests and notifications.">
                 <span className="material-symbols-outlined">notifications</span>
-              </button>
+              </Link>
               <button type="button" className="admin-icon-button" aria-label="Settings" disabled title="Settings are not wired yet in this milestone.">
                 <span className="material-symbols-outlined">settings</span>
               </button>
@@ -151,9 +160,15 @@ export function ConsoleShell({
           )}
         </div>
         <div className="workspace-topbar-actions">
-          <button type="button" className="workspace-icon-button" aria-label="Notifications" disabled title="Notifications are not wired yet in this milestone.">
+          <div className="console-viewer-chip" title={viewerSecondary}>
+            <div className="console-viewer-chip-copy">
+              <strong>{viewerPrimary}</strong>
+              <span>{viewerSecondary}</span>
+            </div>
+          </div>
+          <Link href="/console/workspace/requests" className="workspace-icon-button" aria-label="Notifications" title="Open access requests and notifications.">
             <span className="material-symbols-outlined">notifications</span>
-          </button>
+          </Link>
           <button type="button" className="workspace-icon-button" aria-label="Settings" disabled title="Settings are not wired yet in this milestone.">
             <span className="material-symbols-outlined">settings</span>
           </button>
@@ -216,6 +231,10 @@ export function ConsoleShell({
             )}
           </div>
           <div className="workspace-sidebar-footer">
+            <div className="workspace-viewer-summary">
+              <strong>{viewerPrimary}</strong>
+              <span>{viewerSecondary}</span>
+            </div>
             <span>Built for enterprise retrieval teams</span>
             <LogoutButton />
           </div>

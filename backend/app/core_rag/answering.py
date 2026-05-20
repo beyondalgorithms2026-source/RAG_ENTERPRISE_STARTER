@@ -499,7 +499,12 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
             debug_info={
                 "retrieval_trace": retrieval_trace,
                 "answer_generation_path": "not_found",
-                "clarification": clarification_contract(request.question, answer_path="not_found", evidence_count=0),
+                "clarification": clarification_contract(
+                    request.question,
+                    answer_path="not_found",
+                    evidence_count=0,
+                    source_scoped=bool(request.filters and request.filters.source_id is not None),
+                ),
             },
         )
 
@@ -524,7 +529,14 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
                 retrieval_trace=retrieval_trace,
                 answer_generation_path="not_found",
                 error=str(llm_response.get("error")),
-                extra={"clarification": clarification_contract(request.question, answer_path="not_found", evidence_count=0)},
+                extra={
+                    "clarification": clarification_contract(
+                        request.question,
+                        answer_path="not_found",
+                        evidence_count=0,
+                        source_scoped=bool(request.filters and request.filters.source_id is not None),
+                    )
+                },
             ),
             mode=search_response.mode,
         )
@@ -554,7 +566,14 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
                 retrieval_trace=retrieval_trace,
                 answer_generation_path="not_found",
                 error="JSON parse failed on both generation strings",
-                extra={"clarification": clarification_contract(request.question, answer_path="not_found", evidence_count=0)},
+                extra={
+                    "clarification": clarification_contract(
+                        request.question,
+                        answer_path="not_found",
+                        evidence_count=0,
+                        source_scoped=bool(request.filters and request.filters.source_id is not None),
+                    )
+                },
             ),
             mode=search_response.mode,
         )
@@ -629,7 +648,14 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
         retrieval_trace=retrieval_trace,
         answer_generation_path=answer_generation_path,
         fallback_reason=fallback_reason,
-        extra={"clarification": clarification_contract(request.question, answer_path=answer_generation_path, evidence_count=len(final_citations))},
+        extra={
+            "clarification": clarification_contract(
+                request.question,
+                answer_path=answer_generation_path,
+                evidence_count=len(final_citations),
+                source_scoped=bool(request.filters and request.filters.source_id is not None),
+            )
+        },
     )
     gated_response = _maybe_gate_sensitive_answer(
         request=request,

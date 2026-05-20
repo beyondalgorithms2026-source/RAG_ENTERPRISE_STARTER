@@ -89,6 +89,27 @@ def _acl_clause(*, params: Dict[str, Any], source_alias: str = "s") -> str:
                 WHERE au.external_user_id = :acl_external_user_id
                   AND da.source_id = {source_alias}.id
             )
+            OR EXISTS (
+                SELECT 1
+                FROM user_source_access_grants usag
+                WHERE usag.source_id = {source_alias}.id
+                  AND usag.revoked_at IS NULL
+                  AND usag.expires_at > now()
+                  AND (
+                    usag.grantee_external_user_id = :acl_external_user_id
+                    OR LOWER(COALESCE(usag.grantee_email, '')) = LOWER(
+                        COALESCE(
+                            (
+                                SELECT au_lookup.email
+                                FROM auth_users au_lookup
+                                WHERE au_lookup.external_user_id = :acl_external_user_id
+                                LIMIT 1
+                            ),
+                            ''
+                        )
+                    )
+                  )
+            )
         )"""
         if acl_context.get("local_dev_full_access"):
             return f"""(

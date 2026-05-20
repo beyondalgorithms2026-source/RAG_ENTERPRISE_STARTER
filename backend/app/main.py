@@ -15,6 +15,7 @@ from .api.upload import router as upload_router
 from .api.corpus import router as corpus_router
 from .api.admin import router as admin_router
 from .api.actions import router as actions_router
+from .api.access_requests import router as access_requests_router
 from .auth.context import reset_current_user, set_current_user
 from .auth.service import AuthError, authenticate_request
 from .core.config import settings
@@ -72,6 +73,7 @@ app.include_router(compare_router)
 app.include_router(upload_router)
 app.include_router(corpus_router)
 app.include_router(actions_router)
+app.include_router(access_requests_router)
 app.include_router(admin_router)
 
 

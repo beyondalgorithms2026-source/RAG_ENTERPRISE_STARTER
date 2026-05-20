@@ -815,6 +815,58 @@ Key design rules:
 
 ---
 
+### Milestone M16.1 — Access-Limited Retrieval, Routed Business Approval, And Time-Bound Access Grants (Gate 16.1)
+**Why now:** extends M4 ACL trimming, M15 approval workflow, and M16 clarification/feedback into a full work-completion loop; should land before M17 so later retrieval policy work does not obscure access-limited failure handling.
+
+**Deliverables**
+- Preserve strict pre-retrieval ACL enforcement
+- Add access-limited clarification state for insufficient accessible evidence
+- Let user submit access request from failed query/search flow
+- Let user provide business context plus optional suggested approver / owner email instead of requiring technical source identifiers
+- Make it explicit in the request UX when lack of business context or owner/team detail may make routing difficult
+- Let admin triage the request using question text, business context, source inventory, and ACL posture without always requiring explicit source ids up front
+- Let admin route request to identified or suggested source owner / business approver
+- Include ACL group manager and requester’s manager as copied observers
+- Add approver inbox in normal user portal
+- Allow approver decision options:
+  - approve 24 hours
+  - approve 7 days
+  - approve 30 days
+  - deny
+- Allow approver return-to-admin outcomes for wrong-owner routing:
+  - not real owner
+  - does not concern me
+  - suggest alternate approver
+- Let approver identify or select source(s) during approval when admin could not confidently map the request to exact source ids at routing time
+- Require admin confirmation before rerouting to an alternate approver suggested by a prior approver
+- Require admin to execute final grant after business approval
+- Use time-bound direct source grants, not group-membership mutation
+- Add admin routing notes / coordinator comments visible to approvers
+- Add in-app notifications for requester, approver, admin, and observers
+- Persist email-ready notification payloads for later outbound email support
+- Add audit trail for request, routing, rerouting, approval, return-to-admin, grant, expiry, and denial
+
+**DoD**
+- ACL remains enforced inside retrieval queries only
+- No hidden source identity leaks in clarification state
+- User can request access from failed-query flow
+- User is not required to know source ids or exact filenames to submit a valid request
+- Approver can act from normal login portal
+- Wrong-owner routing can be returned to admin with reason and optional alternate approver suggestion
+- Approver can complete source identification when admin routing context is insufficient
+- Admin can complete only time-bound grants after approval
+- Approved grant changes retrieval only for target user and only until expiry
+- Expiry removes access automatically
+- Notification and audit flows are visible to operators
+
+**Re-run checks**
+- M4 ACL leak tests still pass
+- M15 approval workflow still passes
+- M16 feedback and clarification tests still pass
+- New request-routing and expiry-path tests pass once implemented
+
+---
+
 ### Milestone M17 — Fast/Slow And Budget-Aware Query Policies (Gate 17)
 **Deliverables**
 - Fast policy:
@@ -885,6 +937,90 @@ Key design rules:
 
 ---
 
+### Milestone M17.2 — Enterprise Test Environment Seed Pack, ACL Input Mapping, And Executive Access Baseline (Gate 17.2)
+**Why now:** after core retrieval policy controls and before later retrieval sophistication, the system needs a realistic seeded enterprise test environment so ACL, routing, provenance, access requests, and admin workflows can be exercised against something closer to a real customer onboarding pack rather than ad hoc local setup.
+
+**Deliverables**
+- Add a full seeded enterprise test-environment specification and import path covering:
+  - users
+  - groups
+  - memberships
+  - managers
+  - source owners
+  - ACL managers
+  - executive override roles
+- Define a governed ACL input artifact format for onboarding, such as one or more text/CSV/TSV seed files that can be handed to the implementation team as the enterprise mapping pack:
+  - users file
+  - groups file
+  - user-to-group membership file
+  - source inventory file
+  - source-to-group ACL mapping file
+  - source owner / approver / ACL manager file
+- Seed a complete set of representative test identities:
+  - admin
+  - standard requester
+  - restricted requester
+  - legal approver
+  - finance approver
+  - requester manager
+  - ACL/governance observer
+  - executive roles including `CEO` and `CFO`
+  - blocked / misuse-test user reserved for later milestones
+- Seed representative enterprise groups such as:
+  - public users
+  - legal
+  - finance
+  - HR
+  - executive access
+  - contract reviewers
+  - compliance observers
+- Seed a representative source inventory with:
+  - open/public sources
+  - protected but non-sensitive sources
+  - protected and intrinsically sensitive sources
+  - ambiguous/reroute-test sources
+- Require every protected source in the test pack to carry:
+  - sensitivity label
+  - source owner
+  - ACL manager
+  - corpus/source-type classification
+  - explicit group ACL mapping
+- Define upload-time ACL mapping behavior for the seeded environment:
+  - uploader identity can contribute default ownership metadata
+  - corpus/source classification can determine candidate ACL templates
+  - group mapping can be attached during upload or post-upload admin review
+  - manager/superior visibility can be derived from the seeded enterprise hierarchy where appropriate
+- Define executive access behavior:
+  - `CEO` and `CFO` test roles exist in the seed pack
+  - executive roles can be modeled as broad cross-functional access groups where intended by policy
+  - executive access remains explicit and auditable, not implicit “see everything” magic outside the ACL model
+- Add a ready-made test matrix that exercises:
+  - open retrieval
+  - denied retrieval
+  - direct group-based access
+  - time-bound direct grants
+  - wrong-approver reroute
+  - sensitive-answer hold
+  - non-sensitive protected retrieval
+  - executive cross-functional access
+
+**DoD**
+- The repo has a documented, reusable enterprise seed-pack specification rather than ad hoc local test setup
+- Test users, groups, memberships, and source ACL mappings are complete enough to exercise the major security and workflow paths end to end
+- Protected files are not relying on sensitivity labels alone; explicit ACL mappings exist in the seed design
+- `CEO` and `CFO` roles are present in the seed design and behave through explicit policy/group mapping
+- Upload-time mapping rules are documented clearly enough for onboarding and implementation teams to apply consistently
+- The seeded environment is sufficient to test M4, M15, M16.1, M17, and later abuse-control milestones without inventing identities or ACL mappings from scratch each session
+
+**Re-run checks**
+- seeded-user access matrix pass across open, protected, and executive-access sources
+- ACL leak regression pack still passes under the seeded environment
+- access-request and reroute workflow pass using seeded users and owners
+- sensitive-answer hold pass using seeded sensitive sources
+- upload-to-ACL classification sanity pass for representative uploader/group scenarios
+
+---
+
 ### Milestone M18 — Query Transformation Layer (Gate 18)
 **Why now:** only after traces, rerank policy, and eval controls exist.
 
@@ -945,6 +1081,51 @@ Key design rules:
 **Re-run checks**
 - offline eval on real-query-derived benchmark set
 - latency/quality trend report
+
+---
+
+### Milestone M21 — Access Request Misuse Controls, User Blocking, And Governance Escalation (Gate 21)
+**Why now:** only after access-request workflows, audit trails, and real user query mining exist; misuse controls should be evidence-driven rather than prematurely hard-coded.
+
+**Deliverables**
+- Add misuse heuristics for access-request workflows:
+  - repeated near-identical requests
+  - repeated approver swapping for the same or similar question
+  - high-volume access probing across unrelated approvers or domains
+  - repeated denied requests followed by re-submission without meaningful new context
+- Add operator-visible risk signals in admin UI:
+  - suspicious request badges
+  - requester-level misuse history
+  - same-question repeated-routing history
+  - approver-bounce patterns
+- Add governed response controls for admins:
+  - warn-only
+  - require extra review before future access requests
+  - temporarily block new access requests
+  - temporarily block user query submission in severe cases
+  - unblock / restore access with reason
+- Require full audit trail for:
+  - risk flag creation
+  - admin warning
+  - request restriction
+  - user block / unblock
+  - escalation notes and reviewer identity
+- Preserve clear operator distinction between:
+  - honest routing mistake
+  - ambiguous request needing more context
+  - probable misuse / fishing behavior
+
+**DoD**
+- Suspicious repeated access-routing behavior is visible to admins with supporting history
+- Admins can restrict or block abusive access-request behavior through governed controls
+- Blocking and restriction actions are auditable and reversible
+- Honest single-instance mistakes do not automatically trigger punitive controls
+
+**Re-run checks**
+- repeated-request flagging regression checks
+- repeated-approver-swap misuse detection checks
+- admin block / unblock audit trail checks
+- false-positive sanity checks on legitimate multi-step request workflows
 
 ---
 

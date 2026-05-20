@@ -203,6 +203,31 @@ def authenticate_local_dev_user(email: str, password: str) -> Optional[Authentic
     return candidate["user"]
 
 
+def build_local_dev_user(
+    *,
+    user_id: str,
+    email: str,
+    name: Optional[str] = None,
+    roles: Optional[list[str]] = None,
+    groups: Optional[list[str]] = None,
+    raw_claims: Optional[dict[str, Any]] = None,
+) -> AuthenticatedUser:
+    normalized_email = email.strip().lower()
+    display_name = (name or normalized_email.split("@", 1)[0].replace("-", " ").replace("_", " ").title()).strip() or normalized_email
+    normalized_roles = sorted({str(role or "").strip().lower() for role in (roles or ["user"]) if str(role or "").strip()}) or ["user"]
+    normalized_groups = sorted({str(group or "").strip() for group in (groups or []) if str(group or "").strip()})
+    claims = {"auth_mode": "dev", **(raw_claims or {})}
+    return AuthenticatedUser(
+        user_id=user_id.strip(),
+        email=normalized_email,
+        name=display_name,
+        roles=normalized_roles,
+        groups=normalized_groups,
+        issuer=settings.DEV_LOCAL_ISSUER,
+        raw_claims=claims,
+    )
+
+
 def issue_local_dev_token(user: AuthenticatedUser) -> str:
     now = int(time.time())
     payload = {

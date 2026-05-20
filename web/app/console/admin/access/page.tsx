@@ -1,5 +1,5 @@
-import { AccessAdminPanel } from "@/components/admin-panels";
+import { AccessRequestsAdminPanel } from "@/components/access-admin-panel";
 
 export default function AdminAccessPage() {
-  return <AccessAdminPanel />;
+  return <AccessRequestsAdminPanel />;
 }

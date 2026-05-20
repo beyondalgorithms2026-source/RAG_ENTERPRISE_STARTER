@@ -9,6 +9,7 @@ from app.auth.dependencies import require_authenticated_user
 from app.auth.service import (
     AuthError,
     authenticate_local_dev_user,
+    build_local_dev_user,
     build_login_url,
     exchange_code_for_token,
     get_oidc_metadata,
@@ -29,6 +30,18 @@ class LocalDevLoginRequest(BaseModel):
     email: str
     password: str
     next_path: str | None = None
+
+
+class LocalDevAssumeRequest(BaseModel):
+    email: str
+    name: str | None = None
+    user_id: str | None = None
+    roles: list[str] = ["user"]
+    groups: list[str] = []
+    next_path: str | None = None
+    manager_email: str | None = None
+    manager_display_name: str | None = None
+    manager_external_user_id: str | None = None
 
 
 @router.get("/providers")
@@ -167,6 +180,40 @@ def auth_local_dev_login(payload: LocalDevLoginRequest):
     user = authenticate_local_dev_user(payload.email, payload.password)
     if user is None:
         raise HTTPException(status_code=401, detail={"error": "invalid_credentials", "message": "Invalid local dev credentials."})
+    access_token = issue_local_dev_token(user)
+    redirect_path = resolve_post_login_path(user, payload.next_path)
+    response = JSONResponse({"user": user.model_dump(), "redirect_path": redirect_path})
+    response.set_cookie(
+        key=settings.AUTH_COOKIE_NAME,
+        value=access_token,
+        httponly=True,
+        secure=settings.AUTH_COOKIE_SECURE,
+        samesite="lax",
+        path="/",
+    )
+    return response
+
+
+@router.post("/local-dev-assume")
+def auth_local_dev_assume(payload: LocalDevAssumeRequest):
+    if not local_dev_auth_enabled():
+        raise HTTPException(status_code=404, detail={"error": "not_found", "message": "Local dev assume is not enabled."})
+    email = payload.email.strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail={"error": "invalid_email", "message": "Email is required."})
+    local_part = email.split("@", 1)[0]
+    user = build_local_dev_user(
+        user_id=(payload.user_id or f"dev-{local_part}").strip(),
+        email=email,
+        name=payload.name,
+        roles=payload.roles,
+        groups=payload.groups,
+        raw_claims={
+            "manager_email": payload.manager_email,
+            "manager_display_name": payload.manager_display_name,
+            "manager_external_user_id": payload.manager_external_user_id,
+        },
+    )
     access_token = issue_local_dev_token(user)
     redirect_path = resolve_post_login_path(user, payload.next_path)
     response = JSONResponse({"user": user.model_dump(), "redirect_path": redirect_path})
