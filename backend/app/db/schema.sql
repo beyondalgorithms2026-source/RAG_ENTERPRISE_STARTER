@@ -135,6 +135,24 @@ CREATE TABLE IF NOT EXISTS active_profiles (
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS tuning_config_versions (
+    id BIGSERIAL PRIMARY KEY,
+    version_label TEXT NOT NULL UNIQUE,
+    config_kind TEXT NOT NULL DEFAULT 'candidate',
+    status TEXT NOT NULL DEFAULT 'draft',
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    selected_profiles_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    resolved_config_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    lineage_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_by_external_user_id TEXT,
+    created_by_email TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS tuning_config_versions_kind_status_idx ON tuning_config_versions(config_kind, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS tuning_config_versions_status_idx ON tuning_config_versions(status, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS auth_users (
     id BIGSERIAL PRIMARY KEY,
     external_user_id TEXT NOT NULL UNIQUE,

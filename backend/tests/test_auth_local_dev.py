@@ -75,6 +75,25 @@ class DevAuthTests(unittest.TestCase):
         self.assertEqual(payload["user"]["raw_claims"]["manager_email"], "manager@ragenterprise.local")
         self.assertIn(settings.AUTH_COOKIE_NAME, response.headers.get("set-cookie", ""))
 
+    def test_local_dev_assume_supports_seeded_executive_identity(self):
+        client = TestClient(app)
+        response = client.post(
+            "/auth/local-dev-assume",
+            json={
+                "email": "ceo@ragenterprise.local",
+                "name": "Chief Executive Officer",
+                "user_id": "m172-ceo",
+                "roles": ["user"],
+                "groups": ["executive_access"],
+                "next_path": "/console/workspace/chat",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["redirect_path"], "/console/workspace/chat")
+        self.assertEqual(payload["user"]["email"], "ceo@ragenterprise.local")
+        self.assertEqual(payload["user"]["groups"], ["executive_access"])
+
     def test_access_request_requires_business_reason(self):
         import app.main as main_module
 

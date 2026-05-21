@@ -1,0 +1,8 @@
+source_key,group_name
+legal_contract,legal
+legal_contract,contract_reviewers
+finance_budget,finance
+finance_budget,executive_access
+hr_comp,hr
+hr_comp,executive_access
+ambiguous_vendor,compliance_observers

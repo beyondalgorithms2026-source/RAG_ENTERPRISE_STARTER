@@ -14,7 +14,7 @@ export function DevLoginForm({ nextPath }: { nextPath: string }) {
     email: "requester@ragenterprise.local",
     userId: "m161-requester",
     roles: "user",
-    groups: "",
+    groups: "contract_reviewers",
     nextPath: "/console/workspace/chat",
     managerEmail: "manager@ragenterprise.local",
     managerDisplayName: "M161 Manager",
@@ -124,7 +124,7 @@ export function DevLoginForm({ nextPath }: { nextPath: string }) {
 
       <form className="dev-login-form" onSubmit={onAssumeIdentity}>
         <p className="dev-login-copy">
-          Use this M16.1 testing shortcut to open requester, approver, or manager sessions without hand-editing cookies in the browser.
+          Use this enterprise seed-pack shortcut to open the shared requester, approver, manager, executive, or governance test identities without hand-editing cookies in the browser.
         </p>
         <div className="dev-login-presets">
           <button
@@ -136,6 +136,7 @@ export function DevLoginForm({ nextPath }: { nextPath: string }) {
                 email: "requester@ragenterprise.local",
                 userId: "m161-requester",
                 roles: "user",
+                groups: "contract_reviewers",
                 nextPath: "/console/workspace/chat",
                 managerEmail: "manager@ragenterprise.local",
                 managerDisplayName: "M161 Manager",
@@ -154,6 +155,7 @@ export function DevLoginForm({ nextPath }: { nextPath: string }) {
                 email: "approver@ragenterprise.local",
                 userId: "m161-approver",
                 roles: "approver,user",
+                groups: "legal,contract_reviewers",
                 nextPath: "/console/workspace/requests",
               })
             }
@@ -169,11 +171,98 @@ export function DevLoginForm({ nextPath }: { nextPath: string }) {
                 email: "manager@ragenterprise.local",
                 userId: "m161-manager",
                 roles: "user",
+                groups: "public_users",
                 nextPath: "/console/workspace/requests",
               })
             }
           >
             Manager
+          </button>
+          <button
+            type="button"
+            className="dev-login-pill"
+            onClick={() =>
+              applyPreset({
+                name: "Restricted Requester",
+                email: "restricted@ragenterprise.local",
+                userId: "m172-restricted",
+                roles: "user",
+                groups: "public_users",
+                nextPath: "/console/workspace/chat",
+                managerEmail: "manager@ragenterprise.local",
+                managerDisplayName: "M161 Manager",
+                managerExternalUserId: "m161-manager",
+              })
+            }
+          >
+            Restricted
+          </button>
+          <button
+            type="button"
+            className="dev-login-pill"
+            onClick={() =>
+              applyPreset({
+                name: "Governance Observer",
+                email: "observer@ragenterprise.local",
+                userId: "m172-governance",
+                roles: "admin,user",
+                groups: "compliance_observers",
+                nextPath: "/console/admin/access",
+              })
+            }
+          >
+            Observer
+          </button>
+          <button
+            type="button"
+            className="dev-login-pill"
+            onClick={() =>
+              applyPreset({
+                name: "Chief Executive Officer",
+                email: "ceo@ragenterprise.local",
+                userId: "m172-ceo",
+                roles: "user",
+                groups: "executive_access",
+                nextPath: "/console/workspace/chat",
+              })
+            }
+          >
+            CEO
+          </button>
+          <button
+            type="button"
+            className="dev-login-pill"
+            onClick={() =>
+              applyPreset({
+                name: "Chief Financial Officer",
+                email: "cfo@ragenterprise.local",
+                userId: "m172-cfo",
+                roles: "user",
+                groups: "executive_access,finance",
+                nextPath: "/console/workspace/chat",
+              })
+            }
+          >
+            CFO
+          </button>
+          <button
+            type="button"
+            className="dev-login-pill"
+            onClick={() =>
+              applyPreset({
+                name: "Misuse Test User",
+                email: "misuse@ragenterprise.local",
+                userId: "m172-misuse",
+                roles: "user",
+                groups: "public_users",
+                nextPath: "/console/workspace/chat",
+                managerEmail: "manager@ragenterprise.local",
+                managerDisplayName: "M161 Manager",
+                managerExternalUserId: "m161-manager",
+              })
+            }
+          >
+            Misuse
           </button>
         </div>
         <label>
@@ -216,7 +305,7 @@ export function DevLoginForm({ nextPath }: { nextPath: string }) {
         <button className="stitch-button stitch-button-secondary stitch-button-block" type="submit" disabled={loading}>
           {loading ? "Signing In..." : "Sign In With Custom Dev Identity"}
         </button>
-        <div className="dev-login-helper">For access-workflow tests, use Requester, Approver, and Manager presets here instead of the normal login form.</div>
+        <div className="dev-login-helper">These presets mirror the seeded M17.2 enterprise ACL identities so admin access, retrieval, and approval tests all use the same canonical users.</div>
       </form>
     </div>
   );

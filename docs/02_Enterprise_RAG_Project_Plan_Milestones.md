@@ -1,7 +1,7 @@
 # Enterprise RAG Starter — Milestone Project Plan (from stable baseline)
 
 **Objective (one sentence)**  
-Build an enterprise-usable RAG system based on `RAG_MM_MASTER_POC` that supports SSO + ACL security trimming, multi-source ingestion (including cloud DB and enterprise email), configurable retrieval/model controls, end-user chat UI + admin console, tool actions with approvals, feedback loops, and per-corpus indexing policies—without breaking baseline correctness.
+Build an enterprise-usable RAG system based on `RAG_MM_MASTER_POC` that supports SSO + ACL security trimming, multi-source ingestion (including cloud DB and enterprise email), configurable retrieval/model controls, a governed admin tuning lab for sandbox experimentation and promotion, end-user chat UI + admin console, tool actions with approvals, feedback loops, and per-corpus indexing policies—without breaking baseline correctness.
 
 **Plan note**  
 This is a revised integrated milestone plan that supersedes the earlier draft ordering while preserving the original milestone intent. The sequence has been refreshed so retrieval maturity, observability, admin control, and evaluation readiness are built into the main roadmap rather than added as follow-on patches later.
@@ -29,11 +29,12 @@ This version adds an explicit `M10.1.x` finish-the-job sequence between M10 and 
 ### Admin capabilities
 - Corpus management (create, enable/disable, sensitivity labels)
 - Run indexing/reindexing and connectors
-- Configure profiles (embedding model / reranker / LLM / retrieval policy) through governed admin workflows in later milestones
+- Configure profiles (embedding model / reranker / LLM / retrieval policy) through governed admin workflows
+- Run sandbox tuning experiments and compare live vs candidate configurations before promotion in later milestones
 - Run eval packs; compare reports
 - Human approval queue for sensitive responses/actions
 - Audit logs and retrieval/latency traces
-- Future retrieval tuning controls (fusion mode, rerank policy, query transformation, cache policy)
+- Governed retrieval tuning controls (fusion mode, rerank policy, query transformation, cache policy, budget posture, versioned rollout)
 
 ### Engineering capabilities
 - Pluggable ingestion connectors (uploads + DB; later drive/slack/email)
@@ -41,6 +42,7 @@ This version adds an explicit `M10.1.x` finish-the-job sequence between M10 and 
 - Observability (latency/cost traces, retrieval score traces, errors)
 - Regression testing (eval pack as a gate)
 - Retrieval experimentation without breaking the answer contract
+- Versioned, auditable model/retrieval promotion workflows rather than ad hoc config changes
 
 ---
 
@@ -53,6 +55,7 @@ These are intentionally out of scope until later (or ever):
 - Perfect answers / “no hallucinations” claims
 - Real-time transactional truth for ERP/CRM without explicit tool integration
 - “Autonomous” retrieval tuning without eval gates and rollback paths
+- Freeform arbitrary model experimentation in production without approved registries, audit records, and rollback paths
 
 ---
 
@@ -867,80 +870,35 @@ Key design rules:
 
 ---
 
-### Milestone M17 — Fast/Slow And Budget-Aware Query Policies (Gate 17)
-**Deliverables**
-- Fast policy:
-  - smaller k
-  - no rerank
-  - smaller/cheaper LLM
-- Slow policy:
-  - bigger k
-  - rerank on
-  - optional query rewrite + deep lookup
-- Budget-aware orchestration:
-  - latency budget
-  - token budget
-  - rerank budget
-  - retrieval depth budget
-- Latency + cost metrics stored per request
+### Milestone M17 — Governed Retrieval Tuning And Experimentation (Gate 17)
+**Why now:** by this stage the system has retrieval traces, profiles, queue governance, approval paths, and a realistic seeded ACL environment. That is the earliest point where a real tuning lab can be introduced without turning production configuration changes into opaque, risky guesswork.
 
-**DoD**
-- Slow improves hard questions measurably (eval deltas)
-- User can choose mode; system can also auto-suggest mode
-- Operators can explain latency/cost tradeoffs by policy
+**Overall deliverables**
+- Establish governed tuning as a first-class admin workflow rather than ad hoc config changes
+- Separate the milestone into:
+  - `M17.a` for enterprise ACL mapping and seeded access-control realism
+  - `M17.b.x` for the full tuning-lab, sandbox, compare, and promotion stack
 
----
+**Overall DoD**
+- The system has both:
+  - a realistic seeded enterprise ACL environment suitable for security-safe experimentation
+  - a governed tuning workflow for comparing, versioning, and promoting retrieval/model changes
+- Tuning never bypasses SQL-level ACL trimming, provenance, or auditability
+- Operators can explain what is live, what is draft, what was compared, and what was promoted
 
-### Milestone M17.1 — Admin Retrieval Tuning Lab And Profile Rollout Controls (Gate 17.1: controlled admin customization)
-**Why now:** real admin model and retrieval tuning should arrive only after traces, evals, queue governance, and operator auditability exist; otherwise configuration changes become hard to evaluate and risky to roll back.
-
-**Deliverables**
-- Upgrade admin profile controls from visibility/activation into real controlled tuning workflows:
-  - embedding profile selection from registered embedding models
-  - reranker profile selection and policy controls
-  - LLM profile selection from approved registered models
-  - retrieval-profile selection for mode, fusion, candidate caps, and budget posture
-- Add an admin query workbench / tuning lab:
-  - rerun a query against a chosen corpus/profile combination
-  - compare current active profile vs candidate profile side by side
-  - inspect trace deltas, citation differences, latency deltas, and eval implications
-  - run controlled query-debug experiments without silently changing production defaults
-- Add corpus-aware and source-type-aware tuning controls:
-  - assign retrieval/rerank/profile defaults by corpus
-  - allow policy by source or content shape where supported by corpus policy design
-  - support testing different strategies for PDFs, transcripts, DB rows, email-style content, or other source classes through governed profile assignment rather than ad hoc switches
-- Add safe embedding-model change workflow:
-  - preview reindex impact before activation
-  - show affected corpora/sources and estimated indexing blast radius
-  - require explicit reindex workflow for embedding changes
-  - preserve rollback path to prior active embedding profile
-- Add safe rollout and auditability:
-  - activation history and change provenance
-  - audit records for every model/profile/policy change
-  - optional compare-before-promote flow using eval reports or benchmark packs
-  - no arbitrary freeform model strings in admin UI; only approved registry-backed profiles
-- Extend admin console IA with a dedicated `Tuning Lab` route or equivalent routed surface once this milestone lands
-
-**DoD**
-- Admin can test and compare retrieval/model settings without code edits
-- Embedding changes are treated as reindexing events, not casual toggles
-- Rerank, LLM, and retrieval-profile changes are explainable, measurable, and auditable
-- Customization by corpus/source type is supported through explicit policy/profile assignment
-- Operators can promote or roll back settings with trace/eval evidence
-
-**Re-run checks**
-- profile compare pass: active vs candidate profile on benchmark queries
-- rerank policy pass: off vs selective-on comparison
-- LLM profile swap pass without answer-contract regression
-- embedding profile change pass with reindex preview and audit trail
-- corpus/source-type policy pass demonstrating different governed behavior across content classes
+**Overall re-run checks**
+- `M17.a` re-run checks pass
+- all `M17.b.x` re-run checks pass
+- end-to-end admin tuning workflow pass under the seeded ACL environment
+- baseline correctness, citation sanity, and ACL leak checks still pass after the full M17 sequence
 
 ---
 
-### Milestone M17.2 — Enterprise Test Environment Seed Pack, ACL Input Mapping, And Executive Access Baseline (Gate 17.2)
-**Why now:** after core retrieval policy controls and before later retrieval sophistication, the system needs a realistic seeded enterprise test environment so ACL, routing, provenance, access requests, and admin workflows can be exercised against something closer to a real customer onboarding pack rather than ad hoc local setup.
+### Milestone M17.a — Enterprise Test Environment Seed Pack, ACL Input Mapping, And Executive Access Baseline (Gate 17.a)
+**Why now:** before the tuning lab is trusted, the system needs a reusable enterprise-grade ACL environment so retrieval, provenance, access requests, and admin workflows can be exercised against realistic identities, groups, owners, and protected sources rather than ad hoc local setup.
 
 **Deliverables**
+- Rename the former `M17.2` scope into `M17.a` with no loss of functional intent
 - Add a full seeded enterprise test-environment specification and import path covering:
   - users
   - groups
@@ -948,69 +906,35 @@ Key design rules:
   - managers
   - source owners
   - ACL managers
-  - executive override roles
-- Define a governed ACL input artifact format for onboarding, such as one or more text/CSV/TSV seed files that can be handed to the implementation team as the enterprise mapping pack:
+  - executive access roles
+- Define the governed ACL onboarding artifact pack:
   - users file
   - groups file
   - user-to-group membership file
   - source inventory file
   - source-to-group ACL mapping file
   - source owner / approver / ACL manager file
-- Seed a complete set of representative test identities:
-  - admin
-  - standard requester
-  - restricted requester
-  - legal approver
-  - finance approver
-  - requester manager
-  - ACL/governance observer
-  - executive roles including `CEO` and `CFO`
-  - blocked / misuse-test user reserved for later milestones
-- Seed representative enterprise groups such as:
-  - public users
-  - legal
-  - finance
-  - HR
-  - executive access
-  - contract reviewers
-  - compliance observers
-- Seed a representative source inventory with:
-  - open/public sources
-  - protected but non-sensitive sources
-  - protected and intrinsically sensitive sources
-  - ambiguous/reroute-test sources
-- Require every protected source in the test pack to carry:
-  - sensitivity label
-  - source owner
-  - ACL manager
-  - corpus/source-type classification
-  - explicit group ACL mapping
-- Define upload-time ACL mapping behavior for the seeded environment:
-  - uploader identity can contribute default ownership metadata
-  - corpus/source classification can determine candidate ACL templates
-  - group mapping can be attached during upload or post-upload admin review
-  - manager/superior visibility can be derived from the seeded enterprise hierarchy where appropriate
-- Define executive access behavior:
-  - `CEO` and `CFO` test roles exist in the seed pack
-  - executive roles can be modeled as broad cross-functional access groups where intended by policy
-  - executive access remains explicit and auditable, not implicit “see everything” magic outside the ACL model
-- Add a ready-made test matrix that exercises:
-  - open retrieval
-  - denied retrieval
-  - direct group-based access
-  - time-bound direct grants
-  - wrong-approver reroute
-  - sensitive-answer hold
-  - non-sensitive protected retrieval
-  - executive cross-functional access
+- Add an admin ACL-management GUI for the seeded environment:
+  - user directory
+  - group directory
+  - source/file inventory
+  - membership editor
+  - file-to-group ACL editor
+  - direct grant visibility
+  - bulk mapping actions
+  - simple org/access visualization
+  - access explainability views
+- Seed representative users, groups, protected/open sources, executive-access cases, and sensitive-source cases
+- Define upload-time ACL mapping behavior for the seeded environment
+- Add a ready-made access-control test matrix covering open, denied, direct grant, reroute, sensitive, and executive access paths
 
 **DoD**
-- The repo has a documented, reusable enterprise seed-pack specification rather than ad hoc local test setup
-- Test users, groups, memberships, and source ACL mappings are complete enough to exercise the major security and workflow paths end to end
-- Protected files are not relying on sensitivity labels alone; explicit ACL mappings exist in the seed design
-- `CEO` and `CFO` roles are present in the seed design and behave through explicit policy/group mapping
-- Upload-time mapping rules are documented clearly enough for onboarding and implementation teams to apply consistently
-- The seeded environment is sufficient to test M4, M15, M16.1, M17, and later abuse-control milestones without inventing identities or ACL mappings from scratch each session
+- The repo has a documented reusable enterprise seed-pack specification rather than ad hoc local test setup
+- Test users, groups, memberships, and source ACL mappings are complete enough to exercise major security and workflow paths end to end
+- Admin can inspect and update the seeded ACL environment through a functional GUI
+- Protected files do not rely on sensitivity labels alone; explicit ACL mappings exist
+- `CEO` and `CFO` roles behave through explicit policy/group mapping
+- The seeded environment is sufficient to support safe experimentation for the later `M17.b.x` tuning work
 
 **Re-run checks**
 - seeded-user access matrix pass across open, protected, and executive-access sources
@@ -1018,6 +942,179 @@ Key design rules:
 - access-request and reroute workflow pass using seeded users and owners
 - sensitive-answer hold pass using seeded sensitive sources
 - upload-to-ACL classification sanity pass for representative uploader/group scenarios
+- admin GUI pass for user/group/source views, membership editing, bulk mapping, and matrix visibility
+
+---
+
+### Milestone M17.b — Stitch-Faithful Tuning Lab Contract (Gate 17.b umbrella)
+The final `M17.b` UI should land as close as practical to the Stitch tuning-lab reference, with the same operator mental model and nearly the same visual/content hierarchy.
+
+The final routed page should feel like:
+- `Model Tuning & Experimentation` as the page title
+- a right-hand or top-priority `Production Live Configuration` card visible immediately on first load
+- an `Experimentation Sandbox` area for building a candidate
+- explicit selectors for:
+  - inference model
+  - embedding model
+  - reranking logic
+- explicit tuning controls for:
+  - temperature
+  - `top_p`
+  - chunk size
+  - `k` retrieval count
+- a clear candidate card describing expected change
+- a `Run Sandbox Test` action
+- a side-by-side `Compare` surface for live vs candidate
+- quality/latency/result summary tiles
+- `Save As Draft` and `Promote To Live` actions
+- visible version history / rollout lineage
+
+The page should read like one coherent operator workflow, not as separate unrelated admin widgets.
+
+---
+
+### Milestone M17.b.1 — Stitch-Faithful Tuning Lab Shell, Live Card, And Governed Registries (Gate 17.b.1)
+**Why now:** before any real experimentation can happen, the system needs the exact operator shell and configuration objects that match the intended tuning-lab experience. This step should make the page structure, live-state truth, and governed choices feel real even before compare execution exists.
+
+**Deliverables**
+- Create the tuning-lab page contract so it is visually and structurally close to the Stitch reference:
+  - page title and operator framing match the tuning-lab concept
+  - `Production Live Configuration` appears as the first/highest-priority card visible on page open
+  - `Experimentation Sandbox` shell exists even if later controls are partially disabled or marked pending
+  - candidate area and live area are visually distinct
+- Add first-class representations for:
+  - live production configuration
+  - candidate draft configuration
+  - version lineage / status
+- Surface current production configuration in the live card:
+  - inference model
+  - embedding model
+  - reranker
+  - retrieval profile/settings summary
+  - version / last-promoted metadata
+- Split governed selectable options in the UI into explicit subsections rather than a single confusing registry list:
+  - `LLM Models`
+  - `Embedding Models`
+  - `Reranker Models`
+- Keep runtime profile registry visible, but clearly separate it from approved tuning choices:
+  - approved model registry = what is allowed for sandbox candidates
+  - profile registry = what the runtime currently knows and can activate
+- Prevent arbitrary freeform model strings in the tuning workflow
+- Support candidate draft create/update/load/list behavior for candidate configurations
+
+**Explicitly left for later after M17.b.1**
+- no live-vs-candidate execution yet
+- no `Run Sandbox Test` behavior yet
+- no side-by-side answer comparison yet
+- no interactive tuning controls for:
+  - `temperature`
+  - `top_p`
+  - chunk size
+  - `k` retrieval count
+- no promotion-to-live workflow yet
+- no rollback control yet
+
+**DoD**
+- The tuning page shell is recognizably close to the Stitch tuning-lab layout, even if some later controls are still non-interactive
+- `Production Live Configuration` is the first operator-visible anchor on page load
+- Candidate configurations exist as durable draft objects
+- Approved tuning choices are shown in distinct `LLM`, `Embedding`, and `Reranker` subsections
+- Runtime profile registry is clearly separated from approved tuning choices
+- Version identity and status are explainable before compare/promotion logic is added
+
+**Re-run checks**
+- live-config API/UI inspection pass
+- candidate draft create/update/load/list pass
+- approved-model registry guardrail pass
+- UI contract pass: live card first, model subsections clearly separated, stitch-like shell visible
+
+---
+
+### Milestone M17.b.2 — Interactive Sandbox Controls And Side-By-Side Compare (Gate 17.b.2)
+**Why now:** once the page shell and durable draft model exist, the next step is to make the sandbox truly interactive so the screen behaves like the Stitch reference rather than only looking like it.
+
+**Deliverables**
+- Make the `Experimentation Sandbox` section interactive
+- Add governed tuning controls matching the Stitch mockup as closely as practical:
+  - temperature
+  - `top_p`
+  - chunk size
+  - `k` retrieval count
+  - reranker on/off and reranker model
+  - inference model selector
+  - embedding model selector
+  - reranking logic selector
+- Add a candidate summary card such as `Expected Change`
+- Add `Run Sandbox Test`
+- Add side-by-side compare workflow:
+  - run live config against a sample query
+  - run candidate config against the same query
+  - show answers side by side
+  - preserve citations and retrieval diagnostics
+- Add visible comparison summary tiles close to the mockup:
+  - answer quality placeholders/signals
+  - latency
+  - retrieval behavior summary
+- Preserve ACL-safe execution and provenance behavior in sandbox mode
+
+**DoD**
+- The sandbox section is no longer just a shell; it supports the main tuning controls shown in the Stitch reference
+- Admin can run live vs candidate comparisons without changing production settings
+- Compare output shows side-by-side answer, citations, and operational signals
+- The page now feels like a working experimentation lab rather than a profile-management view
+- Sandbox runs still obey normal retrieval security and citation rules
+
+**Re-run checks**
+- live-vs-candidate compare pass on benchmark queries
+- tuning-controls pass for `temperature`, `top_p`, chunk size, and `k`
+- rerank on/off comparison pass
+- citation and ACL sanity pass under sandbox execution
+
+---
+
+### Milestone M17.b.3 — Draft Promotion, Rollback, Embedding Safety, Warm-Up, And Final Stitch Fidelity (Gate 17.b.3)
+**Why now:** after the tuning lab can run real sandbox experiments, the final step is to complete the Stitch-like operator workflow with governed rollout actions and production-readiness closure.
+
+**Deliverables**
+- Add `Save As Draft` and `Promote To Live` actions in the final page flow
+- Add explicit promote-to-live workflow with:
+  - promotion note
+  - actor identity
+  - timestamp
+  - prior live config retention
+- Add rollback readiness through historical live-config visibility and stored prior active config
+- Add embedding-model change awareness:
+  - reindex impact warning
+  - affected-corpus visibility where practical
+  - no casual “flip embedding live” behavior without warning
+- Add audit records for:
+  - draft changes
+  - sandbox runs
+  - promotions
+  - rollback actions where supported
+- Add closure warm-up execution so approved embedding and reranker candidates are actually loaded once during milestone completion
+- Close remaining Stitch fidelity gaps in the tuning lab:
+  - final card ordering
+  - candidate summary placement
+  - compare tile placement
+  - version history / rollout framing
+
+**DoD**
+- A validated candidate can be promoted to live explicitly and audibly
+- Previous live config remains available as rollback reference
+- Embedding changes are treated as reindex-sensitive events
+- Tuning-lab actions are auditable
+- The final page flow is close to a complete Stitch-faithful tuning lab in both structure and operator sequence
+- Milestone closure includes a small warm-up path that downloads and loads approved embedding and reranker models at least once
+
+**Re-run checks**
+- promotion-history and rollback-reference pass
+- embedding-change warning and audit pass
+- live-after-promotion regression pass
+- small warm-up execution pass for approved embedding models
+- small warm-up execution pass for approved reranker models
+- final stitch-fidelity pass against the tuning-lab reference
+- final baseline correctness, citation sanity, and ACL leak pass
 
 ---
 

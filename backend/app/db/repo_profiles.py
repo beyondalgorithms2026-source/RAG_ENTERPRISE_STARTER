@@ -5,6 +5,186 @@ from sqlalchemy import text
 from app.core.logging import logger
 from app.db.db import engine
 
+PROFILE_TYPES_FOR_TUNING = ("embedding", "reranker", "llm", "retrieval")
+
+APPROVED_PROFILE_SEEDS: dict[str, list[dict[str, Any]]] = {
+    "embedding": [
+        {
+            "name": "bge-small-en-v1_5",
+            "config": {
+                "model": "BAAI/bge-small-en-v1.5",
+                "dimension": 384,
+                "batch_size": 32,
+                "display_name": "BGE Small v1.5",
+                "registry_entry": True,
+                "approval_status": "approved",
+            },
+        },
+        {
+            "name": "bge-base-en-v1_5",
+            "config": {
+                "model": "BAAI/bge-base-en-v1.5",
+                "dimension": 768,
+                "batch_size": 16,
+                "display_name": "BGE Base v1.5",
+                "registry_entry": True,
+                "approval_status": "approved",
+            },
+        },
+        {
+            "name": "nomic-embed-text",
+            "config": {
+                "model": "nomic-ai/nomic-embed-text-v1.5",
+                "dimension": 768,
+                "batch_size": 16,
+                "display_name": "Nomic Embed Text",
+                "registry_entry": True,
+                "approval_status": "approved",
+            },
+        },
+    ],
+    "reranker": [
+        {
+            "name": "off",
+            "config": {
+                "enabled": False,
+                "model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+                "top_n": None,
+                "score_threshold": None,
+                "enabled_modes": [],
+                "enabled_corpora": [],
+                "min_candidate_count": 0,
+                "max_candidate_count": None,
+                "latency_budget_ms": None,
+                "mmr_enabled": False,
+                "mmr_lambda": 0.5,
+                "display_name": "Reranker Off",
+                "registry_entry": True,
+                "approval_status": "approved",
+            },
+        },
+        {
+            "name": "tinybert-lite",
+            "config": {
+                "enabled": True,
+                "model": "cross-encoder/ms-marco-TinyBERT-L-2-v2",
+                "top_n": 8,
+                "score_threshold": None,
+                "enabled_modes": [],
+                "enabled_corpora": [],
+                "min_candidate_count": 2,
+                "max_candidate_count": None,
+                "latency_budget_ms": None,
+                "mmr_enabled": False,
+                "mmr_lambda": 0.5,
+                "display_name": "TinyBERT Lite",
+                "registry_entry": True,
+                "approval_status": "approved",
+            },
+        },
+        {
+            "name": "minilm-quality",
+            "config": {
+                "enabled": True,
+                "model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+                "top_n": 8,
+                "score_threshold": None,
+                "enabled_modes": [],
+                "enabled_corpora": [],
+                "min_candidate_count": 2,
+                "max_candidate_count": None,
+                "latency_budget_ms": None,
+                "mmr_enabled": False,
+                "mmr_lambda": 0.5,
+                "display_name": "MiniLM Quality",
+                "registry_entry": True,
+                "approval_status": "approved",
+            },
+        },
+        {
+            "name": "bge-reranker-base",
+            "config": {
+                "enabled": True,
+                "model": "BAAI/bge-reranker-base",
+                "top_n": 8,
+                "score_threshold": None,
+                "enabled_modes": [],
+                "enabled_corpora": [],
+                "min_candidate_count": 2,
+                "max_candidate_count": None,
+                "latency_budget_ms": None,
+                "mmr_enabled": False,
+                "mmr_lambda": 0.5,
+                "display_name": "BGE Reranker Base",
+                "registry_entry": True,
+                "approval_status": "approved",
+            },
+        },
+    ],
+    "llm": [
+        {
+            "name": "llama3_2_3b",
+            "config": {
+                "provider": "ollama",
+                "model": "llama3.2:3b",
+                "base_url": "http://localhost:11434",
+                "api_key": "",
+                "timeout_s": 60,
+                "temperature": 0.0,
+                "max_tokens": None,
+                "display_name": "Llama 3.2 3B",
+                "registry_entry": True,
+                "approval_status": "approved",
+            },
+        },
+        {
+            "name": "phi3_mini",
+            "config": {
+                "provider": "ollama",
+                "model": "phi3:mini",
+                "base_url": "http://localhost:11434",
+                "api_key": "",
+                "timeout_s": 60,
+                "temperature": 0.0,
+                "max_tokens": None,
+                "display_name": "Phi-3 Mini",
+                "registry_entry": True,
+                "approval_status": "approved",
+            },
+        },
+        {
+            "name": "ministral_3_8b_instruct",
+            "config": {
+                "provider": "ollama",
+                "model": "ministral-3:8b-instruct-2512-q4_K_M",
+                "base_url": "http://localhost:11434",
+                "api_key": "",
+                "timeout_s": 60,
+                "temperature": 0.0,
+                "max_tokens": None,
+                "display_name": "Ministral 3 8B Instruct",
+                "registry_entry": True,
+                "approval_status": "approved",
+            },
+        },
+        {
+            "name": "deepseek_v3_1_cloud",
+            "config": {
+                "provider": "ollama",
+                "model": "deepseek-v3.1:671b-cloud",
+                "base_url": "http://localhost:11434",
+                "api_key": "",
+                "timeout_s": 60,
+                "temperature": 0.0,
+                "max_tokens": None,
+                "display_name": "DeepSeek v3.1 Cloud",
+                "registry_entry": True,
+                "approval_status": "approved",
+            },
+        },
+    ],
+}
+
 
 def list_profiles(profile_type: Optional[str] = None) -> list[dict[str, Any]]:
     sql = "SELECT id, profile_type, name, config_json, is_default, created_at, updated_at FROM profiles"
@@ -87,14 +267,53 @@ def get_active_profile_config(profile_type: str) -> Optional[dict[str, Any]]:
         return row[0] if row else None
 
 
+def get_active_profile_map(profile_types: Optional[list[str]] = None) -> dict[str, str]:
+    sql = "SELECT profile_type, profile_name FROM active_profiles"
+    with engine.connect() as conn:
+        stmt = text(sql)
+        rows = conn.execute(stmt).fetchall()
+    payload = {str(row[0]): str(row[1]) for row in rows}
+    if profile_types:
+        return {profile_type: payload[profile_type] for profile_type in profile_types if profile_type in payload}
+    return payload
+
+
+def list_approved_registry_profiles(profile_type: Optional[str] = None) -> list[dict[str, Any]]:
+    rows = list_profiles(profile_type)
+    approved: list[dict[str, Any]] = []
+    for row in rows:
+        config = row["config_json"] or {}
+        if config.get("registry_entry") and str(config.get("approval_status", "")).lower() == "approved":
+            approved.append(
+                {
+                    "id": row["id"],
+                    "profile_type": row["profile_type"],
+                    "name": row["name"],
+                    "config": config,
+                    "is_default": row["is_default"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+            )
+    return approved
+
+
+def is_registry_approved_profile(profile_type: str, profile_name: str) -> bool:
+    profile = get_profile(profile_type, profile_name)
+    if not profile:
+        return False
+    config = profile["config_json"] or {}
+    return bool(config.get("registry_entry")) and str(config.get("approval_status", "")).lower() == "approved"
+
+
 def seed_default_profiles(settings) -> None:
     with engine.connect() as conn:
         count = conn.execute(text("SELECT COUNT(*) FROM profiles")).scalar()
-    if count and count > 0:
-        logger.info("Profiles already seeded (%d rows), skipping.", count)
-        return
-
-    logger.info("Seeding default profiles from current settings...")
+    first_seed = not count or count <= 0
+    if first_seed:
+        logger.info("Seeding default profiles from current settings...")
+    else:
+        logger.info("Ensuring default and approved profile registry entries exist...")
 
     # Embedding — dimension resolved dynamically
     try:
@@ -149,8 +368,18 @@ def seed_default_profiles(settings) -> None:
         "description": "Baseline retrieval evaluation pack",
     }, is_default=True)
 
-    # Set all as active
-    for pt in ("embedding", "reranker", "llm", "retrieval", "eval_pack"):
-        set_active_profile(pt, "default")
+    for profile_type, seeds in APPROVED_PROFILE_SEEDS.items():
+        for entry in seeds:
+            if profile_type == "embedding" and entry["config"].get("model") == settings.EMBEDDING_MODEL:
+                entry_config = dict(entry["config"])
+                entry_config["dimension"] = dim if entry_config.get("model") == settings.EMBEDDING_MODEL else entry_config.get("dimension")
+                upsert_profile(profile_type, entry["name"], entry_config, is_default=False)
+            else:
+                upsert_profile(profile_type, entry["name"], dict(entry["config"]), is_default=False)
 
-    logger.info("Default profiles seeded and activated.")
+    # Set all as active on first seed only or when missing.
+    for pt in ("embedding", "reranker", "llm", "retrieval", "eval_pack"):
+        if first_seed or not get_active_profile_name(pt):
+            set_active_profile(pt, "default")
+
+    logger.info("Profile defaults and approved registry entries are ready.")

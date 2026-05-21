@@ -1,0 +1,13 @@
+source_key,contact_role,contact_external_user_id,contact_email,contact_display_name
+legal_contract,source_owner,m161-approver,approver@ragenterprise.local,M161 Approver
+legal_contract,business_approver,m161-approver,approver@ragenterprise.local,M161 Approver
+legal_contract,acl_manager,m172-governance,observer@ragenterprise.local,Governance Observer
+finance_budget,source_owner,m172-finance-approver,finance-approver@ragenterprise.local,Finance Approver
+finance_budget,business_approver,m172-finance-approver,finance-approver@ragenterprise.local,Finance Approver
+finance_budget,acl_manager,m172-governance,observer@ragenterprise.local,Governance Observer
+hr_comp,source_owner,m172-governance,observer@ragenterprise.local,Governance Observer
+hr_comp,business_approver,m172-governance,observer@ragenterprise.local,Governance Observer
+hr_comp,acl_manager,m172-governance,observer@ragenterprise.local,Governance Observer
+ambiguous_vendor,source_owner,m161-manager,manager@ragenterprise.local,M161 Manager
+ambiguous_vendor,business_approver,m161-manager,manager@ragenterprise.local,M161 Manager
+ambiguous_vendor,acl_manager,m172-governance,observer@ragenterprise.local,Governance Observer

@@ -570,6 +570,217 @@ class SmokeTestAdminOps(SmokeTestBase):
             admin_api.load_eval_cases = original_load_eval_cases
             self._delete_retrieval_records(seeded.values())
 
+    def test_m17_b_1_live_configuration_candidate_drafts_and_approved_registry(self):
+        from fastapi.testclient import TestClient
+
+        import app.main as main_module
+        from app.auth.context import AuthenticatedUser
+
+        run_migrations()
+        client = TestClient(app)
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_authenticate = main_module.authenticate_request
+        try:
+            settings.AUTH_ENABLED = True
+            main_module.authenticate_request = lambda request: AuthenticatedUser(
+                user_id="admin-tuning",
+                email="admin.tuning@example.com",
+                roles=["admin"],
+                groups=["ops"],
+            )
+
+            tuning_response = client.get("/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(tuning_response.status_code, 200)
+            tuning_payload = tuning_response.json()
+            self.assertEqual(tuning_payload["live_configuration"]["version_label"], "live-current")
+            self.assertIn("llm", tuning_payload["approved_options"])
+            self.assertGreaterEqual(len(tuning_payload["approved_options"]["llm"]), 1)
+            self.assertGreaterEqual(len(tuning_payload["approved_options"]["embedding"]), 1)
+            self.assertGreaterEqual(len(tuning_payload["approved_options"]["reranker"]), 1)
+
+            live_selected = tuning_payload["live_configuration"]["selected_profiles"]
+            create_response = client.post(
+                "/admin/tuning/drafts",
+                json={
+                    "name": "Quality candidate",
+                    "description": "M17.b.1 smoke draft",
+                    "selected_profiles": {
+                        "llm": tuning_payload["approved_options"]["llm"][0]["name"],
+                        "embedding": tuning_payload["approved_options"]["embedding"][0]["name"],
+                        "reranker": tuning_payload["approved_options"]["reranker"][0]["name"],
+                        "retrieval": live_selected["retrieval"],
+                    },
+                },
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(create_response.status_code, 200)
+            draft = create_response.json()["draft"]
+            self.assertEqual(draft["status"], "draft")
+            self.assertTrue(draft["version_label"].startswith("draft-"))
+
+            invalid_response = client.post(
+                "/admin/tuning/drafts",
+                json={
+                    "name": "Invalid candidate",
+                    "description": "Should be blocked by the approved registry",
+                    "selected_profiles": {
+                        "llm": "freeform-llm",
+                        "embedding": tuning_payload["approved_options"]["embedding"][0]["name"],
+                        "reranker": tuning_payload["approved_options"]["reranker"][0]["name"],
+                        "retrieval": live_selected["retrieval"],
+                    },
+                },
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(invalid_response.status_code, 422)
+
+            patch_response = client.patch(
+                f"/admin/tuning/drafts/{draft['id']}",
+                json={"description": "Updated M17.b.1 smoke draft"},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(patch_response.status_code, 200)
+            self.assertEqual(patch_response.json()["draft"]["description"], "Updated M17.b.1 smoke draft")
+
+            profiles_response = client.get("/admin/profiles", headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(profiles_response.status_code, 200)
+            llm_profiles = [profile for profile in profiles_response.json()["profiles"] if profile["profile_type"] == "llm"]
+            target_profile = next((profile for profile in llm_profiles if not profile["is_active"]), llm_profiles[0])
+            activate_response = client.post(
+                "/admin/profiles/active",
+                json={"profile_type": "llm", "profile_name": target_profile["name"]},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(activate_response.status_code, 200)
+            self.assertEqual(activate_response.json()["live_configuration"]["version_label"], "live-current")
+            self.assertEqual(activate_response.json()["live_configuration"]["selected_profiles"]["llm"], target_profile["name"])
+
+            audit_response = client.get("/admin/audit-log", headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(audit_response.status_code, 200)
+            actions = {item["action"] for item in audit_response.json()["events"]}
+            self.assertTrue({"tuning.draft.create", "tuning.draft.update", "profile.activate"}.issubset(actions))
+        finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_authenticate
+
+    def test_m17_2_seed_import_admin_access_controls_and_executive_acl_visibility(self):
+        from fastapi.testclient import TestClient
+
+        import app.main as main_module
+        from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
+
+        run_migrations()
+        client = TestClient(app)
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_authenticate = main_module.authenticate_request
+        try:
+            settings.AUTH_ENABLED = True
+            main_module.authenticate_request = lambda request: AuthenticatedUser(
+                user_id="admin-m172",
+                email="admin.m172@example.com",
+                roles=["admin", "user"],
+                groups=["dev-admins"],
+            )
+
+            seed_response = client.post("/admin/access/seed-import", json={}, headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(seed_response.status_code, 200)
+            summary = seed_response.json()["summary"]
+            self.assertGreaterEqual(summary["users"], 10)
+            self.assertGreaterEqual(summary["sources"], 5)
+
+            access_response = client.get("/admin/access", headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(access_response.status_code, 200)
+            access_payload = access_response.json()
+            self.assertTrue(access_payload["seed_pack_status"]["ready"])
+            self.assertTrue(any(item["seed_source_key"] == "finance_budget" for item in access_payload["source_acl"]))
+            self.assertTrue(any(item["contact_role"] == "business_approver" for item in access_payload["source_contacts"]))
+
+            restricted_before = AuthenticatedUser(
+                user_id="m172-restricted",
+                email="restricted@ragenterprise.local",
+                roles=["user"],
+                groups=["public_users"],
+            )
+            token = set_current_user(restricted_before)
+            try:
+                before = perform_search(SearchRequest(question="legalfalcontoken", k=5, mode="keyword"))
+            finally:
+                reset_current_user(token)
+            self.assertFalse(before.results)
+
+            membership_response = client.patch(
+                "/admin/access/users/m172-restricted/memberships",
+                json={"group_names": ["public_users", "finance"]},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(membership_response.status_code, 200)
+            explained_user = membership_response.json()["user"]
+            self.assertTrue(any(item["reason"] == "group:finance" for item in explained_user["group_access"]))
+
+            finance_source = next(item for item in access_payload["source_acl"] if item["seed_source_key"] == "finance_budget")
+            acl_response = client.patch(
+                f"/admin/access/sources/{finance_source['source_id']}/acl",
+                json={"group_names": ["finance", "executive_access", "compliance_observers"]},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(acl_response.status_code, 200)
+            explained_source = acl_response.json()["source"]
+            self.assertIn("compliance_observers", explained_source["acl_groups"])
+
+            contacts_response = client.patch(
+                f"/admin/access/sources/{finance_source['source_id']}/contacts",
+                json={
+                    "contacts": [
+                        {
+                            "contact_role": "business_approver",
+                            "contact_external_user_id": "m172-finance-approver",
+                            "contact_email": "finance-approver@ragenterprise.local",
+                            "contact_display_name": "Finance Approver",
+                        },
+                        {
+                            "contact_role": "acl_manager",
+                            "contact_external_user_id": "m172-governance",
+                            "contact_email": "observer@ragenterprise.local",
+                            "contact_display_name": "Governance Observer",
+                        },
+                    ]
+                },
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(contacts_response.status_code, 200)
+            self.assertTrue(any(item["contact_role"] == "acl_manager" for item in contacts_response.json()["source"]["contacts"]))
+
+            executive = AuthenticatedUser(
+                user_id="m172-ceo",
+                email="ceo@ragenterprise.local",
+                roles=["user"],
+                groups=["executive_access"],
+            )
+            token = set_current_user(executive)
+            try:
+                executive_results = perform_search(SearchRequest(question="q3budgettoken", k=5, mode="keyword"))
+            finally:
+                reset_current_user(token)
+            self.assertTrue(executive_results.results)
+            self.assertEqual(executive_results.results[0].file_name, "Q3 Budget Forecast")
+
+            reviewer = AuthenticatedUser(
+                user_id="m161-requester",
+                email="requester@ragenterprise.local",
+                roles=["user"],
+                groups=["contract_reviewers"],
+            )
+            token = set_current_user(reviewer)
+            try:
+                reviewer_results = perform_search(SearchRequest(question="legalfalcontoken", k=5, mode="keyword"))
+            finally:
+                reset_current_user(token)
+            self.assertTrue(reviewer_results.results)
+            self.assertEqual(reviewer_results.results[0].file_name, "Falcon Contract Renewal")
+        finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_authenticate
+
     def test_m2_retrieval_trace_persists_full_ask_lifecycle_and_admin_inspection(self):
         from fastapi.testclient import TestClient
 

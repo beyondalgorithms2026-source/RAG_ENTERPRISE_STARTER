@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
 
@@ -36,15 +36,50 @@ type AccessRequest = {
   } | null;
 };
 
+type AccessUser = {
+  external_user_id: string;
+  email?: string | null;
+  display_name?: string | null;
+  groups?: string[];
+  user_metadata_json?: Record<string, unknown>;
+};
+
+type AccessSource = {
+  source_id: number;
+  file_name: string;
+  corpus_name?: string | null;
+  sensitivity_label?: string | null;
+  seed_source_key?: string | null;
+  groups?: string[];
+};
+
+type AccessContact = {
+  source_id: number;
+  contact_role: string;
+  contact_external_user_id?: string | null;
+  contact_email?: string | null;
+  contact_display_name?: string | null;
+};
+
 type AccessPayload = {
   summary: Record<string, number>;
-  users: Record<string, unknown>[];
+  users: AccessUser[];
   groups: Record<string, unknown>[];
-  source_acl: Record<string, unknown>[];
+  source_acl: AccessSource[];
+  source_contacts: AccessContact[];
+  org_edges: Record<string, unknown>[];
+  direct_grants: Record<string, unknown>[];
+  seed_pack_status?: Record<string, unknown>;
 };
+
+type AccessExplanation = Record<string, unknown> | null;
 
 function titleCase(value: string) {
   return value.split(/[_\s]+/).filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+}
+
+function uniqueSorted(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean))).sort((left, right) => left.localeCompare(right));
 }
 
 export function AccessRequestsAdminPanel() {
@@ -53,6 +88,14 @@ export function AccessRequestsAdminPanel() {
   const [feedback, setFeedback] = useState("");
   const [routingDrafts, setRoutingDrafts] = useState<Record<number, { sourceIds: string; businessApproverEmail: string; businessApproverDisplayName: string; aclManagerEmail: string; requesterManagerEmail: string; reviewReason: string }>>({});
   const [denyReasons, setDenyReasons] = useState<Record<number, string>>({});
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedSourceId, setSelectedSourceId] = useState("");
+  const [membershipDraft, setMembershipDraft] = useState("");
+  const [sourceAclDraft, setSourceAclDraft] = useState("");
+  const [contactDraft, setContactDraft] = useState("");
+  const [userExplain, setUserExplain] = useState<AccessExplanation>(null);
+  const [sourceExplain, setSourceExplain] = useState<AccessExplanation>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   async function refresh() {
     const [accessData, requestData] = await Promise.all([
@@ -61,11 +104,75 @@ export function AccessRequestsAdminPanel() {
     ]);
     setAccessPayload(accessData);
     setRequests(requestData.access_requests);
+    if (!selectedUserId && accessData.users.length) {
+      setSelectedUserId(accessData.users[0].external_user_id);
+      setMembershipDraft((accessData.users[0].groups || []).join(", "));
+    }
+    if (!selectedSourceId && accessData.source_acl.length) {
+      setSelectedSourceId(String(accessData.source_acl[0].source_id));
+      setSourceAclDraft((accessData.source_acl[0].groups || []).join(", "));
+    }
+    setIsLoading(false);
   }
 
   useEffect(() => {
-    refresh().catch((err) => setFeedback(err instanceof Error ? err.message : "Failed to load access workflow state."));
+    refresh().catch((err) => {
+      setFeedback(err instanceof Error ? err.message : "Failed to load access workflow state.");
+      setIsLoading(false);
+    });
   }, []);
+
+  useEffect(() => {
+    if (!accessPayload || !selectedUserId) {
+      return;
+    }
+    const user = accessPayload.users.find((item) => item.external_user_id === selectedUserId);
+    setMembershipDraft((user?.groups || []).join(", "));
+  }, [accessPayload, selectedUserId]);
+
+  useEffect(() => {
+    if (!accessPayload || !selectedSourceId) {
+      return;
+    }
+    const source = accessPayload.source_acl.find((item) => String(item.source_id) === selectedSourceId);
+    setSourceAclDraft((source?.groups || []).join(", "));
+    const contacts = (accessPayload.source_contacts || []).filter((item) => String(item.source_id) === selectedSourceId);
+    setContactDraft(
+      contacts.map((item) => [item.contact_role, item.contact_email || "", item.contact_display_name || "", item.contact_external_user_id || ""].join("|")).join("\n"),
+    );
+  }, [accessPayload, selectedSourceId]);
+
+  async function loadUserExplain(externalUserId: string) {
+    try {
+      const payload = await browserFetch<Record<string, unknown>>(`/admin/access/explain/user/${encodeURIComponent(externalUserId)}`);
+      setUserExplain(payload);
+      setFeedback("");
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : "Could not load user access explanation.");
+    }
+  }
+
+  async function loadSourceExplain(sourceId: string) {
+    try {
+      const payload = await browserFetch<Record<string, unknown>>(`/admin/access/explain/source/${sourceId}`);
+      setSourceExplain(payload);
+      setFeedback("");
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : "Could not load source access explanation.");
+    }
+  }
+
+  useEffect(() => {
+    if (selectedUserId) {
+      loadUserExplain(selectedUserId).catch(() => undefined);
+    }
+  }, [selectedUserId]);
+
+  useEffect(() => {
+    if (selectedSourceId) {
+      loadSourceExplain(selectedSourceId).catch(() => undefined);
+    }
+  }, [selectedSourceId]);
 
   function routingDraftFor(id: number) {
     const request = requests.find((item) => item.id === id);
@@ -128,14 +235,91 @@ export function AccessRequestsAdminPanel() {
     }
   }
 
+  async function importSeedPack() {
+    try {
+      await browserFetch("/admin/access/seed-import", { method: "POST", json: {} });
+      setFeedback("Enterprise ACL seed pack imported.");
+      await refresh();
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : "Could not import the enterprise ACL seed pack.");
+    }
+  }
+
+  async function saveMemberships() {
+    if (!selectedUserId) {
+      return;
+    }
+    try {
+      await browserFetch(`/admin/access/users/${encodeURIComponent(selectedUserId)}/memberships`, {
+        method: "PATCH",
+        json: { group_names: uniqueSorted(membershipDraft.split(",").map((item) => item.trim())) },
+      });
+      setFeedback(`Updated memberships for ${selectedUserId}.`);
+      await refresh();
+      await loadUserExplain(selectedUserId);
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : "Could not update memberships.");
+    }
+  }
+
+  async function saveSourceAcl() {
+    if (!selectedSourceId) {
+      return;
+    }
+    try {
+      await browserFetch(`/admin/access/sources/${selectedSourceId}/acl`, {
+        method: "PATCH",
+        json: { group_names: uniqueSorted(sourceAclDraft.split(",").map((item) => item.trim())) },
+      });
+      setFeedback(`Updated ACL groups for source ${selectedSourceId}.`);
+      await refresh();
+      await loadSourceExplain(selectedSourceId);
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : "Could not update source ACL.");
+    }
+  }
+
+  async function saveSourceContacts() {
+    if (!selectedSourceId) {
+      return;
+    }
+    const contacts = contactDraft
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [contact_role, contact_email, contact_display_name, contact_external_user_id] = line.split("|").map((item) => item.trim());
+        return { contact_role, contact_email, contact_display_name, contact_external_user_id };
+      })
+      .filter((item) => item.contact_role && item.contact_email);
+    try {
+      await browserFetch(`/admin/access/sources/${selectedSourceId}/contacts`, {
+        method: "PATCH",
+        json: { contacts },
+      });
+      setFeedback(`Updated source contacts for source ${selectedSourceId}.`);
+      await refresh();
+      await loadSourceExplain(selectedSourceId);
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : "Could not update source contacts.");
+    }
+  }
+
   const summary = accessPayload?.summary || {};
+  const users = accessPayload?.users || [];
+  const sources = accessPayload?.source_acl || [];
+  const sourceContacts = accessPayload?.source_contacts || [];
+  const selectedSourceContacts = useMemo(
+    () => sourceContacts.filter((item) => String(item.source_id) === selectedSourceId),
+    [sourceContacts, selectedSourceId],
+  );
 
   return (
     <div className="admin-route-page">
       <section className="admin-section-intro">
         <span>Governed Access</span>
-        <h1>Access Requests</h1>
-        <p>Review protected-source posture, route business approvals, and execute time-bound direct grants without weakening retrieval-time ACL enforcement.</p>
+        <h1>Access Requests And Seeded ACL Management</h1>
+        <p>Review protected-source posture, route business approvals, execute time-bound direct grants, and maintain the seeded enterprise access model without weakening retrieval-time ACL enforcement.</p>
       </section>
 
       {feedback ? <div className="error-banner">{feedback}</div> : null}
@@ -143,9 +327,125 @@ export function AccessRequestsAdminPanel() {
       <section className="admin-summary-cards">
         <article className="card"><h2>Protected Sources</h2><p>{summary.protected_source_count || 0}</p></article>
         <article className="card"><h2>Active Grants</h2><p>{summary.active_grant_count || 0}</p></article>
-        <article className="card"><h2>Open Sources</h2><p>{summary.open_source_count || 0}</p></article>
+        <article className="card"><h2>Seeded Users</h2><p>{Number(accessPayload?.seed_pack_status?.user_count || 0)}</p></article>
         <article className="card"><h2>Groups</h2><p>{summary.group_count || 0}</p></article>
       </section>
+
+      <section className="card">
+        <div className="section-head">
+          <div>
+            <h2>Enterprise Seed Pack</h2>
+            <p>Import the reusable seeded users, groups, memberships, sources, and contacts used for ACL and workflow testing.</p>
+          </div>
+          <button type="button" className="stitch-button stitch-button-primary" onClick={() => importSeedPack()}>Import Seed Pack</button>
+        </div>
+        <div className="table-list">
+          <article className="table-row">
+            <div>
+              <strong>{Boolean(accessPayload?.seed_pack_status?.ready) ? "Seed pack ready" : "Seed pack not imported yet"}</strong>
+              <span className="muted-copy">{Number(accessPayload?.seed_pack_status?.source_count || 0)} seeded sources · {Number(accessPayload?.seed_pack_status?.user_count || 0)} seeded users</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <div className="results-grid">
+        <section className="card">
+          <div className="section-head">
+            <div>
+              <h2>User Directory</h2>
+              <p>Edit memberships for the seeded requesters, approvers, managers, observers, and executives.</p>
+            </div>
+          </div>
+          <label>
+            <span>User</span>
+            <select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
+              {users.map((user) => (
+                <option key={user.external_user_id} value={user.external_user_id}>{user.display_name || user.email || user.external_user_id}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Groups (comma separated)</span>
+            <input value={membershipDraft} onChange={(event) => setMembershipDraft(event.target.value)} placeholder="public_users, contract_reviewers" />
+          </label>
+          <div className="toolbar-inline">
+            <button type="button" className="stitch-button stitch-button-primary stitch-button-small" onClick={() => saveMemberships()}>Save Memberships</button>
+            <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => selectedUserId && loadUserExplain(selectedUserId)}>Refresh Access Explanation</button>
+          </div>
+          <div className="table-list">
+            {users.map((user) => (
+              <article key={user.external_user_id} className="table-row">
+                <div>
+                  <strong>{user.display_name || user.email || user.external_user_id}</strong>
+                  <span className="muted-copy">{(user.groups || []).join(", ") || "No groups"}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="section-head">
+            <div>
+              <h2>Source ACL Editor</h2>
+              <p>Adjust group-based visibility and source contacts without leaving the admin console.</p>
+            </div>
+          </div>
+          <label>
+            <span>Source</span>
+            <select value={selectedSourceId} onChange={(event) => setSelectedSourceId(event.target.value)}>
+              {sources.map((source) => (
+                <option key={source.source_id} value={String(source.source_id)}>#{source.source_id} · {source.file_name}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>ACL groups (comma separated)</span>
+            <input value={sourceAclDraft} onChange={(event) => setSourceAclDraft(event.target.value)} placeholder="legal, executive_access" />
+          </label>
+          <div className="toolbar-inline">
+            <button type="button" className="stitch-button stitch-button-primary stitch-button-small" onClick={() => saveSourceAcl()}>Save ACL</button>
+            <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => selectedSourceId && loadSourceExplain(selectedSourceId)}>Refresh Source Explanation</button>
+          </div>
+          <label>
+            <span>Contacts (`role|email|display|external_user_id`, one per line)</span>
+            <textarea rows={6} value={contactDraft} onChange={(event) => setContactDraft(event.target.value)} placeholder="business_approver|approver@ragenterprise.local|M161 Approver|m161-approver" />
+          </label>
+          <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => saveSourceContacts()}>Save Contacts</button>
+          <div className="table-list">
+            {selectedSourceContacts.map((contact, index) => (
+              <article key={`${contact.source_id}-${contact.contact_role}-${index}`} className="table-row">
+                <div>
+                  <strong>{titleCase(contact.contact_role)}</strong>
+                  <span className="muted-copy">{contact.contact_display_name || contact.contact_email || contact.contact_external_user_id}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <div className="results-grid">
+        <section className="card">
+          <div className="section-head">
+            <div>
+              <h2>User Access Explanation</h2>
+              <p>Show which sources are reachable through group membership or temporary direct grant.</p>
+            </div>
+          </div>
+          <pre className="rounded-2xl bg-slate-950 p-4 text-xs text-slate-100 overflow-x-auto">{JSON.stringify(userExplain || (isLoading ? { loading: true } : {}), null, 2)}</pre>
+        </section>
+        <section className="card">
+          <div className="section-head">
+            <div>
+              <h2>Source Access Explanation</h2>
+              <p>Show which users can currently see the selected source and why.</p>
+            </div>
+          </div>
+          <pre className="rounded-2xl bg-slate-950 p-4 text-xs text-slate-100 overflow-x-auto">{JSON.stringify(sourceExplain || (isLoading ? { loading: true } : {}), null, 2)}</pre>
+        </section>
+      </div>
 
       <section className="card">
         <div className="section-head">
@@ -199,23 +499,24 @@ export function AccessRequestsAdminPanel() {
       <section className="card">
         <div className="section-head">
           <div>
-            <h2>ACL Coverage</h2>
-            <p>Use these source ids while mapping request hints to protected documents.</p>
+            <h2>Seeded ACL Coverage</h2>
+            <p>Source-level ACL posture, org relationships, and direct grant visibility for the imported enterprise test environment.</p>
           </div>
         </div>
         <div className="table-list">
-          {(accessPayload?.source_acl || []).map((item) => (
+          {sources.map((item) => (
             <article key={String(item.source_id)} className="table-row">
               <div>
                 <strong>#{String(item.source_id)} · {String(item.file_name)}</strong>
-                <span className="muted-copy">{String(item.corpus_name || "No corpus")} · {String(item.sensitivity_label || "internal")}</span>
+                <span className="muted-copy">{String(item.corpus_name || "No corpus")} · {String(item.sensitivity_label || "internal")} · {String(item.seed_source_key || "ad hoc source")}</span>
               </div>
               <div className="table-metrics">
-                <span>{Array.isArray(item.groups) && item.groups.length ? (item.groups as string[]).join(", ") : "No explicit ACL"}</span>
+                <span>{Array.isArray(item.groups) && item.groups.length ? item.groups.join(", ") : "No explicit ACL"}</span>
               </div>
             </article>
           ))}
         </div>
+        <pre className="rounded-2xl bg-slate-950 p-4 text-xs text-slate-100 overflow-x-auto">{JSON.stringify({ org_edges: accessPayload?.org_edges || [], direct_grants: accessPayload?.direct_grants || [] }, null, 2)}</pre>
       </section>
     </div>
   );

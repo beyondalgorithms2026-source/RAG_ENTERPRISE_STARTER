@@ -1,6 +1,6 @@
 # STATUS.md — Milestone Progress Tracker
 
-**Current Milestone:** M17 — Fast/Slow And Budget-Aware Query Policies
+**Current Milestone:** M17.b.2 — Sandbox Compare Lab And Query-Policy Controls
 
 **Completed**
 - M0: Baseline Stable Import (baseline-import-stable)
@@ -30,6 +30,8 @@
 - M15: Human Approval Workflow For Sensitive Outputs/Actions (2026-04-21)
 - M16: Fallback, Clarification, And Feedback Loop (2026-04-21)
 - M16.1: Access-Limited Retrieval, Routed Business Approval, And Time-Bound Access Grants (2026-05-19)
+- M17.a: Enterprise Test Environment Seed Pack, ACL Input Mapping, And Executive Access Baseline (2026-05-20)
+- M17.b.1: Stitch-Faithful Tuning Lab Shell, Live Card, And Governed Registries (2026-05-21)
 
 **M10 summary**
 - Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
@@ -157,6 +159,21 @@
 - Extended access posture and retrieval behavior so approved temporary grants change results only for the intended user and only until expiry
 - Refined the access-request workflow so requesters can provide business context plus optional suggested approver/manager details, admins can route without exact source ids, and approvers can map sources or return misrouted requests with alternate approver suggestions
 - See docs/milestones/m16_1_access_limited_retrieval_routed_business_approval_and_time_bound_access_grants.md
+
+**M17.a summary**
+- Added a reusable enterprise ACL seed pack with canonical users, groups, memberships, protected/open source inventory, explicit source contacts, and executive-access mappings
+- Added an idempotent `python -m app.seed.enterprise_acl` import path plus a `make seed-enterprise-acl` shortcut so the seeded environment can be recreated without ad hoc database setup
+- Expanded `/admin/access` into a richer seeded-environment contract with source contacts, org edges, direct grants, and seed-pack readiness, then added management endpoints for memberships, ACL mappings, source contacts, bulk assignment, and user/source access explanations
+- Upgraded the admin Access page into a working seeded ACL-management surface while preserving the M16.1 request-routing and direct-grant workflow
+- Consolidated the local-dev test-user story by reusing the existing built-in and M16.1 identities first, then adding only the missing M17.2 personas such as restricted requester, governance observer, CEO, CFO, and misuse-test user
+- See docs/milestones/m17_2_enterprise_seed_pack_acl_baseline.md
+
+**M17.b.1 summary**
+- Added durable `tuning_config_versions` storage so the production-active configuration and candidate drafts now exist as first-class operator-visible objects instead of being inferred only from scattered active-profile rows
+- Seeded approved registry-backed LLM, embedding, and reranker options into the existing profile registry while keeping retrieval profiles under the established runtime profile model
+- Added admin tuning endpoints for live configuration visibility plus candidate draft create/update/list workflows, and extended profile activation so the synced live tuning record stays current
+- Reworked the admin Profiles page into a closer Stitch-faithful tuning-lab shell with a branded left rail, a live configuration spotlight card, an experimentation sandbox laid out with slider-style generation controls plus bottom model selectors, a right-side candidate rail, and shell-only compare/footer actions that stay truthfully gated for later M17.b milestones
+- See docs/milestones/m17_b_1_live_configuration_candidate_drafts_and_approved_model_registry.md
 
 **M9 summary**
 - Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline

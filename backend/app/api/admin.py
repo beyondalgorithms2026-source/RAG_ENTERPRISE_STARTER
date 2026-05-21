@@ -8,11 +8,20 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from app.auth.dependencies import require_admin_user
+from app.auth.context import get_current_user
 from app.corpus_policies import get_corpus_policy
 from app.core.config import REPO_ROOT
 from app.core.logging import logger
 from app.core_rag.retrieval import SearchFilters, SearchRequest, perform_search
-from app.db.repo_acl import assign_document_acl, list_access_summary, list_source_acl_map
+from app.db.repo_acl import (
+    assign_document_acl,
+    explain_source_access,
+    explain_user_access,
+    list_access_summary,
+    list_source_acl_map,
+    replace_source_acl,
+    replace_user_memberships,
+)
 from app.db.repo_actions import list_approval_requests, top_failed_queries
 from app.db.repo_admin_audit import insert_admin_audit_event, list_admin_audit_events
 from app.db.repo_corpora import get_corpus, list_corpora, upsert_corpus
@@ -31,9 +40,23 @@ from app.db.repo_priority_requests import (
     list_priority_requests,
     update_priority_request_status,
 )
-from app.db.repo_profiles import get_active_profile_name, get_profile, list_profiles, set_active_profile
+from app.db.repo_profiles import (
+    PROFILE_TYPES_FOR_TUNING,
+    get_active_profile_name,
+    get_profile,
+    list_approved_registry_profiles,
+    list_profiles,
+    set_active_profile,
+)
 from app.db.repo_sources import get_source_by_id, list_sources, update_source_admin_fields, update_source_status
 from app.db.repo_traces import get_trace, get_trace_by_id, list_traces
+from app.db.repo_tuning_configs import (
+    create_candidate_draft,
+    get_live_configuration,
+    list_candidate_drafts,
+    sync_live_configuration_record,
+    update_candidate_draft,
+)
 from app.eval.compare_eval import DEFAULT_REPORT_FILE as BENCHMARK_REPORT_FILE
 from app.eval.compare_eval import load_benchmark_cases, run_mode_benchmark
 from app.eval.retrieval_eval import DEFAULT_REPORT_FILE as RETRIEVAL_REPORT_FILE
@@ -44,6 +67,8 @@ from app.ingestion.queue_metrics import priority_request_payload, summarize_inge
 from app.ingestion.queue_runtime import poke_ingestion_queue
 from app.profiles.models import PROFILE_TYPE_MODELS
 from app.profiles.resolver import get_active_profile_snapshot, get_effective_reranker, get_effective_retrieval, invalidate_cache
+from app.seed.enterprise_acl import DEFAULT_PACK_DIR, seed_enterprise_acl_pack
+from app.db.repo_access_requests import upsert_source_access_contacts
 
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_user)])
@@ -120,6 +145,51 @@ class QueuePriorityDecisionRequest(BaseModel):
 class QueueControlRequest(BaseModel):
     action: str = Field(pattern="^(pause|resume|cancel|requeue|retry)$")
     reason: str = ""
+
+
+class AccessSeedImportRequest(BaseModel):
+    pack_dir: Optional[str] = None
+
+
+class UserMembershipUpdateRequest(BaseModel):
+    group_names: list[str] = Field(default_factory=list)
+
+
+class SourceAclUpdateRequest(BaseModel):
+    group_names: list[str] = Field(default_factory=list)
+
+
+class SourceContactInput(BaseModel):
+    contact_role: str
+    contact_external_user_id: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_display_name: Optional[str] = None
+
+
+class SourceContactsUpdateRequest(BaseModel):
+    contacts: list[SourceContactInput] = Field(default_factory=list)
+
+
+class BulkGroupAssignmentRequest(BaseModel):
+    group_name: str
+    source_ids: list[int] = Field(default_factory=list)
+
+
+class BulkSourceAssignmentRequest(BaseModel):
+    source_id: int
+    group_names: list[str] = Field(default_factory=list)
+
+
+class CandidateDraftRequest(BaseModel):
+    name: str
+    description: str = ""
+    selected_profiles: dict[str, str] = Field(default_factory=dict)
+
+
+class CandidateDraftUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    selected_profiles: Optional[dict[str, str]] = None
 
 
 def _report_summary(kind: str, path: Path) -> dict[str, Any]:
@@ -283,6 +353,7 @@ def set_active(body: ActiveProfileRequest):
     previous_profile_name = get_active_profile_name(body.profile_type)
     set_active_profile(body.profile_type, body.profile_name)
     invalidate_cache(body.profile_type)
+    live_config = sync_live_configuration_record()
     logger.info("Activated profile %s/%s", body.profile_type, body.profile_name)
     insert_admin_audit_event(
         event_type="profile",
@@ -295,7 +366,12 @@ def set_active(body: ActiveProfileRequest):
         before_json={"profile_name": previous_profile_name},
         after_json={"profile_name": body.profile_name},
     )
-    return {"status": "ok", "profile_type": body.profile_type, "profile_name": body.profile_name}
+    return {
+        "status": "ok",
+        "profile_type": body.profile_type,
+        "profile_name": body.profile_name,
+        "live_configuration": live_config,
+    }
 
 
 @router.get("/profiles/metadata")
@@ -333,6 +409,93 @@ def get_profile_metadata():
             get_corpus_policy("email_casework").to_dict(),
         ],
     }
+
+
+@router.get("/tuning/configurations")
+def get_tuning_configurations():
+    live_configuration = get_live_configuration()
+    approved_options: dict[str, list[dict[str, Any]]] = {}
+    for profile_type in ("llm", "embedding", "reranker"):
+        approved_options[profile_type] = [
+            {
+                "name": row["name"],
+                "display_name": (row["config"] or {}).get("display_name") or row["name"],
+                "model": (row["config"] or {}).get("model"),
+                "config": row["config"],
+            }
+            for row in list_approved_registry_profiles(profile_type)
+        ]
+    approved_options["retrieval"] = [
+        {
+            "name": row["name"],
+            "display_name": (row["config_json"] or {}).get("display_name") or row["name"],
+            "config": row["config_json"],
+        }
+        for row in list_profiles("retrieval")
+    ]
+    return {
+        "live_configuration": live_configuration,
+        "candidate_drafts": list_candidate_drafts(),
+        "approved_options": approved_options,
+        "profile_types": list(PROFILE_TYPES_FOR_TUNING),
+    }
+
+
+@router.post("/tuning/drafts")
+def create_tuning_draft(body: CandidateDraftRequest):
+    actor = get_current_user()
+    try:
+        draft = create_candidate_draft(
+            name=body.name,
+            description=body.description,
+            selected_profiles=body.selected_profiles,
+            actor=actor,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    insert_admin_audit_event(
+        event_type="tuning",
+        action="tuning.draft.create",
+        resource_type="tuning_config",
+        resource_id=str(draft["id"]),
+        resource_name=draft["name"],
+        before_json={},
+        after_json=draft,
+        event_json={"version_label": draft["version_label"], "status": draft["status"]},
+        actor=actor,
+    )
+    return {"draft": draft}
+
+
+@router.patch("/tuning/drafts/{draft_id}")
+def patch_tuning_draft(draft_id: int, body: CandidateDraftUpdateRequest):
+    actor = get_current_user()
+    before = next((item for item in list_candidate_drafts() if int(item["id"]) == int(draft_id)), None)
+    if not before:
+        raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+    try:
+        draft = update_candidate_draft(
+            draft_id,
+            name=body.name,
+            description=body.description,
+            selected_profiles=body.selected_profiles,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    insert_admin_audit_event(
+        event_type="tuning",
+        action="tuning.draft.update",
+        resource_type="tuning_config",
+        resource_id=str(draft["id"]),
+        resource_name=draft["name"],
+        before_json=before,
+        after_json=draft,
+        event_json={"version_label": draft["version_label"], "status": draft["status"]},
+        actor=actor,
+    )
+    return {"draft": draft}
 
 
 @router.get("/overview")
@@ -930,6 +1093,138 @@ def get_retrieval_trace(trace_id: int):
 @router.get("/access")
 def get_access():
     return list_access_summary()
+
+
+@router.post("/access/seed-import")
+def import_access_seed_pack(body: AccessSeedImportRequest):
+    pack_dir = Path(body.pack_dir).expanduser() if body.pack_dir else DEFAULT_PACK_DIR
+    if not pack_dir.exists():
+        raise HTTPException(status_code=404, detail={"error": "seed_pack_not_found", "message": f"Seed pack not found: {pack_dir}"})
+    summary = seed_enterprise_acl_pack(pack_dir)
+    actor = get_current_user()
+    insert_admin_audit_event(
+        event_type="access",
+        action="access.seed_import",
+        resource_type="seed_pack",
+        resource_id=str(pack_dir),
+        resource_name=pack_dir.name,
+        actor=actor,
+        after_json=summary,
+    )
+    return {"status": "ok", "summary": summary, "access": list_access_summary()}
+
+
+@router.patch("/access/users/{external_user_id}/memberships")
+def update_user_memberships(external_user_id: str, body: UserMembershipUpdateRequest):
+    replace_user_memberships(external_user_id=external_user_id, group_names=body.group_names)
+    actor = get_current_user()
+    insert_admin_audit_event(
+        event_type="access",
+        action="access.user_memberships.update",
+        resource_type="auth_user",
+        resource_id=external_user_id,
+        resource_name=external_user_id,
+        actor=actor,
+        after_json={"group_names": body.group_names},
+    )
+    return {"status": "ok", "user": explain_user_access(external_user_id)}
+
+
+@router.patch("/access/sources/{source_id}/acl")
+def update_source_acl_assignments(source_id: int, body: SourceAclUpdateRequest):
+    row = get_source_by_id(source_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail={"error": "source_not_found", "message": f"Source {source_id} not found"})
+    replace_source_acl(source_id=source_id, group_names=body.group_names)
+    actor = get_current_user()
+    insert_admin_audit_event(
+        event_type="access",
+        action="access.source_acl.update",
+        resource_type="source",
+        resource_id=str(source_id),
+        resource_name=row.file_name,
+        source_id=source_id,
+        actor=actor,
+        after_json={"group_names": body.group_names},
+    )
+    return {"status": "ok", "source": explain_source_access(source_id)}
+
+
+@router.patch("/access/sources/{source_id}/contacts")
+def update_source_contacts(source_id: int, body: SourceContactsUpdateRequest):
+    row = get_source_by_id(source_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail={"error": "source_not_found", "message": f"Source {source_id} not found"})
+    upsert_source_access_contacts(source_id, [contact.model_dump() for contact in body.contacts])
+    actor = get_current_user()
+    insert_admin_audit_event(
+        event_type="access",
+        action="access.source_contacts.update",
+        resource_type="source",
+        resource_id=str(source_id),
+        resource_name=row.file_name,
+        source_id=source_id,
+        actor=actor,
+        after_json={"contacts": [contact.model_dump() for contact in body.contacts]},
+    )
+    return {"status": "ok", "source": explain_source_access(source_id)}
+
+
+@router.post("/access/bulk/assign-group-to-sources")
+def bulk_assign_group_to_sources(body: BulkGroupAssignmentRequest):
+    updated: list[int] = []
+    acl_map = list_source_acl_map()
+    for source_id in body.source_ids:
+        merged = sorted({*(acl_map.get(int(source_id), [])), body.group_name.strip()})
+        replace_source_acl(source_id=source_id, group_names=merged)
+        updated.append(int(source_id))
+    actor = get_current_user()
+    insert_admin_audit_event(
+        event_type="access",
+        action="access.bulk_assign_group_to_sources",
+        resource_type="group",
+        resource_id=body.group_name,
+        resource_name=body.group_name,
+        actor=actor,
+        after_json={"source_ids": updated},
+    )
+    return {"status": "ok", "group_name": body.group_name, "source_ids": updated}
+
+
+@router.post("/access/bulk/assign-sources-to-group")
+def bulk_assign_sources_to_group(body: BulkSourceAssignmentRequest):
+    row = get_source_by_id(body.source_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail={"error": "source_not_found", "message": f"Source {body.source_id} not found"})
+    replace_source_acl(source_id=body.source_id, group_names=body.group_names)
+    actor = get_current_user()
+    insert_admin_audit_event(
+        event_type="access",
+        action="access.bulk_assign_sources_to_group",
+        resource_type="source",
+        resource_id=str(body.source_id),
+        resource_name=row.file_name,
+        source_id=body.source_id,
+        actor=actor,
+        after_json={"group_names": body.group_names},
+    )
+    return {"status": "ok", "source": explain_source_access(body.source_id)}
+
+
+@router.get("/access/explain/source/{source_id}")
+def get_source_access_explanation(source_id: int):
+    try:
+        return explain_source_access(source_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail={"error": "source_not_found", "message": str(exc)}) from exc
+
+
+@router.get("/access/explain/user/{external_user_id}")
+def get_user_access_explanation(external_user_id: str):
+    try:
+        return explain_user_access(external_user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail={"error": "user_not_found", "message": str(exc)}) from exc
 
 
 @router.get("/audit-log")

@@ -1,0 +1,12 @@
+external_user_id,email,display_name,roles,department,function,manager_external_user_id,manager_email,manager_display_name,seed_role,blocked_test_user
+dev-test-user,test-user@ragenterprise.local,Test User,user,General,Public Access,m161-manager,manager@ragenterprise.local,M161 Manager,standard_requester,false
+dev-test-admin,test-admin@ragenterprise.local,Test Admin,"admin,user",Operations,Platform,,, ,admin,false
+m161-requester,requester@ragenterprise.local,M161 Requester,user,Legal,Contract Review,m161-manager,manager@ragenterprise.local,M161 Manager,standard_requester,false
+m172-restricted,restricted@ragenterprise.local,Restricted Requester,user,Finance,Budget Review,m161-manager,manager@ragenterprise.local,M161 Manager,restricted_requester,false
+m161-approver,approver@ragenterprise.local,M161 Approver,"approver,user",Legal,Approvals,,, ,legal_approver,false
+m172-finance-approver,finance-approver@ragenterprise.local,Finance Approver,"approver,user",Finance,Approvals,,, ,finance_approver,false
+m161-manager,manager@ragenterprise.local,M161 Manager,user,Operations,Management,,, ,requester_manager,false
+m172-governance,observer@ragenterprise.local,Governance Observer,"admin,user",Compliance,Governance,,, ,governance_observer,false
+m172-ceo,ceo@ragenterprise.local,Chief Executive Officer,user,Executive,Executive,,, ,ceo,false
+m172-cfo,cfo@ragenterprise.local,Chief Financial Officer,user,Executive,Executive,,, ,cfo,false
+m172-misuse,misuse@ragenterprise.local,Misuse Test User,user,Security,Testing,m161-manager,manager@ragenterprise.local,M161 Manager,misuse_test,true

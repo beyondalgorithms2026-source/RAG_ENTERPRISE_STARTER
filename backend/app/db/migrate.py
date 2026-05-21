@@ -159,6 +159,30 @@ def _create_profiles_tables() -> None:
         conn.execute(text(ddl))
 
 
+def _create_tuning_config_versions_table() -> None:
+    ddl = """
+    CREATE TABLE IF NOT EXISTS tuning_config_versions (
+        id BIGSERIAL PRIMARY KEY,
+        version_label TEXT NOT NULL UNIQUE,
+        config_kind TEXT NOT NULL DEFAULT 'candidate',
+        status TEXT NOT NULL DEFAULT 'draft',
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        selected_profiles_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        resolved_config_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        lineage_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_by_external_user_id TEXT,
+        created_by_email TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS tuning_config_versions_kind_status_idx ON tuning_config_versions(config_kind, status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS tuning_config_versions_status_idx ON tuning_config_versions(status, created_at DESC);
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def _create_retrieval_traces_table() -> None:
     ddl = """
     CREATE TABLE IF NOT EXISTS retrieval_traces (
@@ -531,6 +555,12 @@ def _seed_default_profiles() -> None:
     seed_default_profiles(settings)
 
 
+def _sync_live_tuning_configuration() -> None:
+    from app.db.repo_tuning_configs import sync_live_configuration_record
+
+    sync_live_configuration_record()
+
+
 def _patch_steps() -> list[MigrationStep]:
     return [
         MigrationStep(
@@ -597,6 +627,16 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P013",
             description="Create access request routing, direct grants, and notification tables",
             runner=_create_access_request_tables,
+        ),
+        MigrationStep(
+            step_id="MIG-P014",
+            description="Create tuning configuration version table",
+            runner=_create_tuning_config_versions_table,
+        ),
+        MigrationStep(
+            step_id="MIG-P015",
+            description="Sync the current live configuration into tuning version storage",
+            runner=_sync_live_tuning_configuration,
         ),
     ]
 
