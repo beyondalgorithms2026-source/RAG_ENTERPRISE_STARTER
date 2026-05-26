@@ -32,6 +32,7 @@
 - M16.1: Access-Limited Retrieval, Routed Business Approval, And Time-Bound Access Grants (2026-05-19)
 - M17.a: Enterprise Test Environment Seed Pack, ACL Input Mapping, And Executive Access Baseline (2026-05-20)
 - M17.b.1: Stitch-Faithful Tuning Lab Shell, Live Card, And Governed Registries (2026-05-21)
+- M17.b.2: Interactive Sandbox Controls And Side-By-Side Compare (2026-05-21)
 
 **M10 summary**
 - Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
@@ -174,6 +175,14 @@
 - Added admin tuning endpoints for live configuration visibility plus candidate draft create/update/list workflows, and extended profile activation so the synced live tuning record stays current
 - Reworked the admin Profiles page into a closer Stitch-faithful tuning-lab shell with a branded left rail, a live configuration spotlight card, an experimentation sandbox laid out with slider-style generation controls plus bottom model selectors, a right-side candidate rail, and shell-only compare/footer actions that stay truthfully gated for later M17.b milestones
 - See docs/milestones/m17_b_1_live_configuration_candidate_drafts_and_approved_model_registry.md
+
+**M17.b.2 summary**
+- Added admin sandbox compare execution at `/admin/tuning/compare` so the same query now runs against live production and a governed candidate without mutating `active_profiles`
+- Reused temporary profile override patterns to execute candidate LLM, reranker, retrieval-depth, and answer-time context-cap changes through the normal retrieval and answer path while preserving ACL trimming and citations
+- Extended LLM profile/runtime handling with `top_p` and surfaced real compare output with latency, citation, and used-chunk deltas plus retrieval/rerank summaries
+- Kept embedding selection visible but returns a truthful warning/precondition state when the candidate embedding differs from live, with a future-enhancement note for file-, corpus-, or folder-scoped shadow embedding experiments
+- Updated the tuning lab UI so sliders/selectors are now interactive, chunk-size helper copy explains answer-time context cap semantics, and live/candidate results render side by side with grounded citations
+- See docs/milestones/m17_b_2_interactive_sandbox_controls_and_side_by_side_compare.md
 
 **M9 summary**
 - Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline

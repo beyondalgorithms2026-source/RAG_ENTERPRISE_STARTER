@@ -30,6 +30,7 @@ class LLMProfileConfig(BaseModel):
     api_key: str = ""
     timeout_s: int = 60
     temperature: float = 0.0
+    top_p: float = 1.0
     max_tokens: Optional[int] = None
 
 
