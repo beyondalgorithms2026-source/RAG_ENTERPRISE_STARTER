@@ -52,6 +52,7 @@ from app.db.repo_sources import get_source_by_id, list_sources, update_source_ad
 from app.db.repo_traces import get_trace, get_trace_by_id, list_traces
 from app.db.repo_tuning_configs import (
     create_candidate_draft,
+    get_candidate_draft,
     get_live_configuration,
     list_candidate_drafts,
     sync_live_configuration_record,
@@ -69,6 +70,7 @@ from app.profiles.models import PROFILE_TYPE_MODELS
 from app.profiles.resolver import get_active_profile_snapshot, get_effective_reranker, get_effective_retrieval, invalidate_cache
 from app.seed.enterprise_acl import DEFAULT_PACK_DIR, seed_enterprise_acl_pack
 from app.db.repo_access_requests import upsert_source_access_contacts
+from app.tuning.sandbox_compare import run_sandbox_compare
 
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_user)])
@@ -190,6 +192,16 @@ class CandidateDraftUpdateRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     selected_profiles: Optional[dict[str, str]] = None
+
+
+class TuningCompareRequest(BaseModel):
+    question: str
+    draft_id: Optional[int] = None
+    selected_profiles: dict[str, str] = Field(default_factory=dict)
+    temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+    top_p: float = Field(default=1.0, ge=0.0, le=1.0)
+    chunk_size_cap_chars: int = Field(default=512, ge=128, le=2048)
+    k_retrieval_count: int = Field(default=5, ge=1, le=20)
 
 
 def _report_summary(kind: str, path: Path) -> dict[str, Any]:
@@ -496,6 +508,59 @@ def patch_tuning_draft(draft_id: int, body: CandidateDraftUpdateRequest):
         actor=actor,
     )
     return {"draft": draft}
+
+
+@router.post("/tuning/compare")
+def run_tuning_compare(body: TuningCompareRequest):
+    actor = get_current_user()
+    live_configuration = get_live_configuration()
+    live_selected = dict(live_configuration.get("selected_profiles") or {})
+    if not live_selected:
+        raise HTTPException(status_code=422, detail="Live configuration is not ready for sandbox compare")
+
+    selected_profiles = dict(live_selected)
+    if body.draft_id is not None:
+        draft = get_candidate_draft(body.draft_id)
+        if not draft:
+            raise HTTPException(status_code=404, detail=f"Draft {body.draft_id} not found")
+        selected_profiles.update({key: str(value) for key, value in (draft.get("selected_profiles") or {}).items() if value})
+    selected_profiles.update({key: str(value) for key, value in body.selected_profiles.items() if value})
+
+    try:
+        compare = run_sandbox_compare(
+            question=body.question,
+            live_selected_profiles=live_selected,
+            selected_profiles=selected_profiles,
+            temperature=body.temperature,
+            top_p=body.top_p,
+            chunk_size_cap_chars=body.chunk_size_cap_chars,
+            k_retrieval_count=body.k_retrieval_count,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    insert_admin_audit_event(
+        event_type="tuning",
+        action="tuning.compare.run",
+        resource_type="tuning_compare",
+        resource_id=str(body.draft_id or "ad-hoc"),
+        resource_name=(compare.get("candidate_run") or {}).get("label") or "sandbox",
+        before_json={"live_selected_profiles": live_selected},
+        after_json={
+            "candidate_selected_profiles": (compare.get("candidate_run") or {}).get("selected_profiles") or selected_profiles,
+            "summary": compare.get("summary"),
+            "warnings": compare.get("warnings"),
+        },
+        event_json={
+            "question": body.question,
+            "chunk_size_cap_chars": body.chunk_size_cap_chars,
+            "k_retrieval_count": body.k_retrieval_count,
+            "temperature": body.temperature,
+            "top_p": body.top_p,
+        },
+        actor=actor,
+    )
+    return compare
 
 
 @router.get("/overview")

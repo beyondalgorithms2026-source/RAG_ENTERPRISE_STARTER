@@ -1,14 +1,10 @@
 "use client";
 
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
 
 type GenericMap = Record<string, unknown>;
-
-type ProfilesPayload = {
-  profiles: GenericMap[];
-};
 
 type TuningPayload = {
   live_configuration: GenericMap;
@@ -17,8 +13,43 @@ type TuningPayload = {
   profile_types: string[];
 };
 
-type AuditPayload = {
-  events: GenericMap[];
+type CompareRun = {
+  label: string;
+  status: string;
+  answer: string | null;
+  citations: GenericMap[];
+  citation_count: number;
+  used_chunks_count: number;
+  latency_ms: number;
+  mode: string | null;
+  selected_profiles: Record<string, string>;
+  generation_summary: GenericMap;
+  retrieval_summary: GenericMap;
+  rerank_summary: GenericMap;
+  warning?: GenericMap;
+};
+
+type ComparePayload = {
+  live_run: CompareRun;
+  candidate_run: CompareRun | null;
+  summary: GenericMap;
+  warnings: GenericMap[];
+  preconditions: GenericMap[];
+};
+
+type PreparedCandidate = {
+  draft_id: number | null;
+  name: string;
+  description: string;
+  selected_profiles: Record<string, string>;
+  tuning_controls: {
+    temperature: number;
+    topP: number;
+    chunkSize: number;
+    retrievalK: number;
+  };
+  prepared_at: string;
+  signature: string;
 };
 
 const TUNING_PROFILE_TYPES = ["llm", "embedding", "reranker", "retrieval"] as const;
@@ -35,25 +66,6 @@ function formatTimestamp(value: unknown) {
   return date.toLocaleString();
 }
 
-function titleCase(value: unknown) {
-  return String(value || "")
-    .split(/[_\s-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function statusTone(value: unknown) {
-  const normalized = String(value || "").toLowerCase();
-  if (["live", "active", "approved", "completed"].includes(normalized)) {
-    return "is-good";
-  }
-  if (["draft", "available", "pending"].includes(normalized)) {
-    return "";
-  }
-  return "is-warning";
-}
-
 function EmptyState({ title, copy }: { title: string; copy: string }) {
   return (
     <div className="admin-empty-state">
@@ -64,13 +76,7 @@ function EmptyState({ title, copy }: { title: string; copy: string }) {
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="tuning-lab-field">
       <span className="muted-copy">{label}</span>
@@ -79,36 +85,73 @@ function Field({
   );
 }
 
-function modelLabel(profileType: (typeof TUNING_PROFILE_TYPES)[number]) {
-  if (profileType === "llm") {
-    return "Inference Model";
+function ParameterLabel({ label, tooltip }: { label: string; tooltip: string }) {
+  return (
+    <div className="tuning-lab-parameter-label">
+      <span className="tuning-lab-parameter-label-text">
+        {label}
+        <span className="tuning-lab-tooltip-anchor" tabIndex={0}>
+          <span className="tuning-lab-tooltip-icon">i</span>
+          <span className="tuning-lab-tooltip-bubble">{tooltip}</span>
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function renderCompareAnswer(run: CompareRun | null, emptyCopy: string) {
+  if (!run) {
+    return <div className="tuning-lab-compare-empty">{emptyCopy}</div>;
   }
-  if (profileType === "embedding") {
-    return "Embedding Model";
+  if (run.status !== "completed") {
+    return <div className="tuning-lab-compare-empty">{String(run.warning?.message || emptyCopy)}</div>;
   }
-  if (profileType === "reranker") {
-    return "Reranking Logic";
-  }
-  return "Retrieval Profile";
+  return run.answer ? (
+    <>
+      <div className={`tuning-lab-compare-answer ${run.label === "live" ? "tuning-lab-compare-answer-live" : "tuning-lab-compare-answer-candidate"}`}>
+        {run.answer}
+      </div>
+      <div className="tuning-lab-compare-meta">
+        <span>Mode: {run.mode || "unknown"}</span>
+        <span>Retrieval path: {String(run.retrieval_summary?.retrieval_path || run.mode || "unknown")}</span>
+        <span>Rerank: {String(run.rerank_summary?.enabled ? run.rerank_summary?.model || "enabled" : "off")}</span>
+      </div>
+      {run.citations.length ? (
+        <div className="tuning-lab-compare-citations">
+          {run.citations.map((citation, index) => (
+            <article key={`${citation.citation_id || index}`} className="tuning-lab-compare-citation-card">
+              <strong>
+                {String(citation.citation_id || `S${index + 1}`)} · {String(citation.file_name || citation.heading || "Source")}
+              </strong>
+              <span>{String(citation.heading || citation.locator || citation.source_type || "Grounded evidence")}</span>
+              <p>{String(citation.snippet || "").slice(0, 220)}</p>
+            </article>
+          ))}
+        </div>
+      ) : null}
+    </>
+  ) : (
+    <div className="tuning-lab-compare-empty">{emptyCopy}</div>
+  );
 }
 
 export function ProfilesAdminPanel() {
-  const [profilesPayload, setProfilesPayload] = useState<ProfilesPayload>({ profiles: [] });
   const [tuningPayload, setTuningPayload] = useState<TuningPayload>({
     live_configuration: {},
     candidate_drafts: [],
     approved_options: {},
     profile_types: [],
   });
-  const [history, setHistory] = useState<AuditPayload>({ events: [] });
+  const [comparePayload, setComparePayload] = useState<ComparePayload | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [activating, setActivating] = useState("");
+  const [isComparing, setIsComparing] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
   const [visualMode, setVisualMode] = useState(true);
+  const [preparedCandidate, setPreparedCandidate] = useState<PreparedCandidate | null>(null);
   const [draftName, setDraftName] = useState("Balanced candidate");
-  const [draftDescription, setDraftDescription] = useState("Initial M17.b.1 candidate draft based on the current live configuration.");
+  const [draftDescription, setDraftDescription] = useState("Interactive sandbox candidate for side-by-side compare against the live baseline.");
   const [sampleQuery, setSampleQuery] = useState("How does the Q4 liability clause affect subcontracting?");
   const [selectedProfiles, setSelectedProfiles] = useState<Record<string, string>>({
     llm: "",
@@ -117,26 +160,21 @@ export function ProfilesAdminPanel() {
     retrieval: "",
   });
   const [tuningControls, setTuningControls] = useState({
-    temperature: 1.1,
+    temperature: 0.0,
     topP: 1.0,
-    chunkSize: 512,
-    retrievalK: 5,
+    chunkSize: 1500,
+    retrievalK: 6,
   });
 
   async function refresh() {
     setIsLoading(true);
     try {
-      const [profiles, tuning, audit] = await Promise.all([
-        browserFetch<ProfilesPayload>("/admin/profiles"),
-        browserFetch<TuningPayload>("/admin/tuning/configurations"),
-        browserFetch<AuditPayload>("/admin/audit-log?action=profile.activate"),
-      ]);
-      setProfilesPayload(profiles);
+      const tuning = await browserFetch<TuningPayload>("/admin/tuning/configurations");
       setTuningPayload(tuning);
-      setHistory(audit);
       setError("");
-
       const liveSelected = (tuning.live_configuration?.selected_profiles || {}) as Record<string, string>;
+      const resolved = (tuning.live_configuration?.resolved_config || {}) as Record<string, GenericMap>;
+      const llmConfig = ((resolved.llm || {}).config || {}) as GenericMap;
       setSelectedProfiles((current) => {
         const next = { ...current };
         for (const profileType of TUNING_PROFILE_TYPES) {
@@ -144,8 +182,14 @@ export function ProfilesAdminPanel() {
         }
         return next;
       });
+      setTuningControls({
+        temperature: Number(llmConfig.temperature ?? 0.0),
+        topP: Number(llmConfig.top_p ?? 1.0),
+        chunkSize: 1500,
+        retrievalK: 6,
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load profile and tuning data.");
+      setError(err instanceof Error ? err.message : "Failed to load tuning data.");
     } finally {
       setIsLoading(false);
     }
@@ -155,17 +199,16 @@ export function ProfilesAdminPanel() {
     refresh();
   }, []);
 
-  const approvedCounts = useMemo(() => {
-    return {
-      llm: tuningPayload.approved_options.llm?.length || 0,
-      embedding: tuningPayload.approved_options.embedding?.length || 0,
-      reranker: tuningPayload.approved_options.reranker?.length || 0,
-      retrieval: tuningPayload.approved_options.retrieval?.length || 0,
-    };
-  }, [tuningPayload]);
-
   const liveSelected = (tuningPayload.live_configuration?.selected_profiles || {}) as Record<string, string>;
   const liveResolved = (tuningPayload.live_configuration?.resolved_config || {}) as Record<string, GenericMap>;
+  const candidateSignature = JSON.stringify({
+    draftId: editingDraftId,
+    name: draftName,
+    description: draftDescription,
+    selectedProfiles,
+    tuningControls,
+  });
+  const isPreparedCurrent = preparedCandidate ? preparedCandidate.signature === candidateSignature : false;
   const selectedOptionLabels = useMemo(() => {
     const labels: Record<string, string> = {};
     for (const profileType of TUNING_PROFILE_TYPES) {
@@ -176,7 +219,16 @@ export function ProfilesAdminPanel() {
     }
     return labels;
   }, [liveSelected, selectedProfiles, tuningPayload]);
+
   const expectedChange = useMemo(() => {
+    if (comparePayload?.candidate_run?.status === "completed") {
+      const delta = comparePayload.summary?.latency_delta_ms;
+      if (typeof delta === "number") {
+        return delta <= 0
+          ? `Candidate ran ${Math.abs(delta)}ms faster than live on the latest sandbox check.`
+          : `Candidate ran ${delta}ms slower than live on the latest sandbox check.`;
+      }
+    }
     let deltaCount = 0;
     for (const profileType of TUNING_PROFILE_TYPES) {
       if ((selectedProfiles[profileType] || "") && selectedProfiles[profileType] !== (liveSelected[profileType] || "")) {
@@ -184,59 +236,40 @@ export function ProfilesAdminPanel() {
       }
     }
     if (deltaCount === 0) {
-      return "No model swaps yet; this draft mirrors the live baseline.";
+      return "No governed profile swaps yet; this candidate mirrors the live baseline and only tests answer-time controls.";
     }
-    if (deltaCount === 1) {
-      return "One governed profile differs from production; useful for the first sandbox benchmark.";
-    }
-    return `${deltaCount} governed profile selections differ from production; expected change should be validated in M17.b.2 compare runs.`;
-  }, [liveSelected, selectedProfiles]);
-  const sandboxSummary = editingDraftId
-    ? "Editing an existing governed candidate draft. Compare, sandbox execution, and rollout controls intentionally remain disabled until later M17 steps."
-    : "This is the M17.b.1 shell: operators can define governed candidate intent now while sandbox execution and live comparison remain gated for later milestones.";
-
-  async function activate(profileType: string, profileName: string) {
-    const key = `${profileType}:${profileName}`;
-    setActivating(key);
-    try {
-      await browserFetch("/admin/profiles/active", {
-        method: "POST",
-        json: { profile_type: profileType, profile_name: profileName },
-      });
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to activate profile.");
-    } finally {
-      setActivating("");
-    }
-  }
-
-  function loadDraft(draft: GenericMap) {
-    setEditingDraftId(Number(draft.id));
-    setDraftName(String(draft.name || ""));
-    setDraftDescription(String(draft.description || ""));
-    setSelectedProfiles({
-      llm: String((draft.selected_profiles as GenericMap | undefined)?.llm || liveSelected.llm || ""),
-      embedding: String((draft.selected_profiles as GenericMap | undefined)?.embedding || liveSelected.embedding || ""),
-      reranker: String((draft.selected_profiles as GenericMap | undefined)?.reranker || liveSelected.reranker || ""),
-      retrieval: String((draft.selected_profiles as GenericMap | undefined)?.retrieval || liveSelected.retrieval || ""),
-    });
-  }
+    return `${deltaCount} governed profile selections differ from production; use sandbox compare before any later rollout step.`;
+  }, [comparePayload, liveSelected, selectedProfiles]);
 
   function resetDraftForm() {
     setEditingDraftId(null);
+    setPreparedCandidate(null);
     setDraftName("Balanced candidate");
-    setDraftDescription("Initial M17.b.1 candidate draft based on the current live configuration.");
+    setDraftDescription("Interactive sandbox candidate for side-by-side compare against the live baseline.");
     setSelectedProfiles({
       llm: liveSelected.llm || "",
       embedding: liveSelected.embedding || "",
       reranker: liveSelected.reranker || "",
       retrieval: liveSelected.retrieval || "",
     });
+    setComparePayload(null);
   }
 
-  async function submitDraft(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function prepareSandboxCandidate() {
+    setPreparedCandidate({
+      draft_id: editingDraftId,
+      name: draftName,
+      description: draftDescription,
+      selected_profiles: { ...selectedProfiles },
+      tuning_controls: { ...tuningControls },
+      prepared_at: new Date().toISOString(),
+      signature: candidateSignature,
+    });
+    setComparePayload(null);
+    setError("");
+  }
+
+  async function saveDraft() {
     setSavingDraft(true);
     try {
       const payload = {
@@ -245,18 +278,12 @@ export function ProfilesAdminPanel() {
         selected_profiles: selectedProfiles,
       };
       if (editingDraftId) {
-        await browserFetch(`/admin/tuning/drafts/${editingDraftId}`, {
-          method: "PATCH",
-          json: payload,
-        });
+        await browserFetch(`/admin/tuning/drafts/${editingDraftId}`, { method: "PATCH", json: payload });
       } else {
-        await browserFetch("/admin/tuning/drafts", {
-          method: "POST",
-          json: payload,
-        });
+        await browserFetch("/admin/tuning/drafts", { method: "POST", json: payload });
       }
-      resetDraftForm();
       await refresh();
+      setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save candidate draft.");
     } finally {
@@ -264,16 +291,69 @@ export function ProfilesAdminPanel() {
     }
   }
 
+  async function runCompare() {
+    if (!preparedCandidate) {
+      setError("Prepare the sandbox candidate first, then run compare.");
+      return;
+    }
+    if (!isPreparedCurrent) {
+      setError("Sandbox inputs changed after preparation. Run Sandbox Test again to refresh the candidate snapshot before compare.");
+      return;
+    }
+    setIsComparing(true);
+    try {
+      const compare = await browserFetch<ComparePayload>("/admin/tuning/compare", {
+        method: "POST",
+        json: {
+          question: sampleQuery,
+          draft_id: preparedCandidate.draft_id,
+          selected_profiles: preparedCandidate.selected_profiles,
+          temperature: preparedCandidate.tuning_controls.temperature,
+          top_p: preparedCandidate.tuning_controls.topP,
+          chunk_size_cap_chars: preparedCandidate.tuning_controls.chunkSize,
+          k_retrieval_count: preparedCandidate.tuning_controls.retrievalK,
+        },
+      });
+      setComparePayload(compare);
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sandbox compare failed.");
+    } finally {
+      setIsComparing(false);
+    }
+  }
+
+  const comparisonTiles = [
+    {
+      label: "Latency Delta",
+      value:
+        typeof comparePayload?.summary?.latency_delta_ms === "number"
+          ? `${Number(comparePayload.summary.latency_delta_ms) > 0 ? "+" : ""}${comparePayload.summary.latency_delta_ms} ms`
+          : "Pending",
+    },
+    {
+      label: "Citation Delta",
+      value:
+        typeof comparePayload?.summary?.citation_count_delta === "number"
+          ? `${Number(comparePayload.summary.citation_count_delta) > 0 ? "+" : ""}${comparePayload.summary.citation_count_delta}`
+          : "Pending",
+    },
+    {
+      label: "Used Chunk Delta",
+      value:
+        typeof comparePayload?.summary?.used_chunk_delta === "number"
+          ? `${Number(comparePayload.summary.used_chunk_delta) > 0 ? "+" : ""}${comparePayload.summary.used_chunk_delta}`
+          : "Pending",
+    },
+  ];
+
   return (
     <div className="admin-route-page">
       <div className="section-head">
         <div>
           <p className="admin-route-eyebrow">Governed Tuning</p>
           <h1>Model Tuning &amp; Experimentation</h1>
-          <p>
-            Start with the production live configuration, then build a governed candidate in a Stitch-faithful experimentation shell.
-            Runtime-safe compare, sandbox execution, and rollout actions land in later M17.b steps.
-          </p>
+          <p>Compare a governed sandbox candidate against the production live configuration without mutating runtime active profiles.</p>
         </div>
       </div>
 
@@ -302,7 +382,7 @@ export function ProfilesAdminPanel() {
                         <article key={profileType} className="tuning-lab-live-detail">
                           <span>{profileType === "llm" ? "Inference Model" : profileType === "embedding" ? "Embedding" : "Reranker"}</span>
                           <strong>{String(config.display_name || config.model || liveSelected[profileType] || "Configured")}</strong>
-                          <small>{String(config.model || config.dimensions || config.default_mode || liveSelected[profileType] || "resolved")}</small>
+                          <small>{String(config.model || config.dimension || config.default_mode || liveSelected[profileType] || "resolved")}</small>
                         </article>
                       );
                     })}
@@ -327,7 +407,7 @@ export function ProfilesAdminPanel() {
             <div className="tuning-lab-shell-title-row tuning-lab-shell-title-row-bottom">
               <div>
                 <h2>Experimentation Sandbox</h2>
-                <p>Create a new candidate configuration to benchmark against production.</p>
+                <p>Create a candidate configuration to benchmark against production.</p>
               </div>
               <button type="button" className={`tuning-lab-visual-toggle ${visualMode ? "is-on" : ""}`} onClick={() => setVisualMode((current) => !current)}>
                 <span>Visual Mode</span>
@@ -337,77 +417,51 @@ export function ProfilesAdminPanel() {
 
             <div className="tuning-lab-shell-note">
               <span className="material-symbols-outlined">experiment</span>
-              <p>{sandboxSummary}</p>
+              <p>LLM, reranker, retrieval depth, and answer-time context shaping are safe sandbox dimensions here. Embedding swaps remain visible for planning but are not executed in compare yet.</p>
             </div>
 
-            <form onSubmit={submitDraft} className="tuning-lab-sandbox-grid">
+            <div className="tuning-lab-sandbox-grid">
               <div className="tuning-lab-sandbox-left">
                 <section className="tuning-lab-parameter-card">
                   <strong className="tuning-lab-card-eyebrow">Generation Parameters</strong>
                   <div className="tuning-lab-slider-grid">
-                    <Field label="Temperature">
+                    <Field
+                      label=""
+                    >
                       <div className="tuning-lab-slider-wrap">
+                        <ParameterLabel label="Temperature" tooltip="Controls randomness in generation. Lower values are more deterministic; higher values are more exploratory." />
                         <div className="tuning-lab-slider-value">{tuningControls.temperature.toFixed(1)}</div>
-                        <input
-                          type="range"
-                          min="0"
-                          max="2"
-                          step="0.1"
-                          value={tuningControls.temperature}
-                          onChange={(event) =>
-                            setTuningControls((current) => ({ ...current, temperature: Number(event.target.value) }))
-                          }
-                        />
-                        <p className="muted-copy">Controls randomness. Lowering results in less random completions.</p>
+                        <input type="range" min="0" max="2" step="0.1" value={tuningControls.temperature} onChange={(event) => setTuningControls((current) => ({ ...current, temperature: Number(event.target.value) }))} />
                       </div>
                     </Field>
 
-                    <Field label="Top P">
+                    <Field
+                      label=""
+                    >
                       <div className="tuning-lab-slider-wrap">
+                        <ParameterLabel label="Top P" tooltip="Limits generation to the most likely next-token pool. Lower values make output more conservative; higher values allow a wider choice set." />
                         <div className="tuning-lab-slider-value">{tuningControls.topP.toFixed(1)}</div>
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.1"
-                          value={tuningControls.topP}
-                          onChange={(event) => setTuningControls((current) => ({ ...current, topP: Number(event.target.value) }))}
-                        />
-                        <p className="muted-copy">Nucleus sampling tuned visually here; compare execution still lands in M17.b.2.</p>
+                        <input type="range" min="0" max="1" step="0.1" value={tuningControls.topP} onChange={(event) => setTuningControls((current) => ({ ...current, topP: Number(event.target.value) }))} />
                       </div>
                     </Field>
 
-                    <Field label="Chunk Size">
+                    <Field
+                      label=""
+                    >
                       <div className="tuning-lab-slider-wrap">
+                        <ParameterLabel label="Chunk Size" tooltip="Caps how much text from each retrieved chunk is sent into the answer prompt. It does not change stored chunking, embeddings, or indexing." />
                         <div className="tuning-lab-slider-value">{tuningControls.chunkSize}</div>
-                        <input
-                          type="range"
-                          min="128"
-                          max="1024"
-                          step="64"
-                          value={tuningControls.chunkSize}
-                          onChange={(event) =>
-                            setTuningControls((current) => ({ ...current, chunkSize: Number(event.target.value) }))
-                          }
-                        />
-                        <p className="muted-copy">Character count for each retrieved context block, balanced for speed vs depth.</p>
+                        <input type="range" min="128" max="2048" step="64" value={tuningControls.chunkSize} onChange={(event) => setTuningControls((current) => ({ ...current, chunkSize: Number(event.target.value) }))} />
                       </div>
                     </Field>
 
-                    <Field label="K-Retrieval Count">
+                    <Field
+                      label=""
+                    >
                       <div className="tuning-lab-slider-wrap">
+                        <ParameterLabel label="K-Retrieval Count" tooltip="Controls how many retrieved chunks are passed into the answer flow. Higher values add recall but can increase noise and latency." />
                         <div className="tuning-lab-slider-value">{tuningControls.retrievalK}</div>
-                        <input
-                          type="range"
-                          min="1"
-                          max="12"
-                          step="1"
-                          value={tuningControls.retrievalK}
-                          onChange={(event) =>
-                            setTuningControls((current) => ({ ...current, retrievalK: Number(event.target.value) }))
-                          }
-                        />
-                        <p className="muted-copy">Number of relevant documents to feed into the generator prompt.</p>
+                        <input type="range" min="1" max="12" step="1" value={tuningControls.retrievalK} onChange={(event) => setTuningControls((current) => ({ ...current, retrievalK: Number(event.target.value) }))} />
                       </div>
                     </Field>
                   </div>
@@ -417,28 +471,41 @@ export function ProfilesAdminPanel() {
                   <div className="tuning-lab-selector-grid">
                     {GOVERNED_MODEL_TYPES.map((profileType) => {
                       const options = tuningPayload.approved_options[profileType] || [];
-                      const label =
-                        profileType === "llm"
-                          ? "Inference Model"
-                          : profileType === "embedding"
-                            ? "Embedding Model"
-                            : "Reranking Logic";
+                      const label = profileType === "llm" ? "Inference Model" : profileType === "embedding" ? "Embedding Model" : "Reranking Logic";
                       return (
                         <Field key={profileType} label={label}>
-                          <select
-                            value={selectedProfiles[profileType] || ""}
-                            onChange={(event) => setSelectedProfiles((current) => ({ ...current, [profileType]: event.target.value }))}
-                          >
-                            <option value="">Select {label}</option>
-                            {options.map((option) => (
-                              <option key={String(option.name)} value={String(option.name)}>
-                                {String(option.display_name || option.name)}
-                              </option>
-                            ))}
-                          </select>
+                          {profileType === "embedding" ? (
+                            <select value={liveSelected.embedding || ""} disabled>
+                              {options.map((option) => (
+                                <option key={String(option.name)} value={String(option.name)}>
+                                  {String(option.display_name || option.name)}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <select value={selectedProfiles[profileType] || ""} onChange={(event) => setSelectedProfiles((current) => ({ ...current, [profileType]: event.target.value }))}>
+                              <option value="">Select {label}</option>
+                              {options.map((option) => (
+                                <option key={String(option.name)} value={String(option.name)}>
+                                  {String(option.display_name || option.name)}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                         </Field>
                       );
                     })}
+                  </div>
+                  <div className="tuning-lab-selector-note">
+                    <p className="tuning-lab-selector-note-strong">
+                      Available embedding models:{" "}
+                      {(
+                        tuningPayload.approved_options.embedding || []
+                      )
+                        .map((option) => String(option.display_name || option.name))
+                        .join(" · ")}
+                    </p>
+                    <p>* Future enhancement: scoped embedding experiments at file, corpus, or folder shadow-index scope.</p>
                   </div>
                 </section>
               </div>
@@ -450,12 +517,12 @@ export function ProfilesAdminPanel() {
                 </div>
 
                 <label className="tuning-lab-candidate-input">
-                  <span>Candidate name</span>
+                  <span>Candidate Name</span>
                   <input value={draftName} onChange={(event) => setDraftName(event.target.value)} />
                 </label>
 
                 <label className="tuning-lab-candidate-input">
-                  <span>Candidate rationale</span>
+                  <span>Candidate Rationale</span>
                   <textarea value={draftDescription} onChange={(event) => setDraftDescription(event.target.value)} rows={4} />
                 </label>
 
@@ -471,9 +538,19 @@ export function ProfilesAdminPanel() {
                   <span>Expected Change</span>
                   <strong>{expectedChange}</strong>
                 </article>
+                <article className="tuning-lab-candidate-stat">
+                  <span>Sandbox Status</span>
+                  <strong>
+                    {!preparedCandidate
+                      ? "Not prepared"
+                      : isPreparedCurrent
+                        ? `Prepared at ${formatTimestamp(preparedCandidate.prepared_at)}`
+                        : "Needs rerun"}
+                  </strong>
+                </article>
 
                 <div className="tuning-lab-candidate-actions">
-                  <button type="button" className="button button-primary tuning-lab-run-button" onClick={() => setError("Sandbox execution is gated until M17.b.2. The shell is now visually aligned, but compare runs are not wired yet.")}>
+                  <button type="button" className="button button-primary tuning-lab-run-button" onClick={prepareSandboxCandidate} disabled={isComparing || isLoading}>
                     Run Sandbox Test
                   </button>
                   {editingDraftId ? (
@@ -483,7 +560,7 @@ export function ProfilesAdminPanel() {
                   ) : null}
                 </div>
               </aside>
-            </form>
+            </div>
           </section>
         </div>
       </section>
@@ -492,29 +569,59 @@ export function ProfilesAdminPanel() {
         <div className="section-head">
           <div>
             <h2>Test &amp; Compare</h2>
-            <p>Shell-only M17.b.1 compare surface. Visual parity is present here; executable compare remains gated until M17.b.2.</p>
+            <p>Run the same query against live production and the governed sandbox candidate, while preserving ACL-safe retrieval and provenance.</p>
           </div>
         </div>
+
         <div className="tuning-lab-compare-input">
           <input value={sampleQuery} onChange={(event) => setSampleQuery(event.target.value)} placeholder="e.g. How does the Q4 liability clause affect subcontracting?" />
-          <button type="button" className="button button-primary" onClick={() => setError("Live-vs-candidate compare is part of M17.b.2. This button is intentionally shell-only right now.")}>
-            Run Compare
+          <button type="button" className="button button-primary" onClick={runCompare} disabled={isComparing || isLoading}>
+            {isComparing ? "Running Compare..." : "Run Compare"}
           </button>
         </div>
+
+        <div className="tuning-lab-shell-note">
+          <span className="material-symbols-outlined">info</span>
+          <p>
+            {!preparedCandidate
+              ? "Workflow: choose the candidate settings, run Sandbox Test to freeze the candidate snapshot, then ask a question with Run Compare."
+              : isPreparedCurrent
+                ? `Sandbox ready. Compare will run against the prepared candidate snapshot from ${formatTimestamp(preparedCandidate.prepared_at)}.`
+                : "Candidate inputs changed after the last sandbox preparation. Run Sandbox Test again before compare."}
+          </p>
+        </div>
+
+        {comparePayload?.warnings?.length ? (
+          <div className="tuning-lab-compare-warning">
+            {comparePayload.warnings.map((warning, index) => (
+              <p key={`${warning.code || index}`}>
+                <strong>{String(warning.message || "Sandbox warning")}</strong> {String(warning.detail || "")}
+              </p>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="tuning-lab-compare-summary-grid">
+          {comparisonTiles.map((tile) => (
+            <article key={tile.label}>
+              <span>{tile.label}</span>
+              <strong>{tile.value}</strong>
+            </article>
+          ))}
+        </div>
+
         <div className="tuning-lab-compare-grid">
           <article className="tuning-lab-compare-column">
             <div className="tuning-lab-compare-head">
               <h4>Live Production</h4>
-              <span>1.2s Latency</span>
+              <span>{comparePayload?.live_run ? `${comparePayload.live_run.latency_ms} ms` : "Pending"}</span>
             </div>
-            <div className="tuning-lab-compare-answer tuning-lab-compare-answer-live">
-              “Under the current Q4 guidelines, liability clauses are strictly interpreted to exclude third-party subcontracting unless an explicit waiver is signed by the project lead...”
-            </div>
+            {renderCompareAnswer(comparePayload?.live_run || null, "Run a compare to inspect the live production baseline.")}
             <div className="tuning-lab-compare-metrics">
               {[
-                ["Faithful", "92%"],
-                ["Relevance", "88%"],
-                ["Halluc.", "0.02"],
+                ["Citations", comparePayload?.live_run ? String(comparePayload.live_run.citation_count) : "Pending"],
+                ["Used Chunks", comparePayload?.live_run ? String(comparePayload.live_run.used_chunks_count) : "Pending"],
+                ["Path", comparePayload?.live_run ? String(comparePayload.live_run.retrieval_summary?.retrieval_path || comparePayload.live_run.mode || "unknown") : "Pending"],
               ].map(([label, value]) => (
                 <div key={label}>
                   <p>{label}</p>
@@ -523,19 +630,24 @@ export function ProfilesAdminPanel() {
               ))}
             </div>
           </article>
+
           <article className="tuning-lab-compare-column">
             <div className="tuning-lab-compare-head tuning-lab-compare-head-candidate">
               <h4>{draftName || "Candidate Draft"} (Sandbox)</h4>
-              <span>0.9s Latency</span>
+              <span>
+                {comparePayload?.candidate_run?.status === "completed"
+                  ? `${comparePayload.candidate_run.latency_ms} ms`
+                  : comparePayload?.candidate_run?.status === "blocked_embedding_scope"
+                    ? "Not executed"
+                    : "Pending"}
+              </span>
             </div>
-            <div className="tuning-lab-compare-answer tuning-lab-compare-answer-candidate">
-              “The Q4 liability structure mandates that any subcontracting activity must be verified against the project lead&apos;s ledger. Per section 12.4, these clauses do not apply to...”
-            </div>
+            {renderCompareAnswer(comparePayload?.candidate_run || null, "Run a compare to inspect the sandbox candidate result.")}
             <div className="tuning-lab-compare-metrics tuning-lab-compare-metrics-candidate">
               {[
-                ["Faithful", "98%"],
-                ["Relevance", "95%"],
-                ["Halluc.", "0.01"],
+                ["Citations", comparePayload?.candidate_run?.status === "completed" ? String(comparePayload.candidate_run.citation_count) : "Blocked"],
+                ["Used Chunks", comparePayload?.candidate_run?.status === "completed" ? String(comparePayload.candidate_run.used_chunks_count) : "Blocked"],
+                ["Path", comparePayload?.candidate_run?.status === "completed" ? String(comparePayload.candidate_run.retrieval_summary?.retrieval_path || comparePayload.candidate_run.mode || "unknown") : "Blocked"],
               ].map(([label, value]) => (
                 <div key={label}>
                   <p>{label}</p>
@@ -551,14 +663,13 @@ export function ProfilesAdminPanel() {
         <button type="button" className="button button-secondary" onClick={resetDraftForm}>
           Discard Candidate
         </button>
-        <button type="button" className="button button-secondary" onClick={() => setError("Draft persistence is available above. Footer save/promotion actions become the primary rollout bar in later M17.b steps.")}>
-          Save as Draft
+        <button type="button" className="button button-secondary" onClick={saveDraft} disabled={savingDraft}>
+          {savingDraft ? "Saving Draft..." : editingDraftId ? "Update Draft" : "Save as Draft"}
         </button>
-        <button type="button" className="button button-primary" onClick={() => setError("Promotion is intentionally gated until M17.b.3.")}>
+        <button type="button" className="button button-primary" onClick={() => setError("Promotion stays gated until M17.b.3.")}>
           Promote to Live
         </button>
       </footer>
-
     </div>
   );
 }

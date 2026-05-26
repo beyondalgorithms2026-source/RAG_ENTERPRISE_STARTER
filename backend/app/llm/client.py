@@ -106,6 +106,7 @@ def generate_answer(system_prompt: str, user_prompt: str) -> dict:
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": llm.temperature,
+            "top_p": llm.top_p,
             "response_format": {"type": "json_object"},
         }
         if llm.max_tokens is not None:
@@ -134,7 +135,7 @@ def generate_answer(system_prompt: str, user_prompt: str) -> dict:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "options": {"temperature": llm.temperature},
+            "options": {"temperature": llm.temperature, "top_p": llm.top_p},
         }
         try:
             with httpx.Client(timeout=timeout_s) as client:

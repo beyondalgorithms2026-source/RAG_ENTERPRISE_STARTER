@@ -663,6 +663,92 @@ class SmokeTestAdminOps(SmokeTestBase):
             settings.AUTH_ENABLED = original_auth_enabled
             main_module.authenticate_request = original_authenticate
 
+    def test_m17_b_2_interactive_sandbox_compare_and_embedding_scope_warning(self):
+        from fastapi.testclient import TestClient
+
+        import app.main as main_module
+        from app.auth.context import AuthenticatedUser
+        import app.core_rag.answering as answering_module
+        import app.core_rag.retrieval as retrieval_module
+
+        run_migrations()
+        seeded = self._seed_retrieval_records()
+        client = TestClient(app)
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_authenticate = main_module.authenticate_request
+        original_embed_texts = retrieval_module.embed_texts
+        original_generate_answer = answering_module.generate_answer
+        try:
+            settings.AUTH_ENABLED = True
+            main_module.authenticate_request = lambda request: AuthenticatedUser(
+                user_id="admin-compare",
+                email="admin.compare@example.com",
+                roles=["admin"],
+                groups=["ops"],
+            )
+            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            answering_module.generate_answer = lambda system_prompt, user_prompt: {
+                "success": True,
+                "content": "{\"answer\":\"Sandbox compare confirms the alpha semantic vector match text in the retrieved source [S1]\",\"citations\":[\"S1\"]}",
+            }
+
+            tuning_payload = client.get("/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"}).json()
+            selected_profiles = dict(tuning_payload["live_configuration"]["selected_profiles"])
+
+            compare_response = client.post(
+                "/admin/tuning/compare",
+                json={
+                    "question": "alpha semantic vector match text",
+                    "selected_profiles": selected_profiles,
+                    "temperature": 0.7,
+                    "top_p": 0.9,
+                    "chunk_size_cap_chars": 640,
+                    "k_retrieval_count": 2,
+                },
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(compare_response.status_code, 200)
+            compare_payload = compare_response.json()
+            self.assertEqual(compare_payload["live_run"]["status"], "completed")
+            self.assertEqual(compare_payload["candidate_run"]["status"], "completed")
+            self.assertEqual(compare_payload["candidate_run"]["generation_summary"]["temperature"], 0.7)
+            self.assertEqual(compare_payload["candidate_run"]["generation_summary"]["top_p"], 0.9)
+            self.assertEqual(compare_payload["candidate_run"]["retrieval_summary"]["answer_time_chunk_cap_chars"], 640)
+            self.assertLessEqual(compare_payload["candidate_run"]["used_chunks_count"], 2)
+
+            alternate_embedding = next(
+                option["name"]
+                for option in tuning_payload["approved_options"]["embedding"]
+                if option["name"] != selected_profiles["embedding"]
+            )
+            blocked_response = client.post(
+                "/admin/tuning/compare",
+                json={
+                    "question": "alpha semantic vector match text",
+                    "selected_profiles": {**selected_profiles, "embedding": alternate_embedding},
+                    "temperature": 0.7,
+                    "top_p": 0.9,
+                    "chunk_size_cap_chars": 640,
+                    "k_retrieval_count": 2,
+                },
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(blocked_response.status_code, 200)
+            blocked_payload = blocked_response.json()
+            self.assertEqual(blocked_payload["candidate_run"]["status"], "blocked_embedding_scope")
+            self.assertTrue(blocked_payload["warnings"])
+            self.assertIn("file-", blocked_payload["warnings"][0]["detail"])
+
+            audit_response = client.get("/admin/audit-log", headers={"Authorization": "Bearer fake-token"})
+            actions = {item["action"] for item in audit_response.json()["events"]}
+            self.assertIn("tuning.compare.run", actions)
+        finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_authenticate
+            retrieval_module.embed_texts = original_embed_texts
+            answering_module.generate_answer = original_generate_answer
+            self._delete_retrieval_records(seeded.values())
+
     def test_m17_2_seed_import_admin_access_controls_and_executive_acl_visibility(self):
         from fastapi.testclient import TestClient
 
