@@ -18,6 +18,7 @@ from app.db.repo_actions import (
     top_failed_queries,
 )
 from app.db.repo_admin_audit import insert_admin_audit_event
+from app.db.repo_query_mining import record_query_event
 
 
 router = APIRouter()
@@ -192,6 +193,15 @@ def create_feedback(body: QueryFeedbackCreate, _user=Depends(require_authenticat
         answer_path=body.answer_path,
         actor=actor,
         metadata_json=body.metadata_json,
+    )
+    record_query_event(
+        question=body.question,
+        event_type="not_helpful" if body.feedback_type == "not_helpful" else "feedback",
+        answer_path=body.answer_path,
+        request_id=body.request_id,
+        feedback_type=body.feedback_type,
+        actor=actor,
+        metadata_json={"feedback_id": feedback_id, "rating": body.rating, "suggested_source": body.suggested_source},
     )
     return {"status": "recorded", "feedback_id": feedback_id}
 

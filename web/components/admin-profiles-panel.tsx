@@ -13,6 +13,24 @@ type TuningPayload = {
   profile_types: string[];
 };
 
+type TuningHistory = {
+  promotion_events: GenericMap[];
+  versions: GenericMap[];
+};
+
+type TuningOpsPayload = {
+  semanticCache: GenericMap;
+  queryMining: {
+    events: GenericMap[];
+    clusters: GenericMap[];
+    eval_packs: GenericMap[];
+  };
+  governance: {
+    risk_signals: GenericMap[];
+    restrictions: GenericMap[];
+  };
+};
+
 type CompareRun = {
   label: string;
   status: string;
@@ -147,12 +165,22 @@ export function ProfilesAdminPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [isComparing, setIsComparing] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
+  const [isPromoting, setIsPromoting] = useState(false);
+  const [isRollingBack, setIsRollingBack] = useState(false);
+  const [isOpsBusy, setIsOpsBusy] = useState("");
   const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
+  const [tuningHistory, setTuningHistory] = useState<TuningHistory>({ promotion_events: [], versions: [] });
+  const [tuningOps, setTuningOps] = useState<TuningOpsPayload>({
+    semanticCache: {},
+    queryMining: { events: [], clusters: [], eval_packs: [] },
+    governance: { risk_signals: [], restrictions: [] },
+  });
   const [visualMode, setVisualMode] = useState(true);
   const [preparedCandidate, setPreparedCandidate] = useState<PreparedCandidate | null>(null);
   const [draftName, setDraftName] = useState("Balanced candidate");
   const [draftDescription, setDraftDescription] = useState("Interactive sandbox candidate for side-by-side compare against the live baseline.");
   const [sampleQuery, setSampleQuery] = useState("How does the Q4 liability clause affect subcontracting?");
+  const [promotionNote, setPromotionNote] = useState("Validated in sandbox compare.");
   const [selectedProfiles, setSelectedProfiles] = useState<Record<string, string>>({
     llm: "",
     embedding: "",
@@ -170,7 +198,20 @@ export function ProfilesAdminPanel() {
     setIsLoading(true);
     try {
       const tuning = await browserFetch<TuningPayload>("/admin/tuning/configurations");
+      const history = await browserFetch<TuningHistory>("/admin/tuning/history");
+      const [semanticCache, queryMiningPayload, governance] = await Promise.all([
+        browserFetch<GenericMap>("/admin/semantic-cache"),
+        browserFetch<GenericMap>("/admin/query-mining"),
+        browserFetch<TuningOpsPayload["governance"]>("/admin/governance"),
+      ]);
+      const queryMining = {
+        events: ((queryMiningPayload.events || queryMiningPayload.query_events || []) as GenericMap[]),
+        clusters: ((queryMiningPayload.clusters || []) as GenericMap[]),
+        eval_packs: ((queryMiningPayload.eval_packs || queryMiningPayload.derived_eval_packs || []) as GenericMap[]),
+      };
       setTuningPayload(tuning);
+      setTuningHistory(history);
+      setTuningOps({ semanticCache, queryMining, governance });
       setError("");
       const liveSelected = (tuning.live_configuration?.selected_profiles || {}) as Record<string, string>;
       const resolved = (tuning.live_configuration?.resolved_config || {}) as Record<string, GenericMap>;
@@ -278,9 +319,11 @@ export function ProfilesAdminPanel() {
         selected_profiles: selectedProfiles,
       };
       if (editingDraftId) {
-        await browserFetch(`/admin/tuning/drafts/${editingDraftId}`, { method: "PATCH", json: payload });
+        const response = await browserFetch<{ draft: GenericMap }>(`/admin/tuning/drafts/${editingDraftId}`, { method: "PATCH", json: payload });
+        setEditingDraftId(Number(response.draft.id));
       } else {
-        await browserFetch("/admin/tuning/drafts", { method: "POST", json: payload });
+        const response = await browserFetch<{ draft: GenericMap }>("/admin/tuning/drafts", { method: "POST", json: payload });
+        setEditingDraftId(Number(response.draft.id));
       }
       await refresh();
       setError("");
@@ -323,6 +366,65 @@ export function ProfilesAdminPanel() {
     }
   }
 
+  async function promoteCandidate() {
+    if (!editingDraftId) {
+      setError("Save the candidate as a draft before promotion.");
+      return;
+    }
+    setIsPromoting(true);
+    try {
+      await browserFetch("/admin/tuning/promote", {
+        method: "POST",
+        json: {
+          draft_id: editingDraftId,
+          promotion_note: promotionNote,
+        },
+      });
+      await refresh();
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Promotion failed.");
+    } finally {
+      setIsPromoting(false);
+    }
+  }
+
+  async function rollbackVersion(versionLabel: string) {
+    setIsRollingBack(true);
+    try {
+      await browserFetch("/admin/tuning/rollback", {
+        method: "POST",
+        json: {
+          version_label: versionLabel,
+          reason: "Operator rollback from tuning history.",
+        },
+      });
+      await refresh();
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Rollback failed.");
+    } finally {
+      setIsRollingBack(false);
+    }
+  }
+
+  async function runOpsAction(action: "clear-cache" | "build-clusters") {
+    setIsOpsBusy(action);
+    try {
+      if (action === "clear-cache") {
+        await browserFetch("/admin/semantic-cache/clear", { method: "POST" });
+      } else {
+        await browserFetch("/admin/query-mining/clusters/build", { method: "POST" });
+      }
+      await refresh();
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Operation failed.");
+    } finally {
+      setIsOpsBusy("");
+    }
+  }
+
   const comparisonTiles = [
     {
       label: "Latency Delta",
@@ -346,6 +448,7 @@ export function ProfilesAdminPanel() {
           : "Pending",
     },
   ];
+  const cacheStats = (tuningOps.semanticCache.cache || tuningOps.semanticCache) as GenericMap;
 
   return (
     <div className="admin-route-page">
@@ -663,13 +766,80 @@ export function ProfilesAdminPanel() {
         <button type="button" className="button button-secondary" onClick={resetDraftForm}>
           Discard Candidate
         </button>
+        <input className="tuning-lab-promotion-note" value={promotionNote} onChange={(event) => setPromotionNote(event.target.value)} aria-label="Promotion note" />
         <button type="button" className="button button-secondary" onClick={saveDraft} disabled={savingDraft}>
           {savingDraft ? "Saving Draft..." : editingDraftId ? "Update Draft" : "Save as Draft"}
         </button>
-        <button type="button" className="button button-primary" onClick={() => setError("Promotion stays gated until M17.b.3.")}>
-          Promote to Live
+        <button type="button" className="button button-primary" onClick={promoteCandidate} disabled={isPromoting || savingDraft}>
+          {isPromoting ? "Promoting..." : "Promote to Live"}
         </button>
       </footer>
+
+      <section className="card tuning-lab-history-shell">
+        <div className="section-head">
+          <div>
+            <h2>Version History &amp; Rollback</h2>
+            <p>Promoted versions remain visible so operators can recover the prior live configuration with an audited rollback.</p>
+          </div>
+        </div>
+        <div className="tuning-lab-history-grid">
+          {tuningHistory.versions
+            .filter((version) => String(version.config_kind) === "live")
+            .slice(0, 6)
+            .map((version) => (
+              <article key={String(version.id)} className="tuning-lab-history-card">
+                <span>{String(version.status || "version")}</span>
+                <strong>{String(version.version_label)}</strong>
+                <p>{String(version.name || "Live configuration")}</p>
+                <button type="button" className="button button-secondary" onClick={() => rollbackVersion(String(version.version_label))} disabled={isRollingBack || String(version.version_label) === "live-current"}>
+                  Roll Back
+                </button>
+              </article>
+            ))}
+        </div>
+      </section>
+
+      <section className="card tuning-lab-ops-shell">
+        <div className="section-head">
+          <div>
+            <h2>Retrieval Ops Guardrails</h2>
+            <p>Later M17.b.3-M21 capabilities are visible here: rollout safety, transform observability, semantic cache health, query mining, and misuse governance.</p>
+          </div>
+          <span className="badge is-good">M17.b.3 → M21</span>
+        </div>
+
+        <div className="tuning-lab-ops-grid">
+          <article className="tuning-lab-ops-card">
+            <span>Query Transformation</span>
+            <strong>Disabled by default</strong>
+            <p>Rewrite, expansion, and HyDE decisions are stored in retrieval traces when enabled on the active retrieval profile.</p>
+          </article>
+
+          <article className="tuning-lab-ops-card">
+            <span>Semantic Cache</span>
+            <strong>{String(cacheStats.active_entries ?? 0)} active entries</strong>
+            <p>{String(cacheStats.hit_count ?? 0)} recorded hits. Cache keys include ACL scope, profile snapshot, corpus scope, and retrieval mode.</p>
+            <button type="button" className="button button-secondary" disabled={isOpsBusy !== ""} onClick={() => runOpsAction("clear-cache")}>
+              {isOpsBusy === "clear-cache" ? "Clearing..." : "Clear Cache"}
+            </button>
+          </article>
+
+          <article className="tuning-lab-ops-card">
+            <span>Query Mining</span>
+            <strong>{tuningOps.queryMining.clusters.length} failure clusters</strong>
+            <p>{tuningOps.queryMining.events.length} recent events and {tuningOps.queryMining.eval_packs.length} derived eval packs are available for release gating.</p>
+            <button type="button" className="button button-secondary" disabled={isOpsBusy !== ""} onClick={() => runOpsAction("build-clusters")}>
+              {isOpsBusy === "build-clusters" ? "Building..." : "Build Clusters"}
+            </button>
+          </article>
+
+          <article className="tuning-lab-ops-card tuning-lab-ops-card-warning">
+            <span>Misuse Governance</span>
+            <strong>{tuningOps.governance.risk_signals.length} risk signals</strong>
+            <p>{tuningOps.governance.restrictions.length} active/recent restrictions. Blocks remain reversible and audit-backed.</p>
+          </article>
+        </div>
+      </section>
     </div>
   );
 }

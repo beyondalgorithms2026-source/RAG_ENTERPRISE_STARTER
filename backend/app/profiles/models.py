@@ -45,6 +45,15 @@ class RetrievalProfileConfig(BaseModel):
     deep_research_keyword_candidates: int = 36
     fusion_method: str = "linear"
     rrf_k: int = 60
+    query_transform_enabled: bool = False
+    rewrite_enabled: bool = False
+    expansion_enabled: bool = False
+    hyde_enabled: bool = False
+    transform_timeout_ms: int = 750
+    transform_max_variants: int = 3
+    semantic_cache_enabled: bool = False
+    semantic_cache_ttl_seconds: int = 900
+    semantic_cache_similarity_threshold: float = 0.92
 
 
 class EvalPackConfig(BaseModel):

@@ -1,6 +1,6 @@
 # STATUS.md — Milestone Progress Tracker
 
-**Current Milestone:** M17.b.2 — Sandbox Compare Lab And Query-Policy Controls
+**Current Milestone:** M21 — Implemented; DB-backed re-run checks pending in local runtime
 
 **Completed**
 - M0: Baseline Stable Import (baseline-import-stable)
@@ -33,6 +33,13 @@
 - M17.a: Enterprise Test Environment Seed Pack, ACL Input Mapping, And Executive Access Baseline (2026-05-20)
 - M17.b.1: Stitch-Faithful Tuning Lab Shell, Live Card, And Governed Registries (2026-05-21)
 - M17.b.2: Interactive Sandbox Controls And Side-By-Side Compare (2026-05-21)
+
+**Implemented / Pending DB-backed Re-run Checks**
+- M17.b.3: Draft Promotion, Rollback, Embedding Safety, And Warm-Up (2026-05-28)
+- M18: Query Transformation Layer (2026-05-28)
+- M19: Semantic Cache (2026-05-28)
+- M20: Retrieval Eval Ops And Real User Query Mining (2026-05-28)
+- M21: Access Request Misuse Controls, User Blocking, And Governance Escalation (2026-05-28)
 
 **M10 summary**
 - Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
@@ -183,6 +190,41 @@
 - Kept embedding selection visible but returns a truthful warning/precondition state when the candidate embedding differs from live, with a future-enhancement note for file-, corpus-, or folder-scoped shadow embedding experiments
 - Updated the tuning lab UI so sliders/selectors are now interactive, chunk-size helper copy explains answer-time context cap semantics, and live/candidate results render side by side with grounded citations
 - See docs/milestones/m17_b_2_interactive_sandbox_controls_and_side_by_side_compare.md
+
+**M17.b.3 summary**
+- Added audited promote-to-live and rollback APIs on top of candidate tuning versions, with prior live retention and operator promotion notes
+- Added embedding experiment safety records with double-confirmation, locked selected-5-file scope, and full-corpus reindex job creation for all-file embedding changes
+- Added model warm-up result recording for embedding and reranker candidates
+- Extended the tuning lab with real promotion, rollback, version history, and retrieval-ops guardrail visibility
+- See docs/milestones/m17_b_3_draft_promotion_rollback_embedding_safety_warmup.md
+
+**M18 summary**
+- Added optional query rewrite, expansion, and HyDE-style transform controls to retrieval profiles, all disabled by default
+- Added a deterministic query transformation layer and trace metadata for original/effective/generated query variants, strategy, latency, and fallback
+- Wired transformed query execution into retrieval while preserving the default baseline when transforms are off
+- Exposed transformation posture in the tuning-lab ops guardrail panel
+- See docs/milestones/m18_query_transformation_layer.md
+
+**M19 summary**
+- Added semantic cache tables, hit tracking, health API, and admin clear-cache action
+- Cache scope includes normalized query, ACL scope hash, active profile snapshot hash, corpus scope hash, and retrieval mode
+- Answering can serve cache hits only when the active retrieval profile enables semantic cache, with invalidation on profile activation, reindex, explicit clear, and TTL expiry
+- Exposed cache health in the tuning-lab ops guardrail panel
+- See docs/milestones/m19_semantic_cache.md
+
+**M20 summary**
+- Added query event capture for no-evidence answers, feedback outcomes, completed ask paths, and retrieval metadata
+- Added failure clustering, annotation, and derived eval-pack APIs for real-query-driven retrieval improvement
+- Exposed query mining counts and cluster build action in the tuning-lab ops guardrail panel
+- Added smoke coverage for query event capture, cluster annotation, and derived eval-pack creation
+- See docs/milestones/m20_retrieval_eval_ops_real_user_query_mining.md
+
+**M21 summary**
+- Added access-request risk signals for repeated similar requests and approver-swapping behavior
+- Added reversible governance restrictions for extra review, access-request blocks, and severe query blocks with audit-backed unblock flow
+- Enforced access-request restrictions in the request path and severe query blocks before ask generation
+- Exposed governance risk/restriction counts in the tuning-lab ops guardrail panel
+- See docs/milestones/m21_access_request_misuse_controls_user_blocking_governance_escalation.md
 
 **M9 summary**
 - Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline

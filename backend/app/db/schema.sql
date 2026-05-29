@@ -153,6 +153,63 @@ CREATE TABLE IF NOT EXISTS tuning_config_versions (
 CREATE INDEX IF NOT EXISTS tuning_config_versions_kind_status_idx ON tuning_config_versions(config_kind, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS tuning_config_versions_status_idx ON tuning_config_versions(status, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS tuning_promotion_events (
+    id BIGSERIAL PRIMARY KEY,
+    promoted_config_id BIGINT REFERENCES tuning_config_versions(id) ON DELETE SET NULL,
+    previous_live_version_label TEXT,
+    new_live_version_label TEXT NOT NULL,
+    action TEXT NOT NULL,
+    promotion_note TEXT NOT NULL DEFAULT '',
+    selected_profiles_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    rollback_target_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    actor_external_user_id TEXT,
+    actor_email TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS tuning_promotion_events_created_idx ON tuning_promotion_events(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS embedding_experiment_runs (
+    id BIGSERIAL PRIMARY KEY,
+    candidate_config_id BIGINT REFERENCES tuning_config_versions(id) ON DELETE SET NULL,
+    basis_embedding_profile TEXT NOT NULL,
+    target_embedding_profile TEXT NOT NULL,
+    scope_type TEXT NOT NULL,
+    locked_source_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    status TEXT NOT NULL DEFAULT 'locked',
+    warning_acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+    confirmation_count INTEGER NOT NULL DEFAULT 0,
+    job_id BIGINT,
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    actor_external_user_id TEXT,
+    actor_email TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS embedding_experiment_runs_status_idx ON embedding_experiment_runs(status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS embedding_experiment_chunks (
+    id BIGSERIAL PRIMARY KEY,
+    experiment_id BIGINT NOT NULL REFERENCES embedding_experiment_runs(id) ON DELETE CASCADE,
+    source_id BIGINT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+    chunk_id BIGINT NOT NULL REFERENCES chunks(id) ON DELETE CASCADE,
+    embedding_profile TEXT NOT NULL,
+    embedding_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (experiment_id, chunk_id)
+);
+
+CREATE TABLE IF NOT EXISTS model_warmup_runs (
+    id BIGSERIAL PRIMARY KEY,
+    model_type TEXT NOT NULL,
+    model_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    latency_ms INTEGER,
+    error_message TEXT,
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS model_warmup_runs_model_idx ON model_warmup_runs(model_type, model_name, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS auth_users (
     id BIGSERIAL PRIMARY KEY,
     external_user_id TEXT NOT NULL UNIQUE,
@@ -501,3 +558,122 @@ CREATE TABLE IF NOT EXISTS query_feedback (
 );
 CREATE INDEX IF NOT EXISTS query_feedback_type_idx ON query_feedback(feedback_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS query_feedback_request_idx ON query_feedback(request_id);
+
+CREATE TABLE IF NOT EXISTS semantic_cache_entries (
+    id BIGSERIAL PRIMARY KEY,
+    normalized_question TEXT NOT NULL,
+    query_embedding_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    acl_scope_hash TEXT NOT NULL,
+    profile_snapshot_hash TEXT NOT NULL,
+    corpus_scope_hash TEXT NOT NULL DEFAULT '',
+    retrieval_mode TEXT NOT NULL DEFAULT '',
+    answer_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    citations_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    retrieved_chunk_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    expires_at TIMESTAMPTZ NOT NULL,
+    invalidated_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_hit_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS semantic_cache_lookup_idx ON semantic_cache_entries(normalized_question, acl_scope_hash, profile_snapshot_hash, corpus_scope_hash, retrieval_mode);
+CREATE INDEX IF NOT EXISTS semantic_cache_expiry_idx ON semantic_cache_entries(expires_at, invalidated_at);
+
+CREATE TABLE IF NOT EXISTS semantic_cache_hits (
+    id BIGSERIAL PRIMARY KEY,
+    cache_entry_id BIGINT REFERENCES semantic_cache_entries(id) ON DELETE SET NULL,
+    hit_type TEXT NOT NULL,
+    latency_saved_ms INTEGER,
+    actor_external_user_id TEXT,
+    actor_email TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS semantic_cache_hits_created_idx ON semantic_cache_hits(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS query_events (
+    id BIGSERIAL PRIMARY KEY,
+    question TEXT NOT NULL,
+    normalized_question TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    answer_path TEXT,
+    request_id TEXT,
+    retrieval_mode TEXT,
+    latency_ms INTEGER,
+    feedback_type TEXT,
+    actor_external_user_id TEXT,
+    actor_email TEXT,
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS query_events_normalized_idx ON query_events(normalized_question, created_at DESC);
+CREATE INDEX IF NOT EXISTS query_events_type_idx ON query_events(event_type, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS query_failure_clusters (
+    id BIGSERIAL PRIMARY KEY,
+    cluster_key TEXT NOT NULL UNIQUE,
+    label TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    query_count INTEGER NOT NULL DEFAULT 0,
+    sample_questions_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    annotation_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS derived_eval_packs (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    cluster_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    cases_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    status TEXT NOT NULL DEFAULT 'draft',
+    created_by_external_user_id TEXT,
+    created_by_email TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS access_request_risk_signals (
+    id BIGSERIAL PRIMARY KEY,
+    requester_external_user_id TEXT,
+    requester_email TEXT,
+    signal_type TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT 'info',
+    question TEXT,
+    access_request_id BIGINT REFERENCES access_requests(id) ON DELETE SET NULL,
+    evidence_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS access_request_risk_requester_idx ON access_request_risk_signals(requester_external_user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS user_governance_restrictions (
+    id BIGSERIAL PRIMARY KEY,
+    user_external_user_id TEXT,
+    user_email TEXT,
+    restriction_type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    reason TEXT NOT NULL DEFAULT '',
+    starts_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ,
+    created_by_external_user_id TEXT,
+    created_by_email TEXT,
+    lifted_by_external_user_id TEXT,
+    lifted_by_email TEXT,
+    lifted_reason TEXT,
+    lifted_at TIMESTAMPTZ,
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS user_governance_restrictions_user_idx ON user_governance_restrictions(user_external_user_id, status, restriction_type);
+
+CREATE TABLE IF NOT EXISTS user_governance_events (
+    id BIGSERIAL PRIMARY KEY,
+    user_external_user_id TEXT,
+    user_email TEXT,
+    action TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    restriction_id BIGINT REFERENCES user_governance_restrictions(id) ON DELETE SET NULL,
+    actor_external_user_id TEXT,
+    actor_email TEXT,
+    event_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

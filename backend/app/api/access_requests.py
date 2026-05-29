@@ -23,6 +23,7 @@ from app.db.repo_access_requests import (
     route_access_request,
 )
 from app.db.repo_admin_audit import insert_admin_audit_event
+from app.db.repo_governance import evaluate_access_request_risk, is_restricted
 from app.db.repo_sources import get_source_by_id
 
 
@@ -81,18 +82,28 @@ def _request_payload(row) -> dict[str, Any]:
 @router.post("/access-requests")
 def create_access_request_endpoint(body: AccessRequestCreate, _user=Depends(require_authenticated_user)):
     actor = get_current_user()
+    restriction = is_restricted(actor, {"access_request_block", "extra_review_required"})
+    if restriction and restriction.get("restriction_type") == "access_request_block":
+        raise HTTPException(status_code=403, detail={"error": "access_request_blocked", "message": restriction.get("reason")})
     question = body.question.strip()
     business_reason = body.business_reason.strip()
     if not question:
         raise HTTPException(status_code=400, detail={"error": "question_required", "message": "Question context is missing. Ask the question again and then request access."})
     if not business_reason:
         raise HTTPException(status_code=400, detail={"error": "business_reason_required", "message": "Add a business reason before requesting access."})
+    risk_signals = evaluate_access_request_risk(
+        actor=actor,
+        question=question,
+        suggested_approver_email=body.suggested_approver_email,
+    )
     metadata_json = dict(body.metadata_json or {})
     metadata_json.update(
         {
             "suggested_approver_email": (body.suggested_approver_email or "").strip().lower() or None,
             "suggested_approver_display_name": (body.suggested_approver_display_name or "").strip() or None,
             "requester_comment": (body.requester_comment or "").strip() or None,
+            "governance_risk_signals": risk_signals,
+            "extra_review_required": bool(restriction and restriction.get("restriction_type") == "extra_review_required"),
         }
     )
     row = create_access_request(
