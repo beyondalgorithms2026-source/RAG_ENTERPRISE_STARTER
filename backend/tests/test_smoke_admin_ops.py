@@ -1129,3 +1129,192 @@ class SmokeTestAdminOps(SmokeTestBase):
         finally:
             with engine.begin() as conn:
                 conn.execute(text("DELETE FROM sources WHERE id = :source_id"), {"source_id": keep_source_id})
+
+    def test_m17_b3_promotion_rollback_embedding_scope_and_warmup_records(self):
+        from app.auth.context import AuthenticatedUser
+        from app.db.repo_jobs import get_ingestion_job
+        from app.db.repo_profiles import get_active_profile_map, seed_default_profiles
+        from app.db.repo_tuning_configs import (
+            create_candidate_draft,
+            create_embedding_experiment,
+            list_model_warmups,
+            list_tuning_history,
+            promote_candidate_to_live,
+            record_model_warmup,
+            rollback_to_version,
+        )
+
+        run_migrations()
+        seed_default_profiles(settings)
+        actor = AuthenticatedUser(user_id="admin-m17b3", email="admin.m17b3@example.com", roles=["admin"])
+        selected_profiles = get_active_profile_map(["embedding", "reranker", "llm", "retrieval"])
+        draft = create_candidate_draft(
+            name=f"m17b3-smoke-{uuid4().hex[:6]}",
+            description="Smoke candidate for rollout controls.",
+            selected_profiles=selected_profiles,
+            actor=actor,
+        )
+
+        with self.assertRaises(ValueError):
+            create_embedding_experiment(
+                candidate_config_id=draft["id"],
+                basis_embedding_profile=selected_profiles["embedding"],
+                target_embedding_profile="bge-base-en-v1_5",
+                scope_type="selected_5_files",
+                source_ids=[1, 2],
+                warning_acknowledged=True,
+                confirmation_count=2,
+                actor=actor,
+            )
+
+        scoped = create_embedding_experiment(
+            candidate_config_id=draft["id"],
+            basis_embedding_profile=selected_profiles["embedding"],
+            target_embedding_profile="bge-base-en-v1_5",
+            scope_type="selected_5_files",
+            source_ids=[1, 2, 3, 4, 5],
+            warning_acknowledged=True,
+            confirmation_count=2,
+            actor=actor,
+        )
+        self.assertEqual(scoped["scope_type"], "selected_5_files")
+        self.assertEqual(scoped["locked_source_ids_json"], [1, 2, 3, 4, 5])
+
+        full = create_embedding_experiment(
+            candidate_config_id=draft["id"],
+            basis_embedding_profile=selected_profiles["embedding"],
+            target_embedding_profile="bge-base-en-v1_5",
+            scope_type="all_files",
+            source_ids=[],
+            warning_acknowledged=True,
+            confirmation_count=2,
+            actor=actor,
+        )
+        self.assertIsNotNone(full["job_id"])
+        self.assertEqual(get_ingestion_job(full["job_id"]).stage, "embedding_full_reindex_requested")
+
+        promoted = promote_candidate_to_live(draft_id=draft["id"], promotion_note="Smoke promotion.", actor=actor)
+        promoted_label = promoted["promoted_version"]["version_label"]
+        rolled_back = rollback_to_version(version_label=promoted_label, reason="Smoke rollback.", actor=actor)
+        self.assertEqual(rolled_back["rolled_back_to"]["version_label"], promoted_label)
+        history = list_tuning_history()
+        self.assertTrue(any(event["action"] == "promote" for event in history["promotion_events"]))
+        self.assertTrue(any(event["action"] == "rollback" for event in history["promotion_events"]))
+
+        warmup = record_model_warmup(model_type="reranker", model_name="cross-encoder/ms-marco-TinyBERT-L-2-v2", status="success", latency_ms=12, error_message=None)
+        self.assertEqual(warmup["status"], "success")
+        self.assertTrue(any(row["model_name"] == "cross-encoder/ms-marco-TinyBERT-L-2-v2" for row in list_model_warmups()))
+
+    def test_m18_query_transform_is_disabled_by_default_and_trace_visible_when_enabled(self):
+        from app.core_rag.query_transform import transform_query
+        from app.profiles.models import RetrievalProfileConfig
+
+        default_result = transform_query("Q4 liability subcontracting", RetrievalProfileConfig())
+        self.assertFalse(default_result.trace["enabled"])
+        self.assertEqual(default_result.effective_query, "Q4 liability subcontracting")
+
+        transformed = transform_query(
+            "Q4 liability subcontracting",
+            RetrievalProfileConfig(
+                query_transform_enabled=True,
+                rewrite_enabled=True,
+                expansion_enabled=True,
+                hyde_enabled=True,
+                transform_max_variants=4,
+            ),
+        )
+        self.assertTrue(transformed.trace["enabled"])
+        self.assertIn("original_query", transformed.trace)
+        self.assertGreaterEqual(len(transformed.generated_queries), 2)
+        self.assertIn("liability", transformed.effective_query)
+
+    def test_m19_semantic_cache_is_acl_profile_and_mode_scoped(self):
+        from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
+        from app.db.repo_semantic_cache import get_cache_entry, invalidate_cache, store_cache_entry
+
+        run_migrations()
+        actor = AuthenticatedUser(user_id=f"user-cache-{uuid4().hex[:6]}", email="cache@example.com", groups=["ops"], roles=["user"])
+        question = f"cache question {uuid4().hex}"
+        invalidate_cache(reason="test_setup")
+
+        token = set_current_user(actor)
+        try:
+            self.assertIsNone(get_cache_entry(question=question, retrieval_mode="hybrid", corpus_scope={"corpus": "ops"}, actor=actor))
+            entry = store_cache_entry(
+                question=question,
+                retrieval_mode="hybrid",
+                corpus_scope={"corpus": "ops"},
+                answer_json={"answer": "Cached answer", "used_chunks_count": 1},
+                citations_json=[],
+                retrieved_chunk_ids=[],
+                ttl_seconds=60,
+                metadata_json={"test": True},
+            )
+            self.assertGreater(entry["id"], 0)
+            self.assertIsNotNone(get_cache_entry(question=question, retrieval_mode="hybrid", corpus_scope={"corpus": "ops"}, actor=actor))
+            self.assertIsNone(get_cache_entry(question=question, retrieval_mode="keyword", corpus_scope={"corpus": "ops"}, actor=actor))
+            self.assertGreaterEqual(invalidate_cache(reason="test_teardown"), 1)
+        finally:
+            reset_current_user(token)
+
+    def test_m20_query_mining_clusters_and_derives_eval_pack(self):
+        from app.auth.context import AuthenticatedUser
+        from app.db.repo_query_mining import (
+            annotate_cluster,
+            build_failure_clusters,
+            create_eval_pack_from_clusters,
+            record_query_event,
+        )
+
+        run_migrations()
+        actor = AuthenticatedUser(user_id=f"user-mining-{uuid4().hex[:6]}", email="mining@example.com", roles=["user"])
+        question = f"missing payroll policy {uuid4().hex}"
+        record_query_event(question=question, event_type="no_evidence", answer_path="not_found", retrieval_mode="hybrid", actor=actor)
+        record_query_event(question=question, event_type="not_helpful", feedback_type="not_helpful", retrieval_mode="hybrid", actor=actor)
+        clusters = build_failure_clusters()
+        cluster = next(item for item in clusters if question in item["sample_questions_json"])
+        annotated = annotate_cluster(cluster["id"], {"owner": "retrieval", "priority": "high"})
+        self.assertEqual(annotated["annotation_json"]["priority"], "high")
+        pack = create_eval_pack_from_clusters(name=f"derived-pack-{uuid4().hex[:6]}", cluster_ids=[cluster["id"]], actor=actor)
+        self.assertEqual(pack["status"], "ready")
+        self.assertTrue(pack["cases_json"])
+
+    def test_m21_governance_risk_signals_and_reversible_blocks(self):
+        from app.auth.context import AuthenticatedUser
+        from app.db.repo_access_requests import create_access_request
+        from app.db.repo_governance import (
+            active_restrictions,
+            create_restriction,
+            evaluate_access_request_risk,
+            lift_restriction,
+        )
+
+        run_migrations()
+        actor = AuthenticatedUser(user_id=f"user-gov-{uuid4().hex[:6]}", email="governance@example.com", roles=["user"])
+        admin = AuthenticatedUser(user_id="admin-gov", email="admin.gov@example.com", roles=["admin"])
+        question = f"restricted board pack {uuid4().hex}"
+        for approver in ("first.approver@example.com", "second.approver@example.com"):
+            create_access_request(
+                question=question,
+                business_reason="Need access for a governed smoke test.",
+                actor=actor,
+                metadata_json={"suggested_approver_email": approver},
+            )
+
+        signals = evaluate_access_request_risk(actor=actor, question=question, suggested_approver_email="third.approver@example.com")
+        signal_types = {signal["signal_type"] for signal in signals}
+        self.assertIn("repeated_similar_request", signal_types)
+        self.assertIn("approver_swapping", signal_types)
+
+        restriction = create_restriction(
+            user_external_user_id=actor.user_id,
+            user_email=actor.email,
+            restriction_type="access_request_block",
+            reason="Smoke temporary block.",
+            actor=admin,
+            duration_hours=1,
+        )
+        self.assertTrue(active_restrictions(actor))
+        lifted = lift_restriction(restriction["id"], reason="Smoke unblock.", actor=admin)
+        self.assertEqual(lifted["status"], "lifted")
+        self.assertEqual(active_restrictions(actor), [])

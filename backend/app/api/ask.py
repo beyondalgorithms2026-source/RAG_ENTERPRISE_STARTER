@@ -9,6 +9,7 @@ from app.auth.context import AuthenticatedUser, reset_current_user, set_current_
 from app.auth.dependencies import require_authenticated_user
 from app.core.config import settings
 from app.core_rag.answering import AskRequest, AskResponse, perform_ask, _perform_ask_internal
+from app.db.repo_governance import is_restricted
 from app.llm.client import verify_llm_ready
 
 
@@ -17,6 +18,9 @@ router = APIRouter()
 
 @router.post("/ask", response_model=AskResponse)
 def ask_endpoint(request: AskRequest, user: AuthenticatedUser | None = Depends(require_authenticated_user)):
+    restriction = is_restricted(user, {"query_block"})
+    if restriction:
+        raise HTTPException(status_code=403, detail={"error": "query_blocked", "message": restriction.get("reason")})
     if not request.dry_run and not verify_llm_ready():
         raise HTTPException(
             status_code=503,
@@ -30,6 +34,9 @@ def ask_endpoint(request: AskRequest, user: AuthenticatedUser | None = Depends(r
 
 @router.post("/ask/stream")
 def ask_stream_endpoint(request: AskRequest, user: AuthenticatedUser | None = Depends(require_authenticated_user)):
+    restriction = is_restricted(user, {"query_block"})
+    if restriction:
+        raise HTTPException(status_code=403, detail={"error": "query_blocked", "message": restriction.get("reason")})
     if not request.dry_run and not verify_llm_ready():
         raise HTTPException(
             status_code=503,

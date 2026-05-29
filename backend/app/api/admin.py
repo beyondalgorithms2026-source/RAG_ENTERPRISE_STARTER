@@ -1,4 +1,5 @@
 import json
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -25,6 +26,12 @@ from app.db.repo_acl import (
 from app.db.repo_actions import list_approval_requests, top_failed_queries
 from app.db.repo_admin_audit import insert_admin_audit_event, list_admin_audit_events
 from app.db.repo_corpora import get_corpus, list_corpora, upsert_corpus
+from app.db.repo_governance import (
+    create_restriction,
+    lift_restriction,
+    list_restrictions,
+    list_risk_signals,
+)
 from app.db.repo_jobs import (
     create_ingestion_job,
     get_enrichment_job,
@@ -49,14 +56,30 @@ from app.db.repo_profiles import (
     set_active_profile,
 )
 from app.db.repo_sources import get_source_by_id, list_sources, update_source_admin_fields, update_source_status
+from app.db.repo_semantic_cache import cache_health, invalidate_cache as invalidate_semantic_cache
 from app.db.repo_traces import get_trace, get_trace_by_id, list_traces
 from app.db.repo_tuning_configs import (
+    create_embedding_experiment,
     create_candidate_draft,
     get_candidate_draft,
     get_live_configuration,
+    list_embedding_experiments,
     list_candidate_drafts,
+    list_model_warmups,
+    list_tuning_history,
+    promote_candidate_to_live,
+    record_model_warmup,
+    rollback_to_version,
     sync_live_configuration_record,
     update_candidate_draft,
+)
+from app.db.repo_query_mining import (
+    annotate_cluster,
+    build_failure_clusters,
+    create_eval_pack_from_clusters,
+    list_derived_eval_packs,
+    list_failure_clusters,
+    list_query_events,
 )
 from app.eval.compare_eval import DEFAULT_REPORT_FILE as BENCHMARK_REPORT_FILE
 from app.eval.compare_eval import load_benchmark_cases, run_mode_benchmark
@@ -202,6 +225,52 @@ class TuningCompareRequest(BaseModel):
     top_p: float = Field(default=1.0, ge=0.0, le=1.0)
     chunk_size_cap_chars: int = Field(default=512, ge=128, le=2048)
     k_retrieval_count: int = Field(default=5, ge=1, le=20)
+
+
+class TuningPromotionRequest(BaseModel):
+    draft_id: int
+    promotion_note: str = ""
+    embedding_experiment_id: Optional[int] = None
+
+
+class TuningRollbackRequest(BaseModel):
+    version_label: str
+    reason: str = ""
+
+
+class EmbeddingExperimentRequest(BaseModel):
+    candidate_config_id: Optional[int] = None
+    target_embedding_profile: str
+    scope_type: str = Field(pattern="^(selected_5_files|all_files)$")
+    source_ids: list[int] = Field(default_factory=list)
+    warning_acknowledged: bool = False
+    confirmation_count: int = Field(default=0, ge=0)
+
+
+class WarmupRequest(BaseModel):
+    embeddings: list[str] = Field(default_factory=list)
+    rerankers: list[str] = Field(default_factory=list)
+
+
+class QueryClusterAnnotationRequest(BaseModel):
+    annotation_json: dict[str, Any] = Field(default_factory=dict)
+
+
+class DerivedEvalPackRequest(BaseModel):
+    name: str
+    cluster_ids: list[int] = Field(default_factory=list)
+
+
+class GovernanceRestrictionRequest(BaseModel):
+    user_external_user_id: Optional[str] = None
+    user_email: Optional[str] = None
+    restriction_type: str = Field(pattern="^(warn_only|extra_review_required|access_request_block|query_block)$")
+    reason: str
+    duration_hours: Optional[int] = None
+
+
+class GovernanceRestrictionLiftRequest(BaseModel):
+    reason: str = ""
 
 
 def _report_summary(kind: str, path: Path) -> dict[str, Any]:
@@ -365,6 +434,7 @@ def set_active(body: ActiveProfileRequest):
     previous_profile_name = get_active_profile_name(body.profile_type)
     set_active_profile(body.profile_type, body.profile_name)
     invalidate_cache(body.profile_type)
+    invalidate_semantic_cache(reason=f"profile_activate:{body.profile_type}")
     live_config = sync_live_configuration_record()
     logger.info("Activated profile %s/%s", body.profile_type, body.profile_name)
     insert_admin_audit_event(
@@ -561,6 +631,254 @@ def run_tuning_compare(body: TuningCompareRequest):
         actor=actor,
     )
     return compare
+
+
+@router.get("/tuning/history")
+def get_tuning_history():
+    return list_tuning_history(limit=100)
+
+
+@router.post("/tuning/embedding-experiments")
+def create_tuning_embedding_experiment(body: EmbeddingExperimentRequest):
+    actor = get_current_user()
+    live_configuration = get_live_configuration()
+    basis_embedding = str((live_configuration.get("selected_profiles") or {}).get("embedding") or "")
+    if not basis_embedding:
+        raise HTTPException(status_code=422, detail="Live embedding profile is not available")
+    try:
+        experiment = create_embedding_experiment(
+            candidate_config_id=body.candidate_config_id,
+            basis_embedding_profile=basis_embedding,
+            target_embedding_profile=body.target_embedding_profile,
+            scope_type=body.scope_type,
+            source_ids=body.source_ids,
+            warning_acknowledged=body.warning_acknowledged,
+            confirmation_count=body.confirmation_count,
+            actor=actor,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    insert_admin_audit_event(
+        event_type="tuning",
+        action="tuning.embedding.scope_selected",
+        resource_type="embedding_experiment",
+        resource_id=str(experiment["id"]),
+        resource_name=body.target_embedding_profile,
+        after_json=experiment,
+        actor=actor,
+    )
+    return {"embedding_experiment": experiment}
+
+
+@router.get("/tuning/embedding-experiments")
+def get_tuning_embedding_experiments():
+    return {"embedding_experiments": list_embedding_experiments(limit=100)}
+
+
+@router.post("/tuning/promote")
+def promote_tuning_candidate(body: TuningPromotionRequest):
+    actor = get_current_user()
+    draft = get_candidate_draft(body.draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail=f"Draft {body.draft_id} not found")
+    live = get_live_configuration()
+    live_embedding = str((live.get("selected_profiles") or {}).get("embedding") or "")
+    candidate_embedding = str((draft.get("selected_profiles") or {}).get("embedding") or "")
+    if candidate_embedding and live_embedding and candidate_embedding != live_embedding and body.embedding_experiment_id is None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "embedding_experiment_required",
+                "message": "Embedding changes require a locked 5-file experiment or all-file reindex confirmation before promotion.",
+            },
+        )
+    try:
+        result = promote_candidate_to_live(draft_id=body.draft_id, promotion_note=body.promotion_note, actor=actor)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    for profile_type in PROFILE_TYPES_FOR_TUNING:
+        invalidate_cache(profile_type)
+    insert_admin_audit_event(
+        event_type="tuning",
+        action="tuning.promote",
+        resource_type="tuning_config",
+        resource_id=str(body.draft_id),
+        resource_name=draft.get("name"),
+        before_json=result.get("previous_live_configuration"),
+        after_json=result.get("live_configuration"),
+        event_json={"promotion_note": body.promotion_note, "embedding_experiment_id": body.embedding_experiment_id},
+        actor=actor,
+    )
+    return result
+
+
+@router.post("/tuning/rollback")
+def rollback_tuning_candidate(body: TuningRollbackRequest):
+    actor = get_current_user()
+    try:
+        result = rollback_to_version(version_label=body.version_label, reason=body.reason, actor=actor)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    for profile_type in PROFILE_TYPES_FOR_TUNING:
+        invalidate_cache(profile_type)
+    insert_admin_audit_event(
+        event_type="tuning",
+        action="tuning.rollback",
+        resource_type="tuning_config",
+        resource_id=body.version_label,
+        resource_name=body.version_label,
+        before_json=result.get("previous_live_configuration"),
+        after_json=result.get("live_configuration"),
+        event_json={"reason": body.reason},
+        actor=actor,
+    )
+    return result
+
+
+def _warm_model(model_type: str, model_name: str) -> dict[str, Any]:
+    start = time.time()
+    try:
+        if model_type == "embedding":
+            from sentence_transformers import SentenceTransformer
+
+            model = SentenceTransformer(model_name)
+            dimension = model.get_sentence_embedding_dimension()
+            metadata = {"dimension": dimension}
+        else:
+            from sentence_transformers import CrossEncoder
+
+            CrossEncoder(model_name)
+            metadata = {}
+        return record_model_warmup(
+            model_type=model_type,
+            model_name=model_name,
+            status="completed",
+            latency_ms=int((time.time() - start) * 1000),
+            error_message=None,
+            metadata_json=metadata,
+        )
+    except Exception as exc:
+        return record_model_warmup(
+            model_type=model_type,
+            model_name=model_name,
+            status="failed",
+            latency_ms=int((time.time() - start) * 1000),
+            error_message=str(exc),
+            metadata_json={},
+        )
+
+
+@router.post("/tuning/warmup")
+def warm_tuning_models(body: WarmupRequest):
+    results = []
+    for model_name in body.embeddings:
+        results.append(_warm_model("embedding", model_name))
+    for model_name in body.rerankers:
+        results.append(_warm_model("reranker", model_name))
+    return {"warmup_results": results}
+
+
+@router.get("/tuning/warmup")
+def get_tuning_model_warmups():
+    return {"warmup_results": list_model_warmups(limit=100)}
+
+
+@router.get("/semantic-cache")
+def get_semantic_cache_health():
+    return {"cache": cache_health()}
+
+
+@router.post("/semantic-cache/clear")
+def clear_semantic_cache():
+    invalidated = invalidate_semantic_cache(reason="admin_clear")
+    insert_admin_audit_event(
+        event_type="cache",
+        action="semantic_cache.clear",
+        resource_type="semantic_cache",
+        resource_id="all",
+        after_json={"invalidated": invalidated},
+        actor=get_current_user(),
+    )
+    return {"status": "cleared", "invalidated": invalidated}
+
+
+@router.get("/query-mining")
+def get_query_mining():
+    return {
+        "query_events": list_query_events(limit=200),
+        "clusters": list_failure_clusters(limit=100),
+        "derived_eval_packs": list_derived_eval_packs(limit=100),
+    }
+
+
+@router.post("/query-mining/clusters/build")
+def build_query_mining_clusters():
+    clusters = build_failure_clusters(limit=300)
+    return {"clusters": clusters}
+
+
+@router.patch("/query-mining/clusters/{cluster_id}")
+def patch_query_mining_cluster(cluster_id: int, body: QueryClusterAnnotationRequest):
+    try:
+        cluster = annotate_cluster(cluster_id, body.annotation_json)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"cluster": cluster}
+
+
+@router.post("/query-mining/eval-packs")
+def create_query_mining_eval_pack(body: DerivedEvalPackRequest):
+    if not body.cluster_ids:
+        raise HTTPException(status_code=400, detail="At least one cluster id is required")
+    pack = create_eval_pack_from_clusters(name=body.name, cluster_ids=body.cluster_ids, actor=get_current_user())
+    return {"eval_pack": pack}
+
+
+@router.get("/governance")
+def get_governance_controls():
+    return {"risk_signals": list_risk_signals(limit=200), "restrictions": list_restrictions(limit=200)}
+
+
+@router.post("/governance/restrictions")
+def create_governance_restriction(body: GovernanceRestrictionRequest):
+    actor = get_current_user()
+    restriction = create_restriction(
+        user_external_user_id=body.user_external_user_id,
+        user_email=body.user_email,
+        restriction_type=body.restriction_type,
+        reason=body.reason,
+        duration_hours=body.duration_hours,
+        actor=actor,
+    )
+    insert_admin_audit_event(
+        event_type="governance",
+        action="governance.restriction.create",
+        resource_type="user_governance_restriction",
+        resource_id=str(restriction["id"]),
+        resource_name=body.user_email or body.user_external_user_id,
+        after_json=restriction,
+        actor=actor,
+    )
+    return {"restriction": restriction}
+
+
+@router.post("/governance/restrictions/{restriction_id}/lift")
+def lift_governance_restriction(restriction_id: int, body: GovernanceRestrictionLiftRequest):
+    actor = get_current_user()
+    try:
+        restriction = lift_restriction(restriction_id, reason=body.reason, actor=actor)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    insert_admin_audit_event(
+        event_type="governance",
+        action="governance.restriction.lift",
+        resource_type="user_governance_restriction",
+        resource_id=str(restriction_id),
+        resource_name=restriction.get("user_email") or restriction.get("user_external_user_id"),
+        after_json=restriction,
+        actor=actor,
+    )
+    return {"restriction": restriction}
 
 
 @router.get("/overview")
@@ -847,6 +1165,7 @@ def trigger_reindex(source_id: int, body: ReindexRequest):
         job_id=result.get("job_id"),
         after_json=result,
     )
+    invalidate_semantic_cache(reason=f"source_reindex:{source_id}")
     return result
 
 

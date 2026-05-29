@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.logging import log_event, logger
 from app.db.repo_acl import current_acl_context
 from app.core_rag.query_router import QueryRouteDecision, route_query
+from app.core_rag.query_transform import transform_query
 from app.profiles.resolver import get_effective_reranker, get_effective_retrieval
 from app.db.repo_chunks import fetch_neighbor_chunks, get_chunks_for_enrichment
 from app.db.repo_search import fetch_chunks_by_ids, search_chunks, search_chunks_keyword
@@ -972,6 +973,11 @@ def perform_search(request: SearchRequest) -> SearchResponse:
 
     source_type, source_id, source_part_id, locator_filter, metadata_filters = _extract_request_filters(request)
     source_policy = get_source_corpus_policy(source_id)
+    retrieval_profile = get_effective_retrieval()
+    transform_result = transform_query(request.question, retrieval_profile)
+    retrieval_request = request
+    if transform_result.effective_query and transform_result.effective_query != _resolve_query_text(request):
+        retrieval_request = request.model_copy(update={"custom_query": transform_result.effective_query})
 
     log_event(
         "search.started",
@@ -996,7 +1002,8 @@ def perform_search(request: SearchRequest) -> SearchResponse:
         "manual_mode": route_decision.manual_mode,
         "deep_research_requested": request.deep_research,
         "deep_research_used": False,
-        "effective_query": _resolve_query_text(request),
+        "effective_query": _resolve_query_text(retrieval_request),
+        "query_transform": transform_result.trace,
         "anchor_terms_requested": _normalize_anchor_terms(request.anchor_terms),
         "fallback_reason": None,
         "graph_used": False,
@@ -1029,7 +1036,7 @@ def perform_search(request: SearchRequest) -> SearchResponse:
         search_start = time.time()
         if request.deep_research:
             raw_results, deep_trace = _run_deep_research_mode(
-                request=request,
+                request=retrieval_request,
                 source_type=source_type,
                 source_id=source_id,
                 source_part_id=source_part_id,
@@ -1047,7 +1054,7 @@ def perform_search(request: SearchRequest) -> SearchResponse:
             )
             if resolved_mode in {"graph_hybrid", "full"}:
                 raw_results, resolved_mode, graph_trace = _apply_graph_and_temporal_layers(
-                    request=request,
+                    request=retrieval_request,
                     resolved_mode=resolved_mode,
                     source_id=source_id,
                     raw_results=raw_results,
@@ -1057,7 +1064,7 @@ def perform_search(request: SearchRequest) -> SearchResponse:
                 retrieval_trace["retrieval_path_used"] = resolved_mode
         elif resolved_mode == "vector":
             raw_results = _run_vector_mode(
-                request=request,
+                request=retrieval_request,
                 source_type=source_type,
                 source_id=source_id,
                 source_part_id=source_part_id,
@@ -1066,7 +1073,7 @@ def perform_search(request: SearchRequest) -> SearchResponse:
             )
         elif resolved_mode == "keyword":
             raw_results = _run_keyword_mode(
-                request=request,
+                request=retrieval_request,
                 source_type=source_type,
                 source_id=source_id,
                 source_part_id=source_part_id,
@@ -1076,7 +1083,7 @@ def perform_search(request: SearchRequest) -> SearchResponse:
         else:
             rp = get_effective_retrieval()
             raw_results, effective_k = _run_hybrid_baseline(
-                request=request,
+                request=retrieval_request,
                 source_type=source_type,
                 source_id=source_id,
                 source_part_id=source_part_id,
@@ -1084,7 +1091,7 @@ def perform_search(request: SearchRequest) -> SearchResponse:
                 metadata_filters=metadata_filters,
             )
             raw_results, resolved_mode, graph_trace = _apply_graph_and_temporal_layers(
-                request=request,
+                request=retrieval_request,
                 resolved_mode=resolved_mode,
                 source_id=source_id,
                 raw_results=raw_results,

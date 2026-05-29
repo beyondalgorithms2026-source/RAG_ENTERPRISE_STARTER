@@ -10,9 +10,12 @@ from app.actions.policy import clarification_contract, sensitivity_requires_appr
 from app.core_rag.retrieval import SearchFilters, SearchMode, SearchRequest, perform_search
 from app.auth.context import get_current_user
 from app.db.repo_actions import create_approval_request, create_query_feedback
+from app.db.repo_query_mining import record_query_event
+from app.db.repo_semantic_cache import get_cache_entry, store_cache_entry
 from app.db.repo_sources import get_source_by_id
 from app.llm.client import generate_answer
 from app.llm.prompts import REPAIR_PROMPT, SECOND_PASS_PROMPT, SYSTEM_PROMPT, generate_second_pass_prompt, generate_user_prompt
+from app.profiles.resolver import get_effective_retrieval
 
 
 MAX_CHUNK_CHARS = 1500
@@ -678,7 +681,63 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
 
 
 def perform_ask(request: AskRequest) -> AskResponse:
-    return _perform_ask_internal(request)
+    actor = get_current_user()
+    retrieval_profile = get_effective_retrieval()
+    if retrieval_profile.semantic_cache_enabled and not request.dry_run:
+        cached = get_cache_entry(question=request.question, retrieval_mode=request.mode, actor=actor)
+        if cached:
+            answer_json = cached.get("answer_json") or {}
+            citations_json = cached.get("citations_json") or []
+            return AskResponse(
+                answer=answer_json.get("answer"),
+                citations=[CitationItem(**item) for item in citations_json],
+                used_chunks_count=int(answer_json.get("used_chunks_count") or 0),
+                latency_ms=0,
+                mode=answer_json.get("mode") or request.mode,
+                debug_info={
+                    "semantic_cache": {"hit": True, "cache_entry_id": cached.get("id")},
+                    "answer_generation_path": "semantic_cache",
+                },
+            )
+
+    response = _perform_ask_internal(request)
+    debug_info = response.debug_info or {}
+    answer_path = str(debug_info.get("answer_generation_path") or "unknown")
+    retrieval_trace = debug_info.get("retrieval_trace") or {}
+    event_type = "no_evidence" if answer_path == "not_found" else "ask_completed"
+    try:
+        record_query_event(
+            question=request.question,
+            event_type=event_type,
+            answer_path=answer_path,
+            request_id=retrieval_trace.get("request_id"),
+            retrieval_mode=response.mode,
+            latency_ms=response.latency_ms,
+            actor=actor,
+            metadata_json={"used_chunks_count": response.used_chunks_count, "citation_count": len(response.citations)},
+        )
+    except Exception as exc:  # pragma: no cover - observability should not fail answers
+        logger.debug("Failed to record query event: %s", exc)
+
+    if retrieval_profile.semantic_cache_enabled and not request.dry_run and response.answer and answer_path not in {"approval_required", "not_found"}:
+        try:
+            store_cache_entry(
+                question=request.question,
+                retrieval_mode=request.mode,
+                answer_json={
+                    "answer": response.answer,
+                    "used_chunks_count": response.used_chunks_count,
+                    "latency_ms": response.latency_ms,
+                    "mode": response.mode,
+                },
+                citations_json=[citation.model_dump() for citation in response.citations],
+                retrieved_chunk_ids=[int(citation.chunk_id) for citation in response.citations],
+                ttl_seconds=retrieval_profile.semantic_cache_ttl_seconds,
+                metadata_json={"source": "perform_ask"},
+            )
+        except Exception as exc:  # pragma: no cover - cache should not fail answers
+            logger.debug("Failed to store semantic cache entry: %s", exc)
+    return response
 
 
 def perform_compare(request: CompareRequest) -> CompareResponse:
