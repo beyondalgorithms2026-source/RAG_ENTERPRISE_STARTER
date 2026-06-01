@@ -1226,6 +1226,49 @@ The page should read like one coherent operator workflow, not as separate unrela
 
 ---
 
+### Milestone M22 — Structured Negative Feedback Capture And Answer Failure Logging (Gate 22)
+**Why now:** once retrieval traces, approval controls, and real query mining exist, user thumbs-down feedback should become a cleaner operator signal rather than an unstructured comment stream.
+
+**Deliverables**
+- Extend the end-user answer feedback flow so a thumbs-down selection opens a guided follow-up form instead of only a generic note box.
+- Add pre-written negative-feedback reason options such as:
+  - too vague
+  - wrong document
+  - wrong answer
+  - incomplete answer
+  - stale / older source used
+  - missing citation
+  - citation does not support answer
+  - should have said not found
+  - access / permission issue
+- Preserve a small optional free-text field so the user can add clarifying context in plain language.
+- Persist thumbs-down events into a separate operator-friendly feedback log artifact instead of burying them only inside generic interaction tables.
+- Capture, at minimum, for each negative-feedback event:
+  - question
+  - answer shown to the user
+  - date/time of answer
+  - date/time of feedback
+  - selected structured reason
+  - optional free-text note
+  - user identity and active profile snapshot when available
+  - cited source ids / chunk ids used for that answer
+- Add an admin-visible review surface or export path for this negative-feedback log so repeated answer-failure patterns can be clustered into eval or tuning follow-up work.
+- Keep thumbs-up lightweight and unchanged unless later milestones require richer positive labeling.
+
+**DoD**
+- Thumbs-down is more user-friendly than a blank free-text box alone.
+- Negative feedback is stored with enough context for operators to reproduce and investigate the answer failure.
+- Structured reason selection makes downstream clustering and retrieval-improvement analysis easier than free-text-only feedback.
+- Feedback logging remains auditable and does not weaken citation, auth, or ACL guarantees.
+
+**Re-run checks**
+- thumbs-down UX path check with structured-reason selection plus optional note
+- feedback-log persistence check for question, answer, timestamps, selected reason, and free-text note
+- admin review/export check for recent negative-feedback entries
+- regression check that helpful/not-helpful capture still works without breaking existing answer flow
+
+---
+
 ## 4) Definition of Done (global)
 
 A milestone is “done” only if:
