@@ -140,6 +140,23 @@ def _ensure_valid_upload_content(*, content: bytes, file_name: str) -> None:
         )
 
 
+async def _read_upload_limited(upload: UploadFile, *, file_name: str) -> bytes:
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await upload.read(1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > settings.MAX_UPLOAD_SIZE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail={"error": "file_too_large", "file_name": file_name, "max_bytes": settings.MAX_UPLOAD_SIZE_BYTES},
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 def _existing_upload_skip_result(*, file_name: str, hash_sha256: str) -> Optional[Dict[str, Any]]:
     existing_same = find_source_by_name_and_hash(file_name, hash_sha256)
     if not existing_same:
@@ -544,7 +561,7 @@ async def process_upload(
     source_type = _detect_source_type(file_name)
     _validate_mime(source_type, upload.content_type)
 
-    content = await upload.read()
+    content = await _read_upload_limited(upload, file_name=file_name)
     _ensure_valid_upload_content(content=content, file_name=file_name)
 
     hash_sha256 = _compute_sha256_bytes(content)

@@ -29,15 +29,70 @@ class AuthError(Exception):
 
 
 def auth_enabled() -> bool:
-    return settings.AUTH_ENABLED
+    return auth_required()
 
 
 def auth_mode() -> str:
-    return (settings.AUTH_MODE or "oidc").strip().lower()
+    mode = (settings.AUTH_MODE or "").strip().lower()
+    if mode:
+        return mode
+    return "oidc" if settings.AUTH_ENABLED else "none"
+
+
+def app_env() -> str:
+    return (settings.APP_ENV or "local").strip().lower()
+
+
+def auth_required() -> bool:
+    return auth_mode() in {"dev", "password", "oidc"}
+
+
+def anonymous_research_enabled() -> bool:
+    return auth_mode() == "none"
+
+
+def local_runtime_enabled() -> bool:
+    return app_env() in {"local", "dev"}
 
 
 def local_dev_auth_enabled() -> bool:
-    return auth_enabled() and auth_mode() == "dev"
+    return local_runtime_enabled() and auth_mode() == "dev"
+
+
+def no_auth_upload_enabled() -> bool:
+    return anonymous_research_enabled() and bool(settings.AUTH_NONE_ALLOW_UPLOAD)
+
+
+def _is_default_secret(value: str, defaults: set[str]) -> bool:
+    return not value or value.strip() in defaults or len(value.strip()) < 32
+
+
+def validate_security_posture() -> None:
+    mode = auth_mode()
+    env = app_env()
+    if mode not in {"none", "dev", "password", "oidc"}:
+        raise AuthError("unsupported_auth_mode", f"AUTH_MODE '{mode}' is not supported.", 500)
+    if env in {"staging", "prod", "production"} and mode in {"none", "dev"}:
+        raise AuthError("unsafe_auth_mode", f"AUTH_MODE '{mode}' is not allowed when APP_ENV={env}.", 500)
+    if mode == "password":
+        raise AuthError(
+            "password_auth_not_implemented",
+            "AUTH_MODE=password is reserved for small-enterprise login but is not implemented yet.",
+            500,
+        )
+    if mode == "dev" and not local_runtime_enabled():
+        raise AuthError("dev_auth_not_allowed", "Local dev auth is only available when APP_ENV is local/dev.", 500)
+    if env in {"staging", "prod", "production"}:
+        if _is_default_secret(
+            settings.AUTH_STATE_SIGNING_SECRET,
+            {"rag-enterprise-starter-dev-state-secret"},
+        ):
+            raise AuthError("weak_auth_state_secret", "AUTH_STATE_SIGNING_SECRET must be strong in staging/prod.", 500)
+        if _is_default_secret(
+            settings.DEV_LOCAL_JWT_SECRET,
+            {"rag-enterprise-local-dev-jwt-secret"},
+        ):
+            raise AuthError("weak_dev_jwt_secret", "DEV_LOCAL_JWT_SECRET must be strong in staging/prod.", 500)
 
 
 def oidc_configured() -> bool:

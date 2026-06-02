@@ -6,8 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
-from app.auth.dependencies import require_authenticated_user
+from app.auth.dependencies import require_ask_user
 from app.core.config import settings
+from app.core.rate_limit import rate_limit_ask, rate_limit_ask_stream
 from app.core_rag.answering import AskRequest, AskResponse, perform_ask, _perform_ask_internal
 from app.db.repo_governance import is_restricted
 from app.llm.client import verify_llm_ready
@@ -21,7 +22,11 @@ def _resolved_user(user: AuthenticatedUser | None) -> AuthenticatedUser | None:
 
 
 @router.post("/ask", response_model=AskResponse)
-def ask_endpoint(request: AskRequest, user: AuthenticatedUser | None = Depends(require_authenticated_user)):
+def ask_endpoint(
+    request: AskRequest,
+    user: AuthenticatedUser | None = Depends(require_ask_user),
+    _rate_limit: None = Depends(rate_limit_ask),
+):
     user = _resolved_user(user)
     restriction = is_restricted(user, {"query_block"})
     if restriction:
@@ -38,7 +43,11 @@ def ask_endpoint(request: AskRequest, user: AuthenticatedUser | None = Depends(r
 
 
 @router.post("/ask/stream")
-def ask_stream_endpoint(request: AskRequest, user: AuthenticatedUser | None = Depends(require_authenticated_user)):
+def ask_stream_endpoint(
+    request: AskRequest,
+    user: AuthenticatedUser | None = Depends(require_ask_user),
+    _rate_limit: None = Depends(rate_limit_ask_stream),
+):
     user = _resolved_user(user)
     restriction = is_restricted(user, {"query_block"})
     if restriction:

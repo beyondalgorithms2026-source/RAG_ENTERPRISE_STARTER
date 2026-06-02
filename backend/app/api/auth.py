@@ -9,6 +9,7 @@ from app.auth.dependencies import require_authenticated_user
 from app.auth.service import (
     AuthError,
     authenticate_local_dev_user,
+    auth_required,
     build_local_dev_user,
     build_login_url,
     exchange_code_for_token,
@@ -46,7 +47,7 @@ class LocalDevAssumeRequest(BaseModel):
 
 @router.get("/providers")
 def auth_providers():
-    if not settings.AUTH_ENABLED:
+    if not auth_required():
         return {
             "auth_enabled": False,
             "auth_mode": settings.AUTH_MODE,
@@ -99,7 +100,7 @@ def auth_providers():
 
 @router.get("/login")
 def auth_login(next_path: str = Query(default_factory=lambda: settings.FRONTEND_APP_URL)):
-    if not settings.AUTH_ENABLED:
+    if not auth_required():
         raise HTTPException(status_code=503, detail={"error": "auth_disabled", "message": "Authentication is disabled."})
     if local_dev_auth_enabled() and not oidc_configured():
         redirect_target = f"{settings.FRONTEND_APP_URL.rstrip('/')}/login?next={quote(next_path, safe='')}&dev_login=1"

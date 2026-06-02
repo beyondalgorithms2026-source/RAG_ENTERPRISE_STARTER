@@ -17,7 +17,7 @@ from .api.admin import router as admin_router
 from .api.actions import router as actions_router
 from .api.access_requests import router as access_requests_router
 from .auth.context import reset_current_user, set_current_user
-from .auth.service import AuthError, authenticate_request
+from .auth.service import AuthError, authenticate_request, validate_security_posture
 from .core.config import settings
 from .db.migrate import run_migrations
 from .db.repo_acl import sync_authenticated_user
@@ -79,6 +79,7 @@ app.include_router(admin_router)
 
 @app.on_event("startup")
 def start_background_workers() -> None:
+    validate_security_posture()
     run_migrations()
     start_ingestion_queue_worker()
 

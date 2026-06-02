@@ -13,6 +13,7 @@ from app.auth.context import get_current_user
 from app.corpus_policies import get_corpus_policy
 from app.core.config import REPO_ROOT
 from app.core.logging import logger
+from app.core.rate_limit import rate_limit_admin_expensive
 from app.core_rag.retrieval import SearchFilters, SearchRequest, perform_search
 from app.db.repo_acl import (
     assign_document_acl,
@@ -769,7 +770,7 @@ def _warm_model(model_type: str, model_name: str) -> dict[str, Any]:
 
 
 @router.post("/tuning/warmup")
-def warm_tuning_models(body: WarmupRequest):
+def warm_tuning_models(body: WarmupRequest, _rate_limit: None = Depends(rate_limit_admin_expensive)):
     results = []
     for model_name in body.embeddings:
         results.append(_warm_model("embedding", model_name))

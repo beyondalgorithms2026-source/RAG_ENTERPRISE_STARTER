@@ -36,9 +36,12 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = ""
     OLLAMA_API_KEY: str = ""
 
+    # Runtime/security posture
+    APP_ENV: str = "local"
+
     # Auth / OIDC configuration
     AUTH_ENABLED: bool = False
-    AUTH_MODE: str = "oidc"
+    AUTH_MODE: str = "none"
     AUTH_COOKIE_NAME: str = "rag_access_token"
     AUTH_STATE_COOKIE_NAME: str = "rag_oidc_state"
     AUTH_COOKIE_SECURE: bool = False
@@ -64,6 +67,15 @@ class Settings(BaseSettings):
     OIDC_ADMIN_ROLES: str = "admin"
     OIDC_APPROVER_ROLES: str = "approver"
     OIDC_ALLOWED_ALGORITHMS: str = "RS256"
+    AUTH_NONE_ALLOW_UPLOAD: bool = False
+
+    # Lightweight abuse controls. Use a shared external limiter for multi-worker
+    # production deployments; this starter keeps local PoC behavior dependency-free.
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_ASK_PER_MINUTE: int = 20
+    RATE_LIMIT_SEARCH_PER_MINUTE: int = 60
+    RATE_LIMIT_UPLOAD_PER_MINUTE: int = 10
+    RATE_LIMIT_ADMIN_EXPENSIVE_PER_MINUTE: int = 6
 
     # Retrieval configuration
     RETRIEVAL_MODE: str = "hybrid"

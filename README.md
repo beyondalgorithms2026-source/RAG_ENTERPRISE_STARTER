@@ -94,6 +94,13 @@ LLM_BASE_URL=http://localhost:11434
 LLM_MODEL=llama3.2:3b
 ```
 
+Security mode quick guide:
+
+- `AUTH_MODE=none`: trusted research/no-sensitive-data mode. Search/ask are available, admin stays protected, and upload is disabled unless `AUTH_NONE_ALLOW_UPLOAD=true`.
+- `AUTH_MODE=dev`: local learning mode with built-in test user/admin identities. Use only with `APP_ENV=local` or `APP_ENV=dev`.
+- `AUTH_MODE=password`: reserved for a future small-enterprise username/password module.
+- `AUTH_MODE=oidc`: enterprise SSO mode for staging/prod. Use strong non-default auth secrets.
+
 ### 6. Python setup with `uv`
 
 Open one terminal for the backend:
