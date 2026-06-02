@@ -1,6 +1,6 @@
 # STATUS.md — Milestone Progress Tracker
 
-**Current Milestone:** M21 — Implemented; DB-backed re-run checks pending in local runtime
+**Current Milestone:** M22 — Implemented; DB-backed re-run checks pending in local runtime
 
 **Completed**
 - M0: Baseline Stable Import (baseline-import-stable)
@@ -40,6 +40,7 @@
 - M19: Semantic Cache (2026-05-28)
 - M20: Retrieval Eval Ops And Real User Query Mining (2026-05-28)
 - M21: Access Request Misuse Controls, User Blocking, And Governance Escalation (2026-05-28)
+- M22: Structured Negative Feedback Capture And Answer Failure Logging (2026-06-02)
 
 **M10 summary**
 - Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
@@ -225,6 +226,13 @@
 - Enforced access-request restrictions in the request path and severe query blocks before ask generation
 - Exposed governance risk/restriction counts in the tuning-lab ops guardrail panel
 - See docs/milestones/m21_access_request_misuse_controls_user_blocking_governance_escalation.md
+
+**M22 summary**
+- Added a dedicated structured negative-feedback event log that captures thumbs-down reason, optional note, question, answer, citations, chunk/source ids, actor, profile snapshot, and request metadata
+- Extended `/feedback` so helpful feedback remains lightweight while not-helpful feedback requires a guided reason and still records query-feedback/query-mining compatibility events
+- Updated the chat workspace thumbs-down action to open a compact guided form and preserve copy/helpful/citation interactions
+- Added admin Actions visibility for structured answer failures and reason-count summaries
+- See docs/milestones/m22_structured_negative_feedback_capture_and_answer_failure_logging.md
 
 **M9 summary**
 - Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline

@@ -38,9 +38,25 @@ type FeedbackRow = {
   created_at?: string | null;
 };
 
+type NegativeFeedbackRow = {
+  id: number;
+  question: string;
+  answer_text: string;
+  negative_reason: string;
+  note: string;
+  used_chunks_count: number;
+  actor_email?: string | null;
+  citations_json: Record<string, unknown>[];
+  cited_source_ids_json: number[];
+  cited_chunk_ids_json: number[];
+  created_at?: string | null;
+};
+
 type AdminPayload = {
   approvals: Approval[];
   feedback: FeedbackRow[];
+  negative_feedback: NegativeFeedbackRow[];
+  negative_feedback_reason_counts: { negative_reason: string; count: number; latest_at?: string | null }[];
   top_failed_queries: { question: string; count: number; latest_at?: string | null }[];
   invocations: ToolInvocation[];
 };
@@ -50,7 +66,14 @@ function titleCase(value: string) {
 }
 
 export function AdminActionsPanel() {
-  const [payload, setPayload] = useState<AdminPayload>({ approvals: [], feedback: [], top_failed_queries: [], invocations: [] });
+  const [payload, setPayload] = useState<AdminPayload>({
+    approvals: [],
+    feedback: [],
+    negative_feedback: [],
+    negative_feedback_reason_counts: [],
+    top_failed_queries: [],
+    invocations: [],
+  });
   const [feedback, setFeedback] = useState("");
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [toolDraft, setToolDraft] = useState({
@@ -62,12 +85,19 @@ export function AdminActionsPanel() {
   async function refresh() {
     const [approvalsPayload, feedbackPayload, toolsPayload] = await Promise.all([
       browserFetch<{ approvals: Approval[] }>("/admin/approvals"),
-      browserFetch<{ feedback: FeedbackRow[]; top_failed_queries: AdminPayload["top_failed_queries"] }>("/admin/feedback"),
+      browserFetch<{
+        feedback: FeedbackRow[];
+        negative_feedback: NegativeFeedbackRow[];
+        negative_feedback_reason_counts: AdminPayload["negative_feedback_reason_counts"];
+        top_failed_queries: AdminPayload["top_failed_queries"];
+      }>("/admin/feedback"),
       browserFetch<{ invocations: ToolInvocation[] }>("/admin/tools"),
     ]);
     setPayload({
       approvals: approvalsPayload.approvals,
       feedback: feedbackPayload.feedback,
+      negative_feedback: feedbackPayload.negative_feedback || [],
+      negative_feedback_reason_counts: feedbackPayload.negative_feedback_reason_counts || [],
       top_failed_queries: feedbackPayload.top_failed_queries,
       invocations: toolsPayload.invocations,
     });
@@ -158,6 +188,37 @@ export function AdminActionsPanel() {
           {payload.top_failed_queries.map((item) => (
             <article key={item.question} className="admin-list-item">
               <div><strong>{item.question}</strong><p>{item.count} report(s) · latest {item.latest_at || "unknown"}</p></div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="admin-card page-stack">
+        <h2>Structured Answer Failures</h2>
+        {payload.negative_feedback_reason_counts.length === 0 ? <p className="empty-copy">No structured answer-failure feedback yet.</p> : null}
+        {payload.negative_feedback_reason_counts.length ? (
+          <div className="metric-grid compact-grid">
+            {payload.negative_feedback_reason_counts.map((item) => (
+              <div key={item.negative_reason} className="metric-card">
+                <span>{titleCase(item.negative_reason)}</span>
+                <strong>{item.count}</strong>
+                <small>latest {item.latest_at || "unknown"}</small>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <div className="admin-list">
+          {payload.negative_feedback.map((item) => (
+            <article key={item.id} className="admin-list-item admin-list-item-stacked">
+              <div className="admin-list-main">
+                <div>
+                  <strong>#{item.id} {titleCase(item.negative_reason)}</strong>
+                  <p>{item.question}</p>
+                  <small>{item.actor_email || "unknown actor"} · {item.used_chunks_count} chunk(s) · {item.citations_json.length} citation(s) · {item.created_at}</small>
+                </div>
+              </div>
+              <p>{item.answer_text ? `${item.answer_text.slice(0, 260)}${item.answer_text.length > 260 ? "..." : ""}` : "No answer text captured."}</p>
+              {item.note ? <small>Note: {item.note}</small> : null}
             </article>
           ))}
         </div>

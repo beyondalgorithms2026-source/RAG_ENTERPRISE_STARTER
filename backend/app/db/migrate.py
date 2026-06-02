@@ -365,6 +365,34 @@ def _create_m17_b3_to_m21_tables() -> None:
         conn.execute(text(ddl))
 
 
+def _create_negative_feedback_events_table() -> None:
+    ddl = """
+    CREATE TABLE IF NOT EXISTS negative_feedback_events (
+        id BIGSERIAL PRIMARY KEY,
+        question TEXT NOT NULL,
+        answer_text TEXT NOT NULL DEFAULT '',
+        negative_reason TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        request_id TEXT,
+        answer_path TEXT,
+        used_chunks_count INTEGER NOT NULL DEFAULT 0,
+        actor_external_user_id TEXT,
+        actor_email TEXT,
+        citations_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        cited_source_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        cited_chunk_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        active_profile_snapshot_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS negative_feedback_events_reason_idx ON negative_feedback_events(negative_reason, created_at DESC);
+    CREATE INDEX IF NOT EXISTS negative_feedback_events_request_idx ON negative_feedback_events(request_id);
+    CREATE INDEX IF NOT EXISTS negative_feedback_events_actor_idx ON negative_feedback_events(actor_external_user_id, created_at DESC);
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def _create_retrieval_traces_table() -> None:
     ddl = """
     CREATE TABLE IF NOT EXISTS retrieval_traces (
@@ -824,6 +852,11 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P016",
             description="Create M17.b.3-M21 promotion, cache, query mining, and governance tables",
             runner=_create_m17_b3_to_m21_tables,
+        ),
+        MigrationStep(
+            step_id="MIG-P017",
+            description="Create structured negative feedback event table",
+            runner=_create_negative_feedback_events_table,
         ),
     ]
 
