@@ -8,12 +8,15 @@ from app.auth.context import get_current_user
 from app.auth.dependencies import require_admin_user, require_authenticated_user
 from app.db.repo_actions import (
     create_approval_request,
+    create_negative_feedback_event,
     create_query_feedback,
     create_tool_invocation,
     get_approval_request,
     list_approval_requests,
+    list_negative_feedback_events,
     list_query_feedback,
     list_tool_invocations,
+    negative_feedback_reason_counts,
     review_approval_request,
     top_failed_queries,
 )
@@ -52,11 +55,43 @@ class QueryFeedbackCreate(BaseModel):
     suggested_source: Optional[str] = None
     request_id: Optional[str] = None
     answer_path: Optional[str] = None
+    negative_reason: Optional[
+        Literal[
+            "too_vague",
+            "wrong_document",
+            "wrong_answer",
+            "incomplete_answer",
+            "stale_source_used",
+            "missing_citation",
+            "citation_does_not_support_answer",
+            "should_have_said_not_found",
+            "access_permission_issue",
+        ]
+    ] = None
+    note: str = ""
+    answer_text: str = ""
+    citations_json: list[dict[str, Any]] = Field(default_factory=list)
+    used_chunks_count: int = 0
+    active_profile_snapshot_json: dict[str, Any] = Field(default_factory=dict)
     metadata_json: dict[str, Any] = Field(default_factory=dict)
 
 
 def _approval_payload(row) -> dict[str, Any]:
     return row.__dict__
+
+
+def _citation_ids(citations: list[dict[str, Any]], key: str) -> list[int]:
+    ids: set[int] = set()
+    for citation in citations:
+        value = citation.get(key)
+        if isinstance(value, bool):
+            continue
+        try:
+            if value is not None:
+                ids.add(int(value))
+        except (TypeError, ValueError):
+            continue
+    return sorted(ids)
 
 
 def _tool_result(tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -183,16 +218,39 @@ def review_admin_approval(approval_id: int, body: ApprovalReviewRequest, _admin=
 @router.post("/feedback")
 def create_feedback(body: QueryFeedbackCreate, _user=Depends(require_authenticated_user)):
     actor = get_current_user()
+    negative_feedback_id = None
+    if body.feedback_type == "not_helpful":
+        if not body.negative_reason:
+            raise HTTPException(
+                status_code=422,
+                detail={"error": "negative_reason_required", "message": "Structured thumbs-down feedback requires a reason."},
+            )
+        negative_feedback_id = create_negative_feedback_event(
+            question=body.question.strip(),
+            answer_text=body.answer_text.strip(),
+            negative_reason=body.negative_reason,
+            note=body.note.strip(),
+            request_id=body.request_id,
+            answer_path=body.answer_path,
+            used_chunks_count=body.used_chunks_count,
+            actor=actor,
+            citations_json=body.citations_json,
+            cited_source_ids_json=_citation_ids(body.citations_json, "source_id"),
+            cited_chunk_ids_json=_citation_ids(body.citations_json, "chunk_id"),
+            active_profile_snapshot_json=body.active_profile_snapshot_json,
+            metadata_json=body.metadata_json,
+        )
+
     feedback_id = create_query_feedback(
         question=body.question.strip(),
         feedback_type=body.feedback_type,
         rating=body.rating,
-        reason=body.reason.strip(),
+        reason=(body.reason or body.negative_reason or "").strip(),
         suggested_source=body.suggested_source.strip() if body.suggested_source else None,
         request_id=body.request_id,
         answer_path=body.answer_path,
         actor=actor,
-        metadata_json=body.metadata_json,
+        metadata_json={**body.metadata_json, **({"negative_feedback_id": negative_feedback_id} if negative_feedback_id else {})},
     )
     record_query_event(
         question=body.question,
@@ -201,15 +259,23 @@ def create_feedback(body: QueryFeedbackCreate, _user=Depends(require_authenticat
         request_id=body.request_id,
         feedback_type=body.feedback_type,
         actor=actor,
-        metadata_json={"feedback_id": feedback_id, "rating": body.rating, "suggested_source": body.suggested_source},
+        metadata_json={
+            "feedback_id": feedback_id,
+            "negative_feedback_id": negative_feedback_id,
+            "rating": body.rating,
+            "suggested_source": body.suggested_source,
+            "negative_reason": body.negative_reason,
+        },
     )
-    return {"status": "recorded", "feedback_id": feedback_id}
+    return {"status": "recorded", "feedback_id": feedback_id, "negative_feedback_id": negative_feedback_id}
 
 
 @router.get("/admin/feedback")
 def list_admin_feedback(_admin=Depends(require_admin_user)):
     return {
         "feedback": [row.__dict__ for row in list_query_feedback(limit=200)],
+        "negative_feedback": [row.__dict__ for row in list_negative_feedback_events(limit=200)],
+        "negative_feedback_reason_counts": negative_feedback_reason_counts(limit=20),
         "top_failed_queries": top_failed_queries(limit=20),
     }
 

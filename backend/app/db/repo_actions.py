@@ -59,6 +59,26 @@ class QueryFeedbackRow:
     created_at: Optional[str]
 
 
+@dataclass
+class NegativeFeedbackEventRow:
+    id: int
+    question: str
+    answer_text: str
+    negative_reason: str
+    note: str
+    request_id: Optional[str]
+    answer_path: Optional[str]
+    used_chunks_count: int
+    actor_external_user_id: Optional[str]
+    actor_email: Optional[str]
+    citations_json: List[Dict[str, Any]]
+    cited_source_ids_json: List[int]
+    cited_chunk_ids_json: List[int]
+    active_profile_snapshot_json: Dict[str, Any]
+    metadata_json: Dict[str, Any]
+    created_at: Optional[str]
+
+
 def _actor_payload(actor: Optional[AuthenticatedUser]) -> Dict[str, Any]:
     return {
         "actor_external_user_id": actor.user_id if actor else None,
@@ -291,6 +311,27 @@ def _row_to_feedback(row) -> QueryFeedbackRow:
     )
 
 
+def _row_to_negative_feedback(row) -> NegativeFeedbackEventRow:
+    return NegativeFeedbackEventRow(
+        id=int(row[0]),
+        question=str(row[1]),
+        answer_text=str(row[2] or ""),
+        negative_reason=str(row[3]),
+        note=str(row[4] or ""),
+        request_id=row[5],
+        answer_path=row[6],
+        used_chunks_count=int(row[7] or 0),
+        actor_external_user_id=row[8],
+        actor_email=row[9],
+        citations_json=row[10] or [],
+        cited_source_ids_json=row[11] or [],
+        cited_chunk_ids_json=row[12] or [],
+        active_profile_snapshot_json=row[13] or {},
+        metadata_json=row[14] or {},
+        created_at=str(row[15]) if row[15] is not None else None,
+    )
+
+
 def create_query_feedback(
     *,
     question: str,
@@ -336,6 +377,64 @@ def create_query_feedback(
         )
 
 
+def create_negative_feedback_event(
+    *,
+    question: str,
+    answer_text: str,
+    negative_reason: str,
+    note: str,
+    request_id: Optional[str],
+    answer_path: Optional[str],
+    used_chunks_count: int,
+    actor: Optional[AuthenticatedUser],
+    citations_json: List[Dict[str, Any]],
+    cited_source_ids_json: List[int],
+    cited_chunk_ids_json: List[int],
+    active_profile_snapshot_json: Optional[Dict[str, Any]] = None,
+    metadata_json: Optional[Dict[str, Any]] = None,
+) -> int:
+    sql = text(
+        """
+        INSERT INTO negative_feedback_events (
+            question, answer_text, negative_reason, note, request_id, answer_path,
+            used_chunks_count, actor_external_user_id, actor_email, citations_json,
+            cited_source_ids_json, cited_chunk_ids_json, active_profile_snapshot_json,
+            metadata_json
+        )
+        VALUES (
+            :question, :answer_text, :negative_reason, :note, :request_id, :answer_path,
+            :used_chunks_count, :actor_external_user_id, :actor_email,
+            CAST(:citations_json AS jsonb), CAST(:cited_source_ids_json AS jsonb),
+            CAST(:cited_chunk_ids_json AS jsonb), CAST(:active_profile_snapshot_json AS jsonb),
+            CAST(:metadata_json AS jsonb)
+        )
+        RETURNING id
+        """
+    )
+    with engine.begin() as conn:
+        return int(
+            conn.execute(
+                sql,
+                {
+                    "question": question,
+                    "answer_text": answer_text,
+                    "negative_reason": negative_reason,
+                    "note": note,
+                    "request_id": request_id,
+                    "answer_path": answer_path,
+                    "used_chunks_count": max(int(used_chunks_count or 0), 0),
+                    "actor_external_user_id": actor.user_id if actor else None,
+                    "actor_email": actor.email if actor else None,
+                    "citations_json": json.dumps(citations_json or []),
+                    "cited_source_ids_json": json.dumps(cited_source_ids_json or []),
+                    "cited_chunk_ids_json": json.dumps(cited_chunk_ids_json or []),
+                    "active_profile_snapshot_json": json.dumps(active_profile_snapshot_json or {}),
+                    "metadata_json": json.dumps(metadata_json or {}),
+                },
+            ).scalar_one()
+        )
+
+
 def list_query_feedback(limit: int = 100) -> List[QueryFeedbackRow]:
     sql = text(
         """
@@ -348,6 +447,39 @@ def list_query_feedback(limit: int = 100) -> List[QueryFeedbackRow]:
     )
     with engine.connect() as conn:
         return [_row_to_feedback(row) for row in conn.execute(sql, {"limit": limit}).fetchall()]
+
+
+def list_negative_feedback_events(limit: int = 100) -> List[NegativeFeedbackEventRow]:
+    sql = text(
+        """
+        SELECT id, question, answer_text, negative_reason, note, request_id, answer_path,
+               used_chunks_count, actor_external_user_id, actor_email, citations_json,
+               cited_source_ids_json, cited_chunk_ids_json, active_profile_snapshot_json,
+               metadata_json, created_at
+        FROM negative_feedback_events
+        ORDER BY created_at DESC, id DESC
+        LIMIT :limit
+        """
+    )
+    with engine.connect() as conn:
+        return [_row_to_negative_feedback(row) for row in conn.execute(sql, {"limit": limit}).fetchall()]
+
+
+def negative_feedback_reason_counts(limit: int = 20) -> List[Dict[str, Any]]:
+    sql = text(
+        """
+        SELECT negative_reason, COUNT(*)::bigint AS count, MAX(created_at) AS latest_at
+        FROM negative_feedback_events
+        GROUP BY negative_reason
+        ORDER BY count DESC, latest_at DESC
+        LIMIT :limit
+        """
+    )
+    with engine.connect() as conn:
+        return [
+            {"negative_reason": row[0], "count": int(row[1]), "latest_at": str(row[2]) if row[2] else None}
+            for row in conn.execute(sql, {"limit": limit}).fetchall()
+        ]
 
 
 def top_failed_queries(limit: int = 10) -> List[Dict[str, Any]]:

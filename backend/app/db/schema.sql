@@ -559,6 +559,28 @@ CREATE TABLE IF NOT EXISTS query_feedback (
 CREATE INDEX IF NOT EXISTS query_feedback_type_idx ON query_feedback(feedback_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS query_feedback_request_idx ON query_feedback(request_id);
 
+CREATE TABLE IF NOT EXISTS negative_feedback_events (
+    id BIGSERIAL PRIMARY KEY,
+    question TEXT NOT NULL,
+    answer_text TEXT NOT NULL DEFAULT '',
+    negative_reason TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    request_id TEXT,
+    answer_path TEXT,
+    used_chunks_count INTEGER NOT NULL DEFAULT 0,
+    actor_external_user_id TEXT,
+    actor_email TEXT,
+    citations_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    cited_source_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    cited_chunk_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    active_profile_snapshot_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS negative_feedback_events_reason_idx ON negative_feedback_events(negative_reason, created_at DESC);
+CREATE INDEX IF NOT EXISTS negative_feedback_events_request_idx ON negative_feedback_events(request_id);
+CREATE INDEX IF NOT EXISTS negative_feedback_events_actor_idx ON negative_feedback_events(actor_external_user_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS semantic_cache_entries (
     id BIGSERIAL PRIMARY KEY,
     normalized_question TEXT NOT NULL,

@@ -16,8 +16,13 @@ from app.llm.client import verify_llm_ready
 router = APIRouter()
 
 
+def _resolved_user(user: AuthenticatedUser | None) -> AuthenticatedUser | None:
+    return user if isinstance(user, AuthenticatedUser) else None
+
+
 @router.post("/ask", response_model=AskResponse)
 def ask_endpoint(request: AskRequest, user: AuthenticatedUser | None = Depends(require_authenticated_user)):
+    user = _resolved_user(user)
     restriction = is_restricted(user, {"query_block"})
     if restriction:
         raise HTTPException(status_code=403, detail={"error": "query_blocked", "message": restriction.get("reason")})
@@ -34,6 +39,7 @@ def ask_endpoint(request: AskRequest, user: AuthenticatedUser | None = Depends(r
 
 @router.post("/ask/stream")
 def ask_stream_endpoint(request: AskRequest, user: AuthenticatedUser | None = Depends(require_authenticated_user)):
+    user = _resolved_user(user)
     restriction = is_restricted(user, {"query_block"})
     if restriction:
         raise HTTPException(status_code=403, detail={"error": "query_blocked", "message": restriction.get("reason")})

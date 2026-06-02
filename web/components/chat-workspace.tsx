@@ -35,6 +35,24 @@ type EvidenceSection = {
 
 type FeedbackState = "up" | "down" | null;
 
+type NegativeFeedbackReason =
+  | "too_vague"
+  | "wrong_document"
+  | "wrong_answer"
+  | "incomplete_answer"
+  | "stale_source_used"
+  | "missing_citation"
+  | "citation_does_not_support_answer"
+  | "should_have_said_not_found"
+  | "access_permission_issue";
+
+type NegativeFeedbackDraft = {
+  reason: NegativeFeedbackReason | "";
+  note: string;
+  isOpen: boolean;
+  isSubmitting: boolean;
+};
+
 type StoredEvidenceRailState = {
   selectedEvidenceMessageId: string | null;
   selectedCitationId: string | null;
@@ -72,6 +90,17 @@ type ApprovalResolution = {
 };
 
 const EVIDENCE_RAIL_STORAGE_KEY = "rag_console_evidence_rail_v1";
+const NEGATIVE_FEEDBACK_REASONS: { value: NegativeFeedbackReason; label: string }[] = [
+  { value: "too_vague", label: "Too vague" },
+  { value: "wrong_document", label: "Wrong document" },
+  { value: "wrong_answer", label: "Wrong answer" },
+  { value: "incomplete_answer", label: "Incomplete answer" },
+  { value: "stale_source_used", label: "Stale / older source used" },
+  { value: "missing_citation", label: "Missing citation" },
+  { value: "citation_does_not_support_answer", label: "Citation does not support answer" },
+  { value: "should_have_said_not_found", label: "Should have said not found" },
+  { value: "access_permission_issue", label: "Access / permission issue" },
+];
 
 function createId() {
   return Math.random().toString(36).slice(2, 10);
@@ -244,6 +273,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   const [citationContextError, setCitationContextError] = useState("");
   const [collapsedEvidenceSections, setCollapsedEvidenceSections] = useState<Record<string, boolean>>({});
   const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<string, FeedbackState>>({});
+  const [negativeFeedbackDraftByMessageId, setNegativeFeedbackDraftByMessageId] = useState<Record<string, NegativeFeedbackDraft>>({});
   const [actionFlashByMessageId, setActionFlashByMessageId] = useState<Record<string, string>>({});
   const [missingSourceByMessageId, setMissingSourceByMessageId] = useState<Record<string, string>>({});
   const [accessRequestDraftByMessageId, setAccessRequestDraftByMessageId] = useState<Record<string, AccessRequestDraft>>({});
@@ -638,6 +668,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                 content: finalResult.answer || "No answer returned.",
                 requestId: String(retrievalTrace?.request_id || ""),
                 citations: finalResult.citations,
+                usedChunksCount: finalResult.used_chunks_count,
                 mode: finalResult.mode,
                 debugInfo: finalResult.debug_info,
                 progress: 100,
@@ -717,6 +748,25 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
     };
   }
 
+  function negativeFeedbackDraftFor(messageId: string): NegativeFeedbackDraft {
+    return negativeFeedbackDraftByMessageId[messageId] || {
+      reason: "",
+      note: "",
+      isOpen: false,
+      isSubmitting: false,
+    };
+  }
+
+  function patchNegativeFeedbackDraft(messageId: string, patch: Partial<NegativeFeedbackDraft>) {
+    setNegativeFeedbackDraftByMessageId((current) => ({
+      ...current,
+      [messageId]: {
+        ...negativeFeedbackDraftFor(messageId),
+        ...patch,
+      },
+    }));
+  }
+
   function patchAccessRequestDraft(messageId: string, patch: Partial<AccessRequestDraft>) {
     setAccessRequestDraftByMessageId((current) => ({
       ...current,
@@ -778,15 +828,61 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   }
 
   async function setFeedback(message: ThreadMessage, feedback: Exclude<FeedbackState, null>) {
+    if (feedback === "down") {
+      setFeedbackByMessageId((current) => ({ ...current, [message.id]: "down" }));
+      patchNegativeFeedbackDraft(message.id, { isOpen: true });
+      return;
+    }
     setFeedbackByMessageId((current) => {
       const nextValue = current[message.id] === feedback ? null : feedback;
       return { ...current, [message.id]: nextValue };
     });
+    patchNegativeFeedbackDraft(message.id, { isOpen: false });
     try {
       await submitFeedback(message, feedback);
-      flashAction(message.id, feedback === "up" ? "Marked helpful" : "Marked not helpful");
+      flashAction(message.id, "Marked helpful");
     } catch {
       flashAction(message.id, "Feedback saved locally only");
+    }
+  }
+
+  async function submitNegativeFeedback(message: ThreadMessage) {
+    const draft = negativeFeedbackDraftFor(message.id);
+    if (!draft.reason) {
+      flashAction(message.id, "Choose a reason");
+      return;
+    }
+    const debugInfo = message.debugInfo || {};
+    const retrievalTrace = typeof debugInfo.retrieval_trace === "object" ? debugInfo.retrieval_trace as Record<string, unknown> : {};
+    const activeProfileSnapshot =
+      (retrievalTrace.active_profiles && typeof retrievalTrace.active_profiles === "object")
+        ? retrievalTrace.active_profiles as Record<string, unknown>
+        : {};
+    patchNegativeFeedbackDraft(message.id, { isSubmitting: true });
+    try {
+      await browserFetch<{ status: string; negative_feedback_id?: number | null }>("/feedback", {
+        method: "POST",
+        json: {
+          question: questionForAssistant(message.id),
+          feedback_type: "not_helpful",
+          rating: "down",
+          negative_reason: draft.reason,
+          note: draft.note,
+          answer_text: message.content,
+          citations_json: message.citations || [],
+          used_chunks_count: message.usedChunksCount || (Array.isArray(message.citations) ? message.citations.length : 0),
+          active_profile_snapshot_json: activeProfileSnapshot,
+          request_id: message.requestId || String(retrievalTrace.request_id || ""),
+          answer_path: String(debugInfo.answer_generation_path || ""),
+          metadata_json: { message_id: message.id },
+        },
+      });
+      setFeedbackByMessageId((current) => ({ ...current, [message.id]: "down" }));
+      patchNegativeFeedbackDraft(message.id, { isOpen: false, isSubmitting: false });
+      flashAction(message.id, "Answer issue logged");
+    } catch (err) {
+      patchNegativeFeedbackDraft(message.id, { isSubmitting: false });
+      flashAction(message.id, err instanceof Error ? err.message : "Feedback failed");
     }
   }
 
@@ -1132,6 +1228,50 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                         </button>
                         {actionFlashByMessageId[message.id] ? <span className="chat-action-flash">{actionFlashByMessageId[message.id]}</span> : null}
                       </div>
+                      {negativeFeedbackDraftFor(message.id).isOpen ? (
+                        <div className="chat-negative-feedback-form">
+                          <label>
+                            <span>What went wrong?</span>
+                            <select
+                              value={negativeFeedbackDraftFor(message.id).reason}
+                              onChange={(event) =>
+                                patchNegativeFeedbackDraft(message.id, { reason: event.target.value as NegativeFeedbackReason })
+                              }
+                            >
+                              <option value="">Select a reason</option>
+                              {NEGATIVE_FEEDBACK_REASONS.map((reason) => (
+                                <option key={reason.value} value={reason.value}>{reason.label}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>
+                            <span>Optional note</span>
+                            <textarea
+                              rows={2}
+                              value={negativeFeedbackDraftFor(message.id).note}
+                              onChange={(event) => patchNegativeFeedbackDraft(message.id, { note: event.target.value })}
+                              placeholder="Add context for the operator reviewing this answer"
+                            />
+                          </label>
+                          <div className="toolbar-inline">
+                            <button
+                              type="button"
+                              className="stitch-button stitch-button-primary"
+                              disabled={negativeFeedbackDraftFor(message.id).isSubmitting}
+                              onClick={() => submitNegativeFeedback(message)}
+                            >
+                              {negativeFeedbackDraftFor(message.id).isSubmitting ? "Submitting" : "Submit issue"}
+                            </button>
+                            <button
+                              type="button"
+                              className="stitch-button stitch-button-secondary"
+                              onClick={() => patchNegativeFeedbackDraft(message.id, { isOpen: false, isSubmitting: false })}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ),

@@ -20,6 +20,7 @@ export type ThreadMessage = {
     locator?: string | null;
     snippet: string;
   }[];
+  usedChunksCount?: number | null;
   mode?: string | null;
   debugInfo?: Record<string, unknown> | null;
 };

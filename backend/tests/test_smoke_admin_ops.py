@@ -1279,6 +1279,97 @@ class SmokeTestAdminOps(SmokeTestBase):
         self.assertEqual(pack["status"], "ready")
         self.assertTrue(pack["cases_json"])
 
+    def test_m22_structured_negative_feedback_persists_and_lists_for_admin(self):
+        from fastapi.testclient import TestClient
+
+        import app.main as main_module
+        from app.auth.context import AuthenticatedUser
+        from app.db.repo_actions import list_negative_feedback_events
+        from app.db.repo_query_mining import list_query_events
+
+        run_migrations()
+        client = TestClient(app)
+        actor = AuthenticatedUser(
+            user_id=f"m22-user-{uuid4().hex[:6]}",
+            email="m22-user@example.com",
+            roles=["user", "admin"],
+        )
+        question = f"m22 answer failure {uuid4().hex}"
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_authenticate = main_module.authenticate_request
+        try:
+            settings.AUTH_ENABLED = True
+            main_module.authenticate_request = lambda request: actor
+
+            helpful = client.post(
+                "/feedback",
+                json={
+                    "question": question,
+                    "feedback_type": "helpful",
+                    "rating": "up",
+                    "request_id": f"m22-helpful-{uuid4().hex[:6]}",
+                    "answer_path": "generated",
+                },
+            )
+            self.assertEqual(helpful.status_code, 200)
+            self.assertIsNone(helpful.json()["negative_feedback_id"])
+
+            invalid = client.post(
+                "/feedback",
+                json={
+                    "question": question,
+                    "feedback_type": "not_helpful",
+                    "rating": "down",
+                    "answer_text": "Wrong answer",
+                },
+            )
+            self.assertEqual(invalid.status_code, 422)
+            self.assertEqual(invalid.json()["detail"]["error"], "negative_reason_required")
+
+            request_id = f"m22-negative-{uuid4().hex[:6]}"
+            negative = client.post(
+                "/feedback",
+                json={
+                    "question": question,
+                    "feedback_type": "not_helpful",
+                    "rating": "down",
+                    "negative_reason": "wrong_document",
+                    "note": "The cited file is unrelated.",
+                    "answer_text": "The answer cited the wrong source [S1].",
+                    "citations_json": [{"citation_id": "S1", "source_id": 123, "chunk_id": 456, "file_name": "wrong.pdf"}],
+                    "used_chunks_count": 3,
+                    "active_profile_snapshot_json": {"retrieval": {"name": "default"}},
+                    "request_id": request_id,
+                    "answer_path": "generated",
+                    "metadata_json": {"message_id": "m22-message"},
+                },
+            )
+            self.assertEqual(negative.status_code, 200)
+            negative_feedback_id = negative.json()["negative_feedback_id"]
+            self.assertGreater(negative_feedback_id, 0)
+
+            rows = [row for row in list_negative_feedback_events(limit=20) if row.request_id == request_id]
+            self.assertEqual(len(rows), 1)
+            row = rows[0]
+            self.assertEqual(row.negative_reason, "wrong_document")
+            self.assertEqual(row.note, "The cited file is unrelated.")
+            self.assertEqual(row.used_chunks_count, 3)
+            self.assertEqual(row.cited_source_ids_json, [123])
+            self.assertEqual(row.cited_chunk_ids_json, [456])
+            self.assertEqual(row.active_profile_snapshot_json["retrieval"]["name"], "default")
+
+            events = [item for item in list_query_events(limit=50) if item["request_id"] == request_id]
+            self.assertTrue(any(item["event_type"] == "not_helpful" and item["feedback_type"] == "not_helpful" for item in events))
+
+            admin_payload = client.get("/admin/feedback")
+            self.assertEqual(admin_payload.status_code, 200)
+            payload = admin_payload.json()
+            self.assertTrue(any(item["id"] == negative_feedback_id for item in payload["negative_feedback"]))
+            self.assertTrue(any(item["negative_reason"] == "wrong_document" for item in payload["negative_feedback_reason_counts"]))
+        finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_authenticate
+
     def test_m21_governance_risk_signals_and_reversible_blocks(self):
         from app.auth.context import AuthenticatedUser
         from app.db.repo_access_requests import create_access_request
