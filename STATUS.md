@@ -1,6 +1,6 @@
 # STATUS.md — Milestone Progress Tracker
 
-**Current Milestone:** M22 — Implemented; DB-backed re-run checks pending in local runtime
+**Current Milestone:** M24 — Implemented and verified
 
 **Completed**
 - M0: Baseline Stable Import (baseline-import-stable)
@@ -41,6 +41,8 @@
 - M20: Retrieval Eval Ops And Real User Query Mining (2026-05-28)
 - M21: Access Request Misuse Controls, User Blocking, And Governance Escalation (2026-05-28)
 - M22: Structured Negative Feedback Capture And Answer Failure Logging (2026-06-02)
+- M23: Security Posture Hardening And Explicit Auth Modes (2026-06-02)
+- M24: Endpoint Authorization, Upload Safety, And Abuse Controls (2026-06-02)
 
 **M10 summary**
 - Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
@@ -233,6 +235,20 @@
 - Updated the chat workspace thumbs-down action to open a compact guided form and preserve copy/helpful/citation interactions
 - Added admin Actions visibility for structured answer failures and reason-count summaries
 - See docs/milestones/m22_structured_negative_feedback_capture_and_answer_failure_logging.md
+
+**M23 summary**
+- Added explicit auth posture handling for `AUTH_MODE=none|dev|password|oidc` and `APP_ENV=local|dev|staging|prod`
+- Added startup safety checks for unsafe staging/prod modes, reserved password auth, and weak/default secrets
+- Restricted local-dev login and impersonation endpoints to explicit local/dev runtime plus dev auth mode
+- Kept no-auth research mode intentional while admin and connector-control paths fail closed
+- See docs/milestones/m23_security_posture_hardening_and_explicit_auth_modes.md
+
+**M24 summary**
+- Added scenario-aware authorization to search, ask, compare, upload, batch upload, and connector request endpoints
+- Disabled no-auth uploads by default while keeping an explicit `AUTH_NONE_ALLOW_UPLOAD` trusted-mode override
+- Required admin/editor upload roles in secured modes and retained uploader metadata binding
+- Added early 413 upload rejection, bounded chunked upload reads, and lightweight in-memory request throttling
+- See docs/milestones/m24_endpoint_authorization_upload_safety_and_abuse_controls.md
 
 **M9 summary**
 - Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline

@@ -5,8 +5,8 @@ from fastapi.responses import FileResponse
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
-from app.auth.context import get_current_user
-from app.auth.dependencies import require_admin_user
+from app.auth.context import AuthenticatedUser, get_current_user
+from app.auth.dependencies import require_admin_user, require_connector_request_user
 from app.db.repo_chunks import fetch_chunk_context
 from app.db.repo_admin_audit import insert_admin_audit_event
 from app.db.repo_connectors import DbConnectorRow, list_db_connectors, upsert_db_connector
@@ -255,14 +255,17 @@ def db_connector_list_endpoint():
 
 
 @router.get("/connectors/requests", response_model=List[ConnectorRequestItem])
-def connector_request_list_endpoint():
+def connector_request_list_endpoint(_user: AuthenticatedUser | None = Depends(require_connector_request_user)):
     actor = get_current_user()
     requester_id = None if actor and "admin" in {role.lower() for role in actor.roles} else actor.user_id if actor else None
     return [_connector_request_payload(row) for row in list_connector_requests(requester_external_user_id=requester_id)]
 
 
 @router.post("/connectors/requests", response_model=ConnectorRequestItem)
-def connector_request_create_endpoint(body: ConnectorRequestCreate):
+def connector_request_create_endpoint(
+    body: ConnectorRequestCreate,
+    _user: AuthenticatedUser | None = Depends(require_connector_request_user),
+):
     actor = get_current_user()
     request_id = create_connector_request(
         connector_type=body.connector_type.strip() or "database",
