@@ -1269,6 +1269,318 @@ The page should read like one coherent operator workflow, not as separate unrela
 
 ---
 
+### Milestone M23 — Security Posture Hardening And Explicit Auth Modes (Gate 23)
+**Why now:** before the repo is packaged as a reusable starter, its security posture must stop depending on implicit local-dev behavior. PoC, no-auth research mode, password login, and OIDC enterprise mode should each be explicit and testable.
+
+**Deliverables**
+- Replace ambiguous auth behavior with explicit supported modes:
+  - `none` for intentional trusted research/no-sensitive-data deployments
+  - `dev` for local test identities only
+  - `password` placeholder or implementation path for simple small-enterprise login
+  - `oidc` for enterprise SSO
+- Add environment-aware startup safety checks:
+  - local/dev can use `dev` or `none`
+  - staging/prod must use `password` or `oidc`
+  - staging/prod must reject weak/default secrets
+- Make protected-route behavior fail closed when auth is required.
+- Keep no-auth research mode available only as an explicitly selected scenario, not as accidental disabled-auth fallback.
+- Compile out or hard-disable `/auth/local-dev-*` endpoints outside explicit local/dev mode.
+- Require strong dev JWT/state secrets where dev auth is enabled.
+- Add scenario-aware tests for auth mode selection, protected route behavior, and local-dev endpoint availability.
+
+**DoD**
+- `AUTH_MODE=none` is clearly intentional and documented as trusted-network/non-sensitive-data only.
+- `AUTH_MODE=dev` remains useful for local learning and seeded personas but cannot be used accidentally in staging/prod.
+- Protected routes fail closed in secured scenarios.
+- Default secrets cannot be used in staging/prod.
+- The security audit's auth-disabled and dev-impersonation blockers are remediated.
+
+**Re-run checks**
+- unauthenticated `/admin/*` in secured mode returns 401/403
+- `/auth/local-dev-login` and `/auth/local-dev-assume` return 404 outside local/dev mode
+- startup guard rejects prod-like env with `AUTH_MODE=none`, `AUTH_MODE=dev`, or weak/default secrets
+- local PoC login still works with built-in test user and test admin
+
+---
+
+### Milestone M24 — Endpoint Authorization, Upload Safety, And Abuse Controls (Gate 24)
+**Why now:** reusable RAG subsets must not inherit open ingestion/search surfaces by accident. Each scenario needs an explicit policy for who may search, upload, administer sources, and consume expensive model paths.
+
+**Deliverables**
+- Add scenario-aware auth dependencies to:
+  - `/search`
+  - `/upload`
+  - `/upload/batch`
+  - connector request endpoints where applicable
+- Define upload authorization policies:
+  - no-auth research mode can allow trusted uploads if configured
+  - employee-wide mode requires authenticated employee
+  - small-enterprise/corpus ACL mode requires editor/admin or corpus-specific upload permission
+  - enterprise mode requires governed admin/editor role
+- Bind uploaded sources to uploader, corpus, sensitivity, and initial access policy where applicable.
+- Add early upload size enforcement and safer streaming/temporary-file handling.
+- Add rate limits and concurrency controls for:
+  - `/ask`
+  - `/ask/stream`
+  - `/search`
+  - `/upload`
+  - model warm-up / embedding-heavy admin actions
+- Add admin-visible abuse and throttling signals where useful.
+
+**DoD**
+- Search and upload are no longer accidentally public in secured scenarios.
+- Upload ownership and initial access posture are explicit.
+- Large uploads are rejected early rather than read fully into memory first.
+- Repeated expensive calls receive clear rate-limit responses.
+- The security audit's unauthenticated search/upload and DoS concerns are remediated.
+
+**Re-run checks**
+- unauthenticated `/search` and `/upload` fail in secured scenarios
+- authorized upload/search still work for the correct roles
+- no-auth research scenario follows its explicit configured policy
+- oversized upload returns early 413
+- request flood returns 429 without breaking normal usage
+
+---
+
+### Milestone M25 — Cache, Prompt-Injection, Session, And Browser Security Hardening (Gate 25)
+**Why now:** once endpoint posture is safe, the next reusable-platform risks are cross-user cache leakage, untrusted retrieved content steering the model, and web-session weaknesses.
+
+**Deliverables**
+- Fix semantic-cache scoping:
+  - include `external_user_id` where user-specific grants can affect visibility
+  - include active grant/version scope where time-bound grants affect retrieval
+  - keep corpus/profile/retrieval-mode scope intact
+- Re-authorize cached citations/chunks on cache read before serving an answer.
+- Add regression tests for same-group users with different direct grants.
+- Fence retrieved content in prompts as untrusted source text, not instructions.
+- Add basic indirect prompt-injection detection/logging for ingested and retrieved text.
+- Preserve grounded-only answer behavior and citation allow-listing.
+- Force secure cookie settings in non-local environments:
+  - `Secure`
+  - HTTPS expectations
+  - SameSite policy review
+- Add CSRF or custom-header protection for cookie-authenticated state-changing requests.
+- Add security headers and production CORS allowlist configuration for the web/API boundary.
+
+**DoD**
+- Cached answers cannot leak citations or answer content across users with different grants.
+- Prompt assembly clearly distinguishes retrieved evidence from instructions.
+- Session cookies and state-changing requests are safe enough for non-local deployments.
+- CORS and browser security posture are environment-driven.
+- The security audit's cache leakage, prompt-injection, cookie/CSRF, and CORS/header concerns are remediated.
+
+**Re-run checks**
+- user A with direct grant cannot warm cache for user B without the grant
+- cached citations are re-filtered on read
+- injected source text does not override system answer policy
+- staging/prod cookie inspection shows `Secure`
+- cross-origin mutation attempt is rejected
+- production CORS allows only configured origins
+
+---
+
+### Milestone M26 — Secrets, Audit Integrity, Data Retention, And Parser Hardening (Gate 26)
+**Why now:** reusable starters need operational trust boundaries, not only endpoint-level guards. Secrets, audit trails, query-mining retention, and file parsing must be safe enough for real organizations to adapt.
+
+**Deliverables**
+- Add non-local secret validation for:
+  - JWT/dev signing secrets
+  - OIDC state signing secret
+  - database URL/password
+  - LLM/provider API keys where applicable
+- Add deployment documentation for secrets manager usage without committing secrets.
+- Add tamper-evident audit enhancements:
+  - append-only event hash chain or external immutable sink integration point
+  - actor/action/target/outcome consistency checks
+  - separate auditor/read-only review role where appropriate
+- Add segregation-of-duties controls for high-impact actions:
+  - ACL edits
+  - profile promote/rollback
+  - model registry changes
+  - cache clearing/export
+- Add retention and redaction policy for:
+  - query mining
+  - feedback
+  - traces
+  - audit exports
+  - semantic cache
+- Harden parser and model-warmup surfaces:
+  - dependency pin/monitor guidance
+  - zip-bomb/expansion guards
+  - file-type validation
+  - approved model-name allowlist for warm-up/download actions
+
+**DoD**
+- Non-local startup rejects missing, weak, or known default secrets.
+- Audit events are materially harder to alter silently.
+- Sensitive operational data has a clear retention/redaction policy.
+- Parser and model-warmup surfaces are safer for untrusted enterprise files.
+- The security audit's default-secret, audit, data-minimization, parser, and model-warmup concerns are remediated or explicitly documented with compensating controls.
+
+**Re-run checks**
+- prod-like startup with default secrets fails
+- audit hash-chain/integrity check detects tampering in test fixture
+- retention job/export redacts or expires configured sensitive records
+- parser rejects disallowed/oversized/unsafe archive inputs
+- model warm-up rejects non-approved model names
+
+---
+
+### Milestone M27 — Scenario Profiles And Reuse Blueprint Documentation (Gate 27)
+**Why now:** after the security posture is explicit, the repo can be documented as a reusable toolkit instead of only a chronological enterprise build.
+
+**Deliverables**
+- Add a reuse blueprint document that maps the repo into reusable modules:
+  - ingestion connectors
+  - parsing and chunking
+  - embeddings and index
+  - retrieval engine
+  - auth layer
+  - access/ACL layer
+  - chat UI
+  - admin console
+  - eval and observability
+  - governance and audit
+- Define supported starter scenarios:
+  - small enterprise login/password with corpus-level access
+  - employee-wide RAG with equal access for authenticated employees
+  - no-auth research/admin RAG for trusted non-sensitive environments
+  - full enterprise OIDC + ACL + governance mode
+- For each scenario, document:
+  - modules to keep
+  - modules to remove or disable
+  - modules to replace
+  - required environment variables
+  - security assumptions
+  - minimum test pack
+  - expected admin UI surface
+- Add a visual module map artifact or diagram source that explains how to select modules and assemble a subset.
+- Add an engineer-facing "first 2 hours" reuse guide for new teams.
+
+**DoD**
+- A new developer can identify the right repo areas for their target scenario without reading every milestone.
+- Each scenario has a clear keep/disable/replace checklist.
+- The blueprint explains security consequences rather than hiding them.
+- The repo can be presented as a reusable RAG starter, not only a one-off PoC.
+
+**Re-run checks**
+- documentation review by walking through all three target scenarios
+- link/path validation for referenced modules and docs
+- scenario checklist review against current repo structure
+
+---
+
+### Milestone M28 — Access Strategy Abstraction And Corpus-Level Authorization (Gate 28)
+**Why now:** scenario reuse requires access control to be swappable without rewriting retrieval. The retrieval engine should ask for an access predicate from a strategy, while still enforcing trimming inside SQL.
+
+**Deliverables**
+- Introduce an access strategy interface with SQL-level enforcement support:
+  - `none`
+  - `employee_all`
+  - `corpus_level`
+  - `document_acl`
+  - `document_acl_with_time_bound_grants`
+- Keep existing document ACL behavior as the strongest default for enterprise mode.
+- Add corpus-level authorization tables or mappings for small-enterprise scenarios.
+- Add employee-wide authorization mode where authenticated users can retrieve from all enabled corpora.
+- Ensure citations, chunk fetches, graph/deep-research supplementation, cache lookup, and source browsing use the same access strategy.
+- Add migration and rollback story for moving from simple corpus access to document ACL later.
+
+**DoD**
+- The repo supports simpler authorization models without weakening enterprise ACL mode.
+- Corpus-level access works as a first-class scenario.
+- Employee-wide access is explicit and test-covered.
+- Retrieval security remains SQL-level for every secured access strategy.
+
+**Re-run checks**
+- no-auth research retrieval with explicit `none` strategy
+- employee-wide user can access all enabled employee corpora
+- corpus-level user cannot access unauthorized corpus
+- document ACL leak tests still pass
+- time-bound grant tests still pass
+
+---
+
+### Milestone M29 — Modular Admin Console And Feature Flag Packaging (Gate 29)
+**Why now:** the admin UI currently contains advanced enterprise controls that some subsets should not ship. Reuse requires admin modules to be enabled by scenario rather than manually removed.
+
+**Deliverables**
+- Split admin capabilities into scenario-aware modules:
+  - source admin
+  - corpus admin
+  - access admin
+  - retrieval/profile admin
+  - eval and observability
+  - governance and approval workflows
+  - tuning lab
+  - audit and compliance
+- Add backend and frontend feature flags for admin modules.
+- Ensure disabled modules:
+  - do not show misleading navigation
+  - reject direct API access where not enabled
+  - show explicit unavailable state only where useful
+- Build scenario presets:
+  - no-auth research: source/corpus admin plus eval/observability, no tuning lab unless configured
+  - employee-wide: source/corpus admin plus eval/observability, limited access admin
+  - small enterprise: source/corpus/access admin, optional eval, no enterprise governance by default
+  - enterprise: full admin surface
+- Add tests for route visibility, direct API rejection, and scenario navigation.
+
+**DoD**
+- Admin tuning/governance modules can be removed from simpler products without breaking source management.
+- Scenario-specific admin navigation is truthful.
+- Direct API access follows the same enabled-module policy as the UI.
+- The repo can ship a smaller admin experience cleanly.
+
+**Re-run checks**
+- scenario-by-scenario admin route inventory
+- disabled admin module direct API access returns 404/403 as designed
+- source/corpus admin still works when tuning lab is disabled
+- full enterprise admin still works with all modules enabled
+
+---
+
+### Milestone M30 — Scenario Build Packs, Validation Suites, And Reuse Runbooks (Gate 30)
+**Why now:** documentation and feature flags become truly reusable only when a new team can select a scenario, run a setup path, and validate that the resulting subset works.
+
+**Deliverables**
+- Add scenario build packs or setup profiles for:
+  - `research_no_auth`
+  - `employee_wide_rag`
+  - `small_enterprise_corpus_acl`
+  - `enterprise_oidc_acl`
+- Add scenario-specific sample env files and seed data.
+- Add scenario-specific smoke/eval packs:
+  - upload/search/ask baseline
+  - citation provenance
+  - access policy checks
+  - admin route visibility
+  - cache safety where applicable
+  - feedback/logging where applicable
+- Add runbooks for:
+  - creating a new subset product from the starter
+  - replacing auth implementation
+  - replacing access strategy
+  - disabling advanced admin modules
+  - promoting from PoC to secured internal pilot
+  - promoting from secured internal pilot to production-like deployment
+- Add a final reuse acceptance report template for teams adapting the repo.
+
+**DoD**
+- A new team can select a scenario and get a working subset with minimal manual code reading.
+- Each scenario has a repeatable validation suite.
+- The repo supports reuse as a starter/platform rather than requiring reinvention.
+- Security audit remediations are reflected in scenario-specific checks.
+
+**Re-run checks**
+- all scenario smoke packs pass
+- all scenario access/security checks pass
+- reusable runbook walkthrough completes on a clean checkout
+- global baseline correctness, citation provenance, and ACL/security checks still pass
+
+---
+
 ## 4) Definition of Done (global)
 
 A milestone is “done” only if:
