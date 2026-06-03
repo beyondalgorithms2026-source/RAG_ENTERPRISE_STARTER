@@ -9,6 +9,7 @@ from .pdf import parse_pdf_bytes
 from .pptx import parse_pptx_bytes
 from .txt import parse_txt_bytes
 from .xlsx import parse_xlsx_bytes
+from .safety import validate_parser_input
 
 
 AdapterFn = Callable[[bytes, str], ParsedSourceDocument]
@@ -33,6 +34,7 @@ def get_adapter(source_type: str) -> AdapterFn:
 
 
 def parse_source_bytes(source_type: str, content: bytes, file_name: str) -> ParsedSourceDocument:
+    validate_parser_input(source_type, content, file_name)
     adapter = get_adapter(source_type)
     return adapter(content, file_name)
 

@@ -38,10 +38,11 @@ This guide is intentionally self-contained. Other docs are still useful, but you
 
 ### Current maturity
 
-- implemented through M20
+- implemented through M27
 - first hardening pass complete
 - docs/package-up pass complete
 - second hardening pass complete
+- scenario reuse blueprint complete
 
 Best current description:
 - strong reusable PoC base
@@ -84,6 +85,7 @@ If you are actively forking the repo:
 
 See also:
 - [README.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/README.md)
+- [scenario_profiles_and_reuse_blueprint.md](scenario_profiles_and_reuse_blueprint.md)
 - [configuration.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
 - [maintainer_runbook.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
 

@@ -8,7 +8,7 @@ from sqlalchemy import text
 
 from app.auth.context import AuthenticatedUser
 from app.db.db import engine
-from app.db.repo_acl import current_acl_context
+from app.db.repo_acl import active_direct_grant_fingerprint, can_current_user_access_source, current_acl_context
 from app.profiles.resolver import get_active_profile_snapshot
 
 
@@ -26,7 +26,15 @@ def cache_scope(*, question: str, retrieval_mode: Optional[str], corpus_scope: O
     profiles = get_active_profile_snapshot()
     return {
         "normalized_question": normalize_question(question),
-        "acl_scope_hash": _stable_hash({"user": acl.get("user_id"), "email": acl.get("email"), "groups": sorted(acl.get("groups") or [])}),
+        "acl_scope_hash": _stable_hash(
+            {
+                "external_user_id": acl.get("external_user_id"),
+                "email": acl.get("email"),
+                "groups": sorted(acl.get("groups") or []),
+                "local_dev_full_access": bool(acl.get("local_dev_full_access")),
+                "direct_grants": active_direct_grant_fingerprint(),
+            }
+        ),
         "profile_snapshot_hash": _stable_hash(profiles),
         "corpus_scope_hash": _stable_hash(corpus_scope or {}),
         "retrieval_mode": retrieval_mode or "",
@@ -54,6 +62,24 @@ def get_cache_entry(*, question: str, retrieval_mode: Optional[str], corpus_scop
     with engine.begin() as conn:
         row = conn.execute(sql, scope).mappings().first()
         if not row:
+            return None
+        source_ids = {
+            int(item.get("source_id"))
+            for item in (row["citations_json"] or [])
+            if isinstance(item, dict) and item.get("source_id") is not None
+        }
+        if any(not can_current_user_access_source(source_id) for source_id in source_ids):
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO semantic_cache_hits (
+                        cache_entry_id, hit_type, actor_external_user_id, actor_email
+                    )
+                    VALUES (:cache_entry_id, 'reauthorization_miss', :actor_id, :actor_email)
+                    """
+                ),
+                {"cache_entry_id": row["id"], "actor_id": actor.user_id if actor else None, "actor_email": actor.email if actor else None},
+            )
             return None
         conn.execute(text("UPDATE semantic_cache_entries SET last_hit_at = now() WHERE id = :id"), {"id": row["id"]})
         conn.execute(

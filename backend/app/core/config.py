@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     AUTH_STATE_COOKIE_NAME: str = "rag_oidc_state"
     AUTH_COOKIE_SECURE: bool = False
     FRONTEND_APP_URL: str = "http://127.0.0.1:3001"
+    API_ALLOWED_ORIGINS: str = ""
     AUTH_STATE_SIGNING_SECRET: str = "rag-enterprise-starter-dev-state-secret"
     DEV_LOCAL_JWT_SECRET: str = "rag-enterprise-local-dev-jwt-secret"
     DEV_LOCAL_ISSUER: str = "rag-enterprise-local-dev"
@@ -68,6 +69,9 @@ class Settings(BaseSettings):
     OIDC_APPROVER_ROLES: str = "approver"
     OIDC_ALLOWED_ALGORITHMS: str = "RS256"
     AUTH_NONE_ALLOW_UPLOAD: bool = False
+    AUTH_COOKIE_SAMESITE: str = "lax"
+    CSRF_COOKIE_NAME: str = "rag_csrf_token"
+    CSRF_HEADER_NAME: str = "X-CSRF-Token"
 
     # Lightweight abuse controls. Use a shared external limiter for multi-worker
     # production deployments; this starter keeps local PoC behavior dependency-free.
@@ -76,6 +80,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_SEARCH_PER_MINUTE: int = 60
     RATE_LIMIT_UPLOAD_PER_MINUTE: int = 10
     RATE_LIMIT_ADMIN_EXPENSIVE_PER_MINUTE: int = 6
+    SEGREGATION_OF_DUTIES_ENABLED: bool = True
 
     # Retrieval configuration
     RETRIEVAL_MODE: str = "hybrid"
@@ -113,6 +118,18 @@ class Settings(BaseSettings):
     ENABLE_COMPARISON_VIEW: bool = True
     ENABLE_RETRIEVAL_TRACE: bool = True
     ENABLE_GRAPH_EXPLAINABILITY: bool = True
+
+    # M25/M26 hardening knobs
+    PARSER_MAX_ARCHIVE_FILES: int = 1000
+    PARSER_MAX_EXPANDED_BYTES: int = 100 * 1024 * 1024
+    PARSER_MAX_COMPRESSION_RATIO: float = 100.0
+    APPROVED_MODEL_WARMUP_ONLY: bool = True
+    RETENTION_QUERY_EVENTS_DAYS: int = 90
+    RETENTION_FEEDBACK_DAYS: int = 180
+    RETENTION_TRACES_DAYS: int = 30
+    RETENTION_AUDIT_EXPORT_DAYS: int = 365
+    RETENTION_SEMANTIC_CACHE_DAYS: int = 30
+    RETENTION_REDACT_TEXT_FIELDS: bool = True
 
 
 settings = Settings()

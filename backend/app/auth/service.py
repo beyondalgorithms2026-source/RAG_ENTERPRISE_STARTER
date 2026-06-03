@@ -6,6 +6,7 @@ import secrets
 import time
 from typing import Any, Optional
 from urllib.parse import urlencode
+from urllib.parse import urlparse
 
 import httpx
 import jwt
@@ -63,8 +64,28 @@ def no_auth_upload_enabled() -> bool:
     return anonymous_research_enabled() and bool(settings.AUTH_NONE_ALLOW_UPLOAD)
 
 
+def non_local_runtime_enabled() -> bool:
+    return app_env() not in {"local", "dev"}
+
+
+def secure_cookie_required() -> bool:
+    return non_local_runtime_enabled() or bool(settings.AUTH_COOKIE_SECURE)
+
+
+def cookie_samesite_policy() -> str:
+    value = (settings.AUTH_COOKIE_SAMESITE or "lax").strip().lower()
+    return value if value in {"lax", "strict", "none"} else "lax"
+
+
 def _is_default_secret(value: str, defaults: set[str]) -> bool:
     return not value or value.strip() in defaults or len(value.strip()) < 32
+
+
+def _database_password_is_weak(database_url: str) -> bool:
+    parsed = urlparse(database_url or "")
+    if not parsed.password:
+        return True
+    return parsed.password in {"password", "postgres", "rag_enterprise_starter_dev_pass"} or len(parsed.password) < 16
 
 
 def validate_security_posture() -> None:
@@ -83,6 +104,10 @@ def validate_security_posture() -> None:
     if mode == "dev" and not local_runtime_enabled():
         raise AuthError("dev_auth_not_allowed", "Local dev auth is only available when APP_ENV is local/dev.", 500)
     if env in {"staging", "prod", "production"}:
+        if not settings.FRONTEND_APP_URL.strip().lower().startswith("https://"):
+            raise AuthError("https_required", "FRONTEND_APP_URL must use HTTPS in staging/prod.", 500)
+        if _database_password_is_weak(settings.DATABASE_URL):
+            raise AuthError("weak_database_secret", "DATABASE_URL must include a strong non-default password in staging/prod.", 500)
         if _is_default_secret(
             settings.AUTH_STATE_SIGNING_SECRET,
             {"rag-enterprise-starter-dev-state-secret"},
@@ -93,6 +118,11 @@ def validate_security_posture() -> None:
             {"rag-enterprise-local-dev-jwt-secret"},
         ):
             raise AuthError("weak_dev_jwt_secret", "DEV_LOCAL_JWT_SECRET must be strong in staging/prod.", 500)
+        if mode == "oidc" and _is_default_secret(settings.OIDC_CLIENT_SECRET, {""}):
+            raise AuthError("weak_oidc_client_secret", "OIDC_CLIENT_SECRET must be configured in staging/prod OIDC mode.", 500)
+        provider = (settings.LLM_PROVIDER or "").strip().lower()
+        if provider not in {"ollama", "local", ""} and not (settings.LLM_API_KEY or settings.OLLAMA_API_KEY):
+            raise AuthError("missing_llm_api_key", "A provider API key is required for non-local LLM providers in staging/prod.", 500)
 
 
 def oidc_configured() -> bool:
