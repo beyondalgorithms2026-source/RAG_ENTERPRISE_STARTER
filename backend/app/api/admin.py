@@ -5,13 +5,15 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi import Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from app.auth.dependencies import require_admin_user
 from app.auth.context import get_current_user
+from app.auth.high_impact import require_high_impact_approval
 from app.corpus_policies import get_corpus_policy
-from app.core.config import REPO_ROOT
+from app.core.config import REPO_ROOT, settings
 from app.core.logging import logger
 from app.core.rate_limit import rate_limit_admin_expensive
 from app.core_rag.retrieval import SearchFilters, SearchRequest, perform_search
@@ -25,7 +27,7 @@ from app.db.repo_acl import (
     replace_user_memberships,
 )
 from app.db.repo_actions import list_approval_requests, top_failed_queries
-from app.db.repo_admin_audit import insert_admin_audit_event, list_admin_audit_events
+from app.db.repo_admin_audit import insert_admin_audit_event, list_admin_audit_events, verify_admin_audit_integrity
 from app.db.repo_corpora import get_corpus, list_corpora, upsert_corpus
 from app.db.repo_governance import (
     create_restriction,
@@ -82,6 +84,7 @@ from app.db.repo_query_mining import (
     list_failure_clusters,
     list_query_events,
 )
+from app.db.repo_retention import run_retention_policy
 from app.eval.compare_eval import DEFAULT_REPORT_FILE as BENCHMARK_REPORT_FILE
 from app.eval.compare_eval import load_benchmark_cases, run_mode_benchmark
 from app.eval.retrieval_eval import DEFAULT_REPORT_FILE as RETRIEVAL_REPORT_FILE
@@ -677,8 +680,9 @@ def get_tuning_embedding_experiments():
 
 
 @router.post("/tuning/promote")
-def promote_tuning_candidate(body: TuningPromotionRequest):
+def promote_tuning_candidate(body: TuningPromotionRequest, request: Request):
     actor = get_current_user()
+    approval = require_high_impact_approval(request=request, actor=actor, action="tuning.promote")
     draft = get_candidate_draft(body.draft_id)
     if not draft:
         raise HTTPException(status_code=404, detail=f"Draft {body.draft_id} not found")
@@ -707,15 +711,16 @@ def promote_tuning_candidate(body: TuningPromotionRequest):
         resource_name=draft.get("name"),
         before_json=result.get("previous_live_configuration"),
         after_json=result.get("live_configuration"),
-        event_json={"promotion_note": body.promotion_note, "embedding_experiment_id": body.embedding_experiment_id},
+        event_json={"promotion_note": body.promotion_note, "embedding_experiment_id": body.embedding_experiment_id, **approval},
         actor=actor,
     )
     return result
 
 
 @router.post("/tuning/rollback")
-def rollback_tuning_candidate(body: TuningRollbackRequest):
+def rollback_tuning_candidate(body: TuningRollbackRequest, request: Request):
     actor = get_current_user()
+    approval = require_high_impact_approval(request=request, actor=actor, action="tuning.rollback")
     try:
         result = rollback_to_version(version_label=body.version_label, reason=body.reason, actor=actor)
     except ValueError as exc:
@@ -730,7 +735,7 @@ def rollback_tuning_candidate(body: TuningRollbackRequest):
         resource_name=body.version_label,
         before_json=result.get("previous_live_configuration"),
         after_json=result.get("live_configuration"),
-        event_json={"reason": body.reason},
+        event_json={"reason": body.reason, **approval},
         actor=actor,
     )
     return result
@@ -769,12 +774,29 @@ def _warm_model(model_type: str, model_name: str) -> dict[str, Any]:
         )
 
 
+def _approved_warmup_models(model_type: str) -> set[str]:
+    profile_type = "embedding" if model_type == "embedding" else "reranker"
+    models: set[str] = set()
+    for row in list_approved_registry_profiles(profile_type):
+        config = row.get("config") or {}
+        if config.get("model"):
+            models.add(str(config["model"]))
+        models.add(str(row.get("name") or ""))
+    return {item for item in models if item}
+
+
 @router.post("/tuning/warmup")
-def warm_tuning_models(body: WarmupRequest, _rate_limit: None = Depends(rate_limit_admin_expensive)):
+def warm_tuning_models(body: WarmupRequest, request: Request, _rate_limit: None = Depends(rate_limit_admin_expensive)):
+    actor = get_current_user()
+    require_high_impact_approval(request=request, actor=actor, action="tuning.warmup")
     results = []
     for model_name in body.embeddings:
+        if settings.APPROVED_MODEL_WARMUP_ONLY and model_name not in _approved_warmup_models("embedding"):
+            raise HTTPException(status_code=422, detail={"error": "model_not_approved", "model_name": model_name})
         results.append(_warm_model("embedding", model_name))
     for model_name in body.rerankers:
+        if settings.APPROVED_MODEL_WARMUP_ONLY and model_name not in _approved_warmup_models("reranker"):
+            raise HTTPException(status_code=422, detail={"error": "model_not_approved", "model_name": model_name})
         results.append(_warm_model("reranker", model_name))
     return {"warmup_results": results}
 
@@ -790,7 +812,9 @@ def get_semantic_cache_health():
 
 
 @router.post("/semantic-cache/clear")
-def clear_semantic_cache():
+def clear_semantic_cache(request: Request):
+    actor = get_current_user()
+    approval = require_high_impact_approval(request=request, actor=actor, action="semantic_cache.clear")
     invalidated = invalidate_semantic_cache(reason="admin_clear")
     insert_admin_audit_event(
         event_type="cache",
@@ -798,7 +822,8 @@ def clear_semantic_cache():
         resource_type="semantic_cache",
         resource_id="all",
         after_json={"invalidated": invalidated},
-        actor=get_current_user(),
+        event_json=approval,
+        actor=actor,
     )
     return {"status": "cleared", "invalidated": invalidated}
 
@@ -810,6 +835,23 @@ def get_query_mining():
         "clusters": list_failure_clusters(limit=100),
         "derived_eval_packs": list_derived_eval_packs(limit=100),
     }
+
+
+@router.post("/retention/run")
+def run_admin_retention(request: Request):
+    actor = get_current_user()
+    approval = require_high_impact_approval(request=request, actor=actor, action="retention.run")
+    result = run_retention_policy()
+    insert_admin_audit_event(
+        event_type="retention",
+        action="retention.run",
+        resource_type="retention_policy",
+        resource_id="default",
+        after_json=result,
+        event_json=approval,
+        actor=actor,
+    )
+    return {"status": "completed", "result": result}
 
 
 @router.post("/query-mining/clusters/build")
@@ -1102,7 +1144,9 @@ def assign_sources_to_corpus(corpus_name: str, body: CorpusSourceAssignmentReque
 
 
 @router.patch("/sources/{source_id}")
-def update_source(source_id: int, body: SourceUpdateRequest):
+def update_source(source_id: int, body: SourceUpdateRequest, request: Request):
+    actor = get_current_user()
+    approval = require_high_impact_approval(request=request, actor=actor, action="source.update")
     row = get_source_by_id(source_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"Source {source_id} not found")
@@ -1139,6 +1183,8 @@ def update_source(source_id: int, body: SourceUpdateRequest):
             "acl_groups": before_acl_map.get(source_id, []),
         },
         after_json=_source_payload_with_acl(updated or row, acl_map),
+        event_json=approval,
+        actor=actor,
     )
     return {"status": "ok", "source": _source_payload_with_acl(updated or row, acl_map)}
 
@@ -1500,9 +1546,10 @@ def import_access_seed_pack(body: AccessSeedImportRequest):
 
 
 @router.patch("/access/users/{external_user_id}/memberships")
-def update_user_memberships(external_user_id: str, body: UserMembershipUpdateRequest):
-    replace_user_memberships(external_user_id=external_user_id, group_names=body.group_names)
+def update_user_memberships(external_user_id: str, body: UserMembershipUpdateRequest, request: Request):
     actor = get_current_user()
+    approval = require_high_impact_approval(request=request, actor=actor, action="access.user_memberships.update")
+    replace_user_memberships(external_user_id=external_user_id, group_names=body.group_names)
     insert_admin_audit_event(
         event_type="access",
         action="access.user_memberships.update",
@@ -1511,17 +1558,19 @@ def update_user_memberships(external_user_id: str, body: UserMembershipUpdateReq
         resource_name=external_user_id,
         actor=actor,
         after_json={"group_names": body.group_names},
+        event_json=approval,
     )
     return {"status": "ok", "user": explain_user_access(external_user_id)}
 
 
 @router.patch("/access/sources/{source_id}/acl")
-def update_source_acl_assignments(source_id: int, body: SourceAclUpdateRequest):
+def update_source_acl_assignments(source_id: int, body: SourceAclUpdateRequest, request: Request):
     row = get_source_by_id(source_id)
     if row is None:
         raise HTTPException(status_code=404, detail={"error": "source_not_found", "message": f"Source {source_id} not found"})
-    replace_source_acl(source_id=source_id, group_names=body.group_names)
     actor = get_current_user()
+    approval = require_high_impact_approval(request=request, actor=actor, action="access.source_acl.update")
+    replace_source_acl(source_id=source_id, group_names=body.group_names)
     insert_admin_audit_event(
         event_type="access",
         action="access.source_acl.update",
@@ -1531,6 +1580,7 @@ def update_source_acl_assignments(source_id: int, body: SourceAclUpdateRequest):
         source_id=source_id,
         actor=actor,
         after_json={"group_names": body.group_names},
+        event_json=approval,
     )
     return {"status": "ok", "source": explain_source_access(source_id)}
 
@@ -1647,6 +1697,7 @@ def get_admin_audit_log(
 
 @router.get("/audit-log/export")
 def export_admin_audit_log(
+    request: Request,
     action: Optional[str] = None,
     resource_type: Optional[str] = None,
     outcome: Optional[str] = None,
@@ -1657,6 +1708,8 @@ def export_admin_audit_log(
     from_ts: Optional[str] = None,
     to_ts: Optional[str] = None,
 ):
+    actor = get_current_user()
+    require_high_impact_approval(request=request, actor=actor, action="audit.export")
     rows = list_admin_audit_events(
         limit=500,
         offset=0,
@@ -1673,3 +1726,8 @@ def export_admin_audit_log(
     body = "\n".join(json.dumps(row, ensure_ascii=True) for row in rows)
     headers = {"Content-Disposition": 'attachment; filename="admin-audit-log.jsonl"'}
     return PlainTextResponse(content=body, headers=headers, media_type="application/jsonl")
+
+
+@router.get("/audit-log/integrity")
+def get_admin_audit_integrity():
+    return {"integrity": verify_admin_audit_integrity()}

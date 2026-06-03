@@ -426,8 +426,16 @@ CREATE TABLE IF NOT EXISTS admin_audit_events (
     before_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     after_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     event_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    previous_event_hash TEXT,
+    event_hash TEXT,
+    integrity_metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE admin_audit_events
+    ADD COLUMN IF NOT EXISTS previous_event_hash TEXT,
+    ADD COLUMN IF NOT EXISTS event_hash TEXT,
+    ADD COLUMN IF NOT EXISTS integrity_metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE INDEX IF NOT EXISTS admin_audit_events_created_at_idx ON admin_audit_events(created_at);
 CREATE INDEX IF NOT EXISTS admin_audit_events_actor_idx ON admin_audit_events(actor_external_user_id);
@@ -437,6 +445,7 @@ CREATE INDEX IF NOT EXISTS admin_audit_events_source_idx ON admin_audit_events(s
 CREATE INDEX IF NOT EXISTS admin_audit_events_corpus_idx ON admin_audit_events(corpus_name);
 CREATE INDEX IF NOT EXISTS admin_audit_events_job_idx ON admin_audit_events(job_kind, job_id);
 CREATE INDEX IF NOT EXISTS admin_audit_events_trace_idx ON admin_audit_events(trace_id);
+CREATE INDEX IF NOT EXISTS admin_audit_events_event_hash_idx ON admin_audit_events(event_hash);
 
 CREATE TABLE IF NOT EXISTS ingestion_priority_requests (
     id BIGSERIAL PRIMARY KEY,

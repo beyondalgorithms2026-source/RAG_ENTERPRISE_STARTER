@@ -393,6 +393,18 @@ def _create_negative_feedback_events_table() -> None:
         conn.execute(text(ddl))
 
 
+def _patch_m25_m26_security_columns() -> None:
+    ddl = """
+    ALTER TABLE admin_audit_events
+        ADD COLUMN IF NOT EXISTS previous_event_hash TEXT,
+        ADD COLUMN IF NOT EXISTS event_hash TEXT,
+        ADD COLUMN IF NOT EXISTS integrity_metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+    CREATE INDEX IF NOT EXISTS admin_audit_events_event_hash_idx ON admin_audit_events(event_hash);
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def _create_retrieval_traces_table() -> None:
     ddl = """
     CREATE TABLE IF NOT EXISTS retrieval_traces (
@@ -857,6 +869,11 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P017",
             description="Create structured negative feedback event table",
             runner=_create_negative_feedback_events_table,
+        ),
+        MigrationStep(
+            step_id="MIG-P018",
+            description="Add M25/M26 audit integrity columns",
+            runner=_patch_m25_m26_security_columns,
         ),
     ]
 

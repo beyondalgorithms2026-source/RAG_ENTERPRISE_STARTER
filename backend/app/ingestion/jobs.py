@@ -12,6 +12,7 @@ from app.adapters import ParsedSourceDocument, parse_source_bytes
 from app.corpus_policies import get_corpus_policy, resolve_policy_name_from_source_metadata
 from app.core.config import REPO_ROOT, settings
 from app.core.logging import log_event, logger
+from app.core.security_text import log_prompt_injection_signals
 from app.auth.context import get_current_user
 from app.db.db import engine
 from app.db.repo_acl import assign_document_acl, list_source_acl_map
@@ -77,6 +78,15 @@ def _sanitize_parsed_document(parsed: ParsedSourceDocument) -> ParsedSourceDocum
         attachment.content_disposition = _sanitize_text_value(attachment.content_disposition)
         attachment.content_id = _sanitize_text_value(attachment.content_id)
     return parsed
+
+
+def _log_ingested_prompt_injection_signals(*, parsed: ParsedSourceDocument, source_id: Optional[int] = None) -> None:
+    for part in parsed.parts:
+        log_prompt_injection_signals(
+            stage="ingestion",
+            text_value=part.content_text,
+            metadata={"source_id": source_id, "source_part_index": part.part_index, "source_type": parsed.source_type},
+        )
 
 
 def _safe_filename(file_name: str) -> str:
@@ -402,6 +412,7 @@ def _ingest_uploaded_source(*, source_id: int, source_type: str, file_name: str,
             storage_path=storage_path,
             persist_debug_artifact=False,
         )
+        _log_ingested_prompt_injection_signals(parsed=parsed, source_id=source_id)
         log_event("parse.completed", source_id=source_id, job_id=job_id, stage="parse", status="completed")
         _merge_ingestion_job_metadata(job_id, {"parsed_part_count": len(parsed.parts)})
         attachment_stats = _ingest_email_attachment_children(parent_source_id=source_id, parsed=parsed, job_id=job_id)

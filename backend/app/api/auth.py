@@ -1,3 +1,4 @@
+import secrets
 from urllib.parse import quote
 
 from fastapi.responses import JSONResponse
@@ -18,6 +19,8 @@ from app.auth.service import (
     local_dev_auth_enabled,
     oidc_configured,
     resolve_post_login_path,
+    secure_cookie_required,
+    cookie_samesite_policy,
     validate_access_token,
     verify_state,
 )
@@ -43,6 +46,26 @@ class LocalDevAssumeRequest(BaseModel):
     manager_email: str | None = None
     manager_display_name: str | None = None
     manager_external_user_id: str | None = None
+
+
+def _set_auth_cookie(response, access_token: str) -> None:
+    response.set_cookie(
+        key=settings.AUTH_COOKIE_NAME,
+        value=access_token,
+        httponly=True,
+        secure=secure_cookie_required(),
+        samesite=cookie_samesite_policy(),
+        path="/",
+    )
+    csrf_token = secrets.token_urlsafe(24)
+    response.set_cookie(
+        key=settings.CSRF_COOKIE_NAME,
+        value=csrf_token,
+        httponly=False,
+        secure=secure_cookie_required(),
+        samesite=cookie_samesite_policy(),
+        path="/",
+    )
 
 
 @router.get("/providers")
@@ -114,8 +137,8 @@ def auth_login(next_path: str = Query(default_factory=lambda: settings.FRONTEND_
         key=settings.AUTH_STATE_COOKIE_NAME,
         value=state,
         httponly=True,
-        secure=settings.AUTH_COOKIE_SECURE,
-        samesite="lax",
+        secure=secure_cookie_required(),
+        samesite=cookie_samesite_policy(),
         max_age=600,
         path="/",
     )
@@ -138,14 +161,7 @@ def auth_callback(request: Request, code: str, state: str):
         raise HTTPException(status_code=exc.status_code, detail={"error": exc.code, "message": exc.message})
 
     response = RedirectResponse(url=state_payload.get("next_path") or settings.FRONTEND_APP_URL, status_code=302)
-    response.set_cookie(
-        key=settings.AUTH_COOKIE_NAME,
-        value=access_token,
-        httponly=True,
-        secure=settings.AUTH_COOKIE_SECURE,
-        samesite="lax",
-        path="/",
-    )
+    _set_auth_cookie(response, access_token)
     response.delete_cookie(settings.AUTH_STATE_COOKIE_NAME, path="/")
     response.headers["X-Authenticated-User"] = user.user_id
     return response
@@ -155,6 +171,7 @@ def _logout_response():
     response = RedirectResponse(url=settings.FRONTEND_APP_URL, status_code=302)
     response.delete_cookie(settings.AUTH_COOKIE_NAME, path="/")
     response.delete_cookie(settings.AUTH_STATE_COOKIE_NAME, path="/")
+    response.delete_cookie(settings.CSRF_COOKIE_NAME, path="/")
     return response
 
 
@@ -184,14 +201,7 @@ def auth_local_dev_login(payload: LocalDevLoginRequest):
     access_token = issue_local_dev_token(user)
     redirect_path = resolve_post_login_path(user, payload.next_path)
     response = JSONResponse({"user": user.model_dump(), "redirect_path": redirect_path})
-    response.set_cookie(
-        key=settings.AUTH_COOKIE_NAME,
-        value=access_token,
-        httponly=True,
-        secure=settings.AUTH_COOKIE_SECURE,
-        samesite="lax",
-        path="/",
-    )
+    _set_auth_cookie(response, access_token)
     return response
 
 
@@ -218,12 +228,5 @@ def auth_local_dev_assume(payload: LocalDevAssumeRequest):
     access_token = issue_local_dev_token(user)
     redirect_path = resolve_post_login_path(user, payload.next_path)
     response = JSONResponse({"user": user.model_dump(), "redirect_path": redirect_path})
-    response.set_cookie(
-        key=settings.AUTH_COOKIE_NAME,
-        value=access_token,
-        httponly=True,
-        secure=settings.AUTH_COOKIE_SECURE,
-        samesite="lax",
-        path="/",
-    )
+    _set_auth_cookie(response, access_token)
     return response

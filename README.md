@@ -10,6 +10,8 @@ In addition, it is designed to integrate with existing cloud and database infras
 
 Finally, the platform is built with granular customization and modularity in mind, allowing reusable building blocks across the codebase based on customer-specific requirements, while maintaining a master framework document that captures the full scope of the solution.
 
+For reuse planning, start with `docs/scenario_profiles_and_reuse_blueprint.md`. It maps the repo into modules and explains which blocks to keep, disable, or replace for small-enterprise corpus access, employee-wide RAG, trusted no-auth research, and full enterprise OIDC + ACL + governance scenarios.
+
 “This repo is forked-by-copy from `RAG_MM_MASTER_POC` as a baseline engine; enterprise features are added in milestones with explicit DoD checks.”
 
 
@@ -100,6 +102,14 @@ Security mode quick guide:
 - `AUTH_MODE=dev`: local learning mode with built-in test user/admin identities. Use only with `APP_ENV=local` or `APP_ENV=dev`.
 - `AUTH_MODE=password`: reserved for a future small-enterprise username/password module.
 - `AUTH_MODE=oidc`: enterprise SSO mode for staging/prod. Use strong non-default auth secrets.
+
+Security hardening notes:
+
+- Non-local environments require HTTPS frontend URLs, strong auth/database secrets, secure cookies, and configured CORS origins.
+- Cookie-authenticated `POST`, `PATCH`, and `DELETE` requests require the CSRF cookie value to be echoed in `X-CSRF-Token`.
+- High-impact admin actions such as ACL edits, tuning promotion/rollback, cache clearing, retention runs, model warm-up, and audit export require a separate `X-Approval-Actor` header outside local/dev.
+- Office parsers reject unsafe archive expansion patterns before DOCX/PPTX/XLSX parsing.
+- Model warm-up accepts approved registry model names only by default.
 
 ### 6. Python setup with `uv`
 

@@ -1,6 +1,6 @@
 # STATUS.md — Milestone Progress Tracker
 
-**Current Milestone:** M24 — Implemented and verified
+**Current Milestone:** M27 — Implemented and verified
 
 **Completed**
 - M0: Baseline Stable Import (baseline-import-stable)
@@ -43,6 +43,9 @@
 - M22: Structured Negative Feedback Capture And Answer Failure Logging (2026-06-02)
 - M23: Security Posture Hardening And Explicit Auth Modes (2026-06-02)
 - M24: Endpoint Authorization, Upload Safety, And Abuse Controls (2026-06-02)
+- M25: Cache, Prompt-Injection, Session, And Browser Security Hardening (2026-06-03)
+- M26: Secrets, Audit Integrity, Data Retention, And Parser Hardening (2026-06-03)
+- M27: Scenario Profiles And Reuse Blueprint Documentation (2026-06-03)
 
 **M10 summary**
 - Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
@@ -249,6 +252,25 @@
 - Required admin/editor upload roles in secured modes and retained uploader metadata binding
 - Added early 413 upload rejection, bounded chunked upload reads, and lightweight in-memory request throttling
 - See docs/milestones/m24_endpoint_authorization_upload_safety_and_abuse_controls.md
+
+**M25 summary**
+- Extended semantic-cache scoping with direct-grant fingerprints and reauthorized cached citations before serving cached answers
+- Fenced retrieved context as untrusted source text and added log-only indirect prompt-injection signal detection during ingestion/retrieval
+- Added env-driven CORS allowlists, security headers, secure non-local cookie posture, and CSRF checks for cookie-authenticated mutations
+- See docs/milestones/m25_cache_prompt_injection_session_browser_security.md
+
+**M26 summary**
+- Extended non-local secret validation for HTTPS, database passwords, OIDC secrets, and provider API-key posture
+- Added tamper-evident admin audit hash chaining plus an integrity-check endpoint
+- Added retention/redaction controls for query events, feedback, traces, semantic cache, and audit review metadata
+- Hardened parser archive handling and restricted model warm-up to approved registry models by default
+- See docs/milestones/m26_secrets_audit_integrity_retention_parser_hardening.md
+
+**M27 summary**
+- Added `docs/scenario_profiles_and_reuse_blueprint.md` as the scenario-first entry point for reusing this repo as a modular RAG starter
+- Documented keep/disable/replace checklists for small-enterprise corpus access, employee-wide RAG, trusted no-auth research, and enterprise OIDC + ACL + governance
+- Added a Mermaid module-selection map and a doc validation test to keep scenario guidance anchored to real repo paths
+- See docs/milestones/m27_scenario_profiles_and_reuse_blueprint_documentation.md
 
 **M9 summary**
 - Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline
