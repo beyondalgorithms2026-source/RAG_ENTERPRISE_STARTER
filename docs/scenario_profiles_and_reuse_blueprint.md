@@ -186,7 +186,7 @@ Expected admin UI:
 ## First 2 Hours Guide
 
 1. Pick one scenario profile and write it at the top of your project notes.
-2. Read only these docs first: `README.md`, this blueprint, `docs/02_architecture.md`, and `docs/_master_docs/module_map.md`.
+2. Read only these docs first: `README.md`, this blueprint, `docs/04_repo_navigation_blueprint.md`, and `docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md`.
 3. Start Postgres with `docker compose up -d`.
 4. Copy frontend env with `cp web/.env.example web/.env.local`.
 5. Set backend auth variables for the selected scenario.

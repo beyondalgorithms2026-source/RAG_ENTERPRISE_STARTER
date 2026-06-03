@@ -17,7 +17,7 @@ from app.profiles.resolver import get_active_profile_snapshot, get_effective_rer
 
 EVAL_FIXTURE_DIR = PROJECT_ROOT / "backend" / "tests" / "fixtures" / "eval"
 BENCHMARK_CASES_FILE = EVAL_FIXTURE_DIR / "benchmark_cases.json"
-DEFAULT_REPORT_FILE = PROJECT_ROOT / "eval_report_mode_benchmark.json"
+DEFAULT_REPORT_FILE = PROJECT_ROOT / "data" / "reports" / "eval_report_mode_benchmark.json"
 SUPPORTED_BENCHMARK_MODES = ("vector", "keyword", "hybrid", "graph_hybrid", "full", "deep_lookup")
 SUPPORTED_FUSION_METHODS = ("linear", "rrf")
 

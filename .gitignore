@@ -20,6 +20,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+backend/.env
+web/.env.local
 node_modules/
 .next/
 web/node_modules/
@@ -27,6 +29,12 @@ web/.next/
 web/.next_stale*/
 web/.next_stale_*/
 web/.next_stale_demo_fix_*/
+web/tsconfig.tsbuildinfo
+
+# Generated reports and local proof artifacts
+data/reports/*
+!data/reports/.gitkeep
+eval_report_*.json
 
 # Data and Uploads (keep directories but ignore contents)
 data/uploads/*

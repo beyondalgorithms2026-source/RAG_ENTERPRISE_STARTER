@@ -10,10 +10,11 @@ from app.profiles.resolver import get_active_profile_snapshot, get_effective_ret
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+REPORTS_DIR = PROJECT_ROOT / "data" / "reports"
 DEMO_FILE = PROJECT_ROOT / "demo_questions.md"
 EVAL_FIXTURE_DIR = PROJECT_ROOT / "backend" / "tests" / "fixtures" / "eval"
 RETRIEVAL_CASES_FILE = EVAL_FIXTURE_DIR / "retrieval_cases.json"
-DEFAULT_REPORT_FILE = PROJECT_ROOT / "eval_report_retrieval.json"
+DEFAULT_REPORT_FILE = REPORTS_DIR / "eval_report_retrieval.json"
 
 
 def parse_demo_questions() -> List[Dict[str, Any]]:
