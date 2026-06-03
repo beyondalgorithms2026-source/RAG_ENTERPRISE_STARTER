@@ -1,3 +1,14 @@
+# Imported Baseline Reference Only
+
+This file is kept for provenance. It is not the canonical entrypoint for this repo.
+
+Use these instead:
+- top-level [README.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/README.md)
+- [STATUS.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/STATUS.md)
+- [docs/02_Enterprise_RAG_Project_Plan_Milestones.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/02_Enterprise_RAG_Project_Plan_Milestones.md)
+
+The content below is preserved from the imported baseline and may mention superseded paths such as `frontend/` as the primary UI.
+
 # RAG_MM_MASTER_POC
 
 Reusable, extraction-first, upload-based RAG base repo with optional graph, temporal, router, compare, and evaluation capabilities implemented through M20.

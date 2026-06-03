@@ -13,7 +13,7 @@ from app.eval.retrieval_eval import PROJECT_ROOT, write_eval_report
 EVAL_FIXTURE_DIR = PROJECT_ROOT / "backend" / "tests" / "fixtures" / "eval"
 ANSWER_CASES_FILE = EVAL_FIXTURE_DIR / "answer_cases.json"
 COMPARE_CASES_FILE = EVAL_FIXTURE_DIR / "compare_cases.json"
-DEFAULT_REPORT_FILE = PROJECT_ROOT / "eval_report_enriched.json"
+DEFAULT_REPORT_FILE = PROJECT_ROOT / "data" / "reports" / "eval_report_enriched.json"
 
 
 def load_answer_cases(path: Optional[Path] = None) -> List[Dict[str, Any]]:

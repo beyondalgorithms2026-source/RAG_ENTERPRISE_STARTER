@@ -26,6 +26,7 @@ cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER
 
 - Backend env already exists at `backend/.env`
 - Frontend env exists at `web/.env.local`
+- `web/.env.local` is local-only and intentionally ignored by git
 - Recommended Ollama model: `llama3.2:3b`
 
 ## Terminal 1: Start Docker / Postgres
@@ -92,6 +93,13 @@ pnpm run dev --port 3001
 
 Keep this terminal open too.
 
+## Canonical frontend path
+
+- Active product UI: `web/`
+- Legacy compatibility UI: `frontend/` served at `/frontend`
+
+Use `web/` for all normal development. Treat `frontend/` as fallback-only unless a task explicitly targets legacy compatibility.
+
 ## Fast shortcut
 
 If backend deps and frontend deps are already installed, you can also use:
@@ -153,6 +161,11 @@ If frontend fails to call backend:
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
 NEXT_PUBLIC_DEV_MODE=true
 ```
+
+If git shows unexpected frontend noise after local work:
+- confirm you did not commit `web/.env.local`
+- confirm build output stays ignored
+- run `make repo-hygiene-check`
 
 If Ollama calls fail:
 - confirm `ollama serve` is running
