@@ -13,6 +13,7 @@ import jwt
 from fastapi import Request
 
 from app.auth.context import AuthenticatedUser
+from app.auth.admin_modules import ADMIN_MODULES, SCENARIO_ADMIN_MODULE_PRESETS
 from app.core.config import settings
 
 
@@ -91,8 +92,20 @@ def _database_password_is_weak(database_url: str) -> bool:
 def validate_security_posture() -> None:
     mode = auth_mode()
     env = app_env()
+    access_strategy = (settings.ACCESS_STRATEGY or "document_acl_with_time_bound_grants").strip().lower()
+    scenario_profile = (settings.SCENARIO_PROFILE or "enterprise_oidc_acl").strip().lower()
+    admin_modules_override = {item.strip().lower() for item in (settings.ADMIN_MODULES_ENABLED or "").split(",") if item.strip()}
     if mode not in {"none", "dev", "password", "oidc"}:
         raise AuthError("unsupported_auth_mode", f"AUTH_MODE '{mode}' is not supported.", 500)
+    if access_strategy not in {"none", "employee_all", "corpus_level", "document_acl", "document_acl_with_time_bound_grants"}:
+        raise AuthError("unsupported_access_strategy", f"ACCESS_STRATEGY '{access_strategy}' is not supported.", 500)
+    if scenario_profile not in SCENARIO_ADMIN_MODULE_PRESETS:
+        raise AuthError("unsupported_scenario_profile", f"SCENARIO_PROFILE '{scenario_profile}' is not supported.", 500)
+    unknown_admin_modules = sorted(admin_modules_override - set(ADMIN_MODULES))
+    if unknown_admin_modules:
+        raise AuthError("unsupported_admin_module", f"ADMIN_MODULES_ENABLED contains unsupported modules: {', '.join(unknown_admin_modules)}.", 500)
+    if access_strategy == "none" and mode != "none":
+        raise AuthError("unsafe_access_strategy", "ACCESS_STRATEGY=none is allowed only with AUTH_MODE=none.", 500)
     if env in {"staging", "prod", "production"} and mode in {"none", "dev"}:
         raise AuthError("unsafe_auth_mode", f"AUTH_MODE '{mode}' is not allowed when APP_ENV={env}.", 500)
     if mode == "password":

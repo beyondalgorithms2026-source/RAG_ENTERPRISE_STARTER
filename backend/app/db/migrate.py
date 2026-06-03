@@ -405,6 +405,31 @@ def _patch_m25_m26_security_columns() -> None:
         conn.execute(text(ddl))
 
 
+def _create_corpus_access_grants_table() -> None:
+    ddl = """
+    CREATE TABLE IF NOT EXISTS corpus_access_grants (
+        id BIGSERIAL PRIMARY KEY,
+        corpus_name TEXT NOT NULL,
+        grantee_external_user_id TEXT,
+        grantee_email TEXT,
+        group_id BIGINT REFERENCES auth_groups(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CHECK (
+            grantee_external_user_id IS NOT NULL
+            OR grantee_email IS NOT NULL
+            OR group_id IS NOT NULL
+        ),
+        UNIQUE (corpus_name, grantee_external_user_id, grantee_email, group_id)
+    );
+    CREATE INDEX IF NOT EXISTS corpus_access_grants_corpus_idx ON corpus_access_grants(corpus_name);
+    CREATE INDEX IF NOT EXISTS corpus_access_grants_user_idx ON corpus_access_grants(grantee_external_user_id);
+    CREATE INDEX IF NOT EXISTS corpus_access_grants_email_idx ON corpus_access_grants(grantee_email);
+    CREATE INDEX IF NOT EXISTS corpus_access_grants_group_idx ON corpus_access_grants(group_id);
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def _create_retrieval_traces_table() -> None:
     ddl = """
     CREATE TABLE IF NOT EXISTS retrieval_traces (
@@ -874,6 +899,11 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P018",
             description="Add M25/M26 audit integrity columns",
             runner=_patch_m25_m26_security_columns,
+        ),
+        MigrationStep(
+            step_id="MIG-P019",
+            description="Create corpus-level access grants for M28 access strategies",
+            runner=_create_corpus_access_grants_table,
         ),
     ]
 

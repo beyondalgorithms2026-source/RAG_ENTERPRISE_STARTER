@@ -1,13 +1,16 @@
 import json
-import hashlib
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 from sqlalchemy import text
 
-from app.auth.context import AuthenticatedUser, get_current_user
-from app.auth.service import local_dev_auth_enabled
-from app.core.config import settings
+from app.auth.access_strategy import (
+    active_direct_grant_fingerprint,
+    can_current_user_access_source,
+    current_access_context,
+    local_dev_acl_bypass_enabled,
+)
+from app.auth.context import AuthenticatedUser
 from app.db.db import engine
 
 
@@ -77,101 +80,7 @@ def sync_authenticated_user(user: Optional[AuthenticatedUser]) -> None:
 
 
 def current_acl_context() -> dict[str, Any]:
-    user = get_current_user()
-    return {
-        "external_user_id": user.user_id if user else None,
-        "email": user.email if user else None,
-        "groups": list(user.groups) if user else [],
-        "roles": list(user.roles) if user else [],
-        "local_dev_full_access": local_dev_acl_bypass_enabled(user),
-    }
-
-
-def active_direct_grant_fingerprint() -> str:
-    acl = current_acl_context()
-    external_user_id = acl.get("external_user_id")
-    if not external_user_id:
-        return "anonymous"
-    sql = text(
-        """
-        SELECT usag.id, usag.source_id, usag.expires_at, COALESCE(usag.grantee_email, '') AS grantee_email
-        FROM user_source_access_grants usag
-        WHERE usag.revoked_at IS NULL
-          AND usag.expires_at > now()
-          AND (
-            usag.grantee_external_user_id = :external_user_id
-            OR LOWER(COALESCE(usag.grantee_email, '')) = LOWER(
-                COALESCE((SELECT au.email FROM auth_users au WHERE au.external_user_id = :external_user_id LIMIT 1), '')
-            )
-          )
-        ORDER BY usag.source_id, usag.id
-        """
-    )
-    with engine.connect() as conn:
-        rows = [dict(row) for row in conn.execute(sql, {"external_user_id": external_user_id}).mappings().all()]
-    payload = json.dumps(rows, sort_keys=True, default=str)
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
-def can_current_user_access_source(source_id: int) -> bool:
-    acl = current_acl_context()
-    external_user_id = acl.get("external_user_id")
-    params = {"source_id": source_id, "external_user_id": external_user_id}
-    if external_user_id:
-        sql = text(
-            """
-            SELECT EXISTS (
-                SELECT 1
-                FROM sources s
-                WHERE s.id = :source_id
-                  AND (
-                    s.sensitivity_label = 'public'
-                    OR EXISTS (
-                        SELECT 1
-                        FROM auth_users au
-                        JOIN user_group_memberships ugm ON ugm.user_id = au.id
-                        JOIN document_acl da ON da.group_id = ugm.group_id
-                        WHERE au.external_user_id = :external_user_id
-                          AND da.source_id = s.id
-                    )
-                    OR EXISTS (
-                        SELECT 1
-                        FROM user_source_access_grants usag
-                        WHERE usag.source_id = s.id
-                          AND usag.revoked_at IS NULL
-                          AND usag.expires_at > now()
-                          AND (
-                            usag.grantee_external_user_id = :external_user_id
-                            OR LOWER(COALESCE(usag.grantee_email, '')) = LOWER(
-                                COALESCE((SELECT au_lookup.email FROM auth_users au_lookup WHERE au_lookup.external_user_id = :external_user_id LIMIT 1), '')
-                            )
-                          )
-                    )
-                    OR (
-                        :local_dev_full_access
-                        AND NOT EXISTS (SELECT 1 FROM document_acl da_any WHERE da_any.source_id = s.id)
-                    )
-                  )
-            )
-            """
-        )
-        params["local_dev_full_access"] = bool(acl.get("local_dev_full_access"))
-    else:
-        sql = text("SELECT EXISTS (SELECT 1 FROM sources s WHERE s.id = :source_id AND s.sensitivity_label = 'public')")
-    with engine.connect() as conn:
-        return bool(conn.execute(sql, params).scalar())
-
-
-def local_dev_acl_bypass_enabled(user: Optional[AuthenticatedUser] = None) -> bool:
-    principal = user or get_current_user()
-    if principal is None or not local_dev_auth_enabled():
-        return False
-    allowed_ids = {"dev-test-user", "dev-test-admin"}
-    allowed_emails = {
-        settings.DEV_TEST_USER_EMAIL.strip().lower(),
-        settings.DEV_TEST_ADMIN_EMAIL.strip().lower(),
-    }
-    return principal.user_id in allowed_ids or (principal.email or "").strip().lower() in allowed_emails
+    return current_access_context()
 
 
 def upsert_auth_user(

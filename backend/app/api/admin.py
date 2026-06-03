@@ -10,6 +10,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from app.auth.dependencies import require_admin_user
+from app.auth.admin_modules import admin_modules_payload
 from app.auth.context import get_current_user
 from app.auth.high_impact import require_high_impact_approval
 from app.corpus_policies import get_corpus_policy
@@ -106,6 +107,11 @@ _EVAL_REPORT_FILES = {
     "retrieval": RETRIEVAL_REPORT_FILE,
     "benchmark": BENCHMARK_REPORT_FILE,
 }
+
+
+@router.get("/modules")
+def get_admin_modules():
+    return admin_modules_payload()
 
 
 class ActiveProfileRequest(BaseModel):

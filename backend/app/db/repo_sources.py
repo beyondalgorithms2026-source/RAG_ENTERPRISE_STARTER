@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
 
+from app.auth.access_strategy import source_access_sql
 from app.db.db import engine
 
 
@@ -56,6 +57,24 @@ def get_source_by_id(source_id: int) -> Optional[SourceRow]:
     )
     with engine.connect() as conn:
         row = conn.execute(sql, {"source_id": source_id}).first()
+    if not row:
+        return None
+    return _row_to_source(row)
+
+
+def get_accessible_source_by_id(source_id: int) -> Optional[SourceRow]:
+    params: dict[str, Any] = {"source_id": source_id}
+    sql = text(
+        f"""
+        SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+        FROM sources s
+        WHERE s.id = :source_id
+          AND {source_access_sql(params=params, source_alias="s")}
+        """
+    )
+    with engine.connect() as conn:
+        row = conn.execute(sql, params).first()
     if not row:
         return None
     return _row_to_source(row)
@@ -178,6 +197,22 @@ def list_sources() -> List[SourceRow]:
     )
     with engine.connect() as conn:
         rows = conn.execute(sql).fetchall()
+    return [_row_to_source(row) for row in rows]
+
+
+def list_accessible_sources() -> List[SourceRow]:
+    params: dict[str, Any] = {}
+    sql = text(
+        f"""
+        SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+        FROM sources s
+        WHERE {source_access_sql(params=params, source_alias="s")}
+        ORDER BY created_at DESC, id DESC
+        """
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(sql, params).fetchall()
     return [_row_to_source(row) for row in rows]
 
 

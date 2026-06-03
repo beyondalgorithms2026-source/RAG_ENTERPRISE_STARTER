@@ -6,7 +6,7 @@ This is the M27 entry point for teams reusing Enterprise RAG Starter as a modula
 
 M27 documents reusable scenarios. It does not introduce new access-control code, admin feature flags, or scenario build packs. Those are planned in M28-M30.
 
-Current strongest implemented mode is enterprise-style OIDC/dev identity plus document ACL trimming, governance, audit, feedback, tuning, and security hardening. Simpler scenarios are documented as adaptation profiles so teams can select a path safely.
+Current strongest implemented mode is enterprise-style OIDC/dev identity plus document ACL trimming, governance, audit, feedback, tuning, and security hardening. M28 adds explicit access strategies so simpler scenarios can opt into `none`, `employee_all`, or `corpus_level` retrieval authorization without rewriting retrieval internals.
 
 ## Module Map
 
@@ -31,7 +31,7 @@ See the visual selection map in `docs/diagrams/m27_module_selection_map.mmd`.
 
 Best for an MSME that wants simple employee accounts, a few corpora, and access by corpus rather than per-document ACL.
 
-Current implementation status: target scenario. `AUTH_MODE=password` and first-class corpus-level access are not complete yet; M28 will add access strategy support.
+Current implementation status: partially implemented. `ACCESS_STRATEGY=corpus_level` is available for SQL-level corpus authorization; `AUTH_MODE=password` remains reserved until the password login module is implemented.
 
 Keep:
 - Core ingestion, parsing/chunking, embeddings, retrieval, chat UI, corpus/source admin, eval basics, feedback logging.
@@ -46,7 +46,8 @@ Replace:
 
 Required env:
 - `AUTH_ENABLED=true`
-- `AUTH_MODE=password` after password mode is implemented, or `AUTH_MODE=oidc` with a simple identity provider until then
+- `AUTH_MODE=password` after password mode is implemented, or `AUTH_MODE=oidc`/`dev` with a simple identity provider until then
+- `ACCESS_STRATEGY=corpus_level`
 - `APP_ENV=staging` or `prod` for non-local pilots
 - `FRONTEND_APP_URL=https://...`
 - `API_ALLOWED_ORIGINS=https://...`
@@ -59,7 +60,7 @@ Security assumptions:
 Minimum test pack:
 - Upload/search/ask baseline.
 - Citation provenance check.
-- Corpus-level allow/deny checks after M28.
+- Corpus-level allow/deny checks.
 - Admin source/corpus management smoke.
 - M23-M26 security posture checks.
 
@@ -71,7 +72,7 @@ Expected admin UI:
 
 Best for an internal assistant where all authenticated employees can access the same non-sensitive employee knowledge base.
 
-Current implementation status: target scenario. Employee-wide access strategy is planned for M28.
+Current implementation status: implemented as an explicit access strategy.
 
 Keep:
 - Auth layer, ingestion, parsing/chunking, embeddings, retrieval, chat UI, source/corpus admin, eval/observability, feedback.
@@ -85,6 +86,7 @@ Replace:
 Required env:
 - `AUTH_ENABLED=true`
 - `AUTH_MODE=oidc` for real deployments, or `AUTH_MODE=dev` only for local learning
+- `ACCESS_STRATEGY=employee_all`
 - `APP_ENV=staging` or `prod`
 - Strong auth secrets and explicit CORS origins
 
@@ -96,7 +98,7 @@ Security assumptions:
 Minimum test pack:
 - Authenticated search/ask works.
 - Unauthenticated search/upload fails.
-- Employee-wide corpus visibility works after M28.
+- Employee-wide corpus visibility works.
 - Citation provenance and semantic-cache safety checks pass.
 
 Expected admin UI:
@@ -120,6 +122,7 @@ Replace:
 
 Required env:
 - `AUTH_ENABLED=false` or `AUTH_MODE=none`
+- `ACCESS_STRATEGY=none`
 - `APP_ENV=local` or controlled non-production environment only
 - `AUTH_NONE_ALLOW_UPLOAD=true` only when trusted operators may upload
 
@@ -158,6 +161,7 @@ Replace:
 Required env:
 - `AUTH_ENABLED=true`
 - `AUTH_MODE=oidc`
+- `ACCESS_STRATEGY=document_acl_with_time_bound_grants`
 - `APP_ENV=staging` or `prod`
 - `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`
 - Strong `AUTH_STATE_SIGNING_SECRET`, `DEV_LOCAL_JWT_SECRET`, database password, provider API keys as required
@@ -203,7 +207,6 @@ Expected admin UI:
 
 ## Future Milestone Boundary
 
-- M28: implement swappable access strategies and corpus-level authorization.
-- M29: implement modular admin feature flags and scenario-specific navigation/API gating.
-- M30: add scenario build packs, sample env files, seed data, runbooks, and validation suites.
-
+- M28: implemented swappable access strategies and corpus-level authorization.
+- M29: implemented modular admin feature flags and scenario-specific navigation/API gating.
+- M30: implemented scenario build packs, sample env files, runbooks, and validation suites.

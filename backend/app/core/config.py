@@ -81,8 +81,11 @@ class Settings(BaseSettings):
     RATE_LIMIT_UPLOAD_PER_MINUTE: int = 10
     RATE_LIMIT_ADMIN_EXPENSIVE_PER_MINUTE: int = 6
     SEGREGATION_OF_DUTIES_ENABLED: bool = True
+    SCENARIO_PROFILE: str = "enterprise_oidc_acl"
+    ADMIN_MODULES_ENABLED: str = ""
 
     # Retrieval configuration
+    ACCESS_STRATEGY: str = "document_acl_with_time_bound_grants"
     RETRIEVAL_MODE: str = "hybrid"
     RERANK_ENABLED: bool = False
     RERANK_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"

@@ -241,12 +241,31 @@ CREATE TABLE IF NOT EXISTS document_acl (
     PRIMARY KEY (source_id, group_id)
 );
 
+CREATE TABLE IF NOT EXISTS corpus_access_grants (
+    id BIGSERIAL PRIMARY KEY,
+    corpus_name TEXT NOT NULL,
+    grantee_external_user_id TEXT,
+    grantee_email TEXT,
+    group_id BIGINT REFERENCES auth_groups(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (
+        grantee_external_user_id IS NOT NULL
+        OR grantee_email IS NOT NULL
+        OR group_id IS NOT NULL
+    ),
+    UNIQUE (corpus_name, grantee_external_user_id, grantee_email, group_id)
+);
+
 CREATE INDEX IF NOT EXISTS profiles_type_idx ON profiles(profile_type);
 CREATE INDEX IF NOT EXISTS corpora_created_at_idx ON corpora(created_at);
 CREATE INDEX IF NOT EXISTS auth_users_external_user_id_idx ON auth_users(external_user_id);
 CREATE INDEX IF NOT EXISTS auth_groups_name_idx ON auth_groups(name);
 CREATE INDEX IF NOT EXISTS user_group_memberships_group_id_idx ON user_group_memberships(group_id);
 CREATE INDEX IF NOT EXISTS document_acl_group_id_idx ON document_acl(group_id);
+CREATE INDEX IF NOT EXISTS corpus_access_grants_corpus_idx ON corpus_access_grants(corpus_name);
+CREATE INDEX IF NOT EXISTS corpus_access_grants_user_idx ON corpus_access_grants(grantee_external_user_id);
+CREATE INDEX IF NOT EXISTS corpus_access_grants_email_idx ON corpus_access_grants(grantee_email);
+CREATE INDEX IF NOT EXISTS corpus_access_grants_group_idx ON corpus_access_grants(group_id);
 
 CREATE TABLE IF NOT EXISTS source_access_contacts (
     id BIGSERIAL PRIMARY KEY,
