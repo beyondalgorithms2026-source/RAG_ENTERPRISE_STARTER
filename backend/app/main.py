@@ -17,6 +17,7 @@ from .api.corpus import router as corpus_router
 from .api.admin import router as admin_router
 from .api.actions import router as actions_router
 from .api.access_requests import router as access_requests_router
+from .auth.admin_modules import enforce_admin_module_for_request
 from .auth.context import reset_current_user, set_current_user
 from .auth.service import AuthError, authenticate_request, validate_security_posture
 from .core.config import settings
@@ -115,6 +116,8 @@ async def auth_context_middleware(request: Request, call_next):
         except AuthError as exc:
             request.state.auth_error = exc
         _enforce_csrf_if_needed(request)
+        if request.state.user and "admin" in {role.lower() for role in request.state.user.roles}:
+            enforce_admin_module_for_request(request)
         response = await call_next(request)
         _apply_security_headers(response)
         return response

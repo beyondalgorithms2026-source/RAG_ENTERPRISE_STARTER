@@ -1,6 +1,6 @@
 # STATUS.md — Milestone Progress Tracker
 
-**Current Milestone:** M27 — Implemented and verified
+**Current Milestone:** M30 — Implemented; DB-backed re-run checks pending
 
 **Completed**
 - M0: Baseline Stable Import (baseline-import-stable)
@@ -46,6 +46,9 @@
 - M25: Cache, Prompt-Injection, Session, And Browser Security Hardening (2026-06-03)
 - M26: Secrets, Audit Integrity, Data Retention, And Parser Hardening (2026-06-03)
 - M27: Scenario Profiles And Reuse Blueprint Documentation (2026-06-03)
+- M28: Access Strategy Abstraction And Corpus-Level Authorization (2026-06-03)
+- M29: Modular Admin Console And Feature Flag Packaging (2026-06-03)
+- M30: Scenario Build Packs, Validation Suites, And Reuse Runbooks (2026-06-03)
 
 **M10 summary**
 - Replaced the primary product path with a new Next.js app in `web/` featuring a marketing homepage plus SSO-first login and register entry pages
@@ -271,6 +274,24 @@
 - Documented keep/disable/replace checklists for small-enterprise corpus access, employee-wide RAG, trusted no-auth research, and enterprise OIDC + ACL + governance
 - Added a Mermaid module-selection map and a doc validation test to keep scenario guidance anchored to real repo paths
 - See docs/milestones/m27_scenario_profiles_and_reuse_blueprint_documentation.md
+
+**M28 summary**
+- Added an explicit access strategy layer for `none`, `employee_all`, `corpus_level`, `document_acl`, and `document_acl_with_time_bound_grants`
+- Added corpus-level access grants and SQL-level corpus authorization while preserving the strongest document ACL plus time-bound grant behavior as the default
+- Reused the same strategy for retrieval, chunk materialization, source browsing, citation context, file access, and semantic cache reauthorization
+- See docs/milestones/m28_access_strategy_abstraction_and_corpus_level_authorization.md
+
+**M29 summary**
+- Added scenario-aware admin module presets and `ADMIN_MODULES_ENABLED` overrides so smaller products can hide advanced admin capabilities without deleting code
+- Added `/admin/modules`, backend module enforcement for direct API access, and frontend admin navigation/route gating
+- Preserved the full enterprise admin console as the default scenario
+- See docs/milestones/m29_modular_admin_console_and_feature_flag_packaging.md
+
+**M30 summary**
+- Added reusable scenario build packs for no-auth research, employee-wide RAG, small-enterprise corpus ACL, and full enterprise OIDC ACL
+- Added scenario env samples, admin module inventories, validation checklists, reuse runbooks, and an acceptance report template
+- Added `make scenario-validate` plus scenario pack validation tests
+- See docs/milestones/m30_scenario_build_packs_validation_suites_and_reuse_runbooks.md
 
 **M9 summary**
 - Added explicit corpus policies for legal, transcripts, db rows, email/casework, and the default baseline

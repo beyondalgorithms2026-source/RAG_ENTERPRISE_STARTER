@@ -1,0 +1,4 @@
+{
+  "enabled_modules": ["audit", "corpora", "evals", "jobs", "overview", "sources", "traces"],
+  "disabled_modules": ["access", "actions", "connectors", "governance", "policies", "profiles", "tuning"]
+}

@@ -7,6 +7,7 @@ from typing import Any, Optional
 from sqlalchemy import text
 
 from app.auth.context import AuthenticatedUser
+from app.auth.access_strategy import active_corpus_grant_fingerprint, active_access_strategy
 from app.db.db import engine
 from app.db.repo_acl import active_direct_grant_fingerprint, can_current_user_access_source, current_acl_context
 from app.profiles.resolver import get_active_profile_snapshot
@@ -30,9 +31,11 @@ def cache_scope(*, question: str, retrieval_mode: Optional[str], corpus_scope: O
             {
                 "external_user_id": acl.get("external_user_id"),
                 "email": acl.get("email"),
+                "strategy": active_access_strategy(),
                 "groups": sorted(acl.get("groups") or []),
                 "local_dev_full_access": bool(acl.get("local_dev_full_access")),
                 "direct_grants": active_direct_grant_fingerprint(),
+                "corpus_grants": active_corpus_grant_fingerprint(),
             }
         ),
         "profile_snapshot_hash": _stable_hash(profiles),

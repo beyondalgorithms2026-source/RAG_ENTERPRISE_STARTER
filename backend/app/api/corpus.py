@@ -18,7 +18,7 @@ from app.db.repo_priority_requests import (
     get_latest_priority_request_for_job,
     list_priority_requests,
 )
-from app.db.repo_sources import get_source_by_id, list_sources
+from app.db.repo_sources import get_accessible_source_by_id, list_accessible_sources
 from app.db.repo_source_parts import list_source_parts
 from app.ingestion.queue_metrics import priority_request_payload, summarize_ingestion_queue
 from app.ingestion.jobs import delete_uploaded_source
@@ -201,7 +201,7 @@ class ConnectorRequestItem(BaseModel):
 
 def _enriched_ingestion_jobs() -> list[dict[str, Any]]:
     expire_stale_priority_requests()
-    sources = list_sources()
+    sources = list_accessible_sources()
     source_lookup = {int(source.id): source for source in sources}
     latest_requests: dict[int, Any] = {}
     for request in list_priority_requests(limit=200):
@@ -245,12 +245,12 @@ def corpus_list_endpoint():
         latest_job_by_source.setdefault(int(source_id), job)
     return [
         CorpusItem(**row.__dict__, latest_ingestion_job=latest_job_by_source.get(int(row.id)))
-        for row in list_sources()
+        for row in list_accessible_sources()
     ]
 
 
 @router.get("/connectors/db", response_model=List[DbConnectorItem])
-def db_connector_list_endpoint():
+def db_connector_list_endpoint(_admin=Depends(require_admin_user)):
     return [_connector_payload(row) for row in list_db_connectors()]
 
 
@@ -451,7 +451,7 @@ def delete_corpus_source_endpoint(source_id: int):
 
 @router.get("/corpus/{source_id}/chunks/{chunk_id}/context", response_model=ChunkContextResponse)
 def corpus_chunk_context_endpoint(source_id: int, chunk_id: int, radius: int = 1):
-    source = get_source_by_id(source_id)
+    source = get_accessible_source_by_id(source_id)
     if source is None:
         raise HTTPException(status_code=404, detail={"error": "source_not_found", "source_id": source_id})
 
@@ -475,7 +475,7 @@ def corpus_chunk_context_endpoint(source_id: int, chunk_id: int, radius: int = 1
 
 @router.get("/corpus/{source_id}/file")
 def corpus_source_file_endpoint(source_id: int):
-    source = get_source_by_id(source_id)
+    source = get_accessible_source_by_id(source_id)
     if source is None:
         raise HTTPException(status_code=404, detail={"error": "source_not_found", "source_id": source_id})
 

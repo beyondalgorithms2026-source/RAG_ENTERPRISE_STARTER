@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
 
-from app.db.repo_acl import current_acl_context
+from app.auth.access_strategy import source_access_sql
 from app.db.db import engine
 
 
@@ -75,53 +75,7 @@ def _keyword_anchors(query_text: str) -> List[str]:
 
 
 def _acl_clause(*, params: Dict[str, Any], source_alias: str = "s") -> str:
-    acl_context = current_acl_context()
-    external_user_id = acl_context.get("external_user_id")
-    if external_user_id:
-        params["acl_external_user_id"] = external_user_id
-        base_clause = f"""(
-            {source_alias}.sensitivity_label = 'public'
-            OR EXISTS (
-                SELECT 1
-                FROM auth_users au
-                JOIN user_group_memberships ugm ON ugm.user_id = au.id
-                JOIN document_acl da ON da.group_id = ugm.group_id
-                WHERE au.external_user_id = :acl_external_user_id
-                  AND da.source_id = {source_alias}.id
-            )
-            OR EXISTS (
-                SELECT 1
-                FROM user_source_access_grants usag
-                WHERE usag.source_id = {source_alias}.id
-                  AND usag.revoked_at IS NULL
-                  AND usag.expires_at > now()
-                  AND (
-                    usag.grantee_external_user_id = :acl_external_user_id
-                    OR LOWER(COALESCE(usag.grantee_email, '')) = LOWER(
-                        COALESCE(
-                            (
-                                SELECT au_lookup.email
-                                FROM auth_users au_lookup
-                                WHERE au_lookup.external_user_id = :acl_external_user_id
-                                LIMIT 1
-                            ),
-                            ''
-                        )
-                    )
-                  )
-            )
-        )"""
-        if acl_context.get("local_dev_full_access"):
-            return f"""(
-                {base_clause}
-                OR NOT EXISTS (
-                    SELECT 1
-                    FROM document_acl da_any
-                    WHERE da_any.source_id = {source_alias}.id
-                )
-            )"""
-        return base_clause
-    return f"{source_alias}.sensitivity_label = 'public'"
+    return source_access_sql(params=params, source_alias=source_alias)
 
 
 def _structured_filter_clauses(*, metadata_filters: Optional[Dict[str, str]], params: Dict[str, Any], chunk_alias: str = "c", source_part_alias: str = "sp") -> List[str]:
