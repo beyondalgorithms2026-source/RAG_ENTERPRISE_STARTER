@@ -1581,6 +1581,92 @@ The page should read like one coherent operator workflow, not as separate unrela
 
 ---
 
+### Milestone M31 — Repository Hygiene, Canonical Paths, And Safe Source Control Workflow (Gate 31)
+**Why now:** once the starter supports multiple scenarios and admin subsets, the next failure mode is no longer missing functionality but repo sprawl. Generated artifacts, local-only files, unclear active paths, and inconsistent branch/tag habits make the starter harder to trust, harder to review, and easier to damage by accident.
+
+**Deliverables**
+- Define and enforce a repo hygiene policy for:
+  - local-only environment files
+  - generated build/cache artifacts
+  - eval/export artifacts
+  - screenshots/reference assets
+  - seed/demo data
+- Stop tracking machine-local or transient files that should not live in source control.
+- Define canonical active paths across the repo:
+  - active backend
+  - active frontend
+  - legacy or superseded UI paths
+  - generated output areas
+  - reference-only design or audit materials
+- Standardize source-control workflow guidance for:
+  - branch naming
+  - tag naming
+  - commit scope and message style
+  - PR base-branch expectations
+  - when to commit generated artifacts vs ignore them
+- Separate “source of truth” files from reproducible or disposable outputs so branch diffs remain readable.
+- Add a lightweight artifact-retention policy for committed reports that are intentionally kept for audit, milestone proof, or benchmark comparison.
+
+**DoD**
+- No local-only env file remains tracked unless it is intentionally a sample/example artifact.
+- No transient build/cache artifact remains tracked.
+- The repo clearly distinguishes active source, legacy source, generated outputs, and reference assets.
+- A contributor can understand the intended branch/commit/PR workflow without guessing.
+- Common accidental-noise files no longer inflate diffs or confuse branch comparison.
+
+**Re-run checks**
+- clean checkout does not produce immediate git noise from tracked local/build artifacts
+- repo status remains clean after the documented local run/build flow
+- branch/tag workflow guidance matches the branches/tags the project actually intends to keep
+- scenario packs, runbooks, and milestone notes still remain intact after hygiene cleanup
+
+---
+
+### Milestone M32 — Reader Clarity, Onboarding Contract, And Canonical Navigation Blueprint (Gate 32)
+**Why now:** after repo hygiene is fixed, the remaining reuse barrier is reader confusion. A strong starter should answer “what is this,” “how do I run it,” “what is current status,” and “which part is canonical” within minutes, without forcing a new engineer or PM to reverse-engineer the entire milestone history.
+
+**Deliverables**
+- Rewrite the top-level reader path so the repo answers four questions explicitly:
+  - what is this?
+  - how do I run it?
+  - what is current status?
+  - which part is canonical?
+- Add a canonical repo navigation map covering:
+  - backend entry points
+  - frontend entry points
+  - admin/operator docs
+  - scenario-pack docs
+  - milestone history
+  - legacy/reference-only areas
+- Refactor the top-level project reading flow so a new reader has one obvious start path and one obvious “current state” view.
+- Reduce tracker sprawl by defining what belongs in:
+  - `README.md`
+  - `STATUS.md`
+  - milestone notes
+  - runbooks
+  - architecture or module-map docs
+- Add persona-based onboarding guidance for:
+  - engineer extending the product
+  - operator/admin running the product
+  - reviewer/auditor verifying milestone posture
+  - team reusing the starter for a subset scenario
+- Add a “how to safely extend this starter” blueprint that connects scenario reuse, canonical modules, and replacement points for auth/access/admin packaging.
+
+**DoD**
+- A new reader can answer the four core repo questions within 5-10 minutes.
+- The repo has one obvious canonical starting path instead of multiple competing entry points.
+- `STATUS.md` is understandable as an operational snapshot rather than a full historical archive.
+- Canonical vs legacy/reference areas are documented clearly enough that new contributors do not modify the wrong surface by accident.
+- A reuse-minded team can identify where to plug in auth, access, admin, and scenario-specific changes without reading every milestone in sequence.
+
+**Re-run checks**
+- onboarding walkthrough by a fresh reader succeeds using only the documented “start here” path
+- repo map and canonical path docs match the actual folder structure
+- README, status tracker, runbooks, and scenario docs do not contradict each other
+- the four target scenario paths remain understandable after the documentation reshaping
+
+---
+
 ## 4) Definition of Done (global)
 
 A milestone is “done” only if:
