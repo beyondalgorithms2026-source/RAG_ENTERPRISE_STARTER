@@ -715,6 +715,8 @@ class SmokeTestAdminOps(SmokeTestBase):
             self.assertEqual(compare_payload["candidate_run"]["generation_summary"]["top_p"], 0.9)
             self.assertEqual(compare_payload["candidate_run"]["retrieval_summary"]["answer_time_chunk_cap_chars"], 640)
             self.assertLessEqual(compare_payload["candidate_run"]["used_chunks_count"], 2)
+            self.assertIn("transform_summary", compare_payload["live_run"]["retrieval_summary"])
+            self.assertIn("transform_summary", compare_payload["candidate_run"]["retrieval_summary"])
 
             alternate_embedding = next(
                 option["name"]
@@ -748,6 +750,216 @@ class SmokeTestAdminOps(SmokeTestBase):
             retrieval_module.embed_texts = original_embed_texts
             answering_module.generate_answer = original_generate_answer
             self._delete_retrieval_records(seeded.values())
+
+    def test_m18_admin_profiles_can_manage_transform_profiles_and_trace_status(self):
+        from fastapi.testclient import TestClient
+
+        import app.main as main_module
+        from app.auth.context import AuthenticatedUser
+        from app.db.repo_profiles import upsert_profile
+
+        run_migrations()
+        client = TestClient(app)
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_authenticate = main_module.authenticate_request
+        try:
+            settings.AUTH_ENABLED = True
+            main_module.authenticate_request = lambda request: AuthenticatedUser(
+                user_id="admin-m18-profile",
+                email="admin.m18.profile@example.com",
+                roles=["admin"],
+                groups=["ops"],
+            )
+            profile_name = f"rewrite-only-lab-{uuid4().hex[:6]}"
+
+            metadata_response = client.get("/admin/profiles/metadata", headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(metadata_response.status_code, 200)
+            base_retrieval = dict(metadata_response.json()["retrieval_settings"])
+
+            create_response = client.post(
+                "/admin/profiles",
+                json={
+                    "profile_type": "retrieval",
+                    "profile_name": profile_name,
+                    "config": {
+                        **base_retrieval,
+                        "query_transform_enabled": True,
+                        "rewrite_enabled": True,
+                        "expansion_enabled": False,
+                        "hyde_enabled": False,
+                        "transform_max_variants": 4,
+                    },
+                },
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(create_response.status_code, 200)
+            self.assertTrue(create_response.json()["profile"]["transform_posture"]["enabled"])
+            self.assertTrue(create_response.json()["profile"]["transform_posture"]["rewrite_enabled"])
+
+            patch_response = client.patch(
+                f"/admin/profiles/retrieval/{profile_name}",
+                json={"config": {"transform_timeout_ms": 900}},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(patch_response.status_code, 200)
+            self.assertEqual(patch_response.json()["profile"]["config"]["transform_timeout_ms"], 900)
+
+            activate_response = client.post(
+                "/admin/profiles/active",
+                json={"profile_type": "retrieval", "profile_name": profile_name},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(activate_response.status_code, 200)
+
+            live_metadata = client.get("/admin/profiles/metadata", headers={"Authorization": "Bearer fake-token"}).json()
+            self.assertEqual(live_metadata["current_live_retrieval"]["profile_name"], profile_name)
+            self.assertTrue(live_metadata["current_live_retrieval"]["transform_posture"]["enabled"])
+            self.assertTrue(live_metadata["current_live_retrieval"]["transform_posture"]["rewrite_enabled"])
+
+            trace_response = client.post(
+                "/admin/traces/query-debug",
+                json={"question": "  Q4   liability subcontracting  ", "mode": "keyword", "k": 3},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(trace_response.status_code, 200)
+            self.assertTrue(trace_response.json()["trace"]["query_transform"]["enabled"])
+            self.assertIn("rewrite", trace_response.json()["trace"]["query_transform"]["strategy"])
+
+            audit_response = client.get("/admin/audit-log", headers={"Authorization": "Bearer fake-token"})
+            actions = {item["action"] for item in audit_response.json()["events"]}
+            self.assertTrue({"profile.create", "profile.update", "profile.activate"}.issubset(actions))
+
+            upsert_profile("retrieval", "default", base_retrieval, is_default=True)
+            client.post(
+                "/admin/profiles/active",
+                json={"profile_type": "retrieval", "profile_name": "default"},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+        finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_authenticate
+
+    def test_m18_sandbox_compare_surfaces_candidate_retrieval_transform_posture(self):
+        from fastapi.testclient import TestClient
+
+        import app.main as main_module
+        from app.auth.context import AuthenticatedUser
+        import app.core_rag.answering as answering_module
+        import app.core_rag.retrieval as retrieval_module
+
+        run_migrations()
+        seeded = self._seed_retrieval_records()
+        client = TestClient(app)
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_authenticate = main_module.authenticate_request
+        original_embed_texts = retrieval_module.embed_texts
+        original_generate_answer = answering_module.generate_answer
+        try:
+            settings.AUTH_ENABLED = True
+            main_module.authenticate_request = lambda request: AuthenticatedUser(
+                user_id="admin-m18-compare",
+                email="admin.m18.compare@example.com",
+                roles=["admin"],
+                groups=["ops"],
+            )
+            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            answering_module.generate_answer = lambda system_prompt, user_prompt: {
+                "success": True,
+                "content": "{\"answer\":\"Sandbox compare confirms the alpha semantic vector match text in the retrieved source [S1]\",\"citations\":[\"S1\"]}",
+            }
+
+            tuning_payload = client.get("/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"}).json()
+            selected_profiles = dict(tuning_payload["live_configuration"]["selected_profiles"])
+
+            compare_response = client.post(
+                "/admin/tuning/compare",
+                json={
+                    "question": "Q4 liability subcontracting",
+                    "selected_profiles": selected_profiles,
+                    "retrieval_override_config": {
+                        "query_transform_enabled": True,
+                        "rewrite_enabled": False,
+                        "expansion_enabled": True,
+                        "hyde_enabled": False,
+                        "transform_max_variants": 4,
+                    },
+                    "temperature": 0.0,
+                    "top_p": 1.0,
+                    "chunk_size_cap_chars": 640,
+                    "k_retrieval_count": 2,
+                },
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(compare_response.status_code, 200)
+            compare_payload = compare_response.json()
+            self.assertEqual(compare_payload["candidate_run"]["selected_profiles"]["retrieval"], selected_profiles["retrieval"])
+            self.assertTrue(compare_payload["candidate_run"]["retrieval_summary"]["transform_summary"]["enabled"])
+            self.assertTrue(compare_payload["candidate_run"]["retrieval_summary"]["transform_summary"]["expansion_enabled"])
+            self.assertEqual(compare_payload["summary"]["candidate_transform_summary"]["strategy"], ["expansion"])
+            self.assertIn("retrieval", compare_payload["summary"]["changed_profile_types"])
+        finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_authenticate
+            retrieval_module.embed_texts = original_embed_texts
+            answering_module.generate_answer = original_generate_answer
+            self._delete_retrieval_records(seeded.values())
+
+    def test_m18_promoting_sandbox_transform_override_materializes_live_retrieval_profile(self):
+        from fastapi.testclient import TestClient
+
+        import app.main as main_module
+        from app.auth.context import AuthenticatedUser
+
+        run_migrations()
+        client = TestClient(app)
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_authenticate = main_module.authenticate_request
+        try:
+            settings.AUTH_ENABLED = True
+            main_module.authenticate_request = lambda request: AuthenticatedUser(
+                user_id="admin-m18-promote",
+                email="admin.m18.promote@example.com",
+                roles=["admin"],
+                groups=["ops"],
+            )
+
+            tuning_payload = client.get("/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"}).json()
+            selected_profiles = dict(tuning_payload["live_configuration"]["selected_profiles"])
+            draft_response = client.post(
+                "/admin/tuning/drafts",
+                json={
+                    "name": "Inline transform candidate",
+                    "description": "Promote expansion override into live retrieval config.",
+                    "selected_profiles": selected_profiles,
+                    "retrieval_override_config": {
+                        "query_transform_enabled": True,
+                        "rewrite_enabled": False,
+                        "expansion_enabled": True,
+                        "hyde_enabled": False,
+                        "transform_max_variants": 4,
+                    },
+                },
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(draft_response.status_code, 200)
+            draft_id = int(draft_response.json()["draft"]["id"])
+
+            promote_response = client.post(
+                "/admin/tuning/promote",
+                json={"draft_id": draft_id, "promotion_note": "Promote inline sandbox transform override."},
+                headers={"Authorization": "Bearer fake-token", "X-Admin-Approval": "approved"},
+            )
+            self.assertEqual(promote_response.status_code, 200)
+            live_configuration = promote_response.json()["live_configuration"]
+            live_retrieval_name = str(live_configuration["selected_profiles"]["retrieval"])
+            self.assertIn("retrieval", live_retrieval_name)
+            live_retrieval_config = ((live_configuration["resolved_config"] or {}).get("retrieval") or {}).get("config") or {}
+            self.assertTrue(live_retrieval_config["query_transform_enabled"])
+            self.assertTrue(live_retrieval_config["expansion_enabled"])
+            self.assertFalse(live_retrieval_config["rewrite_enabled"])
+        finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_authenticate
 
     def test_m17_2_seed_import_admin_access_controls_and_executive_acl_visibility(self):
         from fastapi.testclient import TestClient

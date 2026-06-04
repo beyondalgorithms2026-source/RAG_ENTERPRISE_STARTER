@@ -1699,21 +1699,54 @@ export function JobsAdminPanel() {
 }
 
 export function ProfilesAdminPanel() {
-  const [payload, setPayload] = useState<{ profiles: GenericMap[] }>({ profiles: [] });
+  const [payload, setPayload] = useState<{ profiles: GenericMap[]; current_live_retrieval?: GenericMap }>({ profiles: [] });
   const [history, setHistory] = useState<{ events: GenericMap[] }>({ events: [] });
   const [error, setError] = useState("");
   const [activating, setActivating] = useState("");
+  const [savingProfile, setSavingProfile] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedRetrievalProfile, setSelectedRetrievalProfile] = useState("");
+  const [retrievalProfileName, setRetrievalProfileName] = useState("");
+  const [retrievalEditor, setRetrievalEditor] = useState<GenericMap>({});
+
+  const retrievalProfiles = useMemo(
+    () => payload.profiles.filter((profile) => String(profile.profile_type) === "retrieval"),
+    [payload.profiles],
+  );
+
+  function loadRetrievalProfile(profileName: string, nextName?: string) {
+    const match = retrievalProfiles.find((profile) => String(profile.name) === profileName);
+    if (!match) {
+      return;
+    }
+    setSelectedRetrievalProfile(String(match.name));
+    setRetrievalProfileName(nextName || String(match.name));
+    setRetrievalEditor({ ...((match.config as GenericMap | undefined) || {}) });
+  }
 
   async function refresh() {
     setIsLoading(true);
     try {
-      const [profiles, audit] = await Promise.all([
+      const [profiles, audit, metadata] = await Promise.all([
         browserFetch<{ profiles: GenericMap[] }>("/admin/profiles"),
         browserFetch<{ events: GenericMap[] }>("/admin/audit-log?action=profile.activate"),
+        browserFetch<GenericMap>("/admin/profiles/metadata"),
       ]);
-      setPayload(profiles);
+      setPayload({ ...profiles, current_live_retrieval: (metadata.current_live_retrieval as GenericMap | undefined) || {} });
       setHistory(audit);
+      const retrievalItems = profiles.profiles.filter((profile) => String(profile.profile_type) === "retrieval");
+      const activeRetrieval = retrievalItems.find((profile) => Boolean(profile.is_active)) || retrievalItems[0];
+      setSelectedRetrievalProfile((current) => {
+        const existing = retrievalItems.find((profile) => String(profile.name) === current);
+        return existing ? current : String(activeRetrieval?.name || "");
+      });
+      setRetrievalProfileName((current) => current || String(activeRetrieval?.name || ""));
+      setRetrievalEditor((current) => {
+        if (Object.keys(current).length && retrievalItems.some((profile) => String(profile.name) === selectedRetrievalProfile)) {
+          return current;
+        }
+        return { ...(((activeRetrieval?.config as GenericMap | undefined) || {})) };
+      });
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load profiles.");
@@ -1742,6 +1775,47 @@ export function ProfilesAdminPanel() {
     }
   }
 
+  function updateRetrievalField(key: string, value: unknown) {
+    setRetrievalEditor((current) => ({ ...current, [key]: value }));
+  }
+
+  async function saveRetrievalProfile(mode: "create" | "update") {
+    const profileName = retrievalProfileName.trim();
+    if (!profileName) {
+      setError("Retrieval profile name is required.");
+      return;
+    }
+    setSavingProfile(mode);
+    try {
+      if (mode === "create") {
+        await browserFetch("/admin/profiles", {
+          method: "POST",
+          json: {
+            profile_type: "retrieval",
+            profile_name: profileName,
+            config: retrievalEditor,
+          },
+        });
+      } else {
+        await browserFetch(`/admin/profiles/retrieval/${encodeURIComponent(selectedRetrievalProfile)}`, {
+          method: "PATCH",
+          json: { config: retrievalEditor },
+        });
+      }
+      setSelectedRetrievalProfile(profileName);
+      setRetrievalProfileName(profileName);
+      await refresh();
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save retrieval profile.");
+    } finally {
+      setSavingProfile("");
+    }
+  }
+
+  const currentLiveRetrieval = (payload.current_live_retrieval || {}) as GenericMap;
+  const currentLiveTransform = (currentLiveRetrieval.transform_posture || {}) as GenericMap;
+
   return (
     <div className="admin-route-page">
       <AdminSectionIntro
@@ -1759,6 +1833,105 @@ export function ProfilesAdminPanel() {
               <p>Embedding, retrieval, reranker, and LLM profiles currently known to the control plane.</p>
             </div>
           </div>
+          <section className="admin-summary-cards">
+            <SummaryMetricCard label="Live Retrieval Profile" value={String(currentLiveRetrieval.profile_name || "Unavailable")} tone={currentLiveTransform.enabled ? "is-warning" : "is-good"} />
+            <SummaryMetricCard
+              label="Query Transform"
+              value={Boolean(currentLiveTransform.enabled) ? String(((currentLiveTransform.strategy as string[] | undefined) || []).join(", ") || "Enabled") : "Disabled"}
+              tone={currentLiveTransform.enabled ? "is-warning" : "is-good"}
+            />
+            <SummaryMetricCard label="Variant Cap" value={String(currentLiveTransform.transform_max_variants || 0)} />
+          </section>
+          <div className="table-list">
+            <article className="table-row">
+              <div>
+                <strong>Current live retrieval configuration</strong>
+                <span className="muted-copy">
+                  {`Mode ${String((currentLiveRetrieval.config as GenericMap | undefined)?.default_mode || "hybrid")} • timeout ${String(currentLiveTransform.transform_timeout_ms || 0)} ms`}
+                </span>
+              </div>
+              <div className="table-metrics">
+                <span className={`badge ${statusTone(currentLiveTransform.enabled ? "pending" : "active")}`}>{currentLiveTransform.enabled ? "Transform enabled" : "Transform off"}</span>
+              </div>
+            </article>
+          </div>
+          <div className="section-head">
+            <div>
+              <h2>Retrieval Transform Controls</h2>
+              <p>Create or update governed retrieval profiles, then activate them directly or compare them in the sandbox.</p>
+            </div>
+          </div>
+          <div className="admin-form-grid">
+            <label>
+              <span className="muted-copy">Load existing retrieval profile</span>
+              <select value={selectedRetrievalProfile} onChange={(event) => loadRetrievalProfile(event.target.value)}>
+                {retrievalProfiles.map((profile) => (
+                  <option key={String(profile.name)} value={String(profile.name)}>
+                    {String(profile.name)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="muted-copy">Profile name</span>
+              <input value={retrievalProfileName} onChange={(event) => setRetrievalProfileName(event.target.value)} placeholder="e.g. rewrite-only-lab" />
+            </label>
+            <label>
+              <span className="muted-copy">Transform max variants</span>
+              <input type="number" min="1" max="12" value={String(retrievalEditor.transform_max_variants ?? 3)} onChange={(event) => updateRetrievalField("transform_max_variants", Number(event.target.value || 0))} />
+            </label>
+            <label>
+              <span className="muted-copy">Transform timeout (ms)</span>
+              <input type="number" min="100" max="5000" value={String(retrievalEditor.transform_timeout_ms ?? 750)} onChange={(event) => updateRetrievalField("transform_timeout_ms", Number(event.target.value || 0))} />
+            </label>
+            <label>
+              <span className="muted-copy">Default retrieval mode</span>
+              <input value={String(retrievalEditor.default_mode ?? "hybrid")} onChange={(event) => updateRetrievalField("default_mode", event.target.value)} />
+            </label>
+            <label>
+              <span className="muted-copy">Fusion method</span>
+              <input value={String(retrievalEditor.fusion_method ?? "linear")} onChange={(event) => updateRetrievalField("fusion_method", event.target.value)} />
+            </label>
+            <label>
+              <span className="muted-copy">Master switch</span>
+              <select value={String(Boolean(retrievalEditor.query_transform_enabled))} onChange={(event) => updateRetrievalField("query_transform_enabled", event.target.value === "true")}>
+                <option value="false">Disabled</option>
+                <option value="true">Enabled</option>
+              </select>
+            </label>
+            <label>
+              <span className="muted-copy">Rewrite</span>
+              <select value={String(Boolean(retrievalEditor.rewrite_enabled))} onChange={(event) => updateRetrievalField("rewrite_enabled", event.target.value === "true")}>
+                <option value="false">Off</option>
+                <option value="true">On</option>
+              </select>
+            </label>
+            <label>
+              <span className="muted-copy">Expansion</span>
+              <select value={String(Boolean(retrievalEditor.expansion_enabled))} onChange={(event) => updateRetrievalField("expansion_enabled", event.target.value === "true")}>
+                <option value="false">Off</option>
+                <option value="true">On</option>
+              </select>
+            </label>
+            <label>
+              <span className="muted-copy">HyDE</span>
+              <select value={String(Boolean(retrievalEditor.hyde_enabled))} onChange={(event) => updateRetrievalField("hyde_enabled", event.target.value === "true")}>
+                <option value="false">Off</option>
+                <option value="true">On</option>
+              </select>
+            </label>
+          </div>
+          <div className="toolbar-inline">
+            <button type="button" className="button button-secondary" onClick={() => loadRetrievalProfile(String(currentLiveRetrieval.profile_name || selectedRetrievalProfile), `${String(currentLiveRetrieval.profile_name || selectedRetrievalProfile)}-copy`)}>
+              Clone live retrieval
+            </button>
+            <button type="button" className="button button-secondary" onClick={() => saveRetrievalProfile("create")} disabled={savingProfile !== ""}>
+              {savingProfile === "create" ? "Saving..." : "Save as new retrieval profile"}
+            </button>
+            <button type="button" className="button button-primary" onClick={() => saveRetrievalProfile("update")} disabled={savingProfile !== "" || !selectedRetrievalProfile}>
+              {savingProfile === "update" ? "Updating..." : "Update selected retrieval profile"}
+            </button>
+          </div>
           <div className="table-list">
             {isLoading ? <EmptyState title="Loading profiles..." copy="Fetching registered profile metadata and current active selections." icon="progress_activity" /> : payload.profiles.length ? payload.profiles.map((profile) => {
               const profileType = String(profile.profile_type);
@@ -1768,7 +1941,11 @@ export function ProfilesAdminPanel() {
                 <article key={key} className="table-row">
                   <div>
                     <strong>{`${profileType} / ${profileName}`}</strong>
-                    <span className="muted-copy">{profile.is_active ? "Active profile" : "Available for activation"}</span>
+                    <span className="muted-copy">
+                      {profileType === "retrieval"
+                        ? `Query transform ${Boolean((profile.transform_posture as GenericMap | undefined)?.enabled) ? `on (${String((((profile.transform_posture as GenericMap | undefined)?.strategy as string[] | undefined) || []).join(", ") || "configured")})` : "off"}`
+                        : profile.is_active ? "Active profile" : "Available for activation"}
+                    </span>
                   </div>
                   <div className="table-metrics">
                     <span className={`badge ${statusTone(profile.is_active ? "active" : "available")}`}>{profile.is_active ? "Active" : "Available"}</span>

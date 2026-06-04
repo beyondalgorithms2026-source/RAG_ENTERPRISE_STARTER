@@ -58,6 +58,7 @@ from app.db.repo_profiles import (
     list_approved_registry_profiles,
     list_profiles,
     set_active_profile,
+    upsert_profile,
 )
 from app.db.repo_sources import get_source_by_id, list_sources, update_source_admin_fields, update_source_status
 from app.db.repo_semantic_cache import cache_health, invalidate_cache as invalidate_semantic_cache
@@ -117,6 +118,17 @@ def get_admin_modules():
 class ActiveProfileRequest(BaseModel):
     profile_type: str
     profile_name: str
+
+
+class ProfileCreateRequest(BaseModel):
+    profile_type: str
+    profile_name: str
+    config: dict[str, Any] = Field(default_factory=dict)
+    is_default: bool = False
+
+
+class ProfileUpdateRequest(BaseModel):
+    config: dict[str, Any] = Field(default_factory=dict)
 
 
 class TraceListResponse(BaseModel):
@@ -219,18 +231,21 @@ class CandidateDraftRequest(BaseModel):
     name: str
     description: str = ""
     selected_profiles: dict[str, str] = Field(default_factory=dict)
+    retrieval_override_config: dict[str, Any] = Field(default_factory=dict)
 
 
 class CandidateDraftUpdateRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     selected_profiles: Optional[dict[str, str]] = None
+    retrieval_override_config: Optional[dict[str, Any]] = None
 
 
 class TuningCompareRequest(BaseModel):
     question: str
     draft_id: Optional[int] = None
     selected_profiles: dict[str, str] = Field(default_factory=dict)
+    retrieval_override_config: dict[str, Any] = Field(default_factory=dict)
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     top_p: float = Field(default=1.0, ge=0.0, le=1.0)
     chunk_size_cap_chars: int = Field(default=512, ge=128, le=2048)
@@ -345,6 +360,71 @@ def _trace_payload(trace: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def _validated_profile_config(*, profile_type: str, config: dict[str, Any], base_config: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    if profile_type not in PROFILE_TYPE_MODELS:
+        raise HTTPException(status_code=400, detail=f"Unknown profile type: {profile_type}")
+    merged = dict(base_config or {})
+    merged.update(config or {})
+    model_cls = PROFILE_TYPE_MODELS[profile_type]
+    try:
+        return model_cls(**merged).model_dump()
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Profile config validation failed: {exc}") from exc
+
+
+def _transform_posture(config: dict[str, Any]) -> dict[str, Any]:
+    strategy: list[str] = []
+    if config.get("rewrite_enabled"):
+        strategy.append("rewrite")
+    if config.get("expansion_enabled"):
+        strategy.append("expansion")
+    if config.get("hyde_enabled"):
+        strategy.append("hyde")
+    return {
+        "enabled": bool(config.get("query_transform_enabled")),
+        "rewrite_enabled": bool(config.get("rewrite_enabled")),
+        "expansion_enabled": bool(config.get("expansion_enabled")),
+        "hyde_enabled": bool(config.get("hyde_enabled")),
+        "transform_timeout_ms": int(config.get("transform_timeout_ms") or 0),
+        "transform_max_variants": int(config.get("transform_max_variants") or 0),
+        "strategy": strategy,
+    }
+
+
+def _validated_retrieval_override(*, selected_profiles: dict[str, str], override_config: Optional[dict[str, Any]]) -> dict[str, Any]:
+    candidate = dict(override_config or {})
+    if not candidate:
+        return {}
+    retrieval_profile_name = str(selected_profiles.get("retrieval") or "").strip()
+    if not retrieval_profile_name:
+        raise HTTPException(status_code=422, detail="Retrieval override requires a selected retrieval profile")
+    retrieval_profile = get_profile("retrieval", retrieval_profile_name)
+    if not retrieval_profile:
+        raise HTTPException(status_code=404, detail=f"Profile '{retrieval_profile_name}' of type 'retrieval' not found")
+    base_config = retrieval_profile["config_json"] or {}
+    validated = _validated_profile_config(profile_type="retrieval", config=candidate, base_config=base_config)
+    # Only preserve fields that differ from the selected base profile so the override stays intentional.
+    return {key: value for key, value in validated.items() if base_config.get(key) != value}
+
+
+def _profile_payload(row: dict[str, Any], *, active_map: dict[str, Optional[str]]) -> dict[str, Any]:
+    profile_type = row["profile_type"]
+    config = _validated_profile_config(profile_type=profile_type, config=row["config_json"] or {})
+    payload = {
+        "id": row["id"],
+        "profile_type": profile_type,
+        "name": row["name"],
+        "config": config,
+        "is_default": row["is_default"],
+        "is_active": row["name"] == active_map.get(profile_type),
+        "created_at": str(row["created_at"]),
+        "updated_at": str(row["updated_at"]),
+    }
+    if profile_type == "retrieval":
+        payload["transform_posture"] = _transform_posture(config)
+    return payload
+
+
 def _source_payload_with_acl(row, acl_map: dict[int, list[str]]) -> dict[str, Any]:
     payload = _source_to_payload(row)
     payload["corpus_name"] = (row.source_metadata_json or {}).get("corpus")
@@ -409,21 +489,64 @@ def get_profiles(profile_type: Optional[str] = None):
         pt = row["profile_type"]
         if pt not in active_map:
             active_map[pt] = get_active_profile_name(pt)
-    result = []
-    for row in rows:
-        result.append(
-            {
-                "id": row["id"],
-                "profile_type": row["profile_type"],
-                "name": row["name"],
-                "config": row["config_json"],
-                "is_default": row["is_default"],
-                "is_active": row["name"] == active_map.get(row["profile_type"]),
-                "created_at": str(row["created_at"]),
-                "updated_at": str(row["updated_at"]),
-            }
-        )
-    return {"profiles": result}
+    return {"profiles": [_profile_payload(row, active_map=active_map) for row in rows]}
+
+
+@router.post("/profiles")
+def create_profile(body: ProfileCreateRequest):
+    profile_type = str(body.profile_type or "").strip()
+    profile_name = str(body.profile_name or "").strip()
+    if not profile_name:
+        raise HTTPException(status_code=422, detail="profile_name is required")
+    if get_profile(profile_type, profile_name):
+        raise HTTPException(status_code=409, detail=f"Profile '{profile_name}' of type '{profile_type}' already exists")
+
+    validated_config = _validated_profile_config(profile_type=profile_type, config=body.config)
+    upsert_profile(profile_type, profile_name, validated_config, is_default=body.is_default)
+    actor = get_current_user()
+    insert_admin_audit_event(
+        event_type="profile",
+        action="profile.create",
+        resource_type="profile",
+        resource_id=f"{profile_type}:{profile_name}",
+        resource_name=profile_name,
+        profile_type=profile_type,
+        profile_name=profile_name,
+        before_json={},
+        after_json={"config": validated_config, "is_default": body.is_default},
+        actor=actor,
+    )
+    return {"status": "ok", "profile": _profile_payload(get_profile(profile_type, profile_name), active_map={profile_type: get_active_profile_name(profile_type)})}
+
+
+@router.patch("/profiles/{profile_type}/{profile_name}")
+def update_profile(profile_type: str, profile_name: str, body: ProfileUpdateRequest):
+    existing = get_profile(profile_type, profile_name)
+    if not existing:
+        raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' of type '{profile_type}' not found")
+
+    validated_config = _validated_profile_config(profile_type=profile_type, config=body.config, base_config=existing["config_json"] or {})
+    upsert_profile(profile_type, profile_name, validated_config, is_default=bool(existing["is_default"]))
+
+    if get_active_profile_name(profile_type) == profile_name:
+        invalidate_cache(profile_type)
+        invalidate_semantic_cache(reason=f"profile_update:{profile_type}:{profile_name}")
+        sync_live_configuration_record()
+
+    actor = get_current_user()
+    insert_admin_audit_event(
+        event_type="profile",
+        action="profile.update",
+        resource_type="profile",
+        resource_id=f"{profile_type}:{profile_name}",
+        resource_name=profile_name,
+        profile_type=profile_type,
+        profile_name=profile_name,
+        before_json={"config": existing["config_json"] or {}, "is_default": bool(existing["is_default"])},
+        after_json={"config": validated_config, "is_default": bool(existing["is_default"])},
+        actor=actor,
+    )
+    return {"status": "ok", "profile": _profile_payload(get_profile(profile_type, profile_name), active_map={profile_type: get_active_profile_name(profile_type)})}
 
 
 @router.post("/profiles/active")
@@ -435,11 +558,7 @@ def set_active(body: ActiveProfileRequest):
     if not profile:
         raise HTTPException(status_code=404, detail=f"Profile '{body.profile_name}' of type '{body.profile_type}' not found")
 
-    model_cls = PROFILE_TYPE_MODELS[body.profile_type]
-    try:
-        model_cls(**profile["config_json"])
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Profile config validation failed: {exc}") from exc
+    _validated_profile_config(profile_type=body.profile_type, config=profile["config_json"] or {})
 
     previous_profile_name = get_active_profile_name(body.profile_type)
     set_active_profile(body.profile_type, body.profile_name)
@@ -470,10 +589,18 @@ def set_active(body: ActiveProfileRequest):
 def get_profile_metadata():
     retrieval_settings = get_effective_retrieval().model_dump()
     reranker_settings = get_effective_reranker().model_dump()
+    live_configuration = get_live_configuration()
+    current_live_retrieval = ((live_configuration.get("resolved_config") or {}).get("retrieval") or {}) if live_configuration else {}
+    live_retrieval_config = (current_live_retrieval.get("config") or retrieval_settings) if isinstance(current_live_retrieval, dict) else retrieval_settings
     return {
         "active_profiles": get_active_profile_snapshot(),
         "retrieval_settings": retrieval_settings,
         "reranker_settings": reranker_settings,
+        "current_live_retrieval": {
+            "profile_name": ((live_configuration.get("selected_profiles") or {}).get("retrieval")) if live_configuration else get_active_profile_name("retrieval"),
+            "config": live_retrieval_config,
+            "transform_posture": _transform_posture(live_retrieval_config),
+        },
         "strategy_defaults": {
             "default_mode": retrieval_settings.get("default_mode"),
             "fusion_method": retrieval_settings.get("fusion_method"),
@@ -490,6 +617,12 @@ def get_profile_metadata():
             "rerank_max_candidate_count": reranker_settings.get("max_candidate_count"),
             "rerank_latency_budget_ms": reranker_settings.get("latency_budget_ms"),
             "rerank_mmr_enabled": reranker_settings.get("mmr_enabled"),
+            "query_transform_enabled": retrieval_settings.get("query_transform_enabled"),
+            "rewrite_enabled": retrieval_settings.get("rewrite_enabled"),
+            "expansion_enabled": retrieval_settings.get("expansion_enabled"),
+            "hyde_enabled": retrieval_settings.get("hyde_enabled"),
+            "transform_timeout_ms": retrieval_settings.get("transform_timeout_ms"),
+            "transform_max_variants": retrieval_settings.get("transform_max_variants"),
         },
         "profile_types": sorted(PROFILE_TYPE_MODELS.keys()),
         "supported_search_modes": ["vector", "keyword", "hybrid", "graph_hybrid", "full"],
@@ -541,6 +674,10 @@ def create_tuning_draft(body: CandidateDraftRequest):
             name=body.name,
             description=body.description,
             selected_profiles=body.selected_profiles,
+            retrieval_override_config=_validated_retrieval_override(
+                selected_profiles=body.selected_profiles,
+                override_config=body.retrieval_override_config,
+            ),
             actor=actor,
         )
     except ValueError as exc:
@@ -572,6 +709,10 @@ def patch_tuning_draft(draft_id: int, body: CandidateDraftUpdateRequest):
             name=body.name,
             description=body.description,
             selected_profiles=body.selected_profiles,
+            retrieval_override_config=_validated_retrieval_override(
+                selected_profiles=body.selected_profiles or before.get("selected_profiles") or {},
+                override_config=body.retrieval_override_config,
+            ) if body.retrieval_override_config is not None else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -604,13 +745,21 @@ def run_tuning_compare(body: TuningCompareRequest):
         if not draft:
             raise HTTPException(status_code=404, detail=f"Draft {body.draft_id} not found")
         selected_profiles.update({key: str(value) for key, value in (draft.get("selected_profiles") or {}).items() if value})
+        retrieval_override_config = dict((draft.get("lineage") or {}).get("retrieval_override_config") or {})
+    else:
+        retrieval_override_config = {}
     selected_profiles.update({key: str(value) for key, value in body.selected_profiles.items() if value})
+    retrieval_override_config = _validated_retrieval_override(
+        selected_profiles=selected_profiles,
+        override_config=body.retrieval_override_config or retrieval_override_config,
+    )
 
     try:
         compare = run_sandbox_compare(
             question=body.question,
             live_selected_profiles=live_selected,
             selected_profiles=selected_profiles,
+            retrieval_override_config=retrieval_override_config,
             temperature=body.temperature,
             top_p=body.top_p,
             chunk_size_cap_chars=body.chunk_size_cap_chars,
@@ -637,6 +786,7 @@ def run_tuning_compare(body: TuningCompareRequest):
             "k_retrieval_count": body.k_retrieval_count,
             "temperature": body.temperature,
             "top_p": body.top_p,
+            "retrieval_override_config": retrieval_override_config,
         },
         actor=actor,
     )
