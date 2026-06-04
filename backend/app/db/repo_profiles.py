@@ -231,6 +231,14 @@ def upsert_profile(profile_type: str, name: str, config_json: dict, is_default: 
         return row[0]
 
 
+def delete_profile(profile_type: str, name: str) -> int:
+    sql = "DELETE FROM profiles WHERE profile_type = :pt AND name = :n"
+    with engine.begin() as conn:
+        stmt = text(sql).bindparams(pt=profile_type, n=name)
+        result = conn.execute(stmt)
+    return int(result.rowcount or 0)
+
+
 def get_active_profile_name(profile_type: str) -> Optional[str]:
     sql = "SELECT profile_name FROM active_profiles WHERE profile_type = :pt"
     with engine.connect() as conn:
@@ -360,6 +368,12 @@ def seed_default_profiles(settings) -> None:
         "deep_research_keyword_candidates": 36,
         "fusion_method": "linear",
         "rrf_k": 60,
+        "query_transform_enabled": False,
+        "rewrite_enabled": False,
+        "expansion_enabled": False,
+        "hyde_enabled": False,
+        "transform_timeout_ms": 750,
+        "transform_max_variants": 3,
     }, is_default=True)
 
     upsert_profile("eval_pack", "default", {

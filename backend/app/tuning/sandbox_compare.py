@@ -108,6 +108,17 @@ def _profile_models_from_selected(selected_profiles: dict[str, str]) -> dict[str
     }
 
 
+def _profile_models_with_retrieval_override(selected_profiles: dict[str, str], retrieval_override_config: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    resolved = build_resolved_profile_bundle(selected_profiles, retrieval_override_config)
+    return {
+        "embedding": EmbeddingProfileConfig(**(resolved["embedding"]["config"] or {})),
+        "llm": LLMProfileConfig(**(resolved["llm"]["config"] or {})),
+        "reranker": RerankerProfileConfig(**(resolved["reranker"]["config"] or {})),
+        "retrieval": RetrievalProfileConfig(**(resolved["retrieval"]["config"] or {})),
+        "resolved": resolved,
+    }
+
+
 def _retrieval_summary(response: AskResponse) -> dict[str, Any]:
     trace = ((response.debug_info or {}).get("retrieval_trace") or {}) if response.debug_info else {}
     return {
@@ -121,6 +132,26 @@ def _retrieval_summary(response: AskResponse) -> dict[str, Any]:
         "preferred_mode": trace.get("preferred_mode"),
         "fallback_reason": trace.get("fallback_reason"),
         "accessed_doc_ids": ((trace.get("acl") or {}).get("accessed_doc_ids") or []),
+        "observed_query_transform": trace.get("query_transform") or {},
+    }
+
+
+def _transform_summary(retrieval_config: RetrievalProfileConfig) -> dict[str, Any]:
+    strategy: list[str] = []
+    if retrieval_config.rewrite_enabled:
+        strategy.append("rewrite")
+    if retrieval_config.expansion_enabled:
+        strategy.append("expansion")
+    if retrieval_config.hyde_enabled:
+        strategy.append("hyde")
+    return {
+        "enabled": retrieval_config.query_transform_enabled,
+        "rewrite_enabled": retrieval_config.rewrite_enabled,
+        "expansion_enabled": retrieval_config.expansion_enabled,
+        "hyde_enabled": retrieval_config.hyde_enabled,
+        "transform_timeout_ms": retrieval_config.transform_timeout_ms,
+        "transform_max_variants": retrieval_config.transform_max_variants,
+        "strategy": strategy,
     }
 
 
@@ -162,6 +193,7 @@ def _run_payload(
             "top_k_initial": retrieval_config.top_k_initial,
             "answer_time_chunk_cap_chars": chunk_size_cap_chars,
             "answer_generation_path": answer_generation_path,
+            "transform_summary": _transform_summary(retrieval_config),
         },
         "rerank_summary": {
             "enabled": reranker_config.enabled,
@@ -221,6 +253,7 @@ def run_sandbox_compare(
     question: str,
     live_selected_profiles: dict[str, str],
     selected_profiles: Optional[dict[str, str]] = None,
+    retrieval_override_config: Optional[dict[str, Any]] = None,
     temperature: Optional[float] = None,
     top_p: Optional[float] = None,
     chunk_size_cap_chars: Optional[int] = None,
@@ -230,7 +263,7 @@ def run_sandbox_compare(
     candidate_selected = _effective_selected_profiles(live_selected=live_selected_profiles, selected_profiles=selected_profiles)
 
     live_models = _profile_models_from_selected(live_selected)
-    candidate_models = _profile_models_from_selected(candidate_selected)
+    candidate_models = _profile_models_with_retrieval_override(candidate_selected, retrieval_override_config)
 
     live_run = _run_ask(
         question=question,
@@ -253,6 +286,8 @@ def run_sandbox_compare(
         for profile_type in ("llm", "embedding", "reranker", "retrieval")
         if candidate_selected.get(profile_type) != live_selected.get(profile_type)
     ]
+    if retrieval_override_config and "retrieval" not in changed_profile_types:
+        changed_profile_types.append("retrieval")
 
     candidate_run: Optional[dict[str, Any]]
     if candidate_selected.get("embedding") != live_selected.get("embedding"):
@@ -283,6 +318,7 @@ def run_sandbox_compare(
             "retrieval_summary": {
                 "default_mode": candidate_models["retrieval"].default_mode,
                 "answer_time_chunk_cap_chars": chunk_size_cap_chars,
+                "transform_summary": _transform_summary(candidate_models["retrieval"]),
             },
             "rerank_summary": {
                 "enabled": candidate_models["reranker"].enabled,
@@ -322,6 +358,8 @@ def run_sandbox_compare(
             "candidate_mode": candidate_run["mode"] if candidate_run else None,
             "live_answer_path": ((live_run["retrieval_summary"] or {}).get("answer_generation_path")),
             "candidate_answer_path": ((candidate_run["retrieval_summary"] or {}).get("answer_generation_path")) if candidate_run else None,
+            "live_transform_summary": (live_run["retrieval_summary"] or {}).get("transform_summary"),
+            "candidate_transform_summary": (candidate_run["retrieval_summary"] or {}).get("transform_summary") if candidate_run else None,
         },
         "warnings": warnings,
         "preconditions": preconditions,

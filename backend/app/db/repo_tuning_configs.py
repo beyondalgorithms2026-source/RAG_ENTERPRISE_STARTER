@@ -12,6 +12,7 @@ from app.db.repo_profiles import (
     get_profile,
     is_registry_approved_profile,
     set_active_profile,
+    upsert_profile,
 )
 
 
@@ -32,7 +33,7 @@ def _normalize_row(row: Any) -> dict[str, Any]:
     return {key: _jsonable(value) for key, value in payload.items()}
 
 
-def build_resolved_profile_bundle(selected_profiles: dict[str, str]) -> dict[str, Any]:
+def build_resolved_profile_bundle(selected_profiles: dict[str, str], retrieval_override_config: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     resolved: dict[str, Any] = {}
     for profile_type in PROFILE_TYPES_FOR_TUNING:
         profile_name = selected_profiles.get(profile_type)
@@ -41,9 +42,12 @@ def build_resolved_profile_bundle(selected_profiles: dict[str, str]) -> dict[str
         profile = get_profile(profile_type, profile_name)
         if not profile:
             raise ValueError(f"Profile '{profile_name}' of type '{profile_type}' not found")
+        config = dict(profile["config_json"] or {})
+        if profile_type == "retrieval" and retrieval_override_config:
+            config.update(retrieval_override_config)
         resolved[profile_type] = {
             "profile_name": profile_name,
-            "config": profile["config_json"] or {},
+            "config": config,
             "updated_at": _jsonable(profile["updated_at"]),
         }
     return resolved
@@ -156,10 +160,11 @@ def create_candidate_draft(
     name: str,
     description: str,
     selected_profiles: dict[str, str],
+    retrieval_override_config: Optional[dict[str, Any]] = None,
     actor: Optional[AuthenticatedUser] = None,
 ) -> dict[str, Any]:
     normalized = _validated_selected_profiles(selected_profiles)
-    resolved = build_resolved_profile_bundle(normalized)
+    resolved = build_resolved_profile_bundle(normalized, retrieval_override_config)
     live = get_live_configuration()
     draft_name = _validated_draft_name(name)
     sql = text(
@@ -194,6 +199,7 @@ def create_candidate_draft(
                     {
                         "basis_live_version_label": live.get("version_label"),
                         "basis_live_updated_at": live.get("updated_at"),
+                        "retrieval_override_config": retrieval_override_config or {},
                     }
                 ),
                 "created_by_external_user_id": actor.user_id if actor else None,
@@ -213,6 +219,7 @@ def update_candidate_draft(
     name: Optional[str] = None,
     description: Optional[str] = None,
     selected_profiles: Optional[dict[str, str]] = None,
+    retrieval_override_config: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     existing = get_candidate_draft(draft_id)
     if not existing:
@@ -220,7 +227,10 @@ def update_candidate_draft(
     normalized = existing["selected_profiles"]
     if selected_profiles is not None:
         normalized = _validated_selected_profiles(selected_profiles)
-    resolved = build_resolved_profile_bundle(normalized)
+    lineage = dict(existing.get("lineage") or {})
+    if retrieval_override_config is None:
+        retrieval_override_config = dict(lineage.get("retrieval_override_config") or {})
+    resolved = build_resolved_profile_bundle(normalized, retrieval_override_config)
     draft_name = _validated_draft_name(name if name is not None else existing["name"])
     sql = text(
         """
@@ -229,6 +239,7 @@ def update_candidate_draft(
             description = :description,
             selected_profiles_json = CAST(:selected_profiles AS jsonb),
             resolved_config_json = CAST(:resolved_config AS jsonb),
+            lineage_json = CAST(:lineage_json AS jsonb),
             updated_at = now()
         WHERE id = :draft_id AND config_kind = 'candidate'
         RETURNING id, version_label, config_kind, status, name, description,
@@ -245,6 +256,12 @@ def update_candidate_draft(
                 "description": (description if description is not None else existing["description"]).strip(),
                 "selected_profiles": json.dumps(normalized),
                 "resolved_config": json.dumps(resolved),
+                "lineage_json": json.dumps(
+                    {
+                        **lineage,
+                        "retrieval_override_config": retrieval_override_config or {},
+                    }
+                ),
             },
         ).mappings().first()
     if not row:
@@ -338,6 +355,26 @@ def promote_candidate_to_live(
         raise ValueError(f"Draft {draft_id} not found")
     live_before = get_live_configuration()
     selected_profiles = dict(draft.get("selected_profiles") or {})
+    retrieval_override_config = dict((draft.get("lineage") or {}).get("retrieval_override_config") or {})
+    if retrieval_override_config:
+        source_retrieval_name = str(selected_profiles.get("retrieval") or "retrieval")
+        promoted_retrieval_profile_name = f"{draft.get('version_label', f'draft-{draft_id}')}-retrieval"
+        resolved_retrieval = ((draft.get("resolved_config") or {}).get("retrieval") or {}).get("config") or {}
+        config_to_promote = dict(resolved_retrieval or retrieval_override_config)
+        config_to_promote.setdefault("display_name", f"{draft.get('name', 'Candidate')} retrieval")
+        config_to_promote["approval_status"] = "sandbox_promoted"
+        config_to_promote["registry_entry"] = False
+        upsert_profile("retrieval", promoted_retrieval_profile_name, config_to_promote, is_default=False)
+        selected_profiles["retrieval"] = promoted_retrieval_profile_name
+        lineage = dict(draft.get("lineage") or {})
+        lineage["promoted_retrieval_profile_name"] = promoted_retrieval_profile_name
+        lineage["promoted_from_retrieval_profile"] = source_retrieval_name
+    else:
+        lineage = {
+            "source_draft_id": draft_id,
+            "source_draft_version_label": draft.get("version_label"),
+            "previous_live_version_label": live_before.get("version_label"),
+        }
     resolved = build_resolved_profile_bundle(selected_profiles)
     version_label = f"live-{draft_id}-{int(__import__('time').time())}"
     with engine.begin() as conn:
@@ -367,6 +404,7 @@ def promote_candidate_to_live(
                 "resolved_config": json.dumps(resolved),
                 "lineage_json": json.dumps(
                     {
+                        **lineage,
                         "source_draft_id": draft_id,
                         "source_draft_version_label": draft.get("version_label"),
                         "previous_live_version_label": live_before.get("version_label"),

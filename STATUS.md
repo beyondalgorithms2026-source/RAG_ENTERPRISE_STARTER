@@ -8,6 +8,8 @@
 - Active frontend: `web/`
 - Legacy fallback UI: `frontend/`
 - Strongest implemented runtime scenario: enterprise-style OIDC/dev identity with SQL-level access trimming, admin governance, and scenario packaging
+- M18 operability now includes admin retrieval-profile transform controls plus sandbox compare visibility for retrieval transform posture
+- Sandbox tuning now supports inline query-transform overrides that promote into explicit live retrieval-profile settings
 
 ## Completed Milestones
 

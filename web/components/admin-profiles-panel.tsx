@@ -60,6 +60,7 @@ type PreparedCandidate = {
   name: string;
   description: string;
   selected_profiles: Record<string, string>;
+  retrieval_override_config: Record<string, unknown>;
   tuning_controls: {
     temperature: number;
     topP: number;
@@ -71,7 +72,39 @@ type PreparedCandidate = {
 };
 
 const TUNING_PROFILE_TYPES = ["llm", "embedding", "reranker", "retrieval"] as const;
-const GOVERNED_MODEL_TYPES = ["llm", "embedding", "reranker"] as const;
+
+function profileTypeLabel(profileType: string) {
+  if (profileType === "llm") {
+    return "Inference Model";
+  }
+  if (profileType === "embedding") {
+    return "Embedding Model";
+  }
+  if (profileType === "reranker") {
+    return "Reranking Logic";
+  }
+  if (profileType === "retrieval") {
+    return "Retrieval Profile";
+  }
+  return profileType;
+}
+
+function transformSummaryText(value: unknown) {
+  const summary = (value || {}) as Record<string, unknown>;
+  const enabled = Boolean(summary.enabled ?? summary.query_transform_enabled);
+  if (!enabled) {
+    return "Query transform disabled";
+  }
+  const strategy = Array.isArray(summary.strategy)
+    ? summary.strategy.map((item) => String(item)).filter(Boolean)
+    : [
+        summary.rewrite_enabled ? "rewrite" : "",
+        summary.expansion_enabled ? "expansion" : "",
+        summary.hyde_enabled ? "hyde" : "",
+      ].filter(Boolean);
+  const label = strategy.length ? strategy.join(", ") : "configured";
+  return `Enabled: ${label}`;
+}
 
 function formatTimestamp(value: unknown) {
   if (!value) {
@@ -114,6 +147,31 @@ function ParameterLabel({ label, tooltip }: { label: string; tooltip: string }) 
         </span>
       </span>
     </div>
+  );
+}
+
+function ToggleControl({
+  label,
+  enabled,
+  onToggle,
+  disabled = false,
+}: {
+  label: string;
+  enabled: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={`tuning-lab-visual-toggle tuning-lab-inline-toggle ${enabled ? "is-on" : ""} ${disabled ? "is-disabled" : ""}`}
+      onClick={onToggle}
+      disabled={disabled}
+      aria-pressed={enabled}
+    >
+      <span>{`${label} ${enabled ? "On" : "Off"}`}</span>
+      <i />
+    </button>
   );
 }
 
@@ -187,6 +245,7 @@ export function ProfilesAdminPanel() {
     reranker: "",
     retrieval: "",
   });
+  const [candidateRetrievalConfig, setCandidateRetrievalConfig] = useState<Record<string, unknown>>({});
   const [tuningControls, setTuningControls] = useState({
     temperature: 0.0,
     topP: 1.0,
@@ -223,6 +282,12 @@ export function ProfilesAdminPanel() {
         }
         return next;
       });
+      setCandidateRetrievalConfig((current) => {
+        if (Object.keys(current).length) {
+          return current;
+        }
+        return { ...((((resolved.retrieval || {}).config || {}) as GenericMap)) };
+      });
       setTuningControls({
         temperature: Number(llmConfig.temperature ?? 0.0),
         topP: Number(llmConfig.top_p ?? 1.0),
@@ -242,11 +307,19 @@ export function ProfilesAdminPanel() {
 
   const liveSelected = (tuningPayload.live_configuration?.selected_profiles || {}) as Record<string, string>;
   const liveResolved = (tuningPayload.live_configuration?.resolved_config || {}) as Record<string, GenericMap>;
+  const liveRetrievalConfig = (((liveResolved.retrieval || {}).config || {}) as GenericMap);
+  const retrievalOptions = useMemo(() => (tuningPayload.approved_options.retrieval || []) as GenericMap[], [tuningPayload]);
+  const selectedRetrievalBaseConfig = useMemo(() => {
+    const selected = selectedProfiles.retrieval || liveSelected.retrieval || "";
+    const match = retrievalOptions.find((option) => String(option.name) === selected);
+    return ((match?.config || {}) as Record<string, unknown>);
+  }, [retrievalOptions, selectedProfiles.retrieval, liveSelected.retrieval]);
   const candidateSignature = JSON.stringify({
     draftId: editingDraftId,
     name: draftName,
     description: draftDescription,
     selectedProfiles,
+    candidateRetrievalConfig,
     tuningControls,
   });
   const isPreparedCurrent = preparedCandidate ? preparedCandidate.signature === candidateSignature : false;
@@ -260,6 +333,11 @@ export function ProfilesAdminPanel() {
     }
     return labels;
   }, [liveSelected, selectedProfiles, tuningPayload]);
+  const queryTransformEnabled = Boolean(candidateRetrievalConfig.query_transform_enabled);
+  const retrievalOverrideChanged = useMemo(() => {
+    const keys = new Set([...Object.keys(selectedRetrievalBaseConfig), ...Object.keys(candidateRetrievalConfig)]);
+    return Array.from(keys).some((key) => selectedRetrievalBaseConfig[key] !== candidateRetrievalConfig[key]);
+  }, [selectedRetrievalBaseConfig, candidateRetrievalConfig]);
 
   const expectedChange = useMemo(() => {
     if (comparePayload?.candidate_run?.status === "completed") {
@@ -276,11 +354,29 @@ export function ProfilesAdminPanel() {
         deltaCount += 1;
       }
     }
+    if (retrievalOverrideChanged) {
+      deltaCount += 1;
+    }
     if (deltaCount === 0) {
       return "No governed profile swaps yet; this candidate mirrors the live baseline and only tests answer-time controls.";
     }
     return `${deltaCount} governed profile selections differ from production; use sandbox compare before any later rollout step.`;
-  }, [comparePayload, liveSelected, selectedProfiles]);
+  }, [comparePayload, liveSelected, selectedProfiles, retrievalOverrideChanged]);
+
+  useEffect(() => {
+    if (!selectedProfiles.retrieval && !liveSelected.retrieval) {
+      return;
+    }
+    setCandidateRetrievalConfig({ ...selectedRetrievalBaseConfig });
+  }, [selectedProfiles.retrieval, liveSelected.retrieval, selectedRetrievalBaseConfig]);
+
+  function updateRetrievalToggle(key: string, value: boolean) {
+    setCandidateRetrievalConfig((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateRetrievalNumber(key: string, value: number) {
+    setCandidateRetrievalConfig((current) => ({ ...current, [key]: value }));
+  }
 
   function resetDraftForm() {
     setEditingDraftId(null);
@@ -293,6 +389,7 @@ export function ProfilesAdminPanel() {
       reranker: liveSelected.reranker || "",
       retrieval: liveSelected.retrieval || "",
     });
+    setCandidateRetrievalConfig({ ...((((liveResolved.retrieval || {}).config || {}) as GenericMap)) });
     setComparePayload(null);
   }
 
@@ -302,6 +399,7 @@ export function ProfilesAdminPanel() {
       name: draftName,
       description: draftDescription,
       selected_profiles: { ...selectedProfiles },
+      retrieval_override_config: { ...candidateRetrievalConfig },
       tuning_controls: { ...tuningControls },
       prepared_at: new Date().toISOString(),
       signature: candidateSignature,
@@ -317,6 +415,7 @@ export function ProfilesAdminPanel() {
         name: draftName,
         description: draftDescription,
         selected_profiles: selectedProfiles,
+        retrieval_override_config: candidateRetrievalConfig,
       };
       if (editingDraftId) {
         const response = await browserFetch<{ draft: GenericMap }>(`/admin/tuning/drafts/${editingDraftId}`, { method: "PATCH", json: payload });
@@ -351,6 +450,7 @@ export function ProfilesAdminPanel() {
           question: sampleQuery,
           draft_id: preparedCandidate.draft_id,
           selected_profiles: preparedCandidate.selected_profiles,
+          retrieval_override_config: preparedCandidate.retrieval_override_config,
           temperature: preparedCandidate.tuning_controls.temperature,
           top_p: preparedCandidate.tuning_controls.topP,
           chunk_size_cap_chars: preparedCandidate.tuning_controls.chunkSize,
@@ -478,14 +578,18 @@ export function ProfilesAdminPanel() {
                 </div>
                 <div className="tuning-lab-live-meta">
                   <div className="tuning-lab-live-detail-grid">
-                    {["llm", "embedding", "reranker"].map((profileType) => {
+                    {["llm", "embedding", "reranker", "retrieval"].map((profileType) => {
                       const resolved = liveResolved[profileType] || {};
                       const config = (resolved.config || {}) as GenericMap;
                       return (
                         <article key={profileType} className="tuning-lab-live-detail">
-                          <span>{profileType === "llm" ? "Inference Model" : profileType === "embedding" ? "Embedding" : "Reranker"}</span>
+                          <span>{profileTypeLabel(profileType)}</span>
                           <strong>{String(config.display_name || config.model || liveSelected[profileType] || "Configured")}</strong>
-                          <small>{String(config.model || config.dimension || config.default_mode || liveSelected[profileType] || "resolved")}</small>
+                          <small>
+                            {profileType === "retrieval"
+                              ? `${String(config.default_mode || "hybrid")} base • ${transformSummaryText(config)}`
+                              : String(config.model || config.dimension || config.default_mode || liveSelected[profileType] || "resolved")}
+                          </small>
                         </article>
                       );
                     })}
@@ -494,6 +598,12 @@ export function ProfilesAdminPanel() {
                     <div>
                       <span className="muted-copy">Last Deployment</span>
                       <strong>{formatTimestamp(tuningPayload.live_configuration.updated_at)}</strong>
+                    </div>
+                    <div>
+                      <span className="muted-copy">Live Transform Switches</span>
+                      <strong>
+                        {`Master ${Boolean(liveRetrievalConfig.query_transform_enabled) ? "on" : "off"} · Rewrite ${Boolean(liveRetrievalConfig.rewrite_enabled) ? "on" : "off"} · Expansion ${Boolean(liveRetrievalConfig.expansion_enabled) ? "on" : "off"} · HyDE ${Boolean(liveRetrievalConfig.hyde_enabled) ? "on" : "off"}`}
+                      </strong>
                     </div>
                     <button type="button" className="button button-secondary" disabled>
                       View Version History
@@ -572,11 +682,11 @@ export function ProfilesAdminPanel() {
 
                 <section className="tuning-lab-selector-card">
                   <div className="tuning-lab-selector-grid">
-                    {GOVERNED_MODEL_TYPES.map((profileType) => {
+                    {TUNING_PROFILE_TYPES.filter((profileType) => profileType !== "retrieval").map((profileType) => {
                       const options = tuningPayload.approved_options[profileType] || [];
-                      const label = profileType === "llm" ? "Inference Model" : profileType === "embedding" ? "Embedding Model" : "Reranking Logic";
+                          const label = profileTypeLabel(profileType);
                       return (
-                        <Field key={profileType} label={label}>
+                            <Field key={profileType} label={label}>
                           {profileType === "embedding" ? (
                             <select value={liveSelected.embedding || ""} disabled>
                               {options.map((option) => (
@@ -586,7 +696,13 @@ export function ProfilesAdminPanel() {
                               ))}
                             </select>
                           ) : (
-                            <select value={selectedProfiles[profileType] || ""} onChange={(event) => setSelectedProfiles((current) => ({ ...current, [profileType]: event.target.value }))}>
+                            <select
+                              value={selectedProfiles[profileType] || ""}
+                              onChange={(event) => {
+                                const nextValue = event.target.value;
+                                setSelectedProfiles((current) => ({ ...current, [profileType]: nextValue }));
+                              }}
+                            >
                               <option value="">Select {label}</option>
                               {options.map((option) => (
                                 <option key={String(option.name)} value={String(option.name)}>
@@ -598,6 +714,85 @@ export function ProfilesAdminPanel() {
                         </Field>
                       );
                     })}
+                  </div>
+                  <div className="tuning-lab-selector-note">
+                    <p className="tuning-lab-selector-note-strong">Base Retrieval Profile</p>
+                    <p>The current live retrieval profile supplies the governed defaults. Use the controls below to test sandbox-only query transformation behavior before promoting.</p>
+                  </div>
+                  <div className="tuning-lab-slider-grid">
+                    <Field label="">
+                      <div className="tuning-lab-slider-wrap">
+                        <ParameterLabel label="Query Transformation" tooltip="Master switch for rewrite, expansion, and HyDE. If off, all child transforms are ignored." />
+                        <ToggleControl
+                          label="Query Transformation"
+                          enabled={queryTransformEnabled}
+                          onToggle={() => updateRetrievalToggle("query_transform_enabled", !queryTransformEnabled)}
+                        />
+                      </div>
+                    </Field>
+                    <Field label="">
+                      <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
+                        <ParameterLabel label="Rewrite" tooltip="Runs the rewrite strategy when query transformation is enabled." />
+                        <ToggleControl
+                          label="Rewrite"
+                          enabled={Boolean(candidateRetrievalConfig.rewrite_enabled)}
+                          disabled={!queryTransformEnabled}
+                          onToggle={() => updateRetrievalToggle("rewrite_enabled", !Boolean(candidateRetrievalConfig.rewrite_enabled))}
+                        />
+                      </div>
+                    </Field>
+                    <Field label="">
+                      <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
+                        <ParameterLabel label="Expansion" tooltip="Adds expansion variants when query transformation is enabled." />
+                        <ToggleControl
+                          label="Expansion"
+                          enabled={Boolean(candidateRetrievalConfig.expansion_enabled)}
+                          disabled={!queryTransformEnabled}
+                          onToggle={() => updateRetrievalToggle("expansion_enabled", !Boolean(candidateRetrievalConfig.expansion_enabled))}
+                        />
+                      </div>
+                    </Field>
+                    <Field label="">
+                      <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
+                        <ParameterLabel label="HyDE" tooltip="Adds a hypothetical-document style query when query transformation is enabled." />
+                        <ToggleControl
+                          label="HyDE"
+                          enabled={Boolean(candidateRetrievalConfig.hyde_enabled)}
+                          disabled={!queryTransformEnabled}
+                          onToggle={() => updateRetrievalToggle("hyde_enabled", !Boolean(candidateRetrievalConfig.hyde_enabled))}
+                        />
+                      </div>
+                    </Field>
+                    <Field label="">
+                      <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
+                        <ParameterLabel label="Transform Max Variants" tooltip="Caps how many generated query variants can be used in the candidate retrieval profile." />
+                        <div className="tuning-lab-slider-value">{String(candidateRetrievalConfig.transform_max_variants ?? 3)}</div>
+                        <input
+                          type="range"
+                          min="1"
+                          max="8"
+                          step="1"
+                          value={Number(candidateRetrievalConfig.transform_max_variants ?? 3)}
+                          disabled={!queryTransformEnabled}
+                          onChange={(event) => updateRetrievalNumber("transform_max_variants", Number(event.target.value))}
+                        />
+                      </div>
+                    </Field>
+                    <Field label="">
+                      <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
+                        <ParameterLabel label="Transform Timeout (ms)" tooltip="Latency budget for transform execution in the sandbox candidate." />
+                        <div className="tuning-lab-slider-value">{String(candidateRetrievalConfig.transform_timeout_ms ?? 750)}</div>
+                        <input
+                          type="range"
+                          min="100"
+                          max="2000"
+                          step="50"
+                          value={Number(candidateRetrievalConfig.transform_timeout_ms ?? 750)}
+                          disabled={!queryTransformEnabled}
+                          onChange={(event) => updateRetrievalNumber("transform_timeout_ms", Number(event.target.value))}
+                        />
+                      </div>
+                    </Field>
                   </div>
                   <div className="tuning-lab-selector-note">
                     <p className="tuning-lab-selector-note-strong">
@@ -636,6 +831,10 @@ export function ProfilesAdminPanel() {
                 <article className="tuning-lab-candidate-stat">
                   <span>Context Strategy</span>
                   <strong>{selectedOptionLabels.retrieval}</strong>
+                </article>
+                <article className="tuning-lab-candidate-stat">
+                  <span>Query Transform</span>
+                  <strong>{transformSummaryText(candidateRetrievalConfig)}</strong>
                 </article>
                 <article className="tuning-lab-candidate-expected">
                   <span>Expected Change</span>
@@ -725,6 +924,7 @@ export function ProfilesAdminPanel() {
                 ["Citations", comparePayload?.live_run ? String(comparePayload.live_run.citation_count) : "Pending"],
                 ["Used Chunks", comparePayload?.live_run ? String(comparePayload.live_run.used_chunks_count) : "Pending"],
                 ["Path", comparePayload?.live_run ? String(comparePayload.live_run.retrieval_summary?.retrieval_path || comparePayload.live_run.mode || "unknown") : "Pending"],
+                ["Transform", comparePayload?.live_run ? transformSummaryText(comparePayload.live_run.retrieval_summary?.transform_summary) : "Pending"],
               ].map(([label, value]) => (
                 <div key={label}>
                   <p>{label}</p>
@@ -751,6 +951,7 @@ export function ProfilesAdminPanel() {
                 ["Citations", comparePayload?.candidate_run?.status === "completed" ? String(comparePayload.candidate_run.citation_count) : "Blocked"],
                 ["Used Chunks", comparePayload?.candidate_run?.status === "completed" ? String(comparePayload.candidate_run.used_chunks_count) : "Blocked"],
                 ["Path", comparePayload?.candidate_run?.status === "completed" ? String(comparePayload.candidate_run.retrieval_summary?.retrieval_path || comparePayload.candidate_run.mode || "unknown") : "Blocked"],
+                ["Transform", comparePayload?.candidate_run ? transformSummaryText(comparePayload.candidate_run.retrieval_summary?.transform_summary) : "Blocked"],
               ].map(([label, value]) => (
                 <div key={label}>
                   <p>{label}</p>
@@ -811,8 +1012,8 @@ export function ProfilesAdminPanel() {
         <div className="tuning-lab-ops-grid">
           <article className="tuning-lab-ops-card">
             <span>Query Transformation</span>
-            <strong>Disabled by default</strong>
-            <p>Rewrite, expansion, and HyDE decisions are stored in retrieval traces when enabled on the active retrieval profile.</p>
+            <strong>{transformSummaryText((liveResolved.retrieval || {}).config)}</strong>
+            <p>{`Live retrieval profile ${String(liveSelected.retrieval || "default")} controls rewrite, expansion, and HyDE. Decisions are stored in retrieval traces and now visible in sandbox compare output.`}</p>
           </article>
 
           <article className="tuning-lab-ops-card">

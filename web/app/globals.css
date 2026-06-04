@@ -4091,6 +4091,15 @@ textarea {
   gap: 12px;
 }
 
+.tuning-lab-slider-wrap.is-disabled {
+  opacity: 0.45;
+}
+
+.tuning-lab-slider-wrap.is-disabled .tuning-lab-parameter-label-text,
+.tuning-lab-slider-wrap.is-disabled .tuning-lab-slider-value {
+  color: rgba(120, 126, 142, 0.85);
+}
+
 .tuning-lab-slider-value {
   position: absolute;
   right: 4px;
@@ -4115,6 +4124,11 @@ textarea {
   box-shadow: none;
 }
 
+.tuning-lab-slider-wrap input[type="range"]:disabled {
+  cursor: not-allowed;
+  background: rgba(208, 208, 208, 0.9);
+}
+
 .tuning-lab-slider-wrap input[type="range"]::-webkit-slider-thumb {
   appearance: none;
   width: 20px;
@@ -4122,6 +4136,11 @@ textarea {
   border-radius: 999px;
   background: var(--primary-strong);
   box-shadow: 0 0 0 4px rgba(52, 60, 237, 0.12);
+}
+
+.tuning-lab-slider-wrap input[type="range"]:disabled::-webkit-slider-thumb {
+  background: rgba(152, 152, 152, 0.95);
+  box-shadow: 0 0 0 4px rgba(130, 130, 130, 0.12);
 }
 
 .tuning-lab-slider-wrap p {
@@ -4507,6 +4526,23 @@ textarea {
   color: var(--ink);
   font-size: 0.9rem;
   font-weight: 800;
+}
+
+.tuning-lab-inline-toggle {
+  min-width: 0;
+  width: 100%;
+}
+
+.tuning-lab-inline-toggle span {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.96rem;
+  font-weight: 800;
+}
+
+.tuning-lab-inline-toggle.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .tuning-lab-visual-toggle i {
