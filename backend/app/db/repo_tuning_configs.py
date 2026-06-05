@@ -137,8 +137,11 @@ def _validated_selected_profiles(selected_profiles: dict[str, str]) -> dict[str,
     missing = [profile_type for profile_type in PROFILE_TYPES_FOR_TUNING if not normalized.get(profile_type)]
     if missing:
         raise ValueError(f"Missing profile selections for: {', '.join(missing)}")
+    active_profiles = get_active_profile_map(list(PROFILE_TYPES_FOR_TUNING))
     for profile_type in ("embedding", "reranker", "llm"):
         profile_name = normalized[profile_type]
+        if profile_name == active_profiles.get(profile_type):
+            continue
         if not is_registry_approved_profile(profile_type, profile_name):
             raise ValueError(f"Profile '{profile_name}' of type '{profile_type}' is not an approved registry option")
     for profile_type in ("retrieval",):
