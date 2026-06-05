@@ -391,6 +391,16 @@ def _transform_posture(config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _effective_tuning_selected_profiles(selected_profiles: Optional[dict[str, str]]) -> dict[str, str]:
+    live_selected = dict((get_live_configuration() or {}).get("selected_profiles") or {})
+    effective = dict(live_selected)
+    for profile_type in PROFILE_TYPES_FOR_TUNING:
+        token = str((selected_profiles or {}).get(profile_type) or "").strip()
+        if token:
+            effective[profile_type] = token
+    return effective
+
+
 def _validated_retrieval_override(*, selected_profiles: dict[str, str], override_config: Optional[dict[str, Any]]) -> dict[str, Any]:
     candidate = dict(override_config or {})
     if not candidate:
@@ -669,13 +679,14 @@ def get_tuning_configurations():
 @router.post("/tuning/drafts")
 def create_tuning_draft(body: CandidateDraftRequest):
     actor = get_current_user()
+    effective_selected_profiles = _effective_tuning_selected_profiles(body.selected_profiles)
     try:
         draft = create_candidate_draft(
             name=body.name,
             description=body.description,
-            selected_profiles=body.selected_profiles,
+            selected_profiles=effective_selected_profiles,
             retrieval_override_config=_validated_retrieval_override(
-                selected_profiles=body.selected_profiles,
+                selected_profiles=effective_selected_profiles,
                 override_config=body.retrieval_override_config,
             ),
             actor=actor,
@@ -703,14 +714,15 @@ def patch_tuning_draft(draft_id: int, body: CandidateDraftUpdateRequest):
     before = next((item for item in list_candidate_drafts() if int(item["id"]) == int(draft_id)), None)
     if not before:
         raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
+    effective_selected_profiles = _effective_tuning_selected_profiles(body.selected_profiles or before.get("selected_profiles") or {})
     try:
         draft = update_candidate_draft(
             draft_id,
             name=body.name,
             description=body.description,
-            selected_profiles=body.selected_profiles,
+            selected_profiles=effective_selected_profiles,
             retrieval_override_config=_validated_retrieval_override(
-                selected_profiles=body.selected_profiles or before.get("selected_profiles") or {},
+                selected_profiles=effective_selected_profiles,
                 override_config=body.retrieval_override_config,
             ) if body.retrieval_override_config is not None else None,
         )

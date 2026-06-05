@@ -618,6 +618,28 @@ class SmokeTestAdminOps(SmokeTestBase):
             self.assertEqual(draft["status"], "draft")
             self.assertTrue(draft["version_label"].startswith("draft-"))
 
+            partial_response = client.post(
+                "/admin/tuning/drafts",
+                json={
+                    "name": "Partial selection candidate",
+                    "description": "Should inherit omitted live selections.",
+                    "selected_profiles": {
+                        "llm": tuning_payload["approved_options"]["llm"][0]["name"],
+                    },
+                    "retrieval_override_config": {
+                        "query_transform_enabled": True,
+                        "rewrite_enabled": True,
+                    },
+                },
+                headers={"Authorization": "Bearer fake-token"},
+            )
+            self.assertEqual(partial_response.status_code, 200)
+            partial_draft = partial_response.json()["draft"]
+            self.assertEqual(partial_draft["selected_profiles"]["retrieval"], live_selected["retrieval"])
+            self.assertEqual(partial_draft["selected_profiles"]["embedding"], live_selected["embedding"])
+            self.assertTrue(partial_draft["lineage"]["retrieval_override_config"]["query_transform_enabled"])
+            self.assertTrue(partial_draft["lineage"]["retrieval_override_config"]["rewrite_enabled"])
+
             invalid_response = client.post(
                 "/admin/tuning/drafts",
                 json={

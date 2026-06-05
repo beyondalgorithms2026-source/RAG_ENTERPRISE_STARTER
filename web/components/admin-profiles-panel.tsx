@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
 
@@ -117,6 +117,36 @@ function formatTimestamp(value: unknown) {
   return date.toLocaleString();
 }
 
+function versionResolvedConfig(version: GenericMap, profileType: string) {
+  return ((((version.resolved_config || {}) as GenericMap)[profileType] || {}) as GenericMap);
+}
+
+function versionProfileConfig(version: GenericMap, profileType: string) {
+  return ((versionResolvedConfig(version, profileType).config || {}) as GenericMap);
+}
+
+function versionProfileName(version: GenericMap, profileType: string) {
+  return String(versionProfileConfig(version, profileType).display_name || versionResolvedConfig(version, profileType).profile_name || (((version.selected_profiles || {}) as GenericMap)[profileType] || "default"));
+}
+
+function versionModelDetail(version: GenericMap, profileType: string) {
+  const config = versionProfileConfig(version, profileType);
+  if (profileType === "retrieval") {
+    return `${String(config.default_mode || "hybrid")} base · ${transformSummaryText(config)}`;
+  }
+  return String(config.model || config.dimension || versionProfileName(version, profileType));
+}
+
+function selectedProfilesSignature(value: unknown) {
+  const profiles = (value || {}) as GenericMap;
+  return JSON.stringify(
+    TUNING_PROFILE_TYPES.reduce<Record<string, string>>((payload, profileType) => {
+      payload[profileType] = String(profiles[profileType] || "");
+      return payload;
+    }, {})
+  );
+}
+
 function EmptyState({ title, copy }: { title: string; copy: string }) {
   return (
     <div className="admin-empty-state">
@@ -212,6 +242,7 @@ function renderCompareAnswer(run: CompareRun | null, emptyCopy: string) {
 }
 
 export function ProfilesAdminPanel() {
+  const historySectionRef = useRef<HTMLElement | null>(null);
   const [tuningPayload, setTuningPayload] = useState<TuningPayload>({
     live_configuration: {},
     candidate_drafts: [],
@@ -235,6 +266,8 @@ export function ProfilesAdminPanel() {
   });
   const [visualMode, setVisualMode] = useState(true);
   const [preparedCandidate, setPreparedCandidate] = useState<PreparedCandidate | null>(null);
+  const [savedDraftSignature, setSavedDraftSignature] = useState("");
+  const [selectedHistoryVersion, setSelectedHistoryVersion] = useState<GenericMap | null>(null);
   const [draftName, setDraftName] = useState("Balanced candidate");
   const [draftDescription, setDraftDescription] = useState("Interactive sandbox candidate for side-by-side compare against the live baseline.");
   const [sampleQuery, setSampleQuery] = useState("How does the Q4 liability clause affect subcontracting?");
@@ -305,34 +338,70 @@ export function ProfilesAdminPanel() {
     refresh();
   }, []);
 
+  useEffect(() => {
+    const seededQuestion = window.localStorage.getItem("rag:tuningSeedQuestion");
+    const seededLabel = window.localStorage.getItem("rag:tuningSeedLabel");
+    if (seededQuestion) {
+      setSampleQuery(seededQuestion);
+      setDraftName(seededLabel ? `${seededLabel} candidate` : "Feedback-driven candidate");
+      window.localStorage.removeItem("rag:tuningSeedQuestion");
+      window.localStorage.removeItem("rag:tuningSeedLabel");
+    }
+  }, []);
+
   const liveSelected = (tuningPayload.live_configuration?.selected_profiles || {}) as Record<string, string>;
   const liveResolved = (tuningPayload.live_configuration?.resolved_config || {}) as Record<string, GenericMap>;
   const liveRetrievalConfig = (((liveResolved.retrieval || {}).config || {}) as GenericMap);
+  const approvedEmbeddingOptions = useMemo(() => (tuningPayload.approved_options.embedding || []) as GenericMap[], [tuningPayload]);
+  const approvedLiveEmbeddingName = useMemo(() => {
+    const liveEmbeddingName = liveSelected.embedding || "";
+    if (approvedEmbeddingOptions.some((option) => String(option.name) === liveEmbeddingName)) {
+      return liveEmbeddingName;
+    }
+    const liveEmbeddingConfig = (((liveResolved.embedding || {}).config || {}) as GenericMap);
+    const liveEmbeddingModel = String(liveEmbeddingConfig.model || "");
+    const match = approvedEmbeddingOptions.find((option) => String(((option.config || {}) as GenericMap).model || "") === liveEmbeddingModel);
+    return String(match?.name || liveEmbeddingName);
+  }, [approvedEmbeddingOptions, liveResolved, liveSelected]);
+  const effectiveSelectedProfiles = useMemo(() => {
+    const merged: Record<string, string> = {};
+    for (const profileType of TUNING_PROFILE_TYPES) {
+      merged[profileType] = selectedProfiles[profileType] || liveSelected[profileType] || "";
+    }
+    return merged;
+  }, [liveSelected, selectedProfiles]);
   const retrievalOptions = useMemo(() => (tuningPayload.approved_options.retrieval || []) as GenericMap[], [tuningPayload]);
   const selectedRetrievalBaseConfig = useMemo(() => {
-    const selected = selectedProfiles.retrieval || liveSelected.retrieval || "";
+    const selected = effectiveSelectedProfiles.retrieval || "";
     const match = retrievalOptions.find((option) => String(option.name) === selected);
     return ((match?.config || {}) as Record<string, unknown>);
-  }, [retrievalOptions, selectedProfiles.retrieval, liveSelected.retrieval]);
-  const candidateSignature = JSON.stringify({
-    draftId: editingDraftId,
+  }, [effectiveSelectedProfiles, retrievalOptions]);
+  const draftFormSignature = JSON.stringify({
     name: draftName,
     description: draftDescription,
-    selectedProfiles,
+    selectedProfiles: effectiveSelectedProfiles,
     candidateRetrievalConfig,
+  });
+  const candidateSignature = JSON.stringify({
+    draftId: editingDraftId,
+    draftFormSignature,
     tuningControls,
   });
   const isPreparedCurrent = preparedCandidate ? preparedCandidate.signature === candidateSignature : false;
+  const hasUnsavedDraftChanges = !editingDraftId || savedDraftSignature !== draftFormSignature;
   const selectedOptionLabels = useMemo(() => {
     const labels: Record<string, string> = {};
     for (const profileType of TUNING_PROFILE_TYPES) {
-      const selected = selectedProfiles[profileType] || liveSelected[profileType] || "";
+      const selected = effectiveSelectedProfiles[profileType] || "";
       const options = tuningPayload.approved_options[profileType] || [];
       const match = options.find((option) => String(option.name) === selected);
-      labels[profileType] = String(match?.display_name || match?.name || selected || "Not selected");
+      const displayMatch = profileType === "embedding"
+        ? options.find((option) => String(option.name) === approvedLiveEmbeddingName)
+        : null;
+      labels[profileType] = String(match?.display_name || match?.name || displayMatch?.display_name || displayMatch?.name || selected || "Not selected");
     }
     return labels;
-  }, [liveSelected, selectedProfiles, tuningPayload]);
+  }, [approvedLiveEmbeddingName, effectiveSelectedProfiles, tuningPayload]);
   const queryTransformEnabled = Boolean(candidateRetrievalConfig.query_transform_enabled);
   const retrievalOverrideChanged = useMemo(() => {
     const keys = new Set([...Object.keys(selectedRetrievalBaseConfig), ...Object.keys(candidateRetrievalConfig)]);
@@ -350,7 +419,7 @@ export function ProfilesAdminPanel() {
     }
     let deltaCount = 0;
     for (const profileType of TUNING_PROFILE_TYPES) {
-      if ((selectedProfiles[profileType] || "") && selectedProfiles[profileType] !== (liveSelected[profileType] || "")) {
+      if ((effectiveSelectedProfiles[profileType] || "") && effectiveSelectedProfiles[profileType] !== (liveSelected[profileType] || "")) {
         deltaCount += 1;
       }
     }
@@ -361,7 +430,7 @@ export function ProfilesAdminPanel() {
       return "No governed profile swaps yet; this candidate mirrors the live baseline and only tests answer-time controls.";
     }
     return `${deltaCount} governed profile selections differ from production; use sandbox compare before any later rollout step.`;
-  }, [comparePayload, liveSelected, selectedProfiles, retrievalOverrideChanged]);
+  }, [comparePayload, effectiveSelectedProfiles, liveSelected, retrievalOverrideChanged]);
 
   useEffect(() => {
     if (!selectedProfiles.retrieval && !liveSelected.retrieval) {
@@ -381,6 +450,7 @@ export function ProfilesAdminPanel() {
   function resetDraftForm() {
     setEditingDraftId(null);
     setPreparedCandidate(null);
+    setSavedDraftSignature("");
     setDraftName("Balanced candidate");
     setDraftDescription("Interactive sandbox candidate for side-by-side compare against the live baseline.");
     setSelectedProfiles({
@@ -398,7 +468,7 @@ export function ProfilesAdminPanel() {
       draft_id: editingDraftId,
       name: draftName,
       description: draftDescription,
-      selected_profiles: { ...selectedProfiles },
+      selected_profiles: { ...effectiveSelectedProfiles },
       retrieval_override_config: { ...candidateRetrievalConfig },
       tuning_controls: { ...tuningControls },
       prepared_at: new Date().toISOString(),
@@ -414,7 +484,7 @@ export function ProfilesAdminPanel() {
       const payload = {
         name: draftName,
         description: draftDescription,
-        selected_profiles: selectedProfiles,
+        selected_profiles: effectiveSelectedProfiles,
         retrieval_override_config: candidateRetrievalConfig,
       };
       if (editingDraftId) {
@@ -424,6 +494,7 @@ export function ProfilesAdminPanel() {
         const response = await browserFetch<{ draft: GenericMap }>("/admin/tuning/drafts", { method: "POST", json: payload });
         setEditingDraftId(Number(response.draft.id));
       }
+      setSavedDraftSignature(draftFormSignature);
       await refresh();
       setError("");
     } catch (err) {
@@ -508,6 +579,14 @@ export function ProfilesAdminPanel() {
     }
   }
 
+  function scrollToVersionHistory() {
+    historySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const liveVersion = tuningHistory.versions.find((version) => String(version.version_label) === "live-current");
+    if (liveVersion) {
+      setSelectedHistoryVersion(liveVersion);
+    }
+  }
+
   async function runOpsAction(action: "clear-cache" | "build-clusters") {
     setIsOpsBusy(action);
     try {
@@ -549,6 +628,22 @@ export function ProfilesAdminPanel() {
     },
   ];
   const cacheStats = (tuningOps.semanticCache.cache || tuningOps.semanticCache) as GenericMap;
+  const currentLiveSignature = selectedProfilesSignature(tuningPayload.live_configuration?.selected_profiles);
+  const liveHistoryVersions = useMemo(() => {
+    const versions = tuningHistory.versions.filter((version) => String(version.config_kind) === "live");
+    const currentAnchor = versions.find((version) => String(version.version_label) === "live-current");
+    const currentSignature = currentLiveSignature;
+    const rollbackTargets = versions.filter((version) => {
+      if (String(version.version_label) === "live-current") {
+        return false;
+      }
+      return selectedProfilesSignature(version.selected_profiles) !== currentSignature;
+    });
+    return [...(currentAnchor ? [currentAnchor] : []), ...rollbackTargets].slice(0, 6);
+  }, [currentLiveSignature, tuningHistory.versions]);
+  const inspectedHistoryVersion = selectedHistoryVersion && liveHistoryVersions.some((version) => String(version.id || "") === String(selectedHistoryVersion.id || ""))
+    ? selectedHistoryVersion
+    : liveHistoryVersions[0] || null;
 
   return (
     <div className="admin-route-page">
@@ -605,7 +700,7 @@ export function ProfilesAdminPanel() {
                         {`Master ${Boolean(liveRetrievalConfig.query_transform_enabled) ? "on" : "off"} · Rewrite ${Boolean(liveRetrievalConfig.rewrite_enabled) ? "on" : "off"} · Expansion ${Boolean(liveRetrievalConfig.expansion_enabled) ? "on" : "off"} · HyDE ${Boolean(liveRetrievalConfig.hyde_enabled) ? "on" : "off"}`}
                       </strong>
                     </div>
-                    <button type="button" className="button button-secondary" disabled>
+                    <button type="button" className="button button-secondary" onClick={scrollToVersionHistory}>
                       View Version History
                     </button>
                   </div>
@@ -688,7 +783,7 @@ export function ProfilesAdminPanel() {
                       return (
                             <Field key={profileType} label={label}>
                           {profileType === "embedding" ? (
-                            <select value={liveSelected.embedding || ""} disabled>
+                            <select value={approvedLiveEmbeddingName || ""} disabled>
                               {options.map((option) => (
                                 <option key={String(option.name)} value={String(option.name)}>
                                   {String(option.display_name || option.name)}
@@ -968,7 +1063,10 @@ export function ProfilesAdminPanel() {
           Discard Candidate
         </button>
         <input className="tuning-lab-promotion-note" value={promotionNote} onChange={(event) => setPromotionNote(event.target.value)} aria-label="Promotion note" />
-        <button type="button" className="button button-secondary" onClick={saveDraft} disabled={savingDraft}>
+        <span className="tuning-lab-draft-state">
+          {editingDraftId ? (hasUnsavedDraftChanges ? "Draft has unsaved changes" : "Draft saved") : "Save draft before promotion"}
+        </span>
+        <button type="button" className="button button-secondary" onClick={saveDraft} disabled={savingDraft || (Boolean(editingDraftId) && !hasUnsavedDraftChanges)}>
           {savingDraft ? "Saving Draft..." : editingDraftId ? "Update Draft" : "Save as Draft"}
         </button>
         <button type="button" className="button button-primary" onClick={promoteCandidate} disabled={isPromoting || savingDraft}>
@@ -976,7 +1074,7 @@ export function ProfilesAdminPanel() {
         </button>
       </footer>
 
-      <section className="card tuning-lab-history-shell">
+      <section className="card tuning-lab-history-shell" ref={historySectionRef}>
         <div className="section-head">
           <div>
             <h2>Version History &amp; Rollback</h2>
@@ -984,20 +1082,53 @@ export function ProfilesAdminPanel() {
           </div>
         </div>
         <div className="tuning-lab-history-grid">
-          {tuningHistory.versions
-            .filter((version) => String(version.config_kind) === "live")
-            .slice(0, 6)
-            .map((version) => (
-              <article key={String(version.id)} className="tuning-lab-history-card">
-                <span>{String(version.status || "version")}</span>
-                <strong>{String(version.version_label)}</strong>
-                <p>{String(version.name || "Live configuration")}</p>
-                <button type="button" className="button button-secondary" onClick={() => rollbackVersion(String(version.version_label))} disabled={isRollingBack || String(version.version_label) === "live-current"}>
-                  Roll Back
+          {liveHistoryVersions.map((version) => {
+            const status = String(version.status || "version");
+            const versionSignature = selectedProfilesSignature(version.selected_profiles);
+            const matchesCurrentProduction = versionSignature === currentLiveSignature;
+            const isCurrentAnchor = String(version.version_label) === "live-current";
+            const statusLabel = isCurrentAnchor ? "current live" : matchesCurrentProduction ? "current config" : status;
+            const isSelected = String(inspectedHistoryVersion?.id || "") === String(version.id || "");
+            return (
+              <article key={String(version.id)} className={`tuning-lab-history-card ${isSelected ? "is-selected" : ""}`} onClick={() => setSelectedHistoryVersion(version)}>
+                <div className="tuning-lab-history-status">
+                  <span className={`tuning-lab-status-dot ${isCurrentAnchor ? "is-live" : "is-archived"}`} />
+                  <span>{statusLabel}</span>
+                </div>
+                <strong>{String(version.name || "Live configuration")}</strong>
+                <p>{formatTimestamp(version.updated_at || version.created_at)}</p>
+                <div className="tuning-lab-history-summary">
+                  <span>{versionProfileName(version, "llm")}</span>
+                  <span>{versionProfileName(version, "reranker")}</span>
+                  <span>{transformSummaryText(versionProfileConfig(version, "retrieval"))}</span>
+                </div>
+                <button type="button" className="button button-secondary" onClick={(event) => { event.stopPropagation(); rollbackVersion(String(version.version_label)); }} disabled={isRollingBack || matchesCurrentProduction}>
+                  {matchesCurrentProduction ? "Already Live" : "Roll Back"}
                 </button>
               </article>
-            ))}
+            );
+          })}
         </div>
+        {inspectedHistoryVersion ? (
+          <div className="tuning-lab-version-detail">
+            <div className="tuning-lab-version-detail-head">
+              <div>
+                <span className="muted-copy">Selected Version</span>
+                <strong>{String(inspectedHistoryVersion.name || "Live configuration")}</strong>
+              </div>
+              <span>{formatTimestamp(inspectedHistoryVersion.updated_at || inspectedHistoryVersion.created_at)}</span>
+            </div>
+            <div className="tuning-lab-version-detail-grid">
+              {(["llm", "embedding", "reranker", "retrieval"] as const).map((profileType) => (
+                <article key={profileType}>
+                  <span>{profileTypeLabel(profileType)}</span>
+                  <strong>{versionProfileName(inspectedHistoryVersion, profileType)}</strong>
+                  <p>{versionModelDetail(inspectedHistoryVersion, profileType)}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <section className="card tuning-lab-ops-shell">
