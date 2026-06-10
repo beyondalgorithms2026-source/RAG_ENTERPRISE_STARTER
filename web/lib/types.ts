@@ -41,4 +41,14 @@ export type AskResponse = {
   latency_ms: number;
   debug_info?: Record<string, unknown> | null;
   mode?: string | null;
+  cache_info?: {
+    status?: string;
+    entry_id?: number | null;
+    age_seconds?: number | null;
+    sources_and_access_checked?: boolean;
+    materially_changed?: boolean | null;
+    citations_changed?: boolean | null;
+    additional_evidence?: boolean | null;
+    replaced_entry?: boolean | null;
+  } | null;
 };

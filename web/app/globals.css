@@ -2429,6 +2429,32 @@ textarea {
   border-radius: 8px;
 }
 
+.chat-cache-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(205, 241, 61, 0.2);
+}
+
+.chat-cache-notice div {
+  display: grid;
+  gap: 4px;
+}
+
+.chat-cache-notice span {
+  color: rgba(88, 99, 115, 0.92);
+  font-size: 0.78rem;
+}
+
+.chat-cache-notice button {
+  color: #3439ef;
+  font-weight: 800;
+}
+
 .chat-citation-row {
   display: flex;
   flex-wrap: wrap;
@@ -4589,6 +4615,144 @@ textarea {
   gap: 20px;
 }
 
+.tuning-lab-cache-governance {
+  display: grid;
+  gap: 20px;
+}
+
+.tuning-lab-cache-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.tuning-lab-cache-metrics article {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(245, 245, 224, 0.72);
+}
+
+.tuning-lab-cache-metrics span {
+  color: rgba(110, 111, 137, 0.92);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cache-policy-banner,
+.cache-policy-editor {
+  display: grid;
+  gap: 18px;
+}
+
+.cache-policy-banner span,
+.cache-policy-scope-statement {
+  color: rgba(88, 99, 115, 0.94);
+}
+
+.cache-policy-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.28fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.cache-policy-list {
+  display: grid;
+  gap: 10px;
+  position: sticky;
+  top: 20px;
+}
+
+.cache-policy-list > button:not(.button) {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 16px;
+  text-align: left;
+  background: rgba(245, 245, 224, 0.72);
+}
+
+.cache-policy-list > button.is-selected {
+  box-shadow: inset 0 0 0 2px rgba(52, 57, 239, 0.36);
+}
+
+.cache-policy-list span {
+  color: rgba(110, 111, 137, 0.92);
+  font-size: 0.74rem;
+  text-transform: capitalize;
+}
+
+.cache-policy-editor > .card {
+  display: grid;
+  gap: 16px;
+}
+
+.cache-policy-editor h2 {
+  margin: 0;
+}
+
+.cache-policy-fields,
+.cache-policy-scope-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.cache-policy-fields label,
+.cache-policy-scope-grid fieldset {
+  display: grid;
+  gap: 8px;
+}
+
+.cache-policy-fields label.is-wide {
+  grid-column: 1 / -1;
+}
+
+.cache-policy-fields input,
+.cache-policy-fields textarea {
+  width: 100%;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(245, 245, 224, 0.84);
+  box-shadow: inset 0 0 0 1px rgba(198, 197, 217, 0.5);
+}
+
+.cache-policy-scope-grid fieldset {
+  align-content: start;
+  border: 0;
+  border-radius: 16px;
+  padding: 14px;
+  background: rgba(245, 245, 224, 0.7);
+}
+
+.cache-policy-scope-grid label {
+  display: flex;
+  gap: 8px;
+}
+
+.cache-policy-version {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(198, 197, 217, 0.38);
+}
+
+.cache-policy-result {
+  max-height: 320px;
+  overflow: auto;
+  border-radius: 16px;
+  padding: 16px;
+  background: #17182b;
+  color: #f6f6ee;
+  font-size: 0.72rem;
+}
+
 .tuning-lab-history-grid,
 .tuning-lab-ops-grid {
   display: grid;
@@ -5599,7 +5763,8 @@ textarea {
   .tuning-lab-compare-summary-grid,
   .tuning-lab-history-grid,
   .tuning-lab-version-detail-grid,
-  .tuning-lab-ops-grid {
+  .tuning-lab-ops-grid,
+  .tuning-lab-cache-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -5621,6 +5786,10 @@ textarea {
   .tuning-lab-history-grid,
   .tuning-lab-version-detail-grid,
   .tuning-lab-ops-grid,
+  .tuning-lab-cache-metrics,
+  .cache-policy-layout,
+  .cache-policy-fields,
+  .cache-policy-scope-grid,
   .feedback-workbench-grid,
   .feedback-context-grid,
   .feedback-cluster-grid {
@@ -5646,6 +5815,10 @@ textarea {
 
   .tuning-lab-action-footer {
     display: grid;
+  }
+
+  .cache-policy-list {
+    position: static;
   }
 
 }

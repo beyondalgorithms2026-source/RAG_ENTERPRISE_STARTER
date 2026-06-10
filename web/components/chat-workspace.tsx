@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { browserApiUrl, browserFetch } from "@/lib/api-browser";
-import type { AskResponse, SearchResponse } from "@/lib/types";
+import type { AskResponse } from "@/lib/types";
 import { readThreads, THREADS_UPDATED_EVENT, ThreadMessage, ThreadRecord, updateThreadRecord, upsertThreadRecord, writeThreads } from "@/lib/workspace";
 
 type CitationContextItem = {
@@ -264,7 +264,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   const [question, setQuestion] = useState("");
   const [mode, setMode] = useState("hybrid");
   const [deepResearch, setDeepResearch] = useState(false);
-  const [searchSummary, setSearchSummary] = useState<SearchResponse | null>(null);
+  const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState("");
   const [selectedEvidenceMessageId, setSelectedEvidenceMessageId] = useState<string | null>(null);
@@ -363,7 +363,6 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   }, [threads]);
   const activeRetrievalPath =
     String(
-      (searchSummary?.debug_info as { retrieval_path_used?: string } | undefined)?.retrieval_path_used ||
       (latestAssistantMessage?.debugInfo as { retrieval_path_used?: string } | undefined)?.retrieval_path_used ||
       "hybrid",
     );
@@ -549,7 +548,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
     }
 
     setError("");
-    setSearchSummary(null);
+    setLastLatencyMs(null);
     setSelectedEvidenceMessageId(null);
     setCitationContext(null);
     setCitationContextError("");
@@ -588,12 +587,6 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
     setQuestion("");
 
     try {
-      const search = await browserFetch<SearchResponse>("/search", {
-        method: "POST",
-        json: { question: trimmed, k: 6, mode, debug: true, deep_research: deepResearch },
-      });
-      setSearchSummary(search);
-
       const response = await fetch(browserApiUrl("/ask/stream"), {
         method: "POST",
         credentials: "include",
@@ -652,6 +645,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
       if (!finalResult) {
         throw new Error("No final result returned by /ask/stream.");
       }
+      setLastLatencyMs(finalResult.latency_ms);
 
       const retrievalTrace =
         finalResult.debug_info && typeof finalResult.debug_info.retrieval_trace === "object"
@@ -671,6 +665,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                 usedChunksCount: finalResult.used_chunks_count,
                 mode: finalResult.mode,
                 debugInfo: finalResult.debug_info,
+                cacheInfo: finalResult.cache_info,
                 progress: 100,
                 progressLabel: finalResult.answer ? "Grounded answer ready" : "Request completed",
               }
@@ -703,7 +698,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   function startFreshThread() {
     setCurrentThreadId("");
     setQuestion("");
-    setSearchSummary(null);
+    setLastLatencyMs(null);
     setSelectedEvidenceMessageId(null);
     setSelectedCitationId(null);
     setCitationContext(null);
@@ -995,6 +990,72 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
     }
   }
 
+  async function refreshCachedAnswer(message: ThreadMessage) {
+    const entryId = message.cacheInfo?.entry_id;
+    const originalQuestion = questionForAssistant(message.id);
+    if (!entryId || !originalQuestion || isStreaming) {
+      return;
+    }
+    setError("");
+    setIsStreaming(true);
+    patchThread(activeThread!.id, (thread) => ({
+      ...thread,
+      messages: thread.messages.map((item) =>
+        item.id === message.id
+          ? { ...item, status: "pending", progress: 8, progressLabel: "Refreshing with latest documents" }
+          : item,
+      ),
+    }));
+    try {
+      const response = await browserFetch<AskResponse>("/ask", {
+        method: "POST",
+        json: {
+          question: originalQuestion,
+          k_chunks: 6,
+          mode: message.mode || mode,
+          deep_research: deepResearch,
+          bypass_cache: true,
+          refresh_cache_entry_id: entryId,
+        },
+      });
+      setLastLatencyMs(response.latency_ms);
+      const retrievalTrace =
+        response.debug_info && typeof response.debug_info.retrieval_trace === "object"
+          ? (response.debug_info.retrieval_trace as Record<string, unknown>)
+          : null;
+      patchThread(activeThread!.id, (thread) => ({
+        ...thread,
+        messages: thread.messages.map((item) =>
+          item.id === message.id
+            ? {
+                ...item,
+                status: "completed",
+                content: response.answer || "No answer returned.",
+                requestId: String(retrievalTrace?.request_id || item.requestId || ""),
+                citations: response.citations,
+                usedChunksCount: response.used_chunks_count,
+                mode: response.mode,
+                debugInfo: response.debug_info,
+                cacheInfo: response.cache_info,
+                progress: 100,
+                progressLabel: "Refreshed with latest documents",
+              }
+            : item,
+        ),
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Answer refresh failed.");
+      patchThread(activeThread!.id, (thread) => ({
+        ...thread,
+        messages: thread.messages.map((item) =>
+          item.id === message.id ? { ...item, status: "completed", progress: 100, progressLabel: "Refresh failed" } : item,
+        ),
+      }));
+    } finally {
+      setIsStreaming(false);
+    }
+  }
+
   const contextLocator = buildLocatorSummary(
     safeJsonParse(citationContext?.target?.locator_json),
     citationContext?.target?.heading || selectedCitation?.heading || null,
@@ -1011,7 +1072,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
             <span className="material-symbols-outlined icon-fill">bolt</span>
             {mode === "hybrid" ? "Hybrid Search" : mode}
           </div>
-          <div>Latency: <strong>{searchSummary?.latency_ms ? `${searchSummary.latency_ms}ms` : "Captured"}</strong></div>
+          <div>Latency: <strong>{lastLatencyMs ? `${lastLatencyMs}ms` : "Captured"}</strong></div>
           <div>Sources: <strong>{activeEvidenceSection?.citations.length || 0}</strong></div>
           <div>Path: <strong>{activeRetrievalPath}</strong></div>
           <div className="chat-speed-toggle">
@@ -1072,6 +1133,22 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                           </div>
                         ) : (
                           <>
+                            {message.cacheInfo?.status === "hit" ? (
+                              <div className="chat-cache-notice">
+                                <div>
+                                  <strong>Reused answer</strong>
+                                  <span>
+                                    {typeof message.cacheInfo.age_seconds === "number"
+                                      ? `${Math.max(1, Math.round(message.cacheInfo.age_seconds / 60))} min old`
+                                      : "Recently saved"}
+                                    {message.cacheInfo.sources_and_access_checked ? " · Sources and access checked" : ""}
+                                  </span>
+                                </div>
+                                <button type="button" onClick={() => refreshCachedAnswer(message)} disabled={isStreaming}>
+                                  Refresh using latest documents
+                                </button>
+                              </div>
+                            ) : null}
                             {message.content.split(/\n+/).filter(Boolean).map((paragraph, index) => (
                               <p key={`${message.id}-${index}`}>{paragraph}</p>
                             ))}

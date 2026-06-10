@@ -251,8 +251,14 @@ def grant_corpus_access(
                 "group_id": group_id,
             },
         )
+    from app.db.repo_semantic_cache import bump_cache_revision
+
+    bump_cache_revision(scope_type="access", reason=f"corpus_grant:{corpus_name}")
 
 
 def clear_corpus_access_grants(corpus_name: str) -> None:
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM corpus_access_grants WHERE corpus_name = :corpus_name"), {"corpus_name": corpus_name.strip()})
+    from app.db.repo_semantic_cache import bump_cache_revision
+
+    bump_cache_revision(scope_type="access", reason=f"corpus_grants_cleared:{corpus_name}")

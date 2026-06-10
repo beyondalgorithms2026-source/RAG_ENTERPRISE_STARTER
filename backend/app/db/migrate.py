@@ -393,6 +393,100 @@ def _create_negative_feedback_events_table() -> None:
         conn.execute(text(ddl))
 
 
+def _create_m33_semantic_cache_governance_tables() -> None:
+    ddl = """
+    ALTER TABLE semantic_cache_entries ADD COLUMN IF NOT EXISTS policy_version_id BIGINT;
+    ALTER TABLE semantic_cache_entries ADD COLUMN IF NOT EXISTS cache_namespace TEXT NOT NULL DEFAULT '';
+    ALTER TABLE semantic_cache_entries ADD COLUMN IF NOT EXISTS corpus_names_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE semantic_cache_entries ADD COLUMN IF NOT EXISTS source_revisions_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+    ALTER TABLE semantic_cache_entries ADD COLUMN IF NOT EXISTS revision_snapshot_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+    ALTER TABLE semantic_cache_entries ADD COLUMN IF NOT EXISTS answer_path TEXT;
+    ALTER TABLE semantic_cache_entries ADD COLUMN IF NOT EXISTS original_latency_ms INTEGER;
+    CREATE INDEX IF NOT EXISTS semantic_cache_namespace_lookup_idx
+        ON semantic_cache_entries(cache_namespace, normalized_question, acl_scope_hash, profile_snapshot_hash, retrieval_mode);
+
+    CREATE TABLE IF NOT EXISTS semantic_cache_policies (
+        id BIGSERIAL PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        justification TEXT NOT NULL DEFAULT '',
+        owner TEXT NOT NULL DEFAULT '',
+        review_at TIMESTAMPTZ,
+        status TEXT NOT NULL DEFAULT 'draft',
+        active_version_id BIGINT,
+        created_by_external_user_id TEXT,
+        created_by_email TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS semantic_cache_policy_versions (
+        id BIGSERIAL PRIMARY KEY,
+        policy_id BIGINT NOT NULL REFERENCES semantic_cache_policies(id) ON DELETE CASCADE,
+        version_number INTEGER NOT NULL,
+        cache_namespace TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL DEFAULT 'draft',
+        enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        match_mode TEXT NOT NULL DEFAULT 'exact',
+        ttl_seconds INTEGER NOT NULL DEFAULT 900,
+        max_active_entries INTEGER NOT NULL DEFAULT 1000,
+        allow_corpora_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        deny_corpora_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        allow_groups_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        deny_groups_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        allow_questions_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        deny_questions_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        safety_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_by_external_user_id TEXT,
+        created_by_email TEXT,
+        approved_by_external_user_id TEXT,
+        approved_by_email TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        activated_at TIMESTAMPTZ,
+        UNIQUE (policy_id, version_number)
+    );
+    CREATE INDEX IF NOT EXISTS semantic_cache_policy_versions_status_idx
+        ON semantic_cache_policy_versions(status, activated_at DESC);
+    DO $$ BEGIN
+        ALTER TABLE semantic_cache_policies
+            ADD CONSTRAINT semantic_cache_policies_active_version_fk
+            FOREIGN KEY (active_version_id) REFERENCES semantic_cache_policy_versions(id) ON DELETE SET NULL;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    DO $$ BEGIN
+        ALTER TABLE semantic_cache_entries
+            ADD CONSTRAINT semantic_cache_entries_policy_version_fk
+            FOREIGN KEY (policy_version_id) REFERENCES semantic_cache_policy_versions(id) ON DELETE SET NULL;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+    CREATE TABLE IF NOT EXISTS semantic_cache_policy_events (
+        id BIGSERIAL PRIMARY KEY,
+        policy_version_id BIGINT REFERENCES semantic_cache_policy_versions(id) ON DELETE SET NULL,
+        cache_entry_id BIGINT REFERENCES semantic_cache_entries(id) ON DELETE SET NULL,
+        event_type TEXT NOT NULL,
+        reason TEXT,
+        latency_saved_ms INTEGER,
+        estimated_cost_saved_usd NUMERIC(14, 6),
+        actor_external_user_id TEXT,
+        actor_email TEXT,
+        metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS semantic_cache_policy_events_created_idx
+        ON semantic_cache_policy_events(created_at DESC);
+    CREATE INDEX IF NOT EXISTS semantic_cache_policy_events_type_idx
+        ON semantic_cache_policy_events(event_type, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS semantic_cache_revisions (
+        scope_type TEXT NOT NULL,
+        scope_key TEXT NOT NULL,
+        revision BIGINT NOT NULL DEFAULT 1,
+        reason TEXT,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (scope_type, scope_key)
+    );
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def _patch_m25_m26_security_columns() -> None:
     ddl = """
     ALTER TABLE admin_audit_events
@@ -904,6 +998,11 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P019",
             description="Create corpus-level access grants for M28 access strategies",
             runner=_create_corpus_access_grants_table,
+        ),
+        MigrationStep(
+            step_id="MIG-P020",
+            description="Create independent governed semantic cache policies, events, and revisions",
+            runner=_create_m33_semantic_cache_governance_tables,
         ),
     ]
 

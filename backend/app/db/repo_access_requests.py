@@ -1100,6 +1100,9 @@ def grant_access_request(*, access_request_id: int, actor: Optional[Authenticate
         email_payload_json={"expires_at": result.expires_at, "request_id": access_request_id},
         payload_json={"expires_at": result.expires_at, "request_id": access_request_id},
     )
+    from app.db.repo_semantic_cache import bump_cache_revision
+
+    bump_cache_revision(scope_type="access", reason=f"direct_grant:{access_request_id}")
     return result
 
 

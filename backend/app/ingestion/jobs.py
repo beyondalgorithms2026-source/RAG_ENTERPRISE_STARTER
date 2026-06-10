@@ -491,6 +491,14 @@ def _ingest_uploaded_source(*, source_id: int, source_type: str, file_name: str,
         finish_ingestion_job(job_id, status="completed")
         _update_ingestion_job_stage(job_id, status="completed", stage="embedded")
         log_event("upload.ingestion.completed", source_id=source_id, job_id=job_id, stage="ingestion", status="completed")
+        from app.db.repo_semantic_cache import bump_cache_revision
+
+        refreshed_source = get_source_by_id(source_id)
+        corpus_name = str(((refreshed_source.source_metadata_json if refreshed_source else {}) or {}).get("corpus") or "").strip().lower()
+        bump_cache_revision(scope_type="source", scope_key=str(source_id), reason="ingestion_completed")
+        bump_cache_revision(scope_type="content", reason="ingestion_completed")
+        if corpus_name:
+            bump_cache_revision(scope_type="corpus", scope_key=corpus_name, reason="ingestion_completed")
         return {"chunk_count": len(linked_chunks), "source_part_count": len(source_part_ids)}
     except Exception as exc:
         update_source_status(source_id, ingestion_status="failed")
@@ -639,6 +647,10 @@ def delete_uploaded_source(*, source_id: int, delete_file: bool = True) -> Dict[
     deleted = delete_source(source_id)
     if not deleted:
         raise ValueError(f"Source {source_id} not found")
+    from app.db.repo_semantic_cache import bump_cache_revision
+
+    bump_cache_revision(scope_type="source", scope_key=str(source_id), reason="source_deleted")
+    bump_cache_revision(scope_type="content", reason="source_deleted")
 
     log_event(
         "source.deleted",

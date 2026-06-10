@@ -61,7 +61,22 @@ from app.db.repo_profiles import (
     upsert_profile,
 )
 from app.db.repo_sources import get_source_by_id, list_sources, update_source_admin_fields, update_source_status
-from app.db.repo_semantic_cache import cache_health, invalidate_cache as invalidate_semantic_cache
+from app.db.repo_semantic_cache import (
+    bump_cache_revision,
+    cache_health,
+    invalidate_cache as invalidate_semantic_cache,
+)
+from app.db.repo_semantic_cache_policies import (
+    activate_policy as activate_semantic_cache_policy,
+    create_policy as create_semantic_cache_policy,
+    disable_policy as disable_semantic_cache_policy,
+    get_active_policy_version as get_active_semantic_cache_policy_version,
+    get_policy as get_semantic_cache_policy,
+    list_policies as list_semantic_cache_policies,
+    policy_metrics as semantic_cache_policy_metrics,
+    rollback_policy as rollback_semantic_cache_policy,
+    update_policy as update_semantic_cache_policy,
+)
 from app.db.repo_traces import get_trace, get_trace_by_id, list_traces
 from app.db.repo_tuning_configs import (
     create_embedding_experiment,
@@ -284,6 +299,35 @@ class QueryClusterAnnotationRequest(BaseModel):
 class DerivedEvalPackRequest(BaseModel):
     name: str
     cluster_ids: list[int] = Field(default_factory=list)
+
+
+class SemanticCachePolicyRequest(BaseModel):
+    name: str
+    justification: str = ""
+    owner: str = ""
+    review_at: Optional[datetime] = None
+    enabled: bool = False
+    ttl_seconds: int = Field(default=900, ge=30, le=86400)
+    max_active_entries: int = Field(default=1000, ge=1, le=100000)
+    allow_corpora: list[str] = Field(default_factory=list)
+    deny_corpora: list[str] = Field(default_factory=list)
+    allow_groups: list[str] = Field(default_factory=list)
+    deny_groups: list[str] = Field(default_factory=list)
+    allow_questions: list[str] = Field(default_factory=list)
+    deny_questions: list[str] = Field(default_factory=list)
+
+
+class SemanticCachePolicyActivationRequest(BaseModel):
+    confirmation: str
+
+
+class SemanticCachePolicyRollbackRequest(BaseModel):
+    version_id: int
+
+
+class SemanticCachePolicyCheckRequest(BaseModel):
+    question: str
+    mode: Optional[str] = "hybrid"
 
 
 class GovernanceRestrictionRequest(BaseModel):
@@ -541,6 +585,7 @@ def update_profile(profile_type: str, profile_name: str, body: ProfileUpdateRequ
     if get_active_profile_name(profile_type) == profile_name:
         invalidate_cache(profile_type)
         invalidate_semantic_cache(reason=f"profile_update:{profile_type}:{profile_name}")
+        bump_cache_revision(scope_type="profile", reason=f"profile_update:{profile_type}:{profile_name}")
         sync_live_configuration_record()
 
     actor = get_current_user()
@@ -574,6 +619,7 @@ def set_active(body: ActiveProfileRequest):
     set_active_profile(body.profile_type, body.profile_name)
     invalidate_cache(body.profile_type)
     invalidate_semantic_cache(reason=f"profile_activate:{body.profile_type}")
+    bump_cache_revision(scope_type="profile", reason=f"profile_activate:{body.profile_type}")
     live_config = sync_live_configuration_record()
     logger.info("Activated profile %s/%s", body.profile_type, body.profile_name)
     insert_admin_audit_event(
@@ -871,6 +917,7 @@ def promote_tuning_candidate(body: TuningPromotionRequest, request: Request):
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     for profile_type in PROFILE_TYPES_FOR_TUNING:
         invalidate_cache(profile_type)
+    bump_cache_revision(scope_type="profile", reason=f"tuning_promote:{body.draft_id}")
     insert_admin_audit_event(
         event_type="tuning",
         action="tuning.promote",
@@ -895,6 +942,7 @@ def rollback_tuning_candidate(body: TuningRollbackRequest, request: Request):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     for profile_type in PROFILE_TYPES_FOR_TUNING:
         invalidate_cache(profile_type)
+    bump_cache_revision(scope_type="profile", reason=f"tuning_rollback:{body.version_label}")
     insert_admin_audit_event(
         event_type="tuning",
         action="tuning.rollback",
@@ -976,20 +1024,226 @@ def get_tuning_model_warmups():
 
 @router.get("/semantic-cache")
 def get_semantic_cache_health():
-    return {"cache": cache_health()}
+    return {
+        "cache": cache_health(),
+        "policies": list_semantic_cache_policies(),
+        "metrics": semantic_cache_policy_metrics(),
+    }
+
+
+def _cache_policy_config(body: SemanticCachePolicyRequest) -> dict[str, Any]:
+    return {
+        "enabled": body.enabled,
+        "ttl_seconds": body.ttl_seconds,
+        "max_active_entries": body.max_active_entries,
+        "allow_corpora": body.allow_corpora,
+        "deny_corpora": body.deny_corpora,
+        "allow_groups": body.allow_groups,
+        "deny_groups": body.deny_groups,
+        "allow_questions": body.allow_questions,
+        "deny_questions": body.deny_questions,
+    }
+
+
+@router.get("/semantic-cache/policies")
+def get_semantic_cache_policies():
+    return {
+        "global_default": "off",
+        "policies": list_semantic_cache_policies(),
+        "metrics": semantic_cache_policy_metrics(),
+    }
+
+
+@router.post("/semantic-cache/policies")
+def create_semantic_cache_policy_endpoint(body: SemanticCachePolicyRequest):
+    actor = get_current_user()
+    try:
+        policy = create_semantic_cache_policy(
+            name=body.name,
+            justification=body.justification,
+            owner=body.owner,
+            review_at=body.review_at,
+            config=_cache_policy_config(body),
+            actor=actor,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    insert_admin_audit_event(
+        event_type="cache",
+        action="semantic_cache.policy.create",
+        resource_type="semantic_cache_policy",
+        resource_id=str(policy["id"]),
+        resource_name=policy["name"],
+        after_json=policy,
+        actor=actor,
+    )
+    return {"policy": policy}
+
+
+@router.patch("/semantic-cache/policies/{policy_id}")
+def patch_semantic_cache_policy_endpoint(policy_id: int, body: SemanticCachePolicyRequest):
+    actor = get_current_user()
+    before = get_semantic_cache_policy(policy_id)
+    if not before:
+        raise HTTPException(status_code=404, detail=f"Cache policy {policy_id} not found")
+    try:
+        policy = update_semantic_cache_policy(
+            policy_id,
+            name=body.name,
+            justification=body.justification,
+            owner=body.owner,
+            review_at=body.review_at,
+            config=_cache_policy_config(body),
+            actor=actor,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    insert_admin_audit_event(
+        event_type="cache",
+        action="semantic_cache.policy.update",
+        resource_type="semantic_cache_policy",
+        resource_id=str(policy_id),
+        resource_name=policy["name"],
+        before_json=before,
+        after_json=policy,
+        actor=actor,
+    )
+    return {"policy": policy}
+
+
+@router.post("/semantic-cache/policies/{policy_id}/check")
+def check_semantic_cache_policy_endpoint(policy_id: int, body: SemanticCachePolicyCheckRequest):
+    actor = get_current_user()
+    policy = get_semantic_cache_policy(policy_id)
+    if not policy or not policy.get("draft_version"):
+        raise HTTPException(status_code=404, detail=f"Cache policy {policy_id} has no draft version")
+    draft = dict(policy["draft_version"])
+    namespace = f"sandbox:{policy_id}:{draft['id']}:{int(time.time())}"
+    from app.core_rag.answering import AskRequest, perform_ask
+
+    request = AskRequest(question=body.question, mode=body.mode, bypass_cache=False)
+    cold = perform_ask(request, policy_override=draft, cache_namespace_override=namespace)
+    warm = perform_ask(request, policy_override=draft, cache_namespace_override=namespace)
+    refresh = perform_ask(
+        AskRequest(
+            question=body.question,
+            mode=body.mode,
+            bypass_cache=True,
+            refresh_cache_entry_id=(cold.cache_info or {}).get("entry_id"),
+        ),
+        policy_override=draft,
+        cache_namespace_override=namespace,
+    )
+    invalidated = invalidate_semantic_cache(reason="sandbox_policy_check_complete", cache_namespace=namespace)
+    result = {
+        "namespace": namespace,
+        "cold": cold.model_dump(),
+        "warm": warm.model_dump(),
+        "refresh": refresh.model_dump(),
+        "invalidated_entries": invalidated,
+    }
+    insert_admin_audit_event(
+        event_type="cache",
+        action="semantic_cache.policy.check",
+        resource_type="semantic_cache_policy",
+        resource_id=str(policy_id),
+        resource_name=policy["name"],
+        after_json={"question": body.question, "result": result},
+        actor=actor,
+    )
+    return result
+
+
+@router.post("/semantic-cache/policies/{policy_id}/activate")
+def activate_semantic_cache_policy_endpoint(policy_id: int, body: SemanticCachePolicyActivationRequest, request: Request):
+    actor = get_current_user()
+    approval = require_high_impact_approval(request=request, actor=actor, action="semantic_cache.policy.activate")
+    before = get_semantic_cache_policy(policy_id)
+    try:
+        policy = activate_semantic_cache_policy(policy_id, confirmation=body.confirmation, actor=actor)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    insert_admin_audit_event(
+        event_type="cache",
+        action="semantic_cache.policy.activate",
+        resource_type="semantic_cache_policy",
+        resource_id=str(policy_id),
+        resource_name=policy["name"],
+        before_json=before,
+        after_json=policy,
+        event_json=approval,
+        actor=actor,
+    )
+    return {"policy": policy}
+
+
+@router.post("/semantic-cache/policies/{policy_id}/disable")
+def disable_semantic_cache_policy_endpoint(policy_id: int, request: Request):
+    actor = get_current_user()
+    approval = require_high_impact_approval(request=request, actor=actor, action="semantic_cache.policy.disable")
+    before = get_semantic_cache_policy(policy_id)
+    try:
+        policy = disable_semantic_cache_policy(policy_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    namespace = str(((before or {}).get("active_version") or {}).get("cache_namespace") or "")
+    if namespace:
+        invalidate_semantic_cache(reason="policy_disabled", cache_namespace=namespace)
+    insert_admin_audit_event(
+        event_type="cache",
+        action="semantic_cache.policy.disable",
+        resource_type="semantic_cache_policy",
+        resource_id=str(policy_id),
+        resource_name=policy["name"],
+        before_json=before,
+        after_json=policy,
+        event_json=approval,
+        actor=actor,
+    )
+    return {"policy": policy}
+
+
+@router.post("/semantic-cache/policies/{policy_id}/rollback")
+def rollback_semantic_cache_policy_endpoint(policy_id: int, body: SemanticCachePolicyRollbackRequest, request: Request):
+    actor = get_current_user()
+    approval = require_high_impact_approval(request=request, actor=actor, action="semantic_cache.policy.rollback")
+    before = get_semantic_cache_policy(policy_id)
+    try:
+        policy = rollback_semantic_cache_policy(policy_id, version_id=body.version_id, actor=actor)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    insert_admin_audit_event(
+        event_type="cache",
+        action="semantic_cache.policy.rollback",
+        resource_type="semantic_cache_policy",
+        resource_id=str(policy_id),
+        resource_name=policy["name"],
+        before_json=before,
+        after_json=policy,
+        event_json=approval,
+        actor=actor,
+    )
+    return {"policy": policy}
+
+
+@router.get("/semantic-cache/metrics")
+def get_semantic_cache_policy_metrics():
+    return {"metrics": semantic_cache_policy_metrics()}
 
 
 @router.post("/semantic-cache/clear")
 def clear_semantic_cache(request: Request):
     actor = get_current_user()
     approval = require_high_impact_approval(request=request, actor=actor, action="semantic_cache.clear")
-    invalidated = invalidate_semantic_cache(reason="admin_clear")
+    active_policy = get_active_semantic_cache_policy_version()
+    namespace = str((active_policy or {}).get("cache_namespace") or "")
+    invalidated = invalidate_semantic_cache(reason="admin_clear", cache_namespace=namespace) if namespace else 0
     insert_admin_audit_event(
         event_type="cache",
         action="semantic_cache.clear",
         resource_type="semantic_cache",
-        resource_id="all",
-        after_json={"invalidated": invalidated},
+        resource_id=namespace or "none",
+        after_json={"invalidated": invalidated, "cache_namespace": namespace or None},
         event_json=approval,
         actor=actor,
     )
@@ -1240,6 +1494,7 @@ def create_corpus(body: CorpusCreateRequest):
     if not body.name.strip():
         raise HTTPException(status_code=400, detail="Corpus name is required")
     row = upsert_corpus(name=body.name.strip(), description=body.description.strip(), metadata_json=body.metadata_json)
+    bump_cache_revision(scope_type="corpus", scope_key=body.name.strip().lower(), reason="corpus_created")
     insert_admin_audit_event(
         event_type="corpus",
         action="corpus.create",
@@ -1259,6 +1514,7 @@ def update_corpus(corpus_name: str, body: CorpusCreateRequest):
         raise HTTPException(status_code=404, detail=f"Corpus '{corpus_name}' not found")
     target_name = body.name.strip() or corpus_name
     row = upsert_corpus(name=target_name, description=body.description.strip(), metadata_json=body.metadata_json)
+    bump_cache_revision(scope_type="corpus", scope_key=target_name.lower(), reason="corpus_updated")
     insert_admin_audit_event(
         event_type="corpus",
         action="corpus.update",
@@ -1294,6 +1550,8 @@ def assign_sources_to_corpus(corpus_name: str, body: CorpusSourceAssignmentReque
             sensitivity_label=body.sensitivity_label,
             source_metadata_json=metadata,
         )
+        bump_cache_revision(scope_type="source", scope_key=str(source_id), reason="corpus_assignment")
+        bump_cache_revision(scope_type="corpus", scope_key=corpus_name.lower(), reason="source_assigned")
         updated_source_ids.append(source_id)
     insert_admin_audit_event(
         event_type="corpus",
@@ -1333,6 +1591,8 @@ def update_source(source_id: int, body: SourceUpdateRequest, request: Request):
         sensitivity_label=body.sensitivity_label,
         source_metadata_json=next_metadata,
     )
+    bump_cache_revision(scope_type="source", scope_key=str(source_id), reason="source_admin_update")
+    bump_cache_revision(scope_type="content", reason="source_admin_update")
     if body.acl_group_names is not None:
         assign_document_acl(source_id=source_id, group_names=body.acl_group_names)
     updated = get_source_by_id(source_id)
@@ -1381,6 +1641,8 @@ def trigger_reindex(source_id: int, body: ReindexRequest):
         after_json=result,
     )
     invalidate_semantic_cache(reason=f"source_reindex:{source_id}")
+    bump_cache_revision(scope_type="source", scope_key=str(source_id), reason="source_reindex")
+    bump_cache_revision(scope_type="content", reason="source_reindex")
     return result
 
 
@@ -1406,6 +1668,8 @@ def trigger_enrichment(source_id: int, body: ReindexRequest):
         job_id=payload.get("job_id"),
         after_json=payload,
     )
+    bump_cache_revision(scope_type="source", scope_key=str(source_id), reason="source_enrichment")
+    bump_cache_revision(scope_type="content", reason="source_enrichment")
     return payload
 
 
