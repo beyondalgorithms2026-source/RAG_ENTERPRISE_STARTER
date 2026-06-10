@@ -1667,6 +1667,94 @@ The page should read like one coherent operator workflow, not as separate unrela
 
 ---
 
+### Milestone M33 — Governed Semantic Cache Policies, Scoped Enablement, And User Refresh (Gate 33)
+**Why now:** M19 established a safe-by-default semantic cache foundation, but a single retrieval-profile switch is too broad for production use. Cache enablement must account for corpus stability, access scope, question risk, document/index freshness, user transparency, and measurable savings without weakening citation provenance or retrieval security.
+
+**Deliverables**
+- Extend the M19 semantic-cache foundation into explicit, governed cache policies with global default `off`.
+- Add admin-lab controls for candidate cache policies:
+  - enabled/disabled
+  - exact-query matching as the initial supported mode
+  - TTL
+  - maximum active entries
+  - grounded-answer and citation requirements
+  - excluded answer paths, including no-evidence, approval-required, tool-action, and other high-risk responses
+- Support scoped cache eligibility with deterministic precedence:
+  - question-specific allow/deny rule
+  - corpus policy
+  - ACL group/access policy
+  - retrieval-profile default
+  - global default
+- Keep cache identity and authorization boundaries explicit:
+  - ACL/access-scope hash
+  - corpus scope
+  - retrieval mode
+  - active profile/version
+  - corpus/index revision
+  - cited-source reauthorization on every hit
+- Automatically bypass or invalidate cache when:
+  - a document is added, changed, deleted, reindexed, or re-enriched
+  - corpus/index revision changes
+  - ACL membership or direct/time-bound access changes
+  - the active retrieval, embedding, reranker, or generation profile changes in a way that affects the answer
+  - any cited source is no longer accessible
+  - the user explicitly requests a fresh answer
+- Add user-facing cached-answer transparency:
+  - cached-answer indicator
+  - answer age
+  - current source/access validation status
+  - `Refresh using latest documents` action that bypasses cache
+- Record refresh outcomes as tuning evidence:
+  - whether answer text materially changed
+  - whether citations changed
+  - whether additional evidence became available
+  - whether the refreshed result replaced the prior cache entry
+- Add an isolated cache-policy sandbox flow:
+  - cold answer run
+  - exact repeated-query hit
+  - explicit no-cache refresh
+  - document/index revision invalidation
+  - ACL-change invalidation
+  - candidate cache namespace isolated from production
+- Add admin observability by policy and scope:
+  - hit and miss counts
+  - refresh-request rate
+  - latency and estimated generation-cost savings
+  - TTL expiry and invalidation counts by reason
+  - ACL reauthorization misses
+  - materially changed answers after refresh
+- Integrate cache policies with governed promotion and rollback:
+  - promotion activates the policy under a new versioned cache namespace
+  - rollback restores the prior policy
+  - entries created under incompatible or rolled-back versions are not reused
+- Keep semantic-similarity matching disabled until a later measurable implementation proves false-hit safety; do not expose the M19 similarity threshold as an operational control before then.
+
+**DoD**
+- Semantic cache remains globally off unless an admin promotes an explicitly scoped policy.
+- An admin can safely enable exact-query caching for selected corpora, access groups, or approved question rules without enabling it for the entire tool.
+- No cached answer is returned across an incompatible ACL, corpus/index revision, retrieval mode, or profile version.
+- Users can identify cached answers and request a fresh retrieval without understanding internal cache terminology.
+- Known document, index, profile, and access changes bypass stale entries automatically rather than relying on user refresh.
+- Cache savings and freshness failures are measurable enough for an admin to tune or disable the policy.
+- Sandbox cache entries cannot affect live comparisons or production answers.
+- Cache-policy promotion and rollback are versioned, auditable, and reversible.
+
+**Re-run checks**
+- global-off default returns no cache hits
+- enabled stable-corpus policy produces first-request miss and identical-query hit
+- non-eligible corpus, ACL group, and denied question rule bypass cache
+- user with changed or expanded access receives a fresh retrieval
+- revoked source access prevents cached citation reuse
+- document add/update/delete and source reindex invalidate or bypass affected entries
+- retrieval/profile promotion and rollback isolate incompatible cache entries
+- cached-answer indicator and explicit refresh produce a no-cache answer
+- refresh telemetry records answer/citation change outcomes
+- sandbox cold/warm/refresh benchmark does not write to production cache
+- cache hit/miss, invalidation, reauthorization, latency, and estimated savings metrics are visible
+- baseline citation provenance, SQL-level ACL trimming, no-evidence, approval, and tool-action checks still pass
+
+---
+
 ## 4) Definition of Done (global)
 
 A milestone is “done” only if:

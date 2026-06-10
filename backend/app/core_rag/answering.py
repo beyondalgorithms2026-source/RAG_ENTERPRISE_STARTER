@@ -1,6 +1,7 @@
 import json
 import re
 import time
+from datetime import datetime
 from typing import Any, Callable, List, Optional
 
 from pydantic import BaseModel, Field
@@ -12,11 +13,18 @@ from app.core_rag.retrieval import SearchFilters, SearchMode, SearchRequest, per
 from app.auth.context import get_current_user
 from app.db.repo_actions import create_approval_request, create_query_feedback
 from app.db.repo_query_mining import record_query_event
-from app.db.repo_semantic_cache import get_cache_entry, store_cache_entry
+from app.db.repo_semantic_cache import (
+    cache_citation_scope,
+    get_cache_entry,
+    get_cache_entry_by_id,
+    invalidate_cache_entry,
+    policy_allows,
+    store_cache_entry,
+)
+from app.db.repo_semantic_cache_policies import get_active_policy_version, record_policy_event
 from app.db.repo_sources import get_source_by_id
 from app.llm.client import generate_answer
 from app.llm.prompts import REPAIR_PROMPT, SECOND_PASS_PROMPT, SYSTEM_PROMPT, generate_second_pass_prompt, generate_user_prompt
-from app.profiles.resolver import get_effective_retrieval
 
 
 MAX_CHUNK_CHARS = 1500
@@ -40,6 +48,8 @@ class AskRequest(BaseModel):
     exact_phrase_bias: Optional[str] = Field(default=None, description="Optional exact phrase to prioritize")
     expand_neighbors: bool = Field(default=False, description="Include neighboring chunks/pages when retrieval context may be split")
     force_rare_keyword_scan: bool = Field(default=False, description="Run an extra rare-keyword scan inside Deep Research")
+    bypass_cache: bool = Field(default=False, description="Force a fresh retrieval and generation")
+    refresh_cache_entry_id: Optional[int] = Field(default=None, description="Prior cache entry replaced by an explicit refresh")
 
 
 class CitationItem(BaseModel):
@@ -61,6 +71,7 @@ class AskResponse(BaseModel):
     latency_ms: int = 0
     debug_info: Optional[dict[str, Any]] = None
     mode: Optional[str] = None
+    cache_info: Optional[dict[str, Any]] = None
 
 
 def _not_found_answer(question: str) -> str:
@@ -689,14 +700,42 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
     )
 
 
-def perform_ask(request: AskRequest) -> AskResponse:
+def _materially_changed(before: str, after: str) -> bool:
+    before_tokens = set(re.findall(r"[A-Za-z0-9]+", str(before or "").lower()))
+    after_tokens = set(re.findall(r"[A-Za-z0-9]+", str(after or "").lower()))
+    if not before_tokens and not after_tokens:
+        return False
+    overlap = len(before_tokens & after_tokens) / max(len(before_tokens | after_tokens), 1)
+    return overlap < 0.8
+
+
+def perform_ask(
+    request: AskRequest,
+    progress_callback: Optional[Callable[[int, str], None]] = None,
+    *,
+    policy_override: Optional[dict[str, Any]] = None,
+    cache_namespace_override: Optional[str] = None,
+) -> AskResponse:
     actor = get_current_user()
-    retrieval_profile = get_effective_retrieval()
-    if retrieval_profile.semantic_cache_enabled and not request.dry_run:
-        cached = get_cache_entry(question=request.question, retrieval_mode=request.mode, actor=actor)
+    policy = policy_override or get_active_policy_version()
+    prior_cache_entry = get_cache_entry_by_id(request.refresh_cache_entry_id) if request.refresh_cache_entry_id else None
+    cache_status = "bypass"
+    cache_reason = "global_default_off" if not policy else "request_bypass"
+    if policy and not request.dry_run and not request.bypass_cache and not request.refresh_cache_entry_id:
+        cached = get_cache_entry(
+            question=request.question,
+            retrieval_mode=request.mode,
+            actor=actor,
+            policy=policy,
+            cache_namespace=cache_namespace_override,
+        )
         if cached:
+            if progress_callback:
+                progress_callback(100, "Reused a validated answer")
             answer_json = cached.get("answer_json") or {}
             citations_json = cached.get("citations_json") or []
+            created_at = datetime.fromisoformat(str(cached["created_at"]).replace("Z", "+00:00"))
+            age_seconds = max(0, int((datetime.now(created_at.tzinfo) - created_at).total_seconds()))
             return AskResponse(
                 answer=answer_json.get("answer"),
                 citations=[CitationItem(**item) for item in citations_json],
@@ -707,9 +746,19 @@ def perform_ask(request: AskRequest) -> AskResponse:
                     "semantic_cache": {"hit": True, "cache_entry_id": cached.get("id")},
                     "answer_generation_path": "semantic_cache",
                 },
+                cache_info={
+                    "status": "hit",
+                    "entry_id": cached.get("id"),
+                    "age_seconds": age_seconds,
+                    "sources_and_access_checked": True,
+                    "validation_status": "current_access_and_sources_validated",
+                    "refresh_available": True,
+                },
             )
+        cache_status = "miss"
+        cache_reason = "no_eligible_entry"
 
-    response = _perform_ask_internal(request)
+    response = _perform_ask_internal(request, progress_callback=progress_callback)
     debug_info = response.debug_info or {}
     answer_path = str(debug_info.get("answer_generation_path") or "unknown")
     retrieval_trace = debug_info.get("retrieval_trace") or {}
@@ -728,9 +777,31 @@ def perform_ask(request: AskRequest) -> AskResponse:
     except Exception as exc:  # pragma: no cover - observability should not fail answers
         logger.debug("Failed to record query event: %s", exc)
 
-    if retrieval_profile.semantic_cache_enabled and not request.dry_run and response.answer and answer_path not in {"approval_required", "not_found"}:
+    citations_json = [citation.model_dump() for citation in response.citations]
+    _, corpus_names = cache_citation_scope(citations_json)
+    eligible = False
+    eligibility_reason = cache_reason
+    if policy:
+        eligible, eligibility_reason = policy_allows(
+            policy,
+            question=request.question,
+            corpus_names=corpus_names,
+            groups=list(actor.groups if actor else []),
+        )
+    mandatory_exclusions = set(((policy or {}).get("safety") or {}).get("excluded_answer_paths") or [])
+    safe_answer = bool(
+        policy
+        and eligible
+        and not request.dry_run
+        and response.answer
+        and response.citations
+        and answer_path not in mandatory_exclusions
+        and answer_path not in {"approval_required", "pending_approval", "not_found", "tool_action", "failed", "incomplete", "dry_run"}
+    )
+    stored_entry = None
+    if safe_answer:
         try:
-            store_cache_entry(
+            stored_entry = store_cache_entry(
                 question=request.question,
                 retrieval_mode=request.mode,
                 answer_json={
@@ -739,13 +810,75 @@ def perform_ask(request: AskRequest) -> AskResponse:
                     "latency_ms": response.latency_ms,
                     "mode": response.mode,
                 },
-                citations_json=[citation.model_dump() for citation in response.citations],
+                citations_json=citations_json,
                 retrieved_chunk_ids=[int(citation.chunk_id) for citation in response.citations],
-                ttl_seconds=retrieval_profile.semantic_cache_ttl_seconds,
-                metadata_json={"source": "perform_ask"},
+                ttl_seconds=int(policy.get("ttl_seconds") or 900),
+                metadata_json={"source": "perform_ask", "refresh_of": request.refresh_cache_entry_id},
+                policy=policy,
+                cache_namespace=cache_namespace_override,
+                answer_path=answer_path,
+                original_latency_ms=response.latency_ms,
             )
+            cache_status = "stored"
+            cache_reason = "eligible_grounded_answer"
         except Exception as exc:  # pragma: no cover - cache should not fail answers
             logger.debug("Failed to store semantic cache entry: %s", exc)
+            cache_status = "bypass"
+            cache_reason = "store_failed"
+    elif policy:
+        record_policy_event(
+            event_type="bypass",
+            reason=eligibility_reason if not eligible else "mandatory_safety_gate",
+            policy_version_id=policy.get("id"),
+            actor=actor,
+            metadata_json={"answer_path": answer_path, "citation_count": len(response.citations), "corpora": corpus_names},
+        )
+
+    refresh_details: dict[str, Any] = {}
+    if request.refresh_cache_entry_id and prior_cache_entry:
+        invalidate_cache_entry(request.refresh_cache_entry_id, reason="user_refresh")
+        prior_answer = str((prior_cache_entry.get("answer_json") or {}).get("answer") or "")
+        prior_citations = {
+            (int(item.get("source_id")), int(item.get("chunk_id")))
+            for item in (prior_cache_entry.get("citations_json") or [])
+            if item.get("source_id") is not None and item.get("chunk_id") is not None
+        }
+        current_citations = {(item.source_id, item.chunk_id) for item in response.citations}
+        changed = _materially_changed(prior_answer, response.answer or "")
+        citations_changed = prior_citations != current_citations
+        additional_evidence = len(current_citations - prior_citations) > 0
+        record_policy_event(
+            event_type="refresh_changed" if changed or citations_changed else "refresh",
+            reason="user_requested_latest_documents",
+            policy_version_id=(policy or {}).get("id"),
+            cache_entry_id=request.refresh_cache_entry_id,
+            actor=actor,
+            metadata_json={
+                "answer_materially_changed": changed,
+                "citations_changed": citations_changed,
+                "additional_evidence": additional_evidence,
+                "replacement_entry_id": (stored_entry or {}).get("id"),
+            },
+        )
+        cache_status = "refreshed"
+        cache_reason = "user_requested_latest_documents"
+        refresh_details = {
+            "materially_changed": changed,
+            "citations_changed": citations_changed,
+            "additional_evidence": additional_evidence,
+            "replaced_entry": bool(stored_entry),
+        }
+
+    response.cache_info = {
+        "status": cache_status,
+        "entry_id": (stored_entry or {}).get("id"),
+        "age_seconds": 0 if stored_entry else None,
+        "sources_and_access_checked": True,
+        "validation_status": "fresh_retrieval",
+        "refresh_available": bool(stored_entry),
+        "reason": cache_reason,
+        **refresh_details,
+    }
     return response
 
 

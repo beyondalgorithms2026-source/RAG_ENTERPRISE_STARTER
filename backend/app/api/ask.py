@@ -9,7 +9,7 @@ from app.auth.context import AuthenticatedUser, reset_current_user, set_current_
 from app.auth.dependencies import require_ask_user
 from app.core.config import settings
 from app.core.rate_limit import rate_limit_ask, rate_limit_ask_stream
-from app.core_rag.answering import AskRequest, AskResponse, perform_ask, _perform_ask_internal
+from app.core_rag.answering import AskRequest, AskResponse, perform_ask
 from app.db.repo_governance import is_restricted
 from app.llm.client import verify_llm_ready
 
@@ -73,7 +73,7 @@ def ask_stream_endpoint(
             try:
                 emit(4, "Receiving question")
                 emit(8, "Routing retrieval strategy")
-                result = _perform_ask_internal(request, progress_callback=emit)
+                result = perform_ask(request, progress_callback=emit)
                 events.put(result)
             except Exception as exc:  # pragma: no cover - surfaced to client
                 events.put(exc)

@@ -155,6 +155,9 @@ def replace_user_memberships(*, external_user_id: str, group_names: list[str]) -
                 ),
                 {"user_id": principal_id, "group_id": group_id},
             )
+    from app.db.repo_semantic_cache import bump_cache_revision
+
+    bump_cache_revision(scope_type="access", reason=f"user_memberships:{external_user_id}")
 
 
 def assign_document_acl(*, source_id: int, group_names: list[str]) -> None:
@@ -172,6 +175,9 @@ def assign_document_acl(*, source_id: int, group_names: list[str]) -> None:
                 ),
                 {"source_id": source_id, "group_id": int(group_id)},
             )
+    from app.db.repo_semantic_cache import bump_cache_revision
+
+    bump_cache_revision(scope_type="access", reason=f"document_acl:{source_id}")
 
 
 def replace_source_acl(*, source_id: int, group_names: list[str]) -> None:

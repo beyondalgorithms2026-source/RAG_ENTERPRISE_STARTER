@@ -427,7 +427,8 @@ def promote_candidate_to_live(
         )
     for profile_type, profile_name in selected_profiles.items():
         set_active_profile(profile_type, profile_name)
-    live_after = sync_live_configuration_record()
+    sync_live_configuration_record()
+    live_after = get_live_configuration()
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -483,7 +484,8 @@ def rollback_to_version(*, version_label: str, reason: str, actor: Optional[Auth
     live_before = get_live_configuration()
     for profile_type, profile_name in selected_profiles.items():
         set_active_profile(profile_type, profile_name)
-    live_after = sync_live_configuration_record()
+    sync_live_configuration_record()
+    live_after = get_live_configuration()
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -511,7 +513,10 @@ def rollback_to_version(*, version_label: str, reason: str, actor: Optional[Auth
                 "actor_email": actor.email if actor else None,
             },
         )
-    return {"rolled_back_to": version_label, "live_configuration": live_after, "previous_live_configuration": live_before}
+    target["selected_profiles"] = target.pop("selected_profiles_json", {})
+    target["resolved_config"] = target.pop("resolved_config_json", {})
+    target["lineage"] = target.pop("lineage_json", {})
+    return {"rolled_back_to": target, "live_configuration": live_after, "previous_live_configuration": live_before}
 
 
 def create_embedding_experiment(

@@ -23,6 +23,16 @@ export type ThreadMessage = {
   usedChunksCount?: number | null;
   mode?: string | null;
   debugInfo?: Record<string, unknown> | null;
+  cacheInfo?: {
+    status?: string;
+    entry_id?: number | null;
+    age_seconds?: number | null;
+    sources_and_access_checked?: boolean;
+    materially_changed?: boolean | null;
+    citations_changed?: boolean | null;
+    additional_evidence?: boolean | null;
+    replaced_entry?: boolean | null;
+  } | null;
 };
 
 export type ThreadRecord = {

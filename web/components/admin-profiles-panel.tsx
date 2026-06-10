@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 
 import { browserFetch } from "@/lib/api-browser";
 
@@ -104,6 +105,27 @@ function transformSummaryText(value: unknown) {
       ].filter(Boolean);
   const label = strategy.length ? strategy.join(", ") : "configured";
   return `Enabled: ${label}`;
+}
+
+function candidateRetrievalSummary(config: Record<string, unknown>, retrievalK: number) {
+  const mode = String(config.default_mode || "hybrid")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const parts = [mode, `K ${retrievalK}`];
+
+  if (!Boolean(config.query_transform_enabled)) {
+    return [...parts, "Transform off"].join(" · ");
+  }
+
+  const strategies = [
+    config.rewrite_enabled ? "Rewrite" : "",
+    config.expansion_enabled ? "Expansion" : "",
+    config.hyde_enabled ? "HyDE" : "",
+  ].filter(Boolean);
+  parts.push(strategies.length ? strategies.join(" + ") : "Transform enabled");
+  parts.push(`${Number(config.transform_max_variants ?? 3)} variants`);
+  parts.push(`${Number(config.transform_timeout_ms ?? 750)} ms`);
+  return parts.join(" · ");
 }
 
 function formatTimestamp(value: unknown) {
@@ -510,7 +532,7 @@ export function ProfilesAdminPanel() {
       return;
     }
     if (!isPreparedCurrent) {
-      setError("Sandbox inputs changed after preparation. Run Sandbox Test again to refresh the candidate snapshot before compare.");
+      setError("Sandbox inputs changed after preparation. Prepare Candidate again to refresh the candidate snapshot before compare.");
       return;
     }
     setIsComparing(true);
@@ -628,6 +650,14 @@ export function ProfilesAdminPanel() {
     },
   ];
   const cacheStats = (tuningOps.semanticCache.cache || tuningOps.semanticCache) as GenericMap;
+  const cachePolicies = Array.isArray(tuningOps.semanticCache.policies) ? tuningOps.semanticCache.policies as GenericMap[] : [];
+  const cacheMetrics = (tuningOps.semanticCache.metrics || {}) as GenericMap;
+  const activeCachePolicy = cachePolicies.find((policy) => String(policy.status) === "active") || null;
+  const activeCacheVersion = (activeCachePolicy?.active_version || {}) as GenericMap;
+  const cacheScopeCount =
+    (Array.isArray(activeCacheVersion.allow_corpora) ? activeCacheVersion.allow_corpora.length : 0)
+    + (Array.isArray(activeCacheVersion.allow_groups) ? activeCacheVersion.allow_groups.length : 0)
+    + (Array.isArray(activeCacheVersion.allow_questions) ? activeCacheVersion.allow_questions.length : 0);
   const currentLiveSignature = selectedProfilesSignature(tuningPayload.live_configuration?.selected_profiles);
   const liveHistoryVersions = useMemo(() => {
     const versions = tuningHistory.versions.filter((version) => String(version.config_kind) === "live");
@@ -699,6 +729,15 @@ export function ProfilesAdminPanel() {
                       <strong>
                         {`Master ${Boolean(liveRetrievalConfig.query_transform_enabled) ? "on" : "off"} · Rewrite ${Boolean(liveRetrievalConfig.rewrite_enabled) ? "on" : "off"} · Expansion ${Boolean(liveRetrievalConfig.expansion_enabled) ? "on" : "off"} · HyDE ${Boolean(liveRetrievalConfig.hyde_enabled) ? "on" : "off"}`}
                       </strong>
+                    </div>
+                    <div>
+                      <span className="muted-copy">Cache Posture</span>
+                      <strong>{activeCachePolicy ? `Scoped Policy Active · ${String(activeCachePolicy.name)} v${String(activeCacheVersion.version_number || "")}` : "Globally Off"}</strong>
+                      <small>
+                        {activeCachePolicy
+                          ? `${cacheScopeCount} eligible scopes · ${String(activeCacheVersion.ttl_seconds || 0)}s TTL · activated ${formatTimestamp(activeCacheVersion.activated_at)}`
+                          : "No retrieval or sandbox action can enable caching."}
+                      </small>
                     </div>
                     <button type="button" className="button button-secondary" onClick={scrollToVersionHistory}>
                       View Version History
@@ -924,12 +963,8 @@ export function ProfilesAdminPanel() {
                   <strong>{selectedOptionLabels.llm}</strong>
                 </article>
                 <article className="tuning-lab-candidate-stat">
-                  <span>Context Strategy</span>
-                  <strong>{selectedOptionLabels.retrieval}</strong>
-                </article>
-                <article className="tuning-lab-candidate-stat">
-                  <span>Query Transform</span>
-                  <strong>{transformSummaryText(candidateRetrievalConfig)}</strong>
+                  <span>Candidate Retrieval Configuration</span>
+                  <strong>{candidateRetrievalSummary(candidateRetrievalConfig, tuningControls.retrievalK)}</strong>
                 </article>
                 <article className="tuning-lab-candidate-expected">
                   <span>Expected Change</span>
@@ -948,7 +983,7 @@ export function ProfilesAdminPanel() {
 
                 <div className="tuning-lab-candidate-actions">
                   <button type="button" className="button button-primary tuning-lab-run-button" onClick={prepareSandboxCandidate} disabled={isComparing || isLoading}>
-                    Run Sandbox Test
+                    Prepare Candidate
                   </button>
                   {editingDraftId ? (
                     <button type="button" className="button button-secondary" onClick={resetDraftForm}>
@@ -981,10 +1016,10 @@ export function ProfilesAdminPanel() {
           <span className="material-symbols-outlined">info</span>
           <p>
             {!preparedCandidate
-              ? "Workflow: choose the candidate settings, run Sandbox Test to freeze the candidate snapshot, then ask a question with Run Compare."
+              ? "Workflow: choose the candidate settings, prepare the candidate snapshot, then ask a question with Run Compare."
               : isPreparedCurrent
                 ? `Sandbox ready. Compare will run against the prepared candidate snapshot from ${formatTimestamp(preparedCandidate.prepared_at)}.`
-                : "Candidate inputs changed after the last sandbox preparation. Run Sandbox Test again before compare."}
+                : "Candidate inputs changed after the last sandbox preparation. Prepare Candidate again before compare."}
           </p>
         </div>
 
@@ -1131,11 +1166,35 @@ export function ProfilesAdminPanel() {
         ) : null}
       </section>
 
+      <section className="card tuning-lab-cache-governance">
+        <div className="section-head">
+          <div>
+            <h2>Semantic Cache Governance</h2>
+            <p>Global default: Off. No answer is cached unless it matches an activated scoped policy.</p>
+          </div>
+          <span className={`badge ${activeCachePolicy ? "is-good" : ""}`}>{activeCachePolicy ? "Scoped Policy Active" : "Globally Off"}</span>
+        </div>
+        <div className="tuning-lab-cache-metrics">
+          <article><span>Active Policy</span><strong>{activeCachePolicy ? `${String(activeCachePolicy.name)} · v${String(activeCacheVersion.version_number || "")}` : "None"}</strong></article>
+          <article><span>Eligible Scopes</span><strong>{cacheScopeCount}</strong></article>
+          <article><span>TTL / Capacity</span><strong>{activeCachePolicy ? `${String(activeCacheVersion.ttl_seconds || 0)}s · ${String(activeCacheVersion.max_active_entries || 0)} entries` : "Not active"}</strong></article>
+          <article><span>Hits / Misses / Refreshes</span><strong>{`${String(cacheMetrics.hit_count || 0)} / ${String(cacheMetrics.miss_count || 0)} / ${String(cacheMetrics.refresh_count || 0)}`}</strong></article>
+          <article><span>Active Entries</span><strong>{String(cacheStats.active_entries || 0)}</strong></article>
+          <article><span>Validation Health</span><strong>{Number(cacheMetrics.reauthorization_miss_count || 0) === 0 ? "Healthy" : `${String(cacheMetrics.reauthorization_miss_count)} blocked stale reuses`}</strong></article>
+        </div>
+        <div className="toolbar-inline">
+          <Link className="button button-primary" href="/console/admin/profiles/cache-policy">Manage Cache Policy</Link>
+          <button type="button" className="button button-secondary" disabled={isOpsBusy !== "" || !activeCachePolicy} onClick={() => runOpsAction("clear-cache")}>
+            {isOpsBusy === "clear-cache" ? "Clearing..." : "Clear Active Entries"}
+          </button>
+        </div>
+      </section>
+
       <section className="card tuning-lab-ops-shell">
         <div className="section-head">
           <div>
             <h2>Retrieval Ops Guardrails</h2>
-            <p>Later M17.b.3-M21 capabilities are visible here: rollout safety, transform observability, semantic cache health, query mining, and misuse governance.</p>
+            <p>Rollout safety, transform observability, query mining, and misuse governance remain visible here.</p>
           </div>
           <span className="badge is-good">M17.b.3 → M21</span>
         </div>
@@ -1145,15 +1204,6 @@ export function ProfilesAdminPanel() {
             <span>Query Transformation</span>
             <strong>{transformSummaryText((liveResolved.retrieval || {}).config)}</strong>
             <p>{`Live retrieval profile ${String(liveSelected.retrieval || "default")} controls rewrite, expansion, and HyDE. Decisions are stored in retrieval traces and now visible in sandbox compare output.`}</p>
-          </article>
-
-          <article className="tuning-lab-ops-card">
-            <span>Semantic Cache</span>
-            <strong>{String(cacheStats.active_entries ?? 0)} active entries</strong>
-            <p>{String(cacheStats.hit_count ?? 0)} recorded hits. Cache keys include ACL scope, profile snapshot, corpus scope, and retrieval mode.</p>
-            <button type="button" className="button button-secondary" disabled={isOpsBusy !== ""} onClick={() => runOpsAction("clear-cache")}>
-              {isOpsBusy === "clear-cache" ? "Clearing..." : "Clear Cache"}
-            </button>
           </article>
 
           <article className="tuning-lab-ops-card">
