@@ -2,7 +2,6 @@ import json
 import logging
 import sys
 from typing import Any
-import os
 from dotenv import load_dotenv
 
 from app.auth.context import get_current_user
@@ -20,8 +19,10 @@ def setup_logging() -> None:
 
 
 setup_logging()
-database_name_local=os.getenv("DATABASE_NAME")
-logger = logging.getLogger(database_name_local)
+# Stable application logger name. Deriving it from DATABASE_NAME made logger
+# identity (and log-capture tests) depend on the local .env; unset it resolved
+# to the root logger.
+logger = logging.getLogger("rag_mm_master_poc")
 
 
 def _normalize_log_value(value: Any) -> Any:

@@ -10,7 +10,11 @@
     "expected": {
       "min_used_chunks": 1,
       "citation_count": 0,
-      "required_debug_keys": ["mode", "system_prompt", "user_prompt"],
+      "required_debug_keys": [
+        "mode",
+        "system_prompt",
+        "user_prompt"
+      ],
       "debug_mode": "keyword"
     }
   },
@@ -22,12 +26,16 @@
       "k_chunks": 4,
       "dry_run": false
     },
-    "mock_llm_content": "{\"answer\":\"Supported [S1] and fake [S9]\",\"citations\":[\"S1\",\"S9\"]}",
+    "mock_llm_content": "{\"answer\":\"The keywordbanana lexical signal text is supported by the retrieved source [S1] and a fabricated citation [S9]\",\"citations\":[\"S1\",\"S9\"]}",
     "expected": {
       "min_used_chunks": 1,
       "citation_count": 1,
-      "answer_contains": ["[S1]"],
-      "answer_excludes": ["[S9]"]
+      "answer_contains": [
+        "[S1]"
+      ],
+      "answer_excludes": [
+        "[S9]"
+      ]
     }
   },
   {

@@ -449,7 +449,13 @@ def _extract_request_filters(request: SearchRequest) -> tuple[Optional[str], Opt
 
 def _resolve_mode(request: SearchRequest) -> tuple[str, QueryRouteDecision]:
     source_id = request.filters.source_id if request.filters else None
-    default_mode = get_source_corpus_policy(source_id).retrieval_default_mode if source_id is not None else _default_mode()
+    # A named corpus policy owns the default mode; sources that fall back to the
+    # generic "default" policy respect the operator's RETRIEVAL_MODE setting.
+    source_policy = get_source_corpus_policy(source_id) if source_id is not None else None
+    if source_policy is not None and source_policy.name != "default":
+        default_mode = source_policy.retrieval_default_mode
+    else:
+        default_mode = _default_mode()
     decision = route_query(
         question=request.question,
         explicit_mode=request.mode,
@@ -974,9 +980,12 @@ def perform_search(request: SearchRequest) -> SearchResponse:
     source_type, source_id, source_part_id, locator_filter, metadata_filters = _extract_request_filters(request)
     source_policy = get_source_corpus_policy(source_id)
     retrieval_profile = get_effective_retrieval()
-    transform_result = transform_query(request.question, retrieval_profile)
+    # Transform the operative query text: a caller-supplied custom_query is the
+    # retrieval query and must not be clobbered by a transform of the question.
+    base_query = _resolve_query_text(request)
+    transform_result = transform_query(base_query, retrieval_profile)
     retrieval_request = request
-    if transform_result.effective_query and transform_result.effective_query != _resolve_query_text(request):
+    if transform_result.effective_query and transform_result.effective_query != base_query:
         retrieval_request = request.model_copy(update={"custom_query": transform_result.effective_query})
 
     log_event(

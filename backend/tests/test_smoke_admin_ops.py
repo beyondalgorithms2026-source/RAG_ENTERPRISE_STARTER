@@ -91,7 +91,7 @@ class SmokeTestAdminOps(SmokeTestBase):
                 ),
                 {"alpha_source_id": alpha_source_id, "beta_source_id": beta_source_id},
             ).fetchall()
-        update_chunk_embeddings([(row[0], [1.0] + [0.0] * 383) for row in rows])
+        update_chunk_embeddings([(row[0], basis_vector(1.0)) for row in rows])
         assign_document_acl(source_id=alpha_source_id, group_names=["group-alpha"])
         assign_document_acl(source_id=beta_source_id, group_names=["group-beta"])
         return {"alpha_source_id": alpha_source_id, "beta_source_id": beta_source_id}
@@ -109,7 +109,7 @@ class SmokeTestAdminOps(SmokeTestBase):
         original_embed_texts = retrieval_module.embed_texts
         token = None
         try:
-            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
             alpha_user = AuthenticatedUser(user_id="user-alpha", email="alpha@example.com", groups=["group-alpha"], roles=["user"])
             sync_authenticated_user(alpha_user)
             token = set_current_user(alpha_user)
@@ -143,7 +143,7 @@ class SmokeTestAdminOps(SmokeTestBase):
 
         original_embed_texts = retrieval_module.embed_texts
         try:
-            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
             for case in cases:
                 user = AuthenticatedUser(
                     user_id=case["user_id"],
@@ -181,13 +181,18 @@ class SmokeTestAdminOps(SmokeTestBase):
 
         client = TestClient(app)
         original_auth_enabled = settings.AUTH_ENABLED
+        original_auth_mode = settings.AUTH_MODE
         original_build_login_url = auth_api.build_login_url
         try:
             settings.AUTH_ENABLED = True
+            # Pin OIDC mode: under AUTH_MODE=dev the login route redirects to the
+            # local dev login instead of the issuer (environment-coupled otherwise).
+            settings.AUTH_MODE = "oidc"
             auth_api.build_login_url = lambda next_path: ("https://issuer.example.com/authorize?state=fake", "signed-state")
             response = client.get("/auth/login", params={"next_path": "/frontend/"}, follow_redirects=False)
         finally:
             settings.AUTH_ENABLED = original_auth_enabled
+            settings.AUTH_MODE = original_auth_mode
             auth_api.build_login_url = original_build_login_url
 
         self.assertEqual(response.status_code, 302)
@@ -235,7 +240,7 @@ class SmokeTestAdminOps(SmokeTestBase):
                 roles=["user", "admin"],
                 issuer="https://issuer.example.com",
             )
-            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
             answering_module.generate_answer = lambda system_prompt, user_prompt: {
                 "success": True,
                 "content": "{\"answer\":\"The answer confirms the alpha semantic vector match text in the retrieved source [S1]\",\"citations\":[\"S1\"]}",
@@ -307,7 +312,7 @@ class SmokeTestAdminOps(SmokeTestBase):
                 email="admin@example.com",
                 roles=["user", "admin"],
             )
-            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
             admin_api.admin_reindex_source = lambda source_id, force=False: {
                 "status": "completed",
                 "source_id": source_id,
@@ -685,6 +690,39 @@ class SmokeTestAdminOps(SmokeTestBase):
             settings.AUTH_ENABLED = original_auth_enabled
             main_module.authenticate_request = original_authenticate
 
+    def test_approved_gpt_oss_cloud_model_is_available_to_sandbox(self):
+        from fastapi.testclient import TestClient
+
+        import app.main as main_module
+        from app.auth.context import AuthenticatedUser
+
+        run_migrations()
+        client = TestClient(app)
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_authenticate = main_module.authenticate_request
+        try:
+            settings.AUTH_ENABLED = True
+            main_module.authenticate_request = lambda request: AuthenticatedUser(
+                user_id="admin-model-registry",
+                email="admin.model.registry@example.com",
+                roles=["admin"],
+                groups=["ops"],
+            )
+
+            response = client.get("/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"})
+            self.assertEqual(response.status_code, 200)
+            approved_llms = {
+                option["name"]: option
+                for option in response.json()["approved_options"]["llm"]
+            }
+            self.assertIn("gpt_oss_20b_cloud", approved_llms)
+            self.assertEqual(approved_llms["gpt_oss_20b_cloud"]["model"], "gpt-oss:20b-cloud")
+            self.assertEqual(approved_llms["gpt_oss_20b_cloud"]["display_name"], "GPT-OSS 20B Cloud")
+            self.assertNotIn("deepseek_v3_1_cloud", approved_llms)
+        finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_authenticate
+
     def test_m17_b_2_interactive_sandbox_compare_and_embedding_scope_warning(self):
         from fastapi.testclient import TestClient
 
@@ -708,7 +746,7 @@ class SmokeTestAdminOps(SmokeTestBase):
                 roles=["admin"],
                 groups=["ops"],
             )
-            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
             answering_module.generate_answer = lambda system_prompt, user_prompt: {
                 "success": True,
                 "content": "{\"answer\":\"Sandbox compare confirms the alpha semantic vector match text in the retrieved source [S1]\",\"citations\":[\"S1\"]}",
@@ -716,6 +754,9 @@ class SmokeTestAdminOps(SmokeTestBase):
 
             tuning_payload = client.get("/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"}).json()
             selected_profiles = dict(tuning_payload["live_configuration"]["selected_profiles"])
+            # Pin a native-sampling LLM: prompt_json_only models force temperature
+            # to 0.0, so the 0.7 override assertion depends on the model choice.
+            selected_profiles["llm"] = "llama3_2_3b"
 
             compare_response = client.post(
                 "/admin/tuning/compare",
@@ -778,9 +819,10 @@ class SmokeTestAdminOps(SmokeTestBase):
 
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
-        from app.db.repo_profiles import upsert_profile
-
         run_migrations()
+        # This test exercises real DB-backed profile activation end to end; the
+        # harness restores the previous active profiles in tearDown.
+        self._unpin_test_profiles()
         client = TestClient(app)
         original_auth_enabled = settings.AUTH_ENABLED
         original_authenticate = main_module.authenticate_request
@@ -850,14 +892,9 @@ class SmokeTestAdminOps(SmokeTestBase):
             audit_response = client.get("/admin/audit-log", headers={"Authorization": "Bearer fake-token"})
             actions = {item["action"] for item in audit_response.json()["events"]}
             self.assertTrue({"profile.create", "profile.update", "profile.activate"}.issubset(actions))
-
-            upsert_profile("retrieval", "default", base_retrieval, is_default=True)
-            client.post(
-                "/admin/profiles/active",
-                json={"profile_type": "retrieval", "profile_name": "default"},
-                headers={"Authorization": "Bearer fake-token"},
-            )
         finally:
+            # Active-profile restoration is handled by the harness tearDown
+            # snapshot; do not overwrite the "default" profile config here.
             settings.AUTH_ENABLED = original_auth_enabled
             main_module.authenticate_request = original_authenticate
 
@@ -884,7 +921,7 @@ class SmokeTestAdminOps(SmokeTestBase):
                 roles=["admin"],
                 groups=["ops"],
             )
-            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
             answering_module.generate_answer = lambda system_prompt, user_prompt: {
                 "success": True,
                 "content": "{\"answer\":\"Sandbox compare confirms the alpha semantic vector match text in the retrieved source [S1]\",\"citations\":[\"S1\"]}",
@@ -1113,12 +1150,24 @@ class SmokeTestAdminOps(SmokeTestBase):
         client = TestClient(app)
         import app.core_rag.retrieval as retrieval_module
         import app.core_rag.answering as answering_module
+        import app.main as main_module
+        from app.auth.context import AuthenticatedUser
 
         original_embed_texts = retrieval_module.embed_texts
         original_generate_answer = answering_module.generate_answer
+        # Admin trace endpoints require an authenticated admin (M23 hardening).
+        original_auth_enabled = settings.AUTH_ENABLED
+        original_authenticate = main_module.authenticate_request
+        settings.AUTH_ENABLED = True
+        main_module.authenticate_request = lambda request: AuthenticatedUser(
+            user_id="admin-m2-traces",
+            email="admin.m2.traces@example.com",
+            roles=["admin"],
+            groups=["ops"],
+        )
         trace_request_id = None
         try:
-            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
             answering_module.generate_answer = lambda system_prompt, user_prompt: {
                 "success": True,
                 "content": "{\"answer\":\"The answer confirms the alpha semantic vector match text in the retrieved source [S1]\",\"citations\":[\"S1\"]}",
@@ -1131,6 +1180,10 @@ class SmokeTestAdminOps(SmokeTestBase):
                     filters=SearchFilters(source_id=seeded["pdf_source_id"]),
                 )
             )
+        except BaseException:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_authenticate
+            raise
         finally:
             retrieval_module.embed_texts = original_embed_texts
             answering_module.generate_answer = original_generate_answer
@@ -1166,6 +1219,8 @@ class SmokeTestAdminOps(SmokeTestBase):
             self.assertIn("retrieval", listing_json["active_profiles"])
             self.assertIn("default_mode", listing_json["retrieval_settings"])
         finally:
+            settings.AUTH_ENABLED = original_auth_enabled
+            main_module.authenticate_request = original_authenticate
             if trace_request_id:
                 with engine.begin() as conn:
                     conn.execute(text("DELETE FROM retrieval_traces WHERE request_id = :request_id"), {"request_id": trace_request_id})
@@ -1188,7 +1243,7 @@ class SmokeTestAdminOps(SmokeTestBase):
             import app.core_rag.retrieval as retrieval_module
 
             original_embed_texts = retrieval_module.embed_texts
-            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
             try:
                 perform_search(
                     SearchRequest(
@@ -1225,7 +1280,7 @@ class SmokeTestAdminOps(SmokeTestBase):
             self._delete_seed_source(result["source_id"])
 
     def test_m21_admin_reindex_rebuilds_from_known_safe_point(self):
-        from app.ingestion.jobs import admin_reindex_source
+        from app.ingestion.jobs import admin_reindex_source, run_queued_ingestion_job
 
         unique_name = f"m21-reindex-{uuid4().hex[:8]}.pdf"
         upload = UploadFile(
@@ -1243,8 +1298,11 @@ class SmokeTestAdminOps(SmokeTestBase):
             first_part_count = self._source_part_count(source_id)
             rerun = admin_reindex_source(source_id=source_id)
 
-            self.assertEqual(rerun["status"], "completed")
+            # Reindex enqueues a job; run it synchronously since the in-process
+            # queue worker is not started inside the test runner.
+            self.assertEqual(rerun["status"], "queued")
             self.assertGreater(rerun["job_id"], 0)
+            run_queued_ingestion_job(rerun["job_id"])
             self.assertEqual(self._source_chunk_count(source_id), first_chunk_count)
             self.assertEqual(self._source_part_count(source_id), first_part_count)
             source = get_source_by_id(source_id)

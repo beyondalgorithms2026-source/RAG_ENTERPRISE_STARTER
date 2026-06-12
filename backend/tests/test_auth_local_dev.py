@@ -156,7 +156,9 @@ class DevAuthTests(unittest.TestCase):
         import app.main as main_module
 
         observed: dict[str, object] = {}
-        original_impl = ask_module._perform_ask_internal
+        # M33 moved _perform_ask_internal to app.core_rag.answering; the stream
+        # worker thread calls perform_ask through the ask module namespace.
+        original_impl = ask_module.perform_ask
         original_verify = ask_module.verify_llm_ready
         original_sync = main_module.sync_authenticated_user
 
@@ -171,7 +173,7 @@ class DevAuthTests(unittest.TestCase):
                 progress_callback(42, "Checked auth context")
             return ask_module.AskResponse(answer="ok", citations=[], used_chunks_count=0, latency_ms=1, mode="hybrid")
 
-        ask_module._perform_ask_internal = fake_perform
+        ask_module.perform_ask = fake_perform
         ask_module.verify_llm_ready = lambda: True
         main_module.sync_authenticated_user = lambda user: None
 
@@ -197,7 +199,7 @@ class DevAuthTests(unittest.TestCase):
                 },
             )
         finally:
-            ask_module._perform_ask_internal = original_impl
+            ask_module.perform_ask = original_impl
             ask_module.verify_llm_ready = original_verify
             main_module.sync_authenticated_user = original_sync
 

@@ -168,16 +168,18 @@ APPROVED_PROFILE_SEEDS: dict[str, list[dict[str, Any]]] = {
             },
         },
         {
-            "name": "deepseek_v3_1_cloud",
+            "name": "gpt_oss_20b_cloud",
             "config": {
                 "provider": "ollama",
-                "model": "deepseek-v3.1:671b-cloud",
+                "model": "gpt-oss:20b-cloud",
                 "base_url": "http://localhost:11434",
                 "api_key": "",
                 "timeout_s": 60,
                 "temperature": 0.0,
                 "max_tokens": None,
-                "display_name": "DeepSeek v3.1 Cloud",
+                "display_name": "GPT-OSS 20B Cloud",
+                "structured_output_mode": "prompt_json_only",
+                "reasoning_effort": "none",
                 "registry_entry": True,
                 "approval_status": "approved",
             },
@@ -251,6 +253,12 @@ def set_active_profile(profile_type: str, profile_name: str) -> None:
     profile = get_profile(profile_type, profile_name)
     if not profile:
         raise ValueError(f"Profile '{profile_name}' of type '{profile_type}' not found")
+    # AR2: drafts may only reach live through promotion, which renames them.
+    if str(profile_name or "").strip().lower().startswith("draft-"):
+        raise ValueError(
+            f"Profile '{profile_name}' is a draft and cannot be activated as live; "
+            "promote it through the tuning workflow."
+        )
     sql = """
         INSERT INTO active_profiles (profile_type, profile_name, updated_at)
         VALUES (:pt, :pn, now())
@@ -314,6 +322,22 @@ def is_registry_approved_profile(profile_type: str, profile_name: str) -> bool:
     return bool(config.get("registry_entry")) and str(config.get("approval_status", "")).lower() == "approved"
 
 
+def _retire_replaced_llm_profiles() -> None:
+    replacements = {
+        "deepseek_v3_1_cloud": "gpt_oss_20b_cloud",
+    }
+    for legacy_name, replacement_name in replacements.items():
+        legacy = get_profile("llm", legacy_name)
+        if not legacy:
+            continue
+        legacy_config = dict(legacy["config_json"] or {})
+        legacy_config["approval_status"] = "retired"
+        legacy_config["replacement_profile"] = replacement_name
+        upsert_profile("llm", legacy_name, legacy_config, is_default=False)
+        if get_active_profile_name("llm") == legacy_name:
+            set_active_profile("llm", replacement_name)
+
+
 def seed_default_profiles(settings) -> None:
     with engine.connect() as conn:
         count = conn.execute(text("SELECT COUNT(*) FROM profiles")).scalar()
@@ -355,6 +379,8 @@ def seed_default_profiles(settings) -> None:
         "api_key": settings.LLM_API_KEY,
         "timeout_s": settings.LLM_TIMEOUT_S,
         "temperature": 0.0,
+        "structured_output_mode": "prompt_json_only" if settings.LLM_MODEL == "gpt-oss:20b-cloud" else "native_json",
+        "reasoning_effort": "none" if settings.LLM_MODEL == "gpt-oss:20b-cloud" else None,
     }, is_default=True)
 
     upsert_profile("retrieval", "default", {
@@ -390,6 +416,8 @@ def seed_default_profiles(settings) -> None:
                 upsert_profile(profile_type, entry["name"], entry_config, is_default=False)
             else:
                 upsert_profile(profile_type, entry["name"], dict(entry["config"]), is_default=False)
+
+    _retire_replaced_llm_profiles()
 
     # Set all as active on first seed only or when missing.
     for pt in ("embedding", "reranker", "llm", "retrieval", "eval_pack"):

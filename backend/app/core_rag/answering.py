@@ -24,7 +24,7 @@ from app.db.repo_semantic_cache import (
 from app.db.repo_semantic_cache_policies import get_active_policy_version, record_policy_event
 from app.db.repo_sources import get_source_by_id
 from app.llm.client import generate_answer
-from app.llm.prompts import REPAIR_PROMPT, SECOND_PASS_PROMPT, SYSTEM_PROMPT, generate_second_pass_prompt, generate_user_prompt
+from app.llm.prompts import SECOND_PASS_PROMPT, SYSTEM_PROMPT, generate_json_repair_prompt, generate_second_pass_prompt, generate_user_prompt
 
 
 MAX_CHUNK_CHARS = 1500
@@ -72,6 +72,11 @@ class AskResponse(BaseModel):
     debug_info: Optional[dict[str, Any]] = None
     mode: Optional[str] = None
     cache_info: Optional[dict[str, Any]] = None
+
+
+class GroundedAnswerPayload(BaseModel):
+    answer: str
+    citations: list[str] = Field(default_factory=list)
 
 
 def _not_found_answer(question: str) -> str:
@@ -135,16 +140,65 @@ def _build_context_blocks(raw_chunks) -> list[dict[str, Any]]:
     return context_blocks
 
 
+def _balanced_json_objects(raw_content: str) -> list[str]:
+    candidates: list[str] = []
+    start: Optional[int] = None
+    depth = 0
+    in_string = False
+    escaped = False
+    for index, char in enumerate(str(raw_content or "")):
+        if start is None:
+            if char == "{":
+                start = index
+                depth = 1
+            continue
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                candidates.append(str(raw_content)[start:index + 1])
+                start = None
+    return candidates
+
+
 def _parse_llm_json(raw_content: str):
-    try:
-        return json.loads(raw_content)
-    except json.JSONDecodeError:
-        return None
+    normalized = str(raw_content or "").strip()
+    candidates = [normalized]
+    fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", normalized, flags=re.IGNORECASE | re.DOTALL)
+    if fenced:
+        candidates.insert(0, fenced.group(1).strip())
+    candidates.extend(_balanced_json_objects(normalized))
+    seen: set[str] = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        try:
+            parsed = json.loads(candidate)
+            return GroundedAnswerPayload.model_validate(parsed).model_dump()
+        except (json.JSONDecodeError, ValueError, TypeError):
+            continue
+    return None
 
 
-def _repair_llm_json(raw_content: str):
+def _repair_llm_json(*, raw_content: str, question: str, context_blocks: list[dict[str, Any]]):
     log_event("ask.repair_json", stage="ask", status="repairing", reason="invalid_json")
-    repair_user_prompt = f"Original question context...\n\n{REPAIR_PROMPT}\n\nThe invalid string you returned was:\n{raw_content}"
+    repair_user_prompt = generate_json_repair_prompt(
+        question=question,
+        context_blocks=context_blocks,
+        invalid_content=raw_content,
+    )
     repair_response = generate_answer(SYSTEM_PROMPT, repair_user_prompt)
     if repair_response.get("success"):
         return _parse_llm_json(repair_response["content"])
@@ -407,7 +461,11 @@ def _generate_second_pass_answer(*, question: str, context_blocks: list[dict[str
 
     parsed = _parse_llm_json(repair_response["content"])
     if not parsed:
-        parsed = _repair_llm_json(repair_response["content"])
+        parsed = _repair_llm_json(
+            raw_content=repair_response["content"],
+            question=question,
+            context_blocks=context_blocks,
+        )
     if not parsed:
         return None, "second_pass_json_parse_failed"
     return parsed, None
@@ -472,7 +530,9 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
         force_rare_keyword_scan=request.force_rare_keyword_scan,
     )
     search_response = perform_search(search_request)
-    raw_chunks = search_response.results
+    # Enforce the documented k_chunks contract: rerank-enabled retrieval can
+    # return more than k candidates (top_k_initial widening).
+    raw_chunks = search_response.results[: max(0, int(request.k_chunks))]
     context_blocks = _build_context_blocks(raw_chunks)
     if progress_callback:
         progress_callback(42, f"Retrieved {len(raw_chunks)} candidate chunks")
@@ -569,7 +629,11 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
         progress_callback(84, "Validating citations")
     parsed = _parse_llm_json(raw_content)
     if not parsed:
-        parsed = _repair_llm_json(raw_content)
+        parsed = _repair_llm_json(
+            raw_content=raw_content,
+            question=request.question,
+            context_blocks=context_blocks,
+        )
 
     if not parsed:
         ask_latency_ms = int((time.time() - start_time) * 1000)
@@ -1001,7 +1065,11 @@ def perform_compare(request: CompareRequest) -> CompareResponse:
 
     parsed = _parse_llm_json(llm_response["content"])
     if not parsed:
-        parsed = _repair_llm_json(llm_response["content"])
+        parsed = _repair_llm_json(
+            raw_content=llm_response["content"],
+            question=request.question,
+            context_blocks=all_context_blocks,
+        )
     if not parsed:
         log_event("compare.failed", level=40, stage="compare", status="failed", requested_mode=request.mode, reason="json_parse_failed")
         return CompareResponse(

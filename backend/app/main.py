@@ -145,6 +145,9 @@ app.include_router(admin_router)
 def start_background_workers() -> None:
     validate_security_posture()
     run_migrations()
+    from app.coherence import enforce_startup_coherence
+
+    enforce_startup_coherence()
     start_ingestion_queue_worker()
 
 
