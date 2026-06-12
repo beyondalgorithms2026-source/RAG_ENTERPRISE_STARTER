@@ -408,6 +408,7 @@ def _record_answer_trace(
     answer_generation_path: str,
     fallback_reason: Optional[str] = None,
     error: Optional[str] = None,
+    cited_chunk_ids: Optional[list[int]] = None,
 ) -> Optional[dict[str, Any]]:
     if not retrieval_trace:
         return retrieval_trace
@@ -420,6 +421,10 @@ def _record_answer_trace(
     latency_payload["total"] = ask_latency_ms
     trace_payload["latency_ms"] = latency_payload
     trace_payload["answer_generation_path"] = answer_generation_path
+    if cited_chunk_ids is not None:
+        # AR3: chunk-level citation evidence makes mined query events usable
+        # as graded eval cases without circular labeling.
+        trace_payload["cited_chunk_ids"] = cited_chunk_ids
     if fallback_reason is not None:
         trace_payload["fallback_reason"] = fallback_reason
     if error:
@@ -729,6 +734,7 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
         ask_latency_ms=ask_latency_ms,
         answer_generation_path=answer_generation_path,
         fallback_reason=fallback_reason,
+        cited_chunk_ids=[citation.chunk_id for citation in final_citations],
     )
 
     debug_info = _merge_debug_info(
