@@ -99,16 +99,20 @@ def generate_answer(system_prompt: str, user_prompt: str) -> dict:
 
     if llm.provider == "ollama":
         url = f"{base}/v1/chat/completions"
+        prompt_json_only = llm.structured_output_mode == "prompt_json_only"
         payload = {
             "model": llm.model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "temperature": llm.temperature,
+            "temperature": 0.0 if prompt_json_only else llm.temperature,
             "top_p": llm.top_p,
-            "response_format": {"type": "json_object"},
         }
+        if not prompt_json_only:
+            payload["response_format"] = {"type": "json_object"}
+        if llm.reasoning_effort:
+            payload["reasoning_effort"] = llm.reasoning_effort
         if llm.max_tokens is not None:
             payload["max_tokens"] = llm.max_tokens
         try:

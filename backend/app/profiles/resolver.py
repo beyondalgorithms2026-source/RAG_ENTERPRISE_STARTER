@@ -91,6 +91,8 @@ def get_effective_llm() -> LLMProfileConfig:
         api_key=settings.LLM_API_KEY,
         timeout_s=settings.LLM_TIMEOUT_S,
         temperature=0.0,
+        structured_output_mode="prompt_json_only" if settings.LLM_MODEL == "gpt-oss:20b-cloud" else "native_json",
+        reasoning_effort="none" if settings.LLM_MODEL == "gpt-oss:20b-cloud" else None,
     )
 
 

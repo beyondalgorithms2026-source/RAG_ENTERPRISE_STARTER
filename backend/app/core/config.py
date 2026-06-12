@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # LLM configuration
     LLM_PROVIDER: str = "ollama"
     LLM_BASE_URL: str = "http://localhost:11434"
-    LLM_MODEL: str = "deepseek-v3.1:671b-cloud"
+    LLM_MODEL: str = "gpt-oss:20b-cloud"
     LLM_TIMEOUT_S: int = 60
     LLM_API_KEY: str = ""
     OLLAMA_API_KEY: str = ""

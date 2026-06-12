@@ -25,13 +25,15 @@ class RerankerProfileConfig(BaseModel):
 
 class LLMProfileConfig(BaseModel):
     provider: str = "ollama"
-    model: str = "deepseek-v3.1:671b-cloud"
+    model: str = "gpt-oss:20b-cloud"
     base_url: str = "http://localhost:11434"
     api_key: str = ""
     timeout_s: int = 60
     temperature: float = 0.0
     top_p: float = 1.0
     max_tokens: Optional[int] = None
+    structured_output_mode: str = "native_json"
+    reasoning_effort: Optional[str] = None
 
 
 class RetrievalProfileConfig(BaseModel):
