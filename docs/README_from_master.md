@@ -133,7 +133,7 @@ Example env file:
 Key defaults:
 - `RETRIEVAL_MODE=hybrid`
 - `LLM_PROVIDER=ollama`
-- `LLM_MODEL=deepseek-v3.1:671b-cloud`
+- `LLM_MODEL=gpt-oss:20b-cloud`
 - `ALLOW_LAZY_ENRICHMENT=true`
 - `USE_QUERY_ROUTER=true`
 

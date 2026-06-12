@@ -220,7 +220,11 @@ def _run_ask(
 ) -> dict[str, Any]:
     candidate_llm = llm_config.model_copy(
         update={
-            "temperature": float(temperature if temperature is not None else llm_config.temperature),
+            "temperature": (
+                0.0
+                if llm_config.structured_output_mode == "prompt_json_only"
+                else float(temperature if temperature is not None else llm_config.temperature)
+            ),
             "top_p": float(top_p if top_p is not None else llm_config.top_p),
         }
     )
