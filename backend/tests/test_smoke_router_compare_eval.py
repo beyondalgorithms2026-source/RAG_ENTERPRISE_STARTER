@@ -218,7 +218,7 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
 
         original_use_router = settings.USE_QUERY_ROUTER
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             settings.USE_QUERY_ROUTER = True
             response = perform_search(SearchRequest(question="Who reports to IBM?", k=5, mode="vector", debug=True))
@@ -331,7 +331,7 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         original_use_router = settings.USE_QUERY_ROUTER
         original_enable_graph = settings.ENABLE_GRAPH
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             settings.USE_QUERY_ROUTER = True
             settings.ENABLE_GRAPH = False
@@ -474,8 +474,8 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
             )
         update_chunk_embeddings(
             [
-                (chunk_id_by_index[0], [-1.0] + [0.0] * 383),
-                (chunk_id_by_index[1], [0.0, 1.0] + [0.0] * 382),
+                (chunk_id_by_index[0], basis_vector(-1.0)),
+                (chunk_id_by_index[1], basis_vector(0.0, 1.0)),
             ]
         )
 
@@ -484,7 +484,7 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         original_use_router = settings.USE_QUERY_ROUTER
         original_enable_graph = settings.ENABLE_GRAPH
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             settings.USE_QUERY_ROUTER = True
             settings.ENABLE_GRAPH = True
@@ -557,7 +557,7 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
                 }
             ],
         )
-        update_chunk_embeddings([(self._chunk_id_for_source(source_id), [1.0] + [0.0] * 383)])
+        update_chunk_embeddings([(self._chunk_id_for_source(source_id), basis_vector(1.0))])
 
         original_use_router = settings.USE_QUERY_ROUTER
         original_enable_temporal = settings.ENABLE_TEMPORAL
@@ -950,7 +950,7 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         original_build_graph = settings.BUILD_GRAPH_ON_INGEST
         original_enable_temporal = settings.ENABLE_TEMPORAL
         original_extract_temporal = settings.EXTRACT_TEMPORAL_METADATA
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         settings.ENABLE_GRAPH = True
         settings.BUILD_GRAPH_ON_INGEST = True
         settings.ENABLE_TEMPORAL = True
@@ -1209,7 +1209,7 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
                     "edge_refs": json.dumps([{"chunk_id": chunk_id, "chunk_index": 0, "locator": {"page": 1}}]),
                 },
             )
-        update_chunk_embeddings([(chunk_id, [1.0] + [0.0] * 383)])
+        update_chunk_embeddings([(chunk_id, basis_vector(1.0))])
 
         import app.core_rag.retrieval as retrieval_module
 
@@ -1245,7 +1245,7 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
             "settings_overrides": {"ENABLE_GRAPH": True, "ENABLE_TEMPORAL": True},
         }
         try:
-            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
             settings.ENABLE_GRAPH = True
             settings.ENABLE_TEMPORAL = True
             report = run_mode_benchmark(

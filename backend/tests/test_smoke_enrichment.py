@@ -68,7 +68,7 @@ class SmokeTestEnrichment(SmokeTestBase):
         import app.core_rag.retrieval as retrieval_module
 
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             response = perform_search(SearchRequest(question="keywordbanana alpha", k=5, mode="graph_hybrid", debug=True))
         finally:
@@ -200,8 +200,8 @@ class SmokeTestEnrichment(SmokeTestBase):
             )
         update_chunk_embeddings(
             [
-                (chunk_id_by_index[0], [-1.0] + [0.0] * 383),
-                (chunk_id_by_index[1], [0.0, 1.0] + [0.0] * 382),
+                (chunk_id_by_index[0], basis_vector(-1.0)),
+                (chunk_id_by_index[1], basis_vector(0.0, 1.0)),
             ]
         )
 
@@ -209,7 +209,7 @@ class SmokeTestEnrichment(SmokeTestBase):
 
         original_enable_graph = settings.ENABLE_GRAPH
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             settings.ENABLE_GRAPH = True
             response = perform_search(
@@ -236,7 +236,7 @@ class SmokeTestEnrichment(SmokeTestBase):
         import app.core_rag.retrieval as retrieval_module
 
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             response = perform_search(SearchRequest(question="keywordbanana alpha", k=5, mode="full", debug=True))
         finally:
@@ -297,7 +297,7 @@ class SmokeTestEnrichment(SmokeTestBase):
                 }
             ],
         )
-        update_chunk_embeddings([(self._chunk_id_for_source(source_id), [1.0] + [0.0] * 383)])
+        update_chunk_embeddings([(self._chunk_id_for_source(source_id), basis_vector(1.0))])
 
         original_allow_lazy = settings.ALLOW_LAZY_ENRICHMENT
         original_enable_temporal = settings.ENABLE_TEMPORAL
@@ -387,7 +387,7 @@ class SmokeTestEnrichment(SmokeTestBase):
                 }
             ],
         )
-        update_chunk_embeddings([(self._chunk_id_for_source(source_id), [1.0] + [0.0] * 383)])
+        update_chunk_embeddings([(self._chunk_id_for_source(source_id), basis_vector(1.0))])
 
         original_allow_lazy = settings.ALLOW_LAZY_ENRICHMENT
         original_enable_graph = settings.ENABLE_GRAPH
@@ -504,7 +504,7 @@ class SmokeTestEnrichment(SmokeTestBase):
                 }
             ],
         )
-        update_chunk_embeddings([(self._chunk_id_for_source(source_id), [1.0] + [0.0] * 383)])
+        update_chunk_embeddings([(self._chunk_id_for_source(source_id), basis_vector(1.0))])
 
         import app.ingestion.enrichment as enrichment_module
 

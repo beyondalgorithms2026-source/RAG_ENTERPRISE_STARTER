@@ -50,9 +50,10 @@ class SmokeTestBaseline(SmokeTestBase):
                 }
             ],
         )
+        self.addCleanup(self._delete_retrieval_records, [source_id])
         with engine.connect() as conn:
             chunk_id = conn.execute(text("SELECT id FROM chunks WHERE source_id = :source_id"), {"source_id": source_id}).scalar_one()
-        update_chunk_embeddings([(chunk_id, [1.0] + [0.0] * 383)])
+        update_chunk_embeddings([(chunk_id, basis_vector(1.0))])
         assign_document_acl(source_id=source_id, group_names=["legal-team"])
 
         requester = AuthenticatedUser(user_id=f"m161-user-{suffix}", email=f"m161-user-{suffix}@example.test", roles=["user"], groups=[])
@@ -63,7 +64,11 @@ class SmokeTestBaseline(SmokeTestBase):
 
         token = set_current_user(requester)
         try:
-            before = perform_search(SearchRequest(question="contracttokenm161", k=5, mode="keyword"))
+            # Scope to this test's source: the shared dev DB may contain stale
+            # leftovers from earlier aborted runs that also match the token.
+            before = perform_search(
+                SearchRequest(question="contracttokenm161", k=5, mode="keyword", filters=SearchFilters(source_id=source_id))
+            )
             request_row = create_access_request(
                 question="Need the protected contract terms",
                 business_reason="Need temporary access for case review",
@@ -122,14 +127,14 @@ class SmokeTestBaseline(SmokeTestBase):
 
         token = set_current_user(requester)
         try:
-            after = perform_search(SearchRequest(question="contracttokenm161", k=5, mode="keyword"))
+            after = perform_search(
+                SearchRequest(question="contracttokenm161", k=5, mode="keyword", filters=SearchFilters(source_id=source_id))
+            )
         finally:
             reset_current_user(token)
 
         self.assertTrue(after.results)
         self.assertEqual(after.results[0].source_id, source_id)
-
-        self._delete_retrieval_records([source_id])
 
     def test_m16_1_clarification_marks_access_limited_no_answer_without_leak(self):
         from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
@@ -235,7 +240,7 @@ class SmokeTestBaseline(SmokeTestBase):
         )
         with engine.connect() as conn:
             chunk_id = conn.execute(text("SELECT id FROM chunks WHERE source_id = :source_id"), {"source_id": source_id}).scalar_one()
-        update_chunk_embeddings([(chunk_id, [1.0] + [0.0] * 383)])
+        update_chunk_embeddings([(chunk_id, basis_vector(1.0))])
         assign_document_acl(source_id=source_id, group_names=["legal-team"])
 
         requester = AuthenticatedUser(user_id=f"m161-requester-{suffix}", email=f"m161-requester-{suffix}@example.test", roles=["user"], groups=[])
@@ -764,14 +769,14 @@ class SmokeTestBaseline(SmokeTestBase):
                 },
             ],
         )
-        update_chunk_embeddings(
-            [(row[0], [1.0] + [0.0] * 383) for row in engine.connect().execute(
+        with engine.connect() as conn:
+            chunk_rows = conn.execute(
                 text("SELECT id FROM chunks WHERE source_id = :source_id ORDER BY chunk_index ASC"),
                 {"source_id": source_id},
-            ).fetchall()]
-        )
+            ).fetchall()
+        update_chunk_embeddings([(row[0], basis_vector(1.0)) for row in chunk_rows])
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             response = perform_search(
                 SearchRequest(
@@ -905,12 +910,12 @@ class SmokeTestBaseline(SmokeTestBase):
         )
         update_chunk_embeddings(
             [
-                (self._chunk_id_for_source(transcript_source_id), [1.0] + [0.0] * 383),
-                (self._chunk_id_for_source(db_rows_source_id), [1.0] + [0.0] * 383),
+                (self._chunk_id_for_source(transcript_source_id), basis_vector(1.0)),
+                (self._chunk_id_for_source(db_rows_source_id), basis_vector(1.0)),
             ]
         )
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             source_ids = {
                 "legal": legal_source_id,
@@ -1164,7 +1169,7 @@ class SmokeTestBaseline(SmokeTestBase):
         import app.core_rag.retrieval as retrieval_module
 
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0, 0.0) for _ in texts]
         try:
             response = perform_search(
                 SearchRequest(
@@ -1509,16 +1514,52 @@ class SmokeTestBaseline(SmokeTestBase):
                 "MIG-P010",
                 "MIG-P011",
                 "MIG-P012",
+                "MIG-P013",
+                "MIG-P014",
+                "MIG-P015",
+                "MIG-P016",
+                "MIG-P017",
+                "MIG-P018",
+                "MIG-P019",
+                "MIG-P020",
             ],
         )
         self.assertTrue(all(item["description"] for item in plan))
+
+    def test_synthetic_vectors_match_live_embedding_dimension(self):
+        # AR1: the harness must derive vector dimension from the live DB column,
+        # never hardcode a model's dimension (audit: 55 errors from 384 vs 768).
+        from tests.smoke_test_base import basis_vector, expected_vector_dim
+
+        dim = expected_vector_dim()
+        self.assertGreater(dim, 0)
+        self.assertEqual(len(basis_vector(1.0)), dim)
+        self.assertEqual(len(basis_vector(0.0, 1.0)), dim)
+        source_id = self._seed_chunk_records()
+        try:
+            chunk_id = self._chunk_id_for_source(source_id)
+            update_chunk_embeddings([(chunk_id, basis_vector(1.0))])
+        finally:
+            self._delete_seed_source(source_id)
+
+    def test_migration_ledger_matches_plan_after_migrations(self):
+        # AR1: the DB ledger must record every applied plan step; drift between
+        # ledger and plan (audit: P012 recorded vs P020 expected) must fail loudly.
+        from app.db.migrate import describe_migration_plan, recorded_migration_steps, verify_migration_ledger
+
+        run_migrations()
+        plan_ids = [item["step_id"] for item in describe_migration_plan()]
+        self.assertEqual(recorded_migration_steps(), sorted(plan_ids))
+        report = verify_migration_ledger()
+        self.assertEqual(report["missing"], [])
+        self.assertEqual(report["unknown"], [])
 
     def test_vector_mode_returns_embedded_chunk_match(self):
         seeded = self._seed_retrieval_records()
         import app.core_rag.retrieval as retrieval_module
 
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             response = perform_search(SearchRequest(question="semantic alpha", k=5, mode="vector"))
         finally:
@@ -1554,7 +1595,7 @@ class SmokeTestBaseline(SmokeTestBase):
         import app.core_rag.retrieval as retrieval_module
 
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             response = perform_search(SearchRequest(question="keywordbanana alpha", k=5, mode="hybrid", debug=True))
         finally:
@@ -1669,7 +1710,7 @@ class SmokeTestBaseline(SmokeTestBase):
         import app.core_rag.retrieval as retrieval_module
 
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0, 0.0) for _ in texts]
         try:
             response = perform_search(
                 SearchRequest(
@@ -1693,7 +1734,7 @@ class SmokeTestBaseline(SmokeTestBase):
         import app.core_rag.retrieval as retrieval_module
 
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0, 0.0) for _ in texts]
         try:
             response = perform_search(
                 SearchRequest(
@@ -1719,7 +1760,7 @@ class SmokeTestBaseline(SmokeTestBase):
         from app.core_rag.answering import perform_ask
 
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0, 0.0) for _ in texts]
         try:
             response = perform_ask(
                 AskRequest(
@@ -1744,7 +1785,7 @@ class SmokeTestBaseline(SmokeTestBase):
         import app.core_rag.retrieval as retrieval_module
 
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0, 0.0) for _ in texts]
         try:
             response = perform_search(
                 SearchRequest(
@@ -1777,7 +1818,7 @@ class SmokeTestBaseline(SmokeTestBase):
         from app.core_rag.answering import perform_ask
 
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0, 0.0) for _ in texts]
         try:
             response = perform_ask(
                 AskRequest(
@@ -1807,7 +1848,7 @@ class SmokeTestBaseline(SmokeTestBase):
 
         original_embed_texts = retrieval_module.embed_texts
         original_generate_answer = answering_module.generate_answer
-        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0, 0.0) for _ in texts]
         answering_module.generate_answer = lambda system_prompt, user_prompt: {
             "success": True,
             "content": json.dumps(
@@ -1865,7 +1906,7 @@ class SmokeTestBaseline(SmokeTestBase):
                 ),
             }
 
-        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0, 0.0) for _ in texts]
         answering_module.generate_answer = fake_generate_answer
         try:
             response = answering_module.perform_ask(
@@ -1918,7 +1959,7 @@ class SmokeTestBaseline(SmokeTestBase):
                 ),
             }
 
-        retrieval_module.embed_texts = lambda texts: [[1.0, 0.0] + [0.0] * 382 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0, 0.0) for _ in texts]
         answering_module.generate_answer = fake_generate_answer
         try:
             response = answering_module.perform_ask(
@@ -1944,7 +1985,7 @@ class SmokeTestBaseline(SmokeTestBase):
         import app.core_rag.retrieval as retrieval_module
 
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             request = SearchRequest(
                 question="alpha",
@@ -1965,7 +2006,7 @@ class SmokeTestBaseline(SmokeTestBase):
         import app.core_rag.retrieval as retrieval_module
 
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             response = search_endpoint(
                 SearchRequest(question="alpha", k=5, mode="vector", debug=True)
@@ -2099,12 +2140,16 @@ class SmokeTestBaseline(SmokeTestBase):
     def test_verify_llm_ready_accepts_ollama_v1_models_data_shape(self):
         import app.llm.client as llm_client_module
 
+        from app.profiles.resolver import get_effective_llm
+
+        effective_model = get_effective_llm().model
+
         class FakeResponse:
             status_code = 200
 
             @staticmethod
             def json():
-                return {"object": "list", "data": [{"id": settings.LLM_MODEL}]}
+                return {"object": "list", "data": [{"id": effective_model}]}
 
         class FakeClient:
             def __init__(self, timeout):

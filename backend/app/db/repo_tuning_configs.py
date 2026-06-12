@@ -361,7 +361,9 @@ def promote_candidate_to_live(
     retrieval_override_config = dict((draft.get("lineage") or {}).get("retrieval_override_config") or {})
     if retrieval_override_config:
         source_retrieval_name = str(selected_profiles.get("retrieval") or "retrieval")
-        promoted_retrieval_profile_name = f"{draft.get('version_label', f'draft-{draft_id}')}-retrieval"
+        # AR2: promoted profiles must not carry draft names — drafts cannot be
+        # activated as live, and promotion is exactly the rename boundary.
+        promoted_retrieval_profile_name = f"promoted-{draft_id}-retrieval"
         resolved_retrieval = ((draft.get("resolved_config") or {}).get("retrieval") or {}).get("config") or {}
         config_to_promote = dict(resolved_retrieval or retrieval_override_config)
         config_to_promote.setdefault("display_name", f"{draft.get('name', 'Candidate')} retrieval")

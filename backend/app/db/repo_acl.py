@@ -356,7 +356,7 @@ def explain_user_access(external_user_id: str) -> dict[str, Any]:
         LEFT JOIN sources s ON s.id = da.source_id
         WHERE au.external_user_id = :external_user_id
           AND s.id IS NOT NULL
-        ORDER BY s.id ASC, ag.name ASC
+        ORDER BY s.id ASC, granting_group ASC
         """
     )
     grant_sql = text(

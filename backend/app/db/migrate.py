@@ -1011,11 +1011,65 @@ def describe_migration_plan() -> list[dict[str, str]]:
     return [{"step_id": step.step_id, "description": step.description} for step in _patch_steps()]
 
 
+def _ensure_migration_ledger_table() -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS schema_migration_ledger (
+                    step_id TEXT PRIMARY KEY,
+                    description TEXT NOT NULL,
+                    first_applied_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    last_applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """
+            )
+        )
+
+
+def _record_migration_step(step: MigrationStep) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO schema_migration_ledger (step_id, description)
+                VALUES (:step_id, :description)
+                ON CONFLICT (step_id)
+                DO UPDATE SET description = EXCLUDED.description, last_applied_at = now()
+                """
+            ),
+            {"step_id": step.step_id, "description": step.description},
+        )
+
+
+def recorded_migration_steps() -> list[str]:
+    _ensure_migration_ledger_table()
+    with engine.connect() as conn:
+        rows = conn.execute(text("SELECT step_id FROM schema_migration_ledger ORDER BY step_id ASC")).fetchall()
+    return [row[0] for row in rows]
+
+
+def verify_migration_ledger() -> dict[str, list[str]]:
+    """Assert ledger == plan (AR1). Returns the mismatch report; raises on drift."""
+    plan_ids = [step.step_id for step in _patch_steps()]
+    recorded = set(recorded_migration_steps())
+    missing = [step_id for step_id in plan_ids if step_id not in recorded]
+    unknown = sorted(recorded - set(plan_ids))
+    if missing or unknown:
+        raise RuntimeError(
+            f"Migration ledger disagrees with the plan: missing={missing} unknown={unknown}. "
+            "Run migrations (python -m app.db.migrate) to reconcile."
+        )
+    return {"plan": plan_ids, "missing": missing, "unknown": unknown}
+
+
 def _apply_patch_migrations() -> None:
     logger.info("Applying schema-safe patch migrations...")
+    _ensure_migration_ledger_table()
     for step in _patch_steps():
         logger.info("Applying patch migration step %s: %s", step.step_id, step.description)
         step.runner()
+        _record_migration_step(step)
         logger.info("Completed patch migration step %s", step.step_id)
 
 
@@ -1023,6 +1077,7 @@ def run_migrations() -> None:
     schema_sql = _load_schema_sql()
     _apply_canonical_schema(schema_sql)
     _apply_patch_migrations()
+    verify_migration_ledger()
     logger.info("Schema migrations completed successfully.")
 
 

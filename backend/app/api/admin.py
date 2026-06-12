@@ -445,6 +445,30 @@ def _effective_tuning_selected_profiles(selected_profiles: Optional[dict[str, st
     return effective
 
 
+def _enforce_embedding_dimension_coherence(*, profile_type: str, config: dict[str, Any]) -> None:
+    """AR2: an embedding profile may not declare a dimension its model does not
+    produce (the audit found bge-small registered as 768; it produces 384)."""
+    if profile_type != "embedding":
+        return
+    from app.coherence import validate_embedding_profile_dimension
+
+    try:
+        validate_embedding_profile_dimension(
+            model_name=str(config.get("model") or ""),
+            declared_dimension=int(config.get("dimension") or 0),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail={"error": "embedding_dimension_mismatch", "message": str(exc)})
+    except Exception as exc:  # model not loadable locally
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "embedding_model_unverifiable",
+                "message": f"Could not load model to verify its dimension: {exc}",
+            },
+        )
+
+
 def _validated_retrieval_override(*, selected_profiles: dict[str, str], override_config: Optional[dict[str, Any]]) -> dict[str, Any]:
     candidate = dict(override_config or {})
     if not candidate:
@@ -457,8 +481,9 @@ def _validated_retrieval_override(*, selected_profiles: dict[str, str], override
         raise HTTPException(status_code=404, detail=f"Profile '{retrieval_profile_name}' of type 'retrieval' not found")
     base_config = retrieval_profile["config_json"] or {}
     validated = _validated_profile_config(profile_type="retrieval", config=candidate, base_config=base_config)
-    # Only preserve fields that differ from the selected base profile so the override stays intentional.
-    return {key: value for key, value in validated.items() if base_config.get(key) != value}
+    # Preserve exactly the keys the operator requested so lineage records intent
+    # deterministically, regardless of the selected base profile's current values.
+    return {key: value for key, value in validated.items() if key in candidate}
 
 
 def _profile_payload(row: dict[str, Any], *, active_map: dict[str, Optional[str]]) -> dict[str, Any]:
@@ -556,6 +581,7 @@ def create_profile(body: ProfileCreateRequest):
         raise HTTPException(status_code=409, detail=f"Profile '{profile_name}' of type '{profile_type}' already exists")
 
     validated_config = _validated_profile_config(profile_type=profile_type, config=body.config)
+    _enforce_embedding_dimension_coherence(profile_type=profile_type, config=validated_config)
     upsert_profile(profile_type, profile_name, validated_config, is_default=body.is_default)
     actor = get_current_user()
     insert_admin_audit_event(
@@ -580,6 +606,7 @@ def update_profile(profile_type: str, profile_name: str, body: ProfileUpdateRequ
         raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' of type '{profile_type}' not found")
 
     validated_config = _validated_profile_config(profile_type=profile_type, config=body.config, base_config=existing["config_json"] or {})
+    _enforce_embedding_dimension_coherence(profile_type=profile_type, config=validated_config)
     upsert_profile(profile_type, profile_name, validated_config, is_default=bool(existing["is_default"]))
 
     if get_active_profile_name(profile_type) == profile_name:
@@ -613,6 +640,17 @@ def set_active(body: ActiveProfileRequest):
     if not profile:
         raise HTTPException(status_code=404, detail=f"Profile '{body.profile_name}' of type '{body.profile_type}' not found")
 
+    from app.coherence import is_draft_profile_name
+
+    if is_draft_profile_name(body.profile_name):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "draft_profile_activation_blocked",
+                "message": "Draft profiles cannot be activated as live; promote them through the tuning workflow.",
+            },
+        )
+
     _validated_profile_config(profile_type=body.profile_type, config=profile["config_json"] or {})
 
     previous_profile_name = get_active_profile_name(body.profile_type)
@@ -620,7 +658,9 @@ def set_active(body: ActiveProfileRequest):
     invalidate_cache(body.profile_type)
     invalidate_semantic_cache(reason=f"profile_activate:{body.profile_type}")
     bump_cache_revision(scope_type="profile", reason=f"profile_activate:{body.profile_type}")
-    live_config = sync_live_configuration_record()
+    # get_live_configuration normalizes *_json row keys to the documented
+    # selected_profiles/resolved_config/lineage response contract.
+    live_config = get_live_configuration()
     logger.info("Activated profile %s/%s", body.profile_type, body.profile_name)
     insert_admin_audit_event(
         event_type="profile",
@@ -639,6 +679,18 @@ def set_active(body: ActiveProfileRequest):
         "profile_name": body.profile_name,
         "live_configuration": live_config,
     }
+
+
+@router.get("/health/coherence")
+def health_coherence(deep: bool = False):
+    """AR2: per-invariant configuration coherence report (consumed by AR10).
+
+    deep=true additionally loads embedding models to verify declared dimensions
+    against actual model output (slower; on-demand only).
+    """
+    from app.coherence import run_coherence_checks
+
+    return run_coherence_checks(deep=deep)
 
 
 @router.get("/profiles/metadata")
