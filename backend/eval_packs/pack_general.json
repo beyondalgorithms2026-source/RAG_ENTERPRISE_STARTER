@@ -1,0 +1,5604 @@
+{
+ "pack": "general",
+ "corpus": "general",
+ "builder_version": "ar3.1",
+ "built_at": 1781279041,
+ "case_counts": {
+  "synthetic_chunk_grounded": 400,
+  "mined_query_event": 0,
+  "total": 400
+ },
+ "cases": [
+  {
+   "id": "syn-15256-lead_sentence",
+   "question": "Transcript: (disclaimer: may contain unintentionally confusing, inaccurate and/or amusing transcription errors) Ben: I love how this book is",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15256": 3,
+    "15257": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15256-heading_topic",
+   "question": "Text: what is stated about david episode today?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15256": 3,
+    "15257": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15256-salient_terms",
+   "question": "david episode today walton",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15256": 3,
+    "15257": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15257-lead_sentence",
+   "question": "2.3 million people around the world.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15257": 3,
+    "15256": 1,
+    "15258": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15257-heading_topic",
+   "question": "Text: what is stated about david true world?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15257": 3,
+    "15256": 1,
+    "15258": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15257-salient_terms",
+   "question": "david true world going",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15257": 3,
+    "15256": 1,
+    "15258": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15258-heading_topic",
+   "question": "Text: what is stated about fundrise miller real?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15258": 3,
+    "15257": 1,
+    "15259": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15258-salient_terms",
+   "question": "fundrise miller real estate",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15258": 3,
+    "15257": 1,
+    "15259": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15259-lead_sentence",
+   "question": "short-term flips, they have to raise their next fund.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15259": 3,
+    "15258": 1,
+    "15260": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15259-heading_topic",
+   "question": "Text: what is stated about fund fundrise public?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15259": 3,
+    "15258": 1,
+    "15260": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15259-salient_terms",
+   "question": "fund fundrise public raise",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15259": 3,
+    "15258": 1,
+    "15260": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15260-heading_topic",
+   "question": "Text: what is stated about acquired fundrise show?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15260": 3,
+    "15259": 1,
+    "15261": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15260-salient_terms",
+   "question": "acquired fundrise show david",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15260": 3,
+    "15259": 1,
+    "15261": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15261-lead_sentence",
+   "question": "Everything Store and finding out that it was one of Bezos' favorite books and formed the blueprint of how he thought about Amazon in the ear",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15261": 3,
+    "15260": 1,
+    "15262": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15261-heading_topic",
+   "question": "Text: what is stated about kingfisher david walmart?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15261": 3,
+    "15260": 1,
+    "15262": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15261-salient_terms",
+   "question": "kingfisher david walmart business",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15261": 3,
+    "15260": 1,
+    "15262": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15262-lead_sentence",
+   "question": "think that might be right.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15262": 3,
+    "15261": 1,
+    "15263": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15262-heading_topic",
+   "question": "Text: what is stated about walton family missouri?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15262": 3,
+    "15261": 1,
+    "15263": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15262-salient_terms",
+   "question": "walton family missouri right",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15262": 3,
+    "15261": 1,
+    "15263": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15263-heading_topic",
+   "question": "Text: what is stated about just farmers made?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15263": 3,
+    "15262": 1,
+    "15264": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15263-salient_terms",
+   "question": "just farmers made ever",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15263": 3,
+    "15262": 1,
+    "15264": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15264-lead_sentence",
+   "question": "myself like \"I'll never be poor.\"\" He says after all this, \"One thing my mom and dad shared completely was their approach to money: they jus",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15264": 3,
+    "15263": 1,
+    "15265": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15264-heading_topic",
+   "question": "Text: what is stated about like family david?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15264": 3,
+    "15263": 1,
+    "15265": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15264-salient_terms",
+   "question": "like family david just",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15264": 3,
+    "15263": 1,
+    "15265": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15265-lead_sentence",
+   "question": "age 13, the youngest Eagle Scout ever certified in Missouri history.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15265": 3,
+    "15264": 1,
+    "15266": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15265-heading_topic",
+   "question": "Text: what is stated about think eagle scout?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15265": 3,
+    "15264": 1,
+    "15266": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15265-salient_terms",
+   "question": "think eagle scout just",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15265": 3,
+    "15264": 1,
+    "15266": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15266-heading_topic",
+   "question": "Text: what is stated about both walmart think?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15266": 3,
+    "15265": 1,
+    "15267": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15266-salient_terms",
+   "question": "both walmart think high",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15266": 3,
+    "15265": 1,
+    "15267": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15267-heading_topic",
+   "question": "Text: what is stated about story family money?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15267": 3,
+    "15266": 1,
+    "15268": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15267-salient_terms",
+   "question": "story family money school",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15267": 3,
+    "15266": 1,
+    "15268": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15268-heading_topic",
+   "question": "Text: what is stated about sears learn though?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15268": 3,
+    "15267": 1,
+    "15269": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15268-salient_terms",
+   "question": "sears learn though because",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15268": 3,
+    "15267": 1,
+    "15269": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15269-lead_sentence",
+   "question": "company recruiters who came to campus.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15269": 3,
+    "15268": 1,
+    "15270": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15269-heading_topic",
+   "question": "Text: what is stated about penney going james?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15269": 3,
+    "15268": 1,
+    "15270": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15269-salient_terms",
+   "question": "penney going james cash",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15269": 3,
+    "15268": 1,
+    "15270": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15270-heading_topic",
+   "question": "Text: what is stated about helen family back?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15270": 3,
+    "15269": 1,
+    "15271": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15270-salient_terms",
+   "question": "helen family back oklahoma",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15270": 3,
+    "15269": 1,
+    "15271": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15271-lead_sentence",
+   "question": "partnership that Helen and Sam set up is today Walton Enterprises which owns 36% of Walmart, and then individual family members and trusts\u2014I",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15271": 3,
+    "15270": 1,
+    "15272": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15271-heading_topic",
+   "question": "Text: what is stated about family partnership walmart?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15271": 3,
+    "15270": 1,
+    "15272": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15271-salient_terms",
+   "question": "family partnership walmart walton",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15271": 3,
+    "15270": 1,
+    "15272": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15272-heading_topic",
+   "question": "Text: what is stated about want helen family?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15272": 3,
+    "15271": 1,
+    "15273": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15272-salient_terms",
+   "question": "want helen family work",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15272": 3,
+    "15271": 1,
+    "15273": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15273-lead_sentence",
+   "question": "in a small town where I grew up just like Claremore.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15273": 3,
+    "15272": 1,
+    "15274": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15273-heading_topic",
+   "question": "Text: what is stated about small town like?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15273": 3,
+    "15272": 1,
+    "15274": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15273-salient_terms",
+   "question": "small town like business",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15273": 3,
+    "15272": 1,
+    "15274": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15274-lead_sentence",
+   "question": "have any department store locations that might be available in a small town of say 10,000 people or less?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15274": 3,
+    "15273": 1,
+    "15275": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15274-heading_topic",
+   "question": "Text: what is stated about store stores like?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15274": 3,
+    "15273": 1,
+    "15275": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15274-salient_terms",
+   "question": "store stores like people",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15274": 3,
+    "15273": 1,
+    "15275": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15275-heading_topic",
+   "question": "Text: what is stated about store david stores?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15275": 3,
+    "15274": 1,
+    "15276": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15275-salient_terms",
+   "question": "store david stores like",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15275": 3,
+    "15274": 1,
+    "15276": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15276-lead_sentence",
+   "question": "salesman in Des Moines at Penney's, it was an even higher touch version of this, I believe, where a customer would come into the store, the",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15276": 3,
+    "15275": 1,
+    "15277": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15276-heading_topic",
+   "question": "Text: what is stated about store like arkansas?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15276": 3,
+    "15275": 1,
+    "15277": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15276-salient_terms",
+   "question": "store like arkansas town",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15276": 3,
+    "15275": 1,
+    "15277": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15277-lead_sentence",
+   "question": "now that I was the sucker Butler Brothers sent to save him.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15277": 3,
+    "15276": 1,
+    "15278": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15277-heading_topic",
+   "question": "Text: what is stated about store goal going?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15277": 3,
+    "15276": 1,
+    "15278": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15277-salient_terms",
+   "question": "store goal going sales",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15277": 3,
+    "15276": 1,
+    "15278": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15278-lead_sentence",
+   "question": "rent anybody had ever heard of in the variety store business.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15278": 3,
+    "15277": 1,
+    "15279": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15278-heading_topic",
+   "question": "Text: what is stated about kmart store going?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15278": 3,
+    "15277": 1,
+    "15279": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15278-salient_terms",
+   "question": "kmart store going time",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15278": 3,
+    "15277": 1,
+    "15279": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15279-heading_topic",
+   "question": "Text: what is stated about starts just kmart?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15279": 3,
+    "15278": 1,
+    "15280": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15279-salient_terms",
+   "question": "starts just kmart some",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15279": 3,
+    "15278": 1,
+    "15280": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15280-heading_topic",
+   "question": "Text: what is stated about just some butler?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15280": 3,
+    "15279": 1,
+    "15281": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15280-salient_terms",
+   "question": "just some butler brothers",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15280": 3,
+    "15279": 1,
+    "15281": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15281-lead_sentence",
+   "question": "to meet his own needs which is to create something that is astonishingly low price to get people in the store, take no margin on it, and mak",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15281": 3,
+    "15280": 1,
+    "15282": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15281-heading_topic",
+   "question": "Text: what is stated about people price store?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15281": 3,
+    "15280": 1,
+    "15282": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15281-salient_terms",
+   "question": "people price store make",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15281": 3,
+    "15280": 1,
+    "15282": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15282-lead_sentence",
+   "question": "are the holy trinity of retail, but nobody really knew this yet.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15282": 3,
+    "15281": 1,
+    "15283": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15282-heading_topic",
+   "question": "Text: what is stated about price always people?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15282": 3,
+    "15281": 1,
+    "15283": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15282-salient_terms",
+   "question": "price always people time",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15282": 3,
+    "15281": 1,
+    "15283": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15283-lead_sentence",
+   "question": "was an FTC lawsuit against them where they changed to Always Low Prices because it was false advertising that they didn't always have the lo",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15283": 3,
+    "15282": 1,
+    "15284": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15283-heading_topic",
+   "question": "Text: what is stated about always store because?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15283": 3,
+    "15282": 1,
+    "15284": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15283-salient_terms",
+   "question": "always store because point",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15283": 3,
+    "15282": 1,
+    "15284": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15284-lead_sentence",
+   "question": "He's really showing up on Ben Franklin's radar and the Butler Brothers Corporation's radar, and they know what he's doing at this point.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15284": 3,
+    "15283": 1,
+    "15285": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15284-heading_topic",
+   "question": "Text: what is stated about like really point?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15284": 3,
+    "15283": 1,
+    "15285": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15284-salient_terms",
+   "question": "like really point good",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15284": 3,
+    "15283": 1,
+    "15285": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15285-heading_topic",
+   "question": "Text: what is stated about quail hunting helen?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15285": 3,
+    "15284": 1,
+    "15286": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15285-salient_terms",
+   "question": "quail hunting helen really",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15285": 3,
+    "15284": 1,
+    "15286": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15286-lead_sentence",
+   "question": "easy drive from his house.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15286": 3,
+    "15285": 1,
+    "15287": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15286-heading_topic",
+   "question": "Text: what is stated about town david people?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15286": 3,
+    "15285": 1,
+    "15287": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15286-salient_terms",
+   "question": "town david people bentonville",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15286": 3,
+    "15285": 1,
+    "15287": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15287-heading_topic",
+   "question": "Text: what is stated about like store franklin?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15287": 3,
+    "15286": 1,
+    "15288": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15287-salient_terms",
+   "question": "like store franklin well",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15287": 3,
+    "15286": 1,
+    "15288": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15288-lead_sentence",
+   "question": "he does that more than any other entrepreneur we've ever talked about on this show, this obsession with first-hand experience.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15288": 3,
+    "15287": 1,
+    "15289": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15288-heading_topic",
+   "question": "Text: what is stated about store david franklin?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15288": 3,
+    "15287": 1,
+    "15289": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15288-salient_terms",
+   "question": "store david franklin other",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15288": 3,
+    "15287": 1,
+    "15289": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15289-lead_sentence",
+   "question": "doing his own direct deals with manufacturers at this point, it's a ludicrous concept that somebody in a little store in Arkansas could sour",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15289": 3,
+    "15288": 1,
+    "15290": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15289-heading_topic",
+   "question": "Text: what is stated about people first store?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15289": 3,
+    "15288": 1,
+    "15290": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15289-salient_terms",
+   "question": "people first store year",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15289": 3,
+    "15288": 1,
+    "15290": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15290-lead_sentence",
+   "question": "much like I didn't need anything the first time I went to an Amazon Go to try the cashierless checkout.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15290": 3,
+    "15289": 1,
+    "15291": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15290-heading_topic",
+   "question": "Text: what is stated about didn customers store?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15290": 3,
+    "15289": 1,
+    "15291": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15290-salient_terms",
+   "question": "didn customers store like",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15290": 3,
+    "15289": 1,
+    "15291": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15291-heading_topic",
+   "question": "Text: what is stated about competitor-focused competitors walmart?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15291": 3,
+    "15290": 1,
+    "15292": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15291-salient_terms",
+   "question": "competitor-focused competitors walmart store",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15291": 3,
+    "15290": 1,
+    "15292": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15292-lead_sentence",
+   "question": "just Sam and Helen, when she can, helping out with the bookkeeping, managing the first store.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15292": 3,
+    "15291": 1,
+    "15293": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15292-heading_topic",
+   "question": "Text: what is stated about store better make?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15292": 3,
+    "15291": 1,
+    "15293": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15292-salient_terms",
+   "question": "store better make individual",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15292": 3,
+    "15291": 1,
+    "15293": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15293-lead_sentence",
+   "question": "of tech companies get much better economic deals with stock options, I think psychologically, this is a better way to do it.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15293": 3,
+    "15292": 1,
+    "15294": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15293-heading_topic",
+   "question": "Text: what is stated about store people think?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15293": 3,
+    "15292": 1,
+    "15294": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15293-salient_terms",
+   "question": "store people think like",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15293": 3,
+    "15292": 1,
+    "15294": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15294-heading_topic",
+   "question": "Text: what is stated about walmart david employee?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15294": 3,
+    "15293": 1,
+    "15295": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15294-salient_terms",
+   "question": "walmart david employee stock",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15294": 3,
+    "15293": 1,
+    "15295": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15295-lead_sentence",
+   "question": "of the employee stock purchase program.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15295": 3,
+    "15294": 1,
+    "15296": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15295-heading_topic",
+   "question": "Text: what is stated about going david city?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15295": 3,
+    "15294": 1,
+    "15296": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15295-salient_terms",
+   "question": "going david city ruskin",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15295": 3,
+    "15294": 1,
+    "15296": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15296-heading_topic",
+   "question": "Text: what is stated about centers stores inventory?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15296": 3,
+    "15295": 1,
+    "15297": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15296-salient_terms",
+   "question": "centers stores inventory starts",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15296": 3,
+    "15295": 1,
+    "15297": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15297-lead_sentence",
+   "question": "Already at this point, they've bent so many rules with Ben Franklin like changing the store layout and concept, where they're going, startin",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15297": 3,
+    "15296": 1,
+    "15298": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15297-heading_topic",
+   "question": "Text: what is stated about more butler brothers?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15297": 3,
+    "15296": 1,
+    "15298": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15297-salient_terms",
+   "question": "more butler brothers discounters",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15297": 3,
+    "15296": 1,
+    "15298": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15298-lead_sentence",
+   "question": "marking it up 45%, it means your gross margin is about 33% as a retailer.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15298": 3,
+    "15297": 1,
+    "15299": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15298-heading_topic",
+   "question": "Text: what is stated about price didn gross?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15298": 3,
+    "15297": 1,
+    "15299": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15298-salient_terms",
+   "question": "price didn gross margin",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15298": 3,
+    "15297": 1,
+    "15299": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15299-lead_sentence",
+   "question": "venture before Price Club, that FedMart was his first very large successful thing.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15299": 3,
+    "15298": 1,
+    "15300": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15299-heading_topic",
+   "question": "Text: what is stated about price costco club?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15299": 3,
+    "15298": 1,
+    "15300": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15299-salient_terms",
+   "question": "price costco club david",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15299": 3,
+    "15298": 1,
+    "15300": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15300-heading_topic",
+   "question": "Text: what is stated about going everything just?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15300": 3,
+    "15299": 1,
+    "15301": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15300-salient_terms",
+   "question": "going everything just best",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15300": 3,
+    "15299": 1,
+    "15301": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15301-heading_topic",
+   "question": "Text: what is stated about need goes david?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15301": 3,
+    "15300": 1,
+    "15302": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15301-salient_terms",
+   "question": "need goes david point",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15301": 3,
+    "15300": 1,
+    "15302": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15302-lead_sentence",
+   "question": "go do it back in Arkansas, it's crazy.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15302": 3,
+    "15301": 1,
+    "15303": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15302-heading_topic",
+   "question": "Text: what is stated about like think together?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15302": 3,
+    "15301": 1,
+    "15303": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15302-salient_terms",
+   "question": "like think together thing",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15302": 3,
+    "15301": 1,
+    "15303": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15303-lead_sentence",
+   "question": "because they have too much baggage to actually pull this new thing off.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15303": 3,
+    "15302": 1,
+    "15304": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15303-heading_topic",
+   "question": "Text: what is stated about just david going?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15303": 3,
+    "15302": 1,
+    "15304": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15303-salient_terms",
+   "question": "just david going much",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15303": 3,
+    "15302": 1,
+    "15304": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15304-heading_topic",
+   "question": "Text: what is stated about walmart david really?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15304": 3,
+    "15303": 1,
+    "15305": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15304-salient_terms",
+   "question": "walmart david really started",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15304": 3,
+    "15303": 1,
+    "15305": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15305-heading_topic",
+   "question": "Text: what is stated about store david everything?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15305": 3,
+    "15304": 1,
+    "15306": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15305-salient_terms",
+   "question": "store david everything less",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15305": 3,
+    "15304": 1,
+    "15306": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15306-lead_sentence",
+   "question": "So whatever anyone else did, we always had to sell it for less.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15306": 3,
+    "15305": 1,
+    "15307": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15306-heading_topic",
+   "question": "Text: what is stated about town stores store?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15306": 3,
+    "15305": 1,
+    "15307": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15306-salient_terms",
+   "question": "town stores store year",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15306": 3,
+    "15305": 1,
+    "15307": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15307-heading_topic",
+   "question": "Text: what is stated about stores wants able?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15307": 3,
+    "15306": 1,
+    "15308": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15307-salient_terms",
+   "question": "stores wants able like",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15307": 3,
+    "15306": 1,
+    "15308": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15308-lead_sentence",
+   "question": "a lot of people, including his wife, didn't feel bad about it, because he was like, look, you're working retail and you have hourly employee",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15308": 3,
+    "15307": 1,
+    "15309": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15308-heading_topic",
+   "question": "Text: what is stated about store stores david?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15308": 3,
+    "15307": 1,
+    "15309": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15308-salient_terms",
+   "question": "store stores david walmart",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15308": 3,
+    "15307": 1,
+    "15309": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15309-lead_sentence",
+   "question": "you look at four horses\u2014Woolco, Target, Kmart, which would come out of S.S.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15309": 3,
+    "15308": 1,
+    "15310": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15309-heading_topic",
+   "question": "Text: what is stated about kmart walmart existing?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15309": 3,
+    "15308": 1,
+    "15310": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15309-salient_terms",
+   "question": "kmart walmart existing backend",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15309": 3,
+    "15308": 1,
+    "15310": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15310-lead_sentence",
+   "question": "backend, and go everywhere all at once.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15310": 3,
+    "15309": 1,
+    "15311": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15310-heading_topic",
+   "question": "Text: what is stated about possible because backend?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15310": 3,
+    "15309": 1,
+    "15311": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15310-salient_terms",
+   "question": "possible because backend efficient",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15310": 3,
+    "15309": 1,
+    "15311": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15311-lead_sentence",
+   "question": "the first big lesson we learned was that there was much more business out there in small-town America than anybody including me had ever dre",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15311": 3,
+    "15310": 1,
+    "15312": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15311-heading_topic",
+   "question": "Text: what is stated about early planes very?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15311": 3,
+    "15310": 1,
+    "15312": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15311-salient_terms",
+   "question": "early planes very much",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15311": 3,
+    "15310": 1,
+    "15312": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15312-heading_topic",
+   "question": "Text: what is stated about like david figure?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15312": 3,
+    "15311": 1,
+    "15313": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15312-salient_terms",
+   "question": "like david figure going",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15312": 3,
+    "15311": 1,
+    "15313": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15313-lead_sentence",
+   "question": "have to have a caveat to the Bezos Law.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15313": 3,
+    "15312": 1,
+    "15314": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15313-heading_topic",
+   "question": "Text: what is stated about core companies pilot?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15313": 3,
+    "15312": 1,
+    "15314": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15313-salient_terms",
+   "question": "core companies pilot bezos",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15313": 3,
+    "15312": 1,
+    "15314": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15314-lead_sentence",
+   "question": "also backed by Jeff Bezos himself and Sequoia, Index, and lots of other great investors.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15314": 3,
+    "15313": 1,
+    "15315": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15314-heading_topic",
+   "question": "Text: what is stated about pilot finance team?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15314": 3,
+    "15313": 1,
+    "15315": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15314-salient_terms",
+   "question": "pilot finance team school",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15314": 3,
+    "15313": 1,
+    "15315": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15315-lead_sentence",
+   "question": "yourself, that is not a good use of your time.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15315": 3,
+    "15314": 1,
+    "15316": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15315-heading_topic",
+   "question": "Text: what is stated about pilot stores through?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15315": 3,
+    "15314": 1,
+    "15316": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15315-salient_terms",
+   "question": "pilot stores through public",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15315": 3,
+    "15314": 1,
+    "15316": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15316-lead_sentence",
+   "question": "of the research coverage they were getting was skeptical.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15316": 3,
+    "15315": 1,
+    "15317": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15316-heading_topic",
+   "question": "Text: what is stated about revenue company annual?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15316": 3,
+    "15315": 1,
+    "15317": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15316-salient_terms",
+   "question": "revenue company annual whole",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15316": 3,
+    "15315": 1,
+    "15317": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15317-lead_sentence",
+   "question": "from a $25 million revenue base.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15317": 3,
+    "15316": 1,
+    "15318": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15317-heading_topic",
+   "question": "Text: what is stated about david walmart computers?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15317": 3,
+    "15316": 1,
+    "15318": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15317-salient_terms",
+   "question": "david walmart computers done",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15317": 3,
+    "15316": 1,
+    "15318": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15318-lead_sentence",
+   "question": "size of what he's built, the way he built.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15318": 3,
+    "15317": 1,
+    "15319": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15318-heading_topic",
+   "question": "Text: what is stated about right walmart technology?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15318": 3,
+    "15317": 1,
+    "15319": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15318-salient_terms",
+   "question": "right walmart technology done",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15318": 3,
+    "15317": 1,
+    "15319": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15319-lead_sentence",
+   "question": "I think this was in the '70s and '80s.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15319": 3,
+    "15318": 1,
+    "15320": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15319-heading_topic",
+   "question": "Text: what is stated about stores david satellite?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15319": 3,
+    "15318": 1,
+    "15320": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15319-salient_terms",
+   "question": "stores david satellite network",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15319": 3,
+    "15318": 1,
+    "15320": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15320-lead_sentence",
+   "question": "Ben: Then discovered he was not ready to retire.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15320": 3,
+    "15319": 1,
+    "15321": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15320-heading_topic",
+   "question": "Text: what is stated about walmart warehouse just?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15320": 3,
+    "15319": 1,
+    "15321": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15320-salient_terms",
+   "question": "walmart warehouse just david",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15320": 3,
+    "15319": 1,
+    "15321": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15321-lead_sentence",
+   "question": "by city, extending their supply lines, Walmart's got this behemoth of a distribution network that is way more efficient.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15321": 3,
+    "15320": 1,
+    "15322": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15321-heading_topic",
+   "question": "Text: what is stated about distribution center walmart?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15321": 3,
+    "15320": 1,
+    "15322": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15321-salient_terms",
+   "question": "distribution center walmart stores",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15321": 3,
+    "15320": 1,
+    "15322": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15322-heading_topic",
+   "question": "Text: what is stated about walmart david really?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15322": 3,
+    "15321": 1,
+    "15323": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15322-salient_terms",
+   "question": "walmart david really kmart",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15322": 3,
+    "15321": 1,
+    "15323": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15323-lead_sentence",
+   "question": "on Acquired, Louis Borders, the CEO and Founder of Borders books started Webvan during the tech bubble.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15323": 3,
+    "15322": 1,
+    "15324": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15323-heading_topic",
+   "question": "Text: what is stated about kmart walmart borders?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15323": 3,
+    "15322": 1,
+    "15324": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15323-salient_terms",
+   "question": "kmart walmart borders david",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15323": 3,
+    "15322": 1,
+    "15324": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15324-lead_sentence",
+   "question": "least food as the next category is the largest thing that households spend money on.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15324": 3,
+    "15323": 1,
+    "15325": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15324-heading_topic",
+   "question": "Text: what is stated about david walmart like?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15324": 3,
+    "15323": 1,
+    "15325": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15324-salient_terms",
+   "question": "david walmart like always",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15324": 3,
+    "15323": 1,
+    "15325": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15325-heading_topic",
+   "question": "Text: what is stated about grocery walmart only?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15325": 3,
+    "15324": 1,
+    "15326": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15325-salient_terms",
+   "question": "grocery walmart only david",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15325": 3,
+    "15324": 1,
+    "15326": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15326-heading_topic",
+   "question": "Text: what is stated about david grocery walmart?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15326": 3,
+    "15325": 1,
+    "15327": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15326-salient_terms",
+   "question": "david grocery walmart store",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15326": 3,
+    "15325": 1,
+    "15327": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15327-heading_topic",
+   "question": "Text: what is stated about kmart walmart really?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15327": 3,
+    "15326": 1,
+    "15328": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15327-salient_terms",
+   "question": "kmart walmart really david",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15327": 3,
+    "15326": 1,
+    "15328": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15328-lead_sentence",
+   "question": "early 2000s, I don't think they thought it was an existential threat the way that it truly was for the business.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15328": 3,
+    "15327": 1,
+    "15329": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15328-heading_topic",
+   "question": "Text: what is stated about david walmart like?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15328": 3,
+    "15327": 1,
+    "15329": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15328-salient_terms",
+   "question": "david walmart like really",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15328": 3,
+    "15327": 1,
+    "15329": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15329-heading_topic",
+   "question": "Text: what is stated about walmart really mark?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15329": 3,
+    "15328": 1,
+    "15330": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15329-salient_terms",
+   "question": "walmart really mark ecommerce",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15329": 3,
+    "15328": 1,
+    "15330": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15330-heading_topic",
+   "question": "Text: what is stated about walmart ecommerce like?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15330": 3,
+    "15329": 1,
+    "15331": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15330-salient_terms",
+   "question": "walmart ecommerce like business",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15330": 3,
+    "15329": 1,
+    "15331": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15331-heading_topic",
+   "question": "Text: what is stated about like walmart stuff?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15331": 3,
+    "15330": 1,
+    "15332": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15331-salient_terms",
+   "question": "like walmart stuff david",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15331": 3,
+    "15330": 1,
+    "15332": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15332-lead_sentence",
+   "question": "Obviously, I'm well versed and Amazon packages arriving in my house every day.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15332": 3,
+    "15331": 1,
+    "15333": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15332-heading_topic",
+   "question": "Text: what is stated about amazon walmart just?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15332": 3,
+    "15331": 1,
+    "15333": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15332-salient_terms",
+   "question": "amazon walmart just search",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15332": 3,
+    "15331": 1,
+    "15333": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15333-lead_sentence",
+   "question": "also just have less historical data than Amazon does on all the shopper behavior and all that stuff to incorporate into the functionality of",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15333": 3,
+    "15332": 1,
+    "15334": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15333-heading_topic",
+   "question": "Text: what is stated about walmart just amazon?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15333": 3,
+    "15332": 1,
+    "15334": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15333-salient_terms",
+   "question": "walmart just amazon david",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15333": 3,
+    "15332": 1,
+    "15334": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15334-lead_sentence",
+   "question": "bear case and a bull case on the company from here, and then we'll do the playbook.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15334": 3,
+    "15333": 1,
+    "15335": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15334-heading_topic",
+   "question": "Text: what is stated about company david know?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15334": 3,
+    "15333": 1,
+    "15335": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15334-salient_terms",
+   "question": "company david know idea",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15334": 3,
+    "15333": 1,
+    "15335": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15335-lead_sentence",
+   "question": "is a complex adaptive system.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15335": 3,
+    "15334": 1,
+    "15336": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15335-heading_topic",
+   "question": "Text: what is stated about company resilience things?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15335": 3,
+    "15334": 1,
+    "15336": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15335-salient_terms",
+   "question": "company resilience things like",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15335": 3,
+    "15334": 1,
+    "15336": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15336-lead_sentence",
+   "question": "would the payoff have been worth the risk if the narrow set of outcomes where things worked perfectly actually happened?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15336": 3,
+    "15335": 1,
+    "15337": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15336-heading_topic",
+   "question": "Text: what is stated about david payoff these?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15336": 3,
+    "15335": 1,
+    "15337": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15336-salient_terms",
+   "question": "david payoff these paper",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15336": 3,
+    "15335": 1,
+    "15337": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15337-lead_sentence",
+   "question": "you to add it to your calendar for Tuesday, August 16th, 2022 at 4:00 PM Pacific Time.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15337": 3,
+    "15336": 1,
+    "15338": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15337-heading_topic",
+   "question": "Text: what is stated about walmart stores business?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15337": 3,
+    "15336": 1,
+    "15338": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15337-salient_terms",
+   "question": "walmart stores business david",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15337": 3,
+    "15336": 1,
+    "15338": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15338-lead_sentence",
+   "question": "of the company, I believe 10%, 15% of revenue of Walmart today.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15338": 3,
+    "15337": 1,
+    "15339": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15338-heading_topic",
+   "question": "Text: what is stated about walmart costco club?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15338": 3,
+    "15337": 1,
+    "15339": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15338-salient_terms",
+   "question": "walmart costco club david",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15338": 3,
+    "15337": 1,
+    "15339": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15339-lead_sentence",
+   "question": "Costco's gross profit margin is only around 13%.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15339": 3,
+    "15338": 1,
+    "15340": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15339-heading_topic",
+   "question": "Text: what is stated about david costco walmart?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15339": 3,
+    "15338": 1,
+    "15340": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15339-salient_terms",
+   "question": "david costco walmart stores",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15339": 3,
+    "15338": 1,
+    "15340": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15340-heading_topic",
+   "question": "Text: what is stated about think walmart billion?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15340": 3,
+    "15339": 1,
+    "15341": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15340-salient_terms",
+   "question": "think walmart billion years",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15340": 3,
+    "15339": 1,
+    "15341": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15341-heading_topic",
+   "question": "Text: what is stated about david just year?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15341": 3,
+    "15340": 1,
+    "15342": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15341-salient_terms",
+   "question": "david just year well",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15341": 3,
+    "15340": 1,
+    "15342": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15342-lead_sentence",
+   "question": "Ben: We got to separate the takeoff phase from where they are today because I think it's a totally different set of powers.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15342": 3,
+    "15341": 1,
+    "15343": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15342-heading_topic",
+   "question": "Text: what is stated about david those like?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15342": 3,
+    "15341": 1,
+    "15343": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15342-salient_terms",
+   "question": "david those like scale",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15342": 3,
+    "15341": 1,
+    "15343": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15343-lead_sentence",
+   "question": "lower because they have the power of scale, the distribution, logistics network, and the operations that they built behind it.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15343": 3,
+    "15342": 1,
+    "15344": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15343-heading_topic",
+   "question": "Text: what is stated about walmart amazon logistics?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15343": 3,
+    "15342": 1,
+    "15344": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15343-salient_terms",
+   "question": "walmart amazon logistics network",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15343": 3,
+    "15342": 1,
+    "15344": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15344-heading_topic",
+   "question": "Text: what is stated about walmart price think?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15344": 3,
+    "15343": 1,
+    "15345": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15344-salient_terms",
+   "question": "walmart price think lowest",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15344": 3,
+    "15343": 1,
+    "15345": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15345-lead_sentence",
+   "question": "Sam, of what you just said, the lowest price is the thing that matters the most.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15345": 3,
+    "15344": 1,
+    "15346": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15345-heading_topic",
+   "question": "Text: what is stated about think david walmart?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15345": 3,
+    "15344": 1,
+    "15346": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15345-salient_terms",
+   "question": "think david walmart said",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15345": 3,
+    "15344": 1,
+    "15346": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15346-lead_sentence",
+   "question": "professional sports franchises than any other family out there.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15346": 3,
+    "15345": 1,
+    "15347": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15346-heading_topic",
+   "question": "Text: what is stated about bull average case?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15346": 3,
+    "15345": 1,
+    "15347": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15346-salient_terms",
+   "question": "bull average case david",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15346": 3,
+    "15345": 1,
+    "15347": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15347-heading_topic",
+   "question": "Text: what is stated about dollar david think?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15347": 3,
+    "15346": 1,
+    "15348": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15347-salient_terms",
+   "question": "dollar david think competition",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15347": 3,
+    "15346": 1,
+    "15348": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15348-lead_sentence",
+   "question": "We'd love to chat about this.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15348": 3,
+    "15347": 1,
+    "15349": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15348-heading_topic",
+   "question": "Text: what is stated about ecommerce think profitable?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15348": 3,
+    "15347": 1,
+    "15349": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15348-salient_terms",
+   "question": "ecommerce think profitable know",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15348": 3,
+    "15347": 1,
+    "15349": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15349-lead_sentence",
+   "question": "cuts things going on between Walmart and labor right now.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15349": 3,
+    "15348": 1,
+    "15350": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15349-heading_topic",
+   "question": "Text: what is stated about look walmart good?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15349": 3,
+    "15348": 1,
+    "15350": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15349-salient_terms",
+   "question": "look walmart good doing",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15349": 3,
+    "15348": 1,
+    "15350": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15350-lead_sentence",
+   "question": "but this is really like a disease that I've noticed over the years.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15350": 3,
+    "15349": 1,
+    "15351": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15350-heading_topic",
+   "question": "Text: what is stated about doing look better?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15350": 3,
+    "15349": 1,
+    "15351": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15350-salient_terms",
+   "question": "doing look better wrong",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15350": 3,
+    "15349": 1,
+    "15351": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15351-heading_topic",
+   "question": "Text: what is stated about wave walmart discounting?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15351": 3,
+    "15350": 1,
+    "15352": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15351-salient_terms",
+   "question": "wave walmart discounting going",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15351": 3,
+    "15350": 1,
+    "15352": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15352-lead_sentence",
+   "question": "space, so you kind of have to if you want to win.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15352": 3,
+    "15351": 1,
+    "15353": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15352-heading_topic",
+   "question": "Text: what is stated about really industry like?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15352": 3,
+    "15351": 1,
+    "15353": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15352-salient_terms",
+   "question": "really industry like walmart",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15352": 3,
+    "15351": 1,
+    "15353": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15353-heading_topic",
+   "question": "Text: what is stated about walmart david true?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15353": 3,
+    "15352": 1,
+    "15354": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15353-salient_terms",
+   "question": "walmart david true point",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15353": 3,
+    "15352": 1,
+    "15354": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15354-lead_sentence",
+   "question": "was for the first decade.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15354": 3,
+    "15353": 1,
+    "15355": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15354-heading_topic",
+   "question": "Text: what is stated about think david first?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15354": 3,
+    "15353": 1,
+    "15355": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15354-salient_terms",
+   "question": "think david first cunningham",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15354": 3,
+    "15353": 1,
+    "15355": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15355-heading_topic",
+   "question": "Text: what is stated about equity really more?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15355": 3,
+    "15354": 1,
+    "15356": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15355-salient_terms",
+   "question": "equity really more walmart",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15355": 3,
+    "15354": 1,
+    "15356": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15356-lead_sentence",
+   "question": "as good a job discussing all that as the book does and as other forums do.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15356": 3,
+    "15355": 1,
+    "15357": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15356-heading_topic",
+   "question": "Text: what is stated about walmart good jobs?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15356": 3,
+    "15355": 1,
+    "15357": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15356-salient_terms",
+   "question": "walmart good jobs relationships",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15356": 3,
+    "15355": 1,
+    "15357": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15357-lead_sentence",
+   "question": "pressure for vendors to lower their prices.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15357": 3,
+    "15356": 1,
+    "15358": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15357-heading_topic",
+   "question": "Text: what is stated about walmart quality just?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15357": 3,
+    "15356": 1,
+    "15358": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15357-salient_terms",
+   "question": "walmart quality just american",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15357": 3,
+    "15356": 1,
+    "15358": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15358-lead_sentence",
+   "question": "this had a huge, pretty much unambiguously negative externality that I think has gone a long way towards being corrected, was environmental",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15358": 3,
+    "15357": 1,
+    "15359": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15358-heading_topic",
+   "question": "Text: what is stated about impact like walmart?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15358": 3,
+    "15357": 1,
+    "15359": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15358-salient_terms",
+   "question": "impact like walmart think",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15358": 3,
+    "15357": 1,
+    "15359": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15359-lead_sentence",
+   "question": "for in a lot of those states.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15359": 3,
+    "15358": 1,
+    "15360": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15359-heading_topic",
+   "question": "Text: what is stated about david think walmart?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15359": 3,
+    "15358": 1,
+    "15360": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15359-salient_terms",
+   "question": "david think walmart guns",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15359": 3,
+    "15358": 1,
+    "15360": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15360-lead_sentence",
+   "question": "give an overall grade to Walmart, the company, encompassing the whole body of work.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15360": 3,
+    "15359": 1,
+    "15361": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15360-heading_topic",
+   "question": "Text: what is stated about think year three?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15360": 3,
+    "15359": 1,
+    "15361": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15360-salient_terms",
+   "question": "think year three david",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15360": 3,
+    "15359": 1,
+    "15361": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15361-lead_sentence",
+   "question": "and that was not really Sam that led that, and was also a big part of driving the nail in the coffin of Kmart.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15361": 3,
+    "15360": 1,
+    "15362": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15361-heading_topic",
+   "question": "Text: what is stated about david walmart really?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15361": 3,
+    "15360": 1,
+    "15362": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15361-salient_terms",
+   "question": "david walmart really part",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15361": 3,
+    "15360": 1,
+    "15362": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15362-lead_sentence",
+   "question": "You look at the scoreboard.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15362": 3,
+    "15361": 1,
+    "15363": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15362-heading_topic",
+   "question": "Text: what is stated about david know okay?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15362": 3,
+    "15361": 1,
+    "15363": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15362-salient_terms",
+   "question": "david know okay because",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15362": 3,
+    "15361": 1,
+    "15363": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15363-heading_topic",
+   "question": "Text: what is stated about furniture david podcast?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15363": 3,
+    "15362": 1,
+    "15364": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15363-salient_terms",
+   "question": "furniture david podcast berkshire",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15363": 3,
+    "15362": 1,
+    "15364": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15364-lead_sentence",
+   "question": "Ben: I think he does talk about that he bought a bunch of furniture for his house from the Nebraska Furniture Mart.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15364": 3,
+    "15363": 1,
+    "15365": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15364-heading_topic",
+   "question": "Text: what is stated about david good book?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15364": 3,
+    "15363": 1,
+    "15365": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15364-salient_terms",
+   "question": "david good book carve",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15364": 3,
+    "15363": 1,
+    "15365": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15365-lead_sentence",
+   "question": "I also did the same thing with 2001, A Space Odyssey.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15365": 3,
+    "15364": 1,
+    "15366": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15365-heading_topic",
+   "question": "Text: what is stated about acquired like book?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15365": 3,
+    "15364": 1,
+    "15366": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15365-salient_terms",
+   "question": "acquired like book david",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15365": 3,
+    "15364": 1,
+    "15366": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15366-lead_sentence",
+   "question": "in the podcast player of your choice, and is already live at acquired.fm/lp for paid subscribers.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15366": 3,
+    "15365": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15366-heading_topic",
+   "question": "Text: what is stated about acquired next david?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15366": 3,
+    "15365": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-15366-salient_terms",
+   "question": "acquired next david jobs",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "15366": 3,
+    "15365": 1
+   },
+   "source_id": 3,
+   "file_name": "walmart.txt"
+  },
+  {
+   "id": "syn-14776-lead_sentence",
+   "question": "Transcript: (disclaimer: may contain unintentionally confusing, inaccurate and/or amusing transcription errors) David: People, turns out, lo",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14776": 3,
+    "14777": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14776-heading_topic",
+   "question": "Text: what is stated about david lemonade sell?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14776": 3,
+    "14777": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14776-salient_terms",
+   "question": "david lemonade sell episode",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14776": 3,
+    "14777": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14777-lead_sentence",
+   "question": "turns out, all that stuff that you just got good at, you can sell to other businesses.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14777": 3,
+    "14776": 1,
+    "14778": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14777-heading_topic",
+   "question": "Text: what is stated about business retail sell?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14777": 3,
+    "14776": 1,
+    "14778": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14777-salient_terms",
+   "question": "business retail sell services",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14777": 3,
+    "14776": 1,
+    "14778": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14778-heading_topic",
+   "question": "Text: what is stated about company very fundrise?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14778": 3,
+    "14777": 1,
+    "14779": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14778-salient_terms",
+   "question": "company very fundrise investing",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14778": 3,
+    "14777": 1,
+    "14779": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14779-heading_topic",
+   "question": "Text: what is stated about carried interest company?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14779": 3,
+    "14778": 1,
+    "14780": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14779-salient_terms",
+   "question": "carried interest company venture",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14779": 3,
+    "14778": 1,
+    "14780": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14780-heading_topic",
+   "question": "Text: what is stated about david show acquired?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14780": 3,
+    "14779": 1,
+    "14781": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14780-salient_terms",
+   "question": "david show acquired fundrise",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14780": 3,
+    "14779": 1,
+    "14781": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14781-heading_topic",
+   "question": "Text: what is stated about amazon bezos david?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14781": 3,
+    "14780": 1,
+    "14782": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14781-salient_terms",
+   "question": "amazon bezos david technology",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14781": 3,
+    "14780": 1,
+    "14782": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14782-lead_sentence",
+   "question": "talking about, of course, current Amazon CEO, Andy Jassy.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14782": 3,
+    "14781": 1,
+    "14783": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14782-heading_topic",
+   "question": "Text: what is stated about amazon david important?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14782": 3,
+    "14781": 1,
+    "14783": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14782-salient_terms",
+   "question": "amazon david important course",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14782": 3,
+    "14781": 1,
+    "14783": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14783-lead_sentence",
+   "question": "or was this good for the world?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14783": 3,
+    "14782": 1,
+    "14784": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14783-heading_topic",
+   "question": "Text: what is stated about story david amazon?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14783": 3,
+    "14782": 1,
+    "14784": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14783-salient_terms",
+   "question": "story david amazon years",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14783": 3,
+    "14782": 1,
+    "14784": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14784-lead_sentence",
+   "question": "side of the company, and the engineers, everybody would go work in the warehouses in Q4.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14784": 3,
+    "14783": 1,
+    "14785": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14784-heading_topic",
+   "question": "Text: what is stated about just other like?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14784": 3,
+    "14783": 1,
+    "14785": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14784-salient_terms",
+   "question": "just other like brilliant",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14784": 3,
+    "14783": 1,
+    "14785": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14785-lead_sentence",
+   "question": "serve other tenants other than us.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14785": 3,
+    "14784": 1,
+    "14786": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14785-heading_topic",
+   "question": "Text: what is stated about infrastructure just servers?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14785": 3,
+    "14784": 1,
+    "14786": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14785-salient_terms",
+   "question": "infrastructure just servers linux",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14785": 3,
+    "14784": 1,
+    "14786": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14786-lead_sentence",
+   "question": "of business because they were so tight on cash.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14786": 3,
+    "14785": 1,
+    "14787": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14786-heading_topic",
+   "question": "Text: what is stated about amazon excess capacity?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14786": 3,
+    "14785": 1,
+    "14787": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14786-salient_terms",
+   "question": "amazon excess capacity servers",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14786": 3,
+    "14785": 1,
+    "14787": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14787-heading_topic",
+   "question": "Text: what is stated about amazon always strategy?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14787": 3,
+    "14786": 1,
+    "14788": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14787-salient_terms",
+   "question": "amazon always strategy cost",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14787": 3,
+    "14786": 1,
+    "14788": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14788-heading_topic",
+   "question": "Text: what is stated about amazon reilly remember?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14788": 3,
+    "14787": 1,
+    "14789": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14788-salient_terms",
+   "question": "amazon reilly remember meant",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14788": 3,
+    "14787": 1,
+    "14789": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14789-lead_sentence",
+   "question": "2.0 was what they called participatory culture and interoperability.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14789": 3,
+    "14788": 1,
+    "14790": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14789-heading_topic",
+   "question": "Text: what is stated about google maps people?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14789": 3,
+    "14788": 1,
+    "14790": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14789-salient_terms",
+   "question": "google maps people like",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14789": 3,
+    "14788": 1,
+    "14790": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14790-lead_sentence",
+   "question": "the data all to themselves.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14790": 3,
+    "14789": 1,
+    "14791": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14790-heading_topic",
+   "question": "Text: what is stated about amazon other jeff?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14790": 3,
+    "14789": 1,
+    "14791": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14790-salient_terms",
+   "question": "amazon other jeff business",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14790": 3,
+    "14789": 1,
+    "14791": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14791-lead_sentence",
+   "question": "this time, growing into many other categories, too.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14791": 3,
+    "14790": 1,
+    "14792": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14791-heading_topic",
+   "question": "Text: what is stated about amazon within very?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14791": 3,
+    "14790": 1,
+    "14792": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14791-salient_terms",
+   "question": "amazon within very people",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14791": 3,
+    "14790": 1,
+    "14792": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14792-lead_sentence",
+   "question": "other developers using the amazon.com product catalog.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14792": 3,
+    "14791": 1,
+    "14793": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14792-heading_topic",
+   "question": "Text: what is stated about amazon services associates?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14792": 3,
+    "14791": 1,
+    "14793": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14792-salient_terms",
+   "question": "amazon services associates collin",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14792": 3,
+    "14791": 1,
+    "14793": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14793-heading_topic",
+   "question": "Text: what is stated about amazon services david?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14793": 3,
+    "14792": 1,
+    "14794": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14793-salient_terms",
+   "question": "amazon services david infrastructure",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14793": 3,
+    "14792": 1,
+    "14794": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14794-heading_topic",
+   "question": "Text: what is stated about amazon just going?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14794": 3,
+    "14793": 1,
+    "14795": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14794-salient_terms",
+   "question": "amazon just going point",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14794": 3,
+    "14793": 1,
+    "14795": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14795-lead_sentence",
+   "question": "because of this rat's nest of complexities involved on the technical and infrastructure side.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14795": 3,
+    "14794": 1,
+    "14796": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14795-heading_topic",
+   "question": "Text: what is stated about because trying grow?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14795": 3,
+    "14794": 1,
+    "14796": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14795-salient_terms",
+   "question": "because trying grow more",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14795": 3,
+    "14794": 1,
+    "14796": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14796-lead_sentence",
+   "question": "uh-oh, what did this other team commit to the codebase here?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14796": 3,
+    "14795": 1,
+    "14797": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14796-heading_topic",
+   "question": "Text: what is stated about amazon jeff before?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14796": 3,
+    "14795": 1,
+    "14797": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14796-salient_terms",
+   "question": "amazon jeff before jassy",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14796": 3,
+    "14795": 1,
+    "14797": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14797-lead_sentence",
+   "question": "acts as the whole marketing department.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14797": 3,
+    "14796": 1,
+    "14798": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14797-heading_topic",
+   "question": "Text: what is stated about technical going andy?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14797": 3,
+    "14796": 1,
+    "14798": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14797-salient_terms",
+   "question": "technical going andy jeff",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14797": 3,
+    "14796": 1,
+    "14798": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14798-heading_topic",
+   "question": "Text: what is stated about communication management program?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14798": 3,
+    "14797": 1,
+    "14799": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14798-salient_terms",
+   "question": "communication management program need",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14798": 3,
+    "14797": 1,
+    "14799": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14799-lead_sentence",
+   "question": "management\u2014was that the origin of the modern Silicon Valley product manager?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14799": 3,
+    "14798": 1,
+    "14800": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14799-heading_topic",
+   "question": "Text: what is stated about management microsoft david?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14799": 3,
+    "14798": 1,
+    "14800": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14799-salient_terms",
+   "question": "management microsoft david like",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14799": 3,
+    "14798": 1,
+    "14800": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14800-lead_sentence",
+   "question": "perhaps better put a group of individual startups all operating in a very nimble, entrepreneurial way, then you should think about them as s",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14800": 3,
+    "14799": 1,
+    "14801": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14800-heading_topic",
+   "question": "Text: what is stated about architecture time separate?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14800": 3,
+    "14799": 1,
+    "14801": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14800-salient_terms",
+   "question": "architecture time separate each",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14800": 3,
+    "14799": 1,
+    "14801": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14801-lead_sentence",
+   "question": "the time, this post happened much later.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14801": 3,
+    "14800": 1,
+    "14802": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14801-heading_topic",
+   "question": "Text: what is stated about amazon google just?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14801": 3,
+    "14800": 1,
+    "14802": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14801-salient_terms",
+   "question": "amazon google just post",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14801": 3,
+    "14800": 1,
+    "14802": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14802-heading_topic",
+   "question": "Text: what is stated about service doesn very?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14802": 3,
+    "14801": 1,
+    "14803": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14802-salient_terms",
+   "question": "service doesn very amazon",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14802": 3,
+    "14801": 1,
+    "14803": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14803-lead_sentence",
+   "question": "query the MySQL database, even though you have access to it and even though it's owned by your company, you instead have to use this API.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14803": 3,
+    "14802": 1,
+    "14804": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14803-heading_topic",
+   "question": "Text: what is stated about technical junk just?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14803": 3,
+    "14802": 1,
+    "14804": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14803-salient_terms",
+   "question": "technical junk just beer",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14803": 3,
+    "14802": 1,
+    "14804": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14804-heading_topic",
+   "question": "Text: what is stated about doing like keep?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14804": 3,
+    "14803": 1,
+    "14805": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14804-salient_terms",
+   "question": "doing like keep thing",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14804": 3,
+    "14803": 1,
+    "14805": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14805-heading_topic",
+   "question": "Text: what is stated about pilot financial doing?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14805": 3,
+    "14804": 1,
+    "14806": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14805-salient_terms",
+   "question": "pilot financial doing david",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14805": 3,
+    "14804": 1,
+    "14806": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14806-heading_topic",
+   "question": "Text: what is stated about pilot start make?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14806": 3,
+    "14805": 1,
+    "14807": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14806-salient_terms",
+   "question": "pilot start make idea",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14806": 3,
+    "14805": 1,
+    "14807": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14807-lead_sentence",
+   "question": "this stuff right, and we've toiled around in the darkness so much trying to get this stuff, right, and I don't think it's helping our custom",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14807": 3,
+    "14806": 1,
+    "14808": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14807-heading_topic",
+   "question": "Text: what is stated about software infrastructure need?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14807": 3,
+    "14806": 1,
+    "14808": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14807-salient_terms",
+   "question": "software infrastructure need these",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14807": 3,
+    "14806": 1,
+    "14808": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14808-lead_sentence",
+   "question": "other's APIs internally, then yeah, there has to be some dynamic way that if a whole bunch more load starts coming in and you weren't told a",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14808": 3,
+    "14807": 1,
+    "14809": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14808-heading_topic",
+   "question": "Text: what is stated about david like amazon?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14808": 3,
+    "14807": 1,
+    "14809": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14808-salient_terms",
+   "question": "david like amazon yeah",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14808": 3,
+    "14807": 1,
+    "14809": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14809-lead_sentence",
+   "question": "David Shaw back at D.E.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14809": 3,
+    "14808": 1,
+    "14810": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14809-heading_topic",
+   "question": "Text: what is stated about amazon andy david?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14809": 3,
+    "14808": 1,
+    "14810": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14809-salient_terms",
+   "question": "amazon andy david together",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14809": 3,
+    "14808": 1,
+    "14810": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14810-lead_sentence",
+   "question": "Andy goes in, takes over AWS, and Collin becomes Jeff's next shadow.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14810": 3,
+    "14809": 1,
+    "14811": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14810-heading_topic",
+   "question": "Text: what is stated about david andy amazon?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14810": 3,
+    "14809": 1,
+    "14811": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14810-salient_terms",
+   "question": "david andy amazon back",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14810": 3,
+    "14809": 1,
+    "14811": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14811-heading_topic",
+   "question": "Text: what is stated about need david come?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14811": 3,
+    "14810": 1,
+    "14812": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14811-salient_terms",
+   "question": "need david come think",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14811": 3,
+    "14810": 1,
+    "14812": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14812-lead_sentence",
+   "question": "need databases, and you need a content distribution network, like what Akamai was to be able to recreate any internet service of scale.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14812": 3,
+    "14811": 1,
+    "14813": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14812-heading_topic",
+   "question": "Text: what is stated about build need services?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14812": 3,
+    "14811": 1,
+    "14813": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14812-salient_terms",
+   "question": "build need services internet",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14812": 3,
+    "14811": 1,
+    "14813": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14813-heading_topic",
+   "question": "Text: what is stated about think server cloud?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14813": 3,
+    "14812": 1,
+    "14814": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14813-salient_terms",
+   "question": "think server cloud storage",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14813": 3,
+    "14812": 1,
+    "14814": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14814-lead_sentence",
+   "question": "live in the cloud and is yours until you stop using it.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14814": 3,
+    "14813": 1,
+    "14815": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14814-heading_topic",
+   "question": "Text: what is stated about story database using?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14814": 3,
+    "14813": 1,
+    "14815": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14814-salient_terms",
+   "question": "story database using david",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "salient_terms",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14814": 3,
+    "14813": 1,
+    "14815": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14815-lead_sentence",
+   "question": "business plan, and all that, hiring 57 people.",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "lead_sentence",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14815": 3,
+    "14814": 1,
+    "14816": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  },
+  {
+   "id": "syn-14815-heading_topic",
+   "question": "Text: what is stated about amazon network architecture?",
+   "provenance": "synthetic_chunk_grounded",
+   "variant_style": "heading_topic",
+   "review_status": "auto_labeled",
+   "relevant": {
+    "14815": 3,
+    "14814": 1,
+    "14816": 1
+   },
+   "source_id": 4,
+   "file_name": "amazon_web_services.txt"
+  }
+ ]
+}

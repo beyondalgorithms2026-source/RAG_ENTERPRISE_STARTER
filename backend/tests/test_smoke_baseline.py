@@ -1479,16 +1479,12 @@ class SmokeTestBaseline(SmokeTestBase):
             self._delete_seed_source(source_id)
 
     def test_db_checks_report_index_and_keyword_readiness(self):
-        import app.embedding.embedder as embedder_module
-
-        original_get_expected_dim = embedder_module.get_expected_dim
-        embedder_module.get_expected_dim = lambda: 3
-        try:
-            run_migrations()
-            checks = collect_db_checks()
-        finally:
-            embedder_module.get_expected_dim = original_get_expected_dim
-            run_migrations()
+        # AR3: never run migrations with a fake embedding dimension against the
+        # shared dev DB — MIG-P003 realigns the vector column on dimension
+        # change, which destroys every stored embedding. Verify readiness at
+        # the real dimension only.
+        run_migrations()
+        checks = collect_db_checks()
 
         self.assertTrue(checks["keyword index exists on chunks.search_tsv"])
         self.assertTrue(checks["vector index exists on chunks.embedding"])
