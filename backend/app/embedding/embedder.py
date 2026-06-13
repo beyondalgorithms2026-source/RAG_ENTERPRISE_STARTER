@@ -34,6 +34,15 @@ def get_expected_dim() -> int:
     return _EXPECTED_DIM
 
 
+def reset_embedder_cache() -> None:
+    """Force the next get_model() to reload from the active profile (AR7:
+    after a swap activates a different embedding model)."""
+    global _model, _EXPECTED_DIM, _loaded_model_name
+    _model = None
+    _EXPECTED_DIM = None
+    _loaded_model_name = None
+
+
 def embed_texts(texts: list[str]) -> list[list[float]]:
     if not texts:
         return []

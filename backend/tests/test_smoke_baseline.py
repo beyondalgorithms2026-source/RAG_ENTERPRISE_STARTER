@@ -1520,6 +1520,7 @@ class SmokeTestBaseline(SmokeTestBase):
                 "MIG-P020",
                 "MIG-P021",
                 "MIG-P022",
+                "MIG-P023",
             ],
         )
         self.assertTrue(all(item["description"] for item in plan))
