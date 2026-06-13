@@ -101,6 +101,7 @@ from app.db.repo_query_mining import (
     list_failure_clusters,
     list_query_events,
 )
+from app.db.repo_eval_runs import get_eval_run, list_eval_runs
 from app.db.repo_retention import run_retention_policy
 from app.eval.compare_eval import DEFAULT_REPORT_FILE as BENCHMARK_REPORT_FILE
 from app.eval.compare_eval import load_benchmark_cases, run_mode_benchmark
@@ -271,11 +272,20 @@ class TuningPromotionRequest(BaseModel):
     draft_id: int
     promotion_note: str = ""
     embedding_experiment_id: Optional[int] = None
+    eval_run_id: Optional[int] = None
 
 
 class TuningRollbackRequest(BaseModel):
     version_label: str
     reason: str = ""
+    eval_run_id: Optional[int] = None
+
+
+class TuningEvalRunRequest(BaseModel):
+    draft_id: Optional[int] = None
+    pack_names: list[str] = Field(default_factory=list)
+    sample_size: Optional[int] = Field(default=150, ge=1, le=2000)
+    k: int = Field(default=10, ge=1, le=50)
 
 
 class EmbeddingExperimentRequest(BaseModel):
@@ -945,6 +955,98 @@ def get_tuning_embedding_experiments():
     return {"embedding_experiments": list_embedding_experiments(limit=100)}
 
 
+@router.post("/tuning/eval-runs")
+def run_tuning_eval(body: TuningEvalRunRequest, request: Request, _rate_limit: None = Depends(rate_limit_admin_expensive)):
+    """AR4: run AR3 eval packs under a candidate draft's bundle (or the live
+    configuration) and persist the result as promotion evidence."""
+    actor = get_current_user()
+    from app.eval.promotion_evidence import run_candidate_eval
+
+    try:
+        run = run_candidate_eval(
+            draft_id=body.draft_id,
+            pack_names=body.pack_names or None,
+            sample_size=body.sample_size,
+            k=body.k,
+            actor=actor,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    insert_admin_audit_event(
+        event_type="tuning",
+        action="tuning.eval_run",
+        resource_type="tuning_eval_run",
+        resource_id=str(run["id"]),
+        resource_name=run["run_label"],
+        event_json={
+            "draft_id": body.draft_id,
+            "gate_status": run["gate_status"],
+            "gate_aggregates": run["gate_aggregates"],
+            "sample_size": body.sample_size,
+        },
+        actor=actor,
+    )
+    return {"eval_run": run}
+
+
+@router.get("/tuning/eval-runs")
+def get_tuning_eval_runs(draft_id: Optional[int] = None):
+    return {"eval_runs": list_eval_runs(draft_id=draft_id, limit=100)}
+
+
+def _parse_event_timestamp(value: Any) -> datetime:
+    return datetime.fromisoformat(str(value).replace(" ", "T"))
+
+
+def _resolve_promotion_eval_evidence(*, draft: dict[str, Any], eval_run_id: Optional[int]) -> dict[str, Any]:
+    """AR4 gate: in 'require' mode a fresh, passing eval run on this draft is
+    mandatory; in 'warn' mode missing/failed evidence is recorded loudly."""
+    from app.eval.promotion_evidence import build_promotion_evidence, resolve_enforcement_mode
+
+    mode = resolve_enforcement_mode()
+    warnings: list[str] = []
+    eval_run = None
+    if eval_run_id is not None:
+        eval_run = get_eval_run(eval_run_id)
+        if not eval_run:
+            raise HTTPException(status_code=404, detail=f"Eval run {eval_run_id} not found")
+        if eval_run.get("draft_id") != int(draft["id"]):
+            raise HTTPException(
+                status_code=422,
+                detail={"error": "eval_run_draft_mismatch", "message": f"Eval run {eval_run_id} was not produced from draft {draft['id']}."},
+            )
+        if _parse_event_timestamp(eval_run["created_at"]) < _parse_event_timestamp(draft["updated_at"]):
+            if mode == "require":
+                raise HTTPException(
+                    status_code=422,
+                    detail={"error": "stale_eval_run", "message": "The draft changed after this eval run; re-run evaluation on the current draft."},
+                )
+            warnings.append("promoted_with_stale_eval_run")
+        if eval_run["gate_status"] != "pass":
+            if mode == "require":
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "error": "eval_gate_failed",
+                        "message": "Candidate failed the eval gate and cannot be promoted in require mode.",
+                        "gate_aggregates": eval_run["gate_aggregates"],
+                        "thresholds": eval_run["thresholds"],
+                    },
+                )
+            warnings.append("promoted_with_failed_eval_gate")
+    else:
+        if mode == "require":
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "eval_evidence_required",
+                    "message": "Promotion requires an eval-pack run on this draft (POST /admin/tuning/eval-runs).",
+                },
+            )
+        warnings.append("promoted_without_eval")
+    return build_promotion_evidence(eval_run=eval_run, enforcement_mode=mode, warnings=warnings)
+
+
 @router.post("/tuning/promote")
 def promote_tuning_candidate(body: TuningPromotionRequest, request: Request):
     actor = get_current_user()
@@ -952,6 +1054,7 @@ def promote_tuning_candidate(body: TuningPromotionRequest, request: Request):
     draft = get_candidate_draft(body.draft_id)
     if not draft:
         raise HTTPException(status_code=404, detail=f"Draft {body.draft_id} not found")
+    eval_evidence = _resolve_promotion_eval_evidence(draft=draft, eval_run_id=body.eval_run_id)
     live = get_live_configuration()
     live_embedding = str((live.get("selected_profiles") or {}).get("embedding") or "")
     candidate_embedding = str((draft.get("selected_profiles") or {}).get("embedding") or "")
@@ -964,7 +1067,12 @@ def promote_tuning_candidate(body: TuningPromotionRequest, request: Request):
             },
         )
     try:
-        result = promote_candidate_to_live(draft_id=body.draft_id, promotion_note=body.promotion_note, actor=actor)
+        result = promote_candidate_to_live(
+            draft_id=body.draft_id,
+            promotion_note=body.promotion_note,
+            actor=actor,
+            eval_evidence=eval_evidence,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     for profile_type in PROFILE_TYPES_FOR_TUNING:
@@ -978,9 +1086,15 @@ def promote_tuning_candidate(body: TuningPromotionRequest, request: Request):
         resource_name=draft.get("name"),
         before_json=result.get("previous_live_configuration"),
         after_json=result.get("live_configuration"),
-        event_json={"promotion_note": body.promotion_note, "embedding_experiment_id": body.embedding_experiment_id, **approval},
+        event_json={
+            "promotion_note": body.promotion_note,
+            "embedding_experiment_id": body.embedding_experiment_id,
+            "eval_evidence": eval_evidence,
+            **approval,
+        },
         actor=actor,
     )
+    result["eval_evidence"] = eval_evidence
     return result
 
 
@@ -988,8 +1102,30 @@ def promote_tuning_candidate(body: TuningPromotionRequest, request: Request):
 def rollback_tuning_candidate(body: TuningRollbackRequest, request: Request):
     actor = get_current_user()
     approval = require_high_impact_approval(request=request, actor=actor, action="tuning.rollback")
+    # AR4: rollbacks are never blocked on eval (they are the escape hatch), but
+    # the eval evidence that justified the rollback is linked when provided.
+    eval_evidence: dict[str, Any] = {}
+    if body.eval_run_id is not None:
+        eval_run = get_eval_run(body.eval_run_id)
+        if not eval_run:
+            raise HTTPException(status_code=404, detail=f"Eval run {body.eval_run_id} not found")
+        from app.eval.promotion_evidence import resolve_enforcement_mode
+
+        eval_evidence = {
+            "enforcement_mode": resolve_enforcement_mode(),
+            "warnings": [],
+            "eval_run_id": eval_run["id"],
+            "gate_status": eval_run["gate_status"],
+            "gate_aggregates": eval_run["gate_aggregates"],
+            "thresholds": eval_run["thresholds"],
+        }
     try:
-        result = rollback_to_version(version_label=body.version_label, reason=body.reason, actor=actor)
+        result = rollback_to_version(
+            version_label=body.version_label,
+            reason=body.reason,
+            actor=actor,
+            eval_evidence=eval_evidence,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     for profile_type in PROFILE_TYPES_FOR_TUNING:
@@ -1003,9 +1139,10 @@ def rollback_tuning_candidate(body: TuningRollbackRequest, request: Request):
         resource_name=body.version_label,
         before_json=result.get("previous_live_configuration"),
         after_json=result.get("live_configuration"),
-        event_json={"reason": body.reason, **approval},
+        event_json={"reason": body.reason, "eval_evidence": eval_evidence, **approval},
         actor=actor,
     )
+    result["eval_evidence"] = eval_evidence
     return result
 
 

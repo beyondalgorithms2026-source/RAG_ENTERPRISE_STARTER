@@ -128,6 +128,30 @@ function candidateRetrievalSummary(config: Record<string, unknown>, retrievalK: 
   return parts.join(" · ");
 }
 
+function formatMetricDelta(value: unknown) {
+  if (typeof value !== "number") {
+    return "n/a";
+  }
+  return `${value > 0 ? "+" : ""}${value.toFixed(3)}`;
+}
+
+function evalEvidenceSummary(evidence: GenericMap | null | undefined) {
+  if (!evidence || !Object.keys(evidence).length) {
+    return null;
+  }
+  const warnings = (evidence.warnings || []) as string[];
+  const deltas = (evidence.deltas_vs_live_baseline || {}) as GenericMap;
+  const parts: string[] = [];
+  parts.push(evidence.eval_run_id ? `eval run #${evidence.eval_run_id} · gate ${String(evidence.gate_status || "unknown")}` : "no eval run");
+  if (Object.keys(deltas).length) {
+    parts.push(`recall@5 Δ ${formatMetricDelta(deltas.recall_at_5)} · MRR Δ ${formatMetricDelta(deltas.mrr)}`);
+  }
+  if (warnings.length) {
+    parts.push(`⚠ ${warnings.join(", ")}`);
+  }
+  return parts.join(" · ");
+}
+
 function formatTimestamp(value: unknown) {
   if (!value) {
     return "Unknown time";
@@ -278,6 +302,8 @@ export function ProfilesAdminPanel() {
   const [savingDraft, setSavingDraft] = useState(false);
   const [isPromoting, setIsPromoting] = useState(false);
   const [isRollingBack, setIsRollingBack] = useState(false);
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evalRun, setEvalRun] = useState<GenericMap | null>(null);
   const [isOpsBusy, setIsOpsBusy] = useState("");
   const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
   const [tuningHistory, setTuningHistory] = useState<TuningHistory>({ promotion_events: [], versions: [] });
@@ -483,6 +509,7 @@ export function ProfilesAdminPanel() {
     });
     setCandidateRetrievalConfig({ ...((((liveResolved.retrieval || {}).config || {}) as GenericMap)) });
     setComparePayload(null);
+    setEvalRun(null);
   }
 
   function prepareSandboxCandidate() {
@@ -517,6 +544,7 @@ export function ProfilesAdminPanel() {
         setEditingDraftId(Number(response.draft.id));
       }
       setSavedDraftSignature(draftFormSignature);
+      setEvalRun(null); // draft changed: prior eval evidence is stale
       await refresh();
       setError("");
     } catch (err) {
@@ -559,6 +587,31 @@ export function ProfilesAdminPanel() {
     }
   }
 
+  async function runEvalPack() {
+    if (!editingDraftId) {
+      setError("Save the candidate as a draft before running the eval pack.");
+      return;
+    }
+    if (hasUnsavedDraftChanges) {
+      setError("Update the draft first so the eval run evaluates the current candidate.");
+      return;
+    }
+    setIsEvaluating(true);
+    try {
+      const response = await browserFetch<{ eval_run: GenericMap }>("/admin/tuning/eval-runs", {
+        method: "POST",
+        json: { draft_id: editingDraftId },
+      });
+      setEvalRun(response.eval_run);
+      setError("");
+    } catch (err) {
+      setEvalRun(null);
+      setError(err instanceof Error ? err.message : "Eval pack run failed.");
+    } finally {
+      setIsEvaluating(false);
+    }
+  }
+
   async function promoteCandidate() {
     if (!editingDraftId) {
       setError("Save the candidate as a draft before promotion.");
@@ -571,6 +624,7 @@ export function ProfilesAdminPanel() {
         json: {
           draft_id: editingDraftId,
           promotion_note: promotionNote,
+          eval_run_id: evalRun && Number(evalRun.draft_id) === editingDraftId ? Number(evalRun.id) : null,
         },
       });
       await refresh();
@@ -1104,8 +1158,21 @@ export function ProfilesAdminPanel() {
         <button type="button" className="button button-secondary" onClick={saveDraft} disabled={savingDraft || (Boolean(editingDraftId) && !hasUnsavedDraftChanges)}>
           {savingDraft ? "Saving Draft..." : editingDraftId ? "Update Draft" : "Save as Draft"}
         </button>
-        <button type="button" className="button button-primary" onClick={promoteCandidate} disabled={isPromoting || savingDraft}>
-          {isPromoting ? "Promoting..." : "Promote to Live"}
+        <button type="button" className="button button-secondary" onClick={runEvalPack} disabled={isEvaluating || savingDraft || !editingDraftId}>
+          {isEvaluating ? "Running Eval Pack..." : "Run Eval Pack"}
+        </button>
+        <span className="tuning-lab-draft-state">
+          {evalRun
+            ? `Eval gate: ${String(evalRun.gate_status)} · recall@5 ${Number((evalRun.gate_aggregates as GenericMap)?.recall_at_5 ?? NaN).toFixed(3)} · MRR ${Number((evalRun.gate_aggregates as GenericMap)?.mrr ?? NaN).toFixed(3)}${(evalRun.deltas_vs_live_baseline as GenericMap) ? ` · vs live: recall@5 Δ ${formatMetricDelta((evalRun.deltas_vs_live_baseline as GenericMap)?.recall_at_5)} · MRR Δ ${formatMetricDelta((evalRun.deltas_vs_live_baseline as GenericMap)?.mrr)}` : ""}`
+            : "No eval evidence yet — promotion is blocked in require mode"}
+        </span>
+        <button
+          type="button"
+          className="button button-primary"
+          onClick={promoteCandidate}
+          disabled={isPromoting || savingDraft || (evalRun ? evalRun.gate_status !== "pass" : false)}
+        >
+          {isPromoting ? "Promoting..." : evalRun && evalRun.gate_status !== "pass" ? "Eval Gate Failed" : "Promote to Live"}
         </button>
       </footer>
 
@@ -1162,6 +1229,17 @@ export function ProfilesAdminPanel() {
                 </article>
               ))}
             </div>
+            {(() => {
+              const event = tuningHistory.promotion_events.find(
+                (item) => String(item.new_live_version_label) === String(inspectedHistoryVersion.version_label)
+              );
+              const summary = evalEvidenceSummary((event?.eval_evidence_json || null) as GenericMap | null);
+              return (
+                <p className="muted-copy">
+                  Eval evidence: {summary || "none recorded (pre-AR4 promotion or evidence-free warn-mode action)"}
+                </p>
+              );
+            })()}
           </div>
         ) : null}
       </section>

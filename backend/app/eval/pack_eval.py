@@ -84,6 +84,7 @@ def run_pack_eval(
     gate_mode: str = "hybrid",
     label: str = "live",
     non_gate_mode_sample: Optional[int] = None,
+    gate_mode_sample: Optional[int] = None,
 ) -> dict[str, Any]:
     from app.profiles.resolver import get_active_profile_snapshot, get_effective_retrieval
 
@@ -97,8 +98,11 @@ def run_pack_eval(
         pack = load_pack(path)
         all_cases = pack.get("cases", [])
         case_results: list[dict[str, Any]] = []
+        # gate_mode_sample keeps in-request candidate evals (AR4) affordable;
+        # committed baselines run the full pack (gate_mode_sample=None).
+        gate_pool = _sample_cases(all_cases, gate_mode_sample)
         for mode in modes:
-            mode_cases = all_cases if mode == gate_mode else _sample_cases(all_cases, non_gate_mode_sample)
+            mode_cases = gate_pool if mode == gate_mode else _sample_cases(all_cases, non_gate_mode_sample)
             for case in mode_cases:
                 case_results.append(evaluate_case(case, mode=mode, k=k))
         gating = [r for r in case_results if r["mode"] == gate_mode and r["review_status"] != "unreviewed"]
@@ -118,6 +122,7 @@ def run_pack_eval(
                 "builder_version": pack.get("builder_version"),
                 "case_count": len(all_cases),
                 "non_gate_mode_sample": non_gate_mode_sample,
+                "gate_mode_sample": gate_mode_sample,
                 "gating_case_count": len(gating),
                 "unreviewed_case_count": sum(1 for case in all_cases if case.get("review_status") == "unreviewed"),
                 "metrics_by_mode": per_mode,

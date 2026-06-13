@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # Runtime/security posture
     APP_ENV: str = "local"
 
+    # AR4: promotion eval enforcement. "" derives from APP_ENV (warn in local,
+    # require everywhere else); explicit "require"/"warn" overrides.
+    TUNING_EVAL_ENFORCEMENT: str = ""
+
     # Auth / OIDC configuration
     AUTH_ENABLED: bool = False
     AUTH_MODE: str = "none"
