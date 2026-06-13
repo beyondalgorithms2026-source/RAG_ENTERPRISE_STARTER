@@ -29,6 +29,16 @@ from app.llm.prompts import SECOND_PASS_PROMPT, SYSTEM_PROMPT, generate_json_rep
 
 MAX_CHUNK_CHARS = 1500
 MAX_TOTAL_CONTEXT_CHARS = 10000
+
+
+def effective_chunk_cap() -> int:
+    """AR8: honor a request-scoped chunk cap (sandbox/candidate eval) without
+    mutating the module global, so concurrent live requests are unaffected."""
+    from app.profiles.resolver import current_profile_overrides
+
+    return int(current_profile_overrides().get("chunk_cap") or MAX_CHUNK_CHARS)
+
+
 _STOPWORDS = {
     "a", "an", "and", "are", "around", "as", "at", "be", "by", "did", "do", "does", "for", "from",
     "had", "has", "have", "how", "in", "into", "is", "it", "its", "of", "on", "or", "that", "the",
@@ -112,7 +122,7 @@ def _build_context_blocks(raw_chunks) -> list[dict[str, Any]]:
     context_blocks = []
     total_chars = 0
     for index, chunk in enumerate(raw_chunks):
-        snippet = chunk.snippet[:MAX_CHUNK_CHARS]
+        snippet = chunk.snippet[:effective_chunk_cap()]
         if total_chars + len(snippet) > MAX_TOTAL_CONTEXT_CHARS:
             logger.warning(f"Context max size reached. Dropping remaining {len(raw_chunks) - index} lower-ranked chunks.")
             break
@@ -989,7 +999,7 @@ def perform_compare(request: CompareRequest) -> CompareResponse:
         raw_chunks = search_response.results
         source_contexts = []
         for chunk in raw_chunks:
-            snippet = chunk.snippet[:MAX_CHUNK_CHARS]
+            snippet = chunk.snippet[:effective_chunk_cap()]
             block = {
                 "citation_id": f"S{citation_index}",
                 "source_id": chunk.source_id,

@@ -143,6 +143,9 @@ app.include_router(admin_router)
 
 @app.on_event("startup")
 def start_background_workers() -> None:
+    from app.core.runtime_safety import assert_worker_safety
+
+    assert_worker_safety()
     validate_security_posture()
     run_migrations()
     from app.coherence import enforce_startup_coherence

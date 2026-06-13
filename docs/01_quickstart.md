@@ -4,9 +4,9 @@ This is the canonical local run path for Enterprise RAG Starter.
 
 If you are new to the repo, read these first:
 
-1. [README.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/README.md)
-2. [STATUS.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/STATUS.md)
-3. [docs/04_repo_navigation_blueprint.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/04_repo_navigation_blueprint.md)
+1. [README.md](README.md)
+2. [STATUS.md](STATUS.md)
+3. [docs/04_repo_navigation_blueprint.md](docs/04_repo_navigation_blueprint.md)
 
 ## What should be running
 
@@ -30,7 +30,7 @@ Use `web/` for normal development. Treat `frontend/` as fallback-only unless you
 ### 1. Start Postgres
 
 ```bash
-cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER
+cd "$(git rev-parse --show-toplevel)"
 docker compose up -d
 docker compose ps
 ```
@@ -60,7 +60,7 @@ NEXT_PUBLIC_DEV_MODE=true
 ### 4. Start backend
 
 ```bash
-cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/backend
+cd backend
 uv venv .venv
 source .venv/bin/activate
 uv pip install -r requirements.txt
@@ -71,7 +71,7 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ### 5. Start frontend
 
 ```bash
-cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/web
+cd web
 pnpm install
 pnpm run dev -- --port 3001
 ```
@@ -92,12 +92,12 @@ Local dev accounts:
 If Docker/Postgres and Ollama are already running:
 
 ```bash
-cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER
+cd "$(git rev-parse --show-toplevel)"
 make dev-web
 ```
 
 ## Related docs
 
-- Local run details: [docs/runbooks/LOCALHOST_DEV_RUNBOOK.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/runbooks/LOCALHOST_DEV_RUNBOOK.md)
-- Repo workflow: [docs/runbooks/SOURCE_CONTROL_WORKFLOW.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/runbooks/SOURCE_CONTROL_WORKFLOW.md)
-- Safe extension path: [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md)
+- Local run details: [docs/runbooks/LOCALHOST_DEV_RUNBOOK.md](docs/runbooks/LOCALHOST_DEV_RUNBOOK.md)
+- Repo workflow: [docs/runbooks/SOURCE_CONTROL_WORKFLOW.md](docs/runbooks/SOURCE_CONTROL_WORKFLOW.md)
+- Safe extension path: [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md)

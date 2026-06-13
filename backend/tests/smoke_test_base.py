@@ -167,14 +167,20 @@ class SmokeTestBase(unittest.TestCase):
             self._profile_patches.append((target, attr_name, getattr(target, attr_name)))
             setattr(target, attr_name, value)
 
-        _patch(resolver_module, "get_effective_retrieval", lambda: test_retrieval)
-        _patch(retrieval_module, "get_effective_retrieval", lambda: test_retrieval)
-        _patch(retrieval_eval_module, "get_effective_retrieval", lambda: test_retrieval)
-        _patch(compare_eval_module, "get_effective_retrieval", lambda: test_retrieval)
-        _patch(resolver_module, "get_effective_reranker", lambda: test_reranker)
-        _patch(retrieval_module, "get_effective_reranker", lambda: test_reranker)
-        _patch(compare_eval_module, "get_effective_reranker", lambda: test_reranker)
-        _patch(resolver_module, "get_effective_llm", lambda: test_llm)
+        # AR8: pins still honor request-scoped overrides (profile_overrides),
+        # so sandbox/candidate-eval bundles apply during tests while the live
+        # default stays deterministic (AR1).
+        def _eff(kind, default):
+            return lambda: resolver_module.current_profile_overrides().get(kind) or default
+
+        _patch(resolver_module, "get_effective_retrieval", _eff("retrieval", test_retrieval))
+        _patch(retrieval_module, "get_effective_retrieval", _eff("retrieval", test_retrieval))
+        _patch(retrieval_eval_module, "get_effective_retrieval", _eff("retrieval", test_retrieval))
+        _patch(compare_eval_module, "get_effective_retrieval", _eff("retrieval", test_retrieval))
+        _patch(resolver_module, "get_effective_reranker", _eff("reranker", test_reranker))
+        _patch(retrieval_module, "get_effective_reranker", _eff("reranker", test_reranker))
+        _patch(compare_eval_module, "get_effective_reranker", _eff("reranker", test_reranker))
+        _patch(resolver_module, "get_effective_llm", _eff("llm", test_llm))
 
     def _unpin_test_profiles(self):
         """Opt-out for tests that intentionally exercise DB-backed profile
