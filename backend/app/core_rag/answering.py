@@ -6,6 +6,7 @@ from typing import Any, Callable, List, Optional
 
 from pydantic import BaseModel, Field
 
+from app.core.config import settings
 from app.core.logging import log_event, logger
 from app.core.security_text import log_prompt_injection_signals
 from app.actions.policy import clarification_contract, sensitivity_requires_approval
@@ -411,6 +412,55 @@ def _maybe_gate_sensitive_answer(*, request: AskRequest, answer_text: str, citat
     )
 
 
+def _attach_generation_usage(trace_payload: dict[str, Any], *, request_id, retrieval_mode, answer_path, ask_latency_ms) -> None:
+    """AR11: aggregate this request's generation usage, persist a usage event,
+    flag/raise a budget alert, and embed the figures in the trace."""
+    from app.llm.usage import current_usage
+
+    usage = current_usage()
+    if not usage.get("call_count"):
+        return
+    over_budget = bool(settings.LLM_COST_ALERT_USD) and usage["cost_usd"] > float(settings.LLM_COST_ALERT_USD)
+    usage["over_budget"] = over_budget
+    trace_payload["generation_usage"] = usage
+    try:
+        from app.auth.context import get_current_user
+        from app.db.repo_generation_usage import record_generation_usage_event
+        from app.profiles.resolver import get_effective_llm
+
+        actor = get_current_user()
+        record_generation_usage_event(
+            request_id=request_id,
+            provider=get_effective_llm().provider,
+            model=usage.get("model"),
+            retrieval_mode=retrieval_mode,
+            answer_path=answer_path,
+            prompt_tokens=usage["prompt_tokens"],
+            completion_tokens=usage["completion_tokens"],
+            total_tokens=usage["total_tokens"],
+            estimated=usage["estimated"],
+            cost_usd=usage["cost_usd"],
+            latency_ms=ask_latency_ms,
+            call_count=usage["call_count"],
+            over_budget=over_budget,
+            actor=actor,
+        )
+        if over_budget:
+            from app.db.repo_admin_audit import insert_admin_audit_event
+
+            insert_admin_audit_event(
+                event_type="cost",
+                action="cost.budget_exceeded",
+                resource_type="generation",
+                resource_id=str(request_id),
+                resource_name=usage.get("model"),
+                event_json={"cost_usd": usage["cost_usd"], "threshold_usd": float(settings.LLM_COST_ALERT_USD), "answer_path": answer_path},
+                actor=actor,
+            )
+    except Exception as exc:  # cost accounting must never fail an answer
+        logger.debug("Failed to record generation usage event: %s", exc)
+
+
 def _record_answer_trace(
     *,
     retrieval_trace: Optional[dict[str, Any]],
@@ -431,6 +481,14 @@ def _record_answer_trace(
     latency_payload["total"] = ask_latency_ms
     trace_payload["latency_ms"] = latency_payload
     trace_payload["answer_generation_path"] = answer_generation_path
+    # AR11: attach + persist the aggregated generation token/cost for this request.
+    _attach_generation_usage(
+        trace_payload,
+        request_id=trace_payload.get("request_id"),
+        retrieval_mode=trace_payload.get("resolved_mode"),
+        answer_path=answer_generation_path,
+        ask_latency_ms=ask_latency_ms,
+    )
     if cited_chunk_ids is not None:
         # AR3: chunk-level citation evidence makes mined query events usable
         # as graded eval cases without circular labeling.
@@ -528,6 +586,9 @@ def _group_citations_by_source(citations: list[CitationItem]) -> list[CompareSou
     return list(grouped.values())
 
 def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Callable[[int, str], None]] = None) -> AskResponse:
+    from app.llm.usage import reset_usage
+
+    reset_usage()  # AR11: fresh per-request generation-usage accumulator
     start_time = time.time()
     log_event("ask.started", stage="ask", status="processing", requested_mode=request.mode)
     if progress_callback:

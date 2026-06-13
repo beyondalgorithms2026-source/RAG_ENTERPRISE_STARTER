@@ -110,6 +110,7 @@ def _retrieval_summary(response: AskResponse) -> dict[str, Any]:
         "fallback_reason": trace.get("fallback_reason"),
         "accessed_doc_ids": ((trace.get("acl") or {}).get("accessed_doc_ids") or []),
         "observed_query_transform": trace.get("query_transform") or {},
+        "generation_usage": trace.get("generation_usage") or {},  # AR11 token/cost
     }
 
 
@@ -326,6 +327,21 @@ def run_sandbox_compare(
     candidate_citations = candidate_run["citation_count"] if candidate_run and candidate_run["status"] == "completed" else None
     candidate_chunks = candidate_run["used_chunks_count"] if candidate_run and candidate_run["status"] == "completed" else None
 
+    # AR11: token/cost deltas alongside latency.
+    def _usage(run):
+        return ((run or {}).get("retrieval_summary") or {}).get("generation_usage") or {}
+
+    live_usage = _usage(live_run)
+    candidate_usage = _usage(candidate_run) if candidate_run and candidate_run["status"] == "completed" else {}
+    cost_delta = (
+        round(float(candidate_usage.get("cost_usd") or 0.0) - float(live_usage.get("cost_usd") or 0.0), 6)
+        if candidate_usage
+        else None
+    )
+    token_delta = (
+        int(candidate_usage.get("total_tokens") or 0) - int(live_usage.get("total_tokens") or 0) if candidate_usage else None
+    )
+
     return {
         "live_run": live_run,
         "candidate_run": candidate_run,
@@ -342,6 +358,10 @@ def run_sandbox_compare(
             "candidate_answer_path": ((candidate_run["retrieval_summary"] or {}).get("answer_generation_path")) if candidate_run else None,
             "live_transform_summary": (live_run["retrieval_summary"] or {}).get("transform_summary"),
             "candidate_transform_summary": (candidate_run["retrieval_summary"] or {}).get("transform_summary") if candidate_run else None,
+            "live_generation_usage": live_usage,
+            "candidate_generation_usage": candidate_usage,
+            "cost_delta_usd": cost_delta,
+            "token_delta": token_delta,
         },
         "warnings": warnings,
         "preconditions": preconditions,

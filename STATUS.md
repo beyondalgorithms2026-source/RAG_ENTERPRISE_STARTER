@@ -2,7 +2,7 @@
 
 **Last completed M-series milestone:** M33 — Governed Semantic Cache Policies, Scoped Enablement, And User Refresh  
 **Active work track:** AR-series (Audit Remediation)  
-**Current AR milestone:** AR11 — Cost, Token, And Latency Governance (AR0–AR3 closed 2026-06-12; AR4–AR10 closed 2026-06-13)
+**Current AR milestone:** AR12 — Feedback-To-Eval Flywheel (AR0–AR3 closed 2026-06-12; AR4–AR11 closed 2026-06-13)
 
 ## Independent Product Audit (2026-06-11)
 
@@ -31,7 +31,7 @@ Git tag: `audit-baseline-2026-06-11`
 | AR8 — Deployment Portability | **Complete (2026-06-13)** | docker-compose uses a portable named volume + env overrides (no host path); README/quickstart absolute `/Users/Work/...` paths made repo-relative; sandbox/candidate overrides moved from module-global monkeypatching to a `ContextVar` (`profile_overrides`) so candidate profiles never bleed into concurrent live requests; startup refuses `WEB_CONCURRENCY>1` unless `ALLOW_MULTI_WORKER=true` (single-process assumptions named, not hidden); 279/279 suite; note: `docs/milestones/AR8_deployment_portability_and_worker_safety.md` |
 | AR9 — Provider Abstraction | **Complete (2026-06-13)** | Pluggable provider registry (`app/llm/providers.py`): OpenAI-compatible (OpenAI/Azure/vLLM/Ollama), Ollama-native (cloud), Anthropic; `client.py` delegates via one `_provider_generate` path; `verify_llm_ready` generalized; `structured_output_mode`/native-JSON honored per provider capability (GPT-OSS path unchanged); `GET /admin/llm/providers`; registry gating untouched; full answer contract proven against 2 provider shapes; 286/286 suite; note: `docs/milestones/AR9_provider_abstraction.md` |
 | AR10 — Health Dashboard | **Complete (2026-06-13)** | `app/health.py` aggregates 8 tiles (5 P0 coherence invariants + reranker warm-up + cache state + eval gate) into one `{banner, p0_breached, tiles}` payload; `GET /admin/health/dashboard`; console Health page + P0 banner; injecting an AR2 state turns the tile red and breaches P0 (tested), healthy shows P0 green; 292/292 suite; note: `docs/milestones/AR10_operator_health_dashboard.md` |
-| AR11 — Cost/Token Governance | Not started | P2 |
+| AR11 — Cost/Token Governance | **Complete (2026-06-13)** | Per-call token usage (provider-reported or documented char-heuristic estimate, flagged); configurable price table (`LLM_PRICE_TABLE_JSON`); request-scoped ContextVar accumulation into trace `generation_usage`; `generation_usage_events` (MIG-P024) + `GET /admin/cost/summary` (per mode/model/provider); `LLM_COST_ALERT_USD` budget alert → audit event; sandbox compare cost/token deltas; `/console/admin/cost` page; 302/302 suite; note: `docs/milestones/AR11_cost_token_latency_governance.md` |
 | AR12 — Feedback→Eval Flywheel | Not started | P2 |
 | AR13 — Connector Operations | Not started | P2 |
 | AR14 — Retrieval Enhancements | Not started | P2 — only with eval-proven gains |
@@ -62,7 +62,8 @@ M20, M21, M22, M23, M24, M25, M26, M27, M28, M29, M30
 
 ## Current Verification Debt
 
-- **Test suite is green:** `make test` — 292/292 on the dev DB (AR10); AR1 verified 224/224 on a freshly migrated empty DB as well
+- **Test suite is green:** `make test` — 302/302 on the dev DB (AR11); AR1 verified 224/224 on a freshly migrated empty DB as well
+- AR11: cloud price-table values are illustrative defaults to tune; estimated token counts (no provider usage) are char-heuristic and flagged `est.`, directional not billing-grade; per-eval-report cost is future work
 - AR10: the P0 health banner is on the `/console/admin/health` page; a global cross-page banner remains future polish (signal + endpoint exist)
 - AR9: non-Ollama providers (OpenAI/Azure/vLLM/Anthropic) are validated against mocked transports only — no live keys in this environment; Ollama remains the sole end-to-end exercised path
 - AR8: the app is single-process by design — it refuses `WEB_CONCURRENCY>1` unless `ALLOW_MULTI_WORKER=true`; making the queue/rate-limiter/model-singletons multi-worker safe remains future work (fenced, not yet solved)

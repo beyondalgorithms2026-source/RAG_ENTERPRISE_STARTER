@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     # app refuses WEB_CONCURRENCY/UVICORN_WORKERS > 1 unless this is set true.
     ALLOW_MULTI_WORKER: bool = False
 
+    # AR11: cost governance. JSON override of the per-1K-token price table
+    # ({"model": [input, output]}); per-request USD alert threshold (0 disables).
+    LLM_PRICE_TABLE_JSON: str = ""
+    LLM_COST_ALERT_USD: float = 0.0
+
     # Auth / OIDC configuration
     AUTH_ENABLED: bool = False
     AUTH_MODE: str = "none"

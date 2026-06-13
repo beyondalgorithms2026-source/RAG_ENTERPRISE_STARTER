@@ -80,12 +80,30 @@ def _provider_generate(llm, system_prompt: str, user_prompt: str, *, json_mode: 
         with httpx.Client(timeout=timeout_s) as client:
             response = client.post(provider.chat_url(base), json=payload, headers=headers)
             response.raise_for_status()
-            return {"success": True, "content": provider.extract_content(response.json()) or ""}
+            data = response.json()
+            content = provider.extract_content(data) or ""
+            usage = _build_usage(provider, data, llm.model, system_prompt, user_prompt, content)
+            return {"success": True, "content": content, "usage": usage}
     except httpx.TimeoutException:
         return {"success": False, "error": f"LLM provider timeout ({timeout_s}s).", "timeout": True}
     except Exception as exc:
         logger.error(f"LLM generation failed (provider {llm.provider}): {exc}")
         return {"success": False, "error": str(exc)}
+
+
+def _build_usage(provider, data, model, system_prompt, user_prompt, content) -> dict:
+    """AR11: provider-reported token usage where available, estimated otherwise.
+    Records into the request-scoped accumulator for trace/cost rollups."""
+    from app.llm.pricing import usage_from_counts, usage_from_texts
+    from app.llm.usage import add_usage
+
+    reported = provider.extract_usage(data)
+    if reported is not None:
+        usage = usage_from_counts(model, prompt_tokens=reported[0], completion_tokens=reported[1], estimated=False)
+    else:
+        usage = usage_from_texts(model, prompt_text=f"{system_prompt}\n{user_prompt}", completion_text=content)
+    add_usage(usage)
+    return usage
 
 
 def generate_transform_text(system_prompt: str, user_prompt: str, *, timeout_s: float, max_tokens: int = 256) -> dict:
