@@ -834,6 +834,15 @@ def list_embedding_swaps_endpoint():
     return {"swap_runs": list_swap_runs(limit=50)}
 
 
+@router.get("/llm/providers")
+def list_llm_providers():
+    """AR9: provider names a profile may select (gated by the approved-model
+    registry as before). Switching providers is a profile change, not a code edit."""
+    from app.llm.providers import supported_providers
+
+    return {"providers": supported_providers()}
+
+
 @router.get("/profiles/metadata")
 def get_profile_metadata():
     retrieval_settings = get_effective_retrieval().model_dump()
