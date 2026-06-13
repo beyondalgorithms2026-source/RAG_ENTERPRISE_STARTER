@@ -729,6 +729,16 @@ def health_coherence(deep: bool = False):
     return run_coherence_checks(deep=deep)
 
 
+@router.get("/health/dashboard")
+def health_dashboard_endpoint(deep: bool = False):
+    """AR10: one operator-facing answer to 'is this system coherent right now?'
+    — AR2 coherence invariants plus reranker warm-up, cache state, and the
+    AR3/AR4 eval gate, with a P0 banner."""
+    from app.health import health_dashboard
+
+    return health_dashboard(deep=deep)
+
+
 class EmbeddingSwapPlanRequest(BaseModel):
     target_profile_name: str
 

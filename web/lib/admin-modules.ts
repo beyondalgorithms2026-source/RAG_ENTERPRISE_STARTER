@@ -19,6 +19,7 @@ export type AdminModulesPayload = {
 
 const enterpriseNavigation: AdminNavItem[] = [
   { module: "overview", href: "/console/admin", label: "Overview", icon: "space_dashboard" },
+  { module: "overview", href: "/console/admin/health", label: "Health", icon: "health_and_safety" },
   { module: "sources", href: "/console/admin/sources", label: "Sources", icon: "description" },
   { module: "connectors", href: "/console/admin/connectors", label: "Connectors", icon: "hub" },
   { module: "actions", href: "/console/admin/actions", label: "Actions", icon: "approval" },
