@@ -59,9 +59,16 @@ def validate_policy_config(config: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("TTL must be between 30 and 86400 seconds")
     if not 1 <= max_active_entries <= 100000:
         raise ValueError("Maximum active entries must be between 1 and 100000")
+    match_mode = str(config.get("match_mode") or "exact").strip().lower()
+    if match_mode not in {"exact", "semantic"}:
+        raise ValueError("match_mode must be 'exact' or 'semantic'")
+    similarity_threshold = float(config.get("similarity_threshold") or 0.92)
+    if not 0.5 <= similarity_threshold <= 0.999:
+        raise ValueError("similarity_threshold must be between 0.5 and 0.999")
     return {
         "enabled": bool(config.get("enabled", False)),
-        "match_mode": "exact",
+        "match_mode": match_mode,
+        "similarity_threshold": similarity_threshold,
         "ttl_seconds": ttl_seconds,
         "max_active_entries": max_active_entries,
         "allow_corpora": allow_corpora,
@@ -116,6 +123,7 @@ def _policy_payload(row: Any) -> dict[str, Any]:
             "status": source.get("version_status"),
             "enabled": source.get("enabled"),
             "match_mode": source.get("match_mode"),
+            "similarity_threshold": source.get("similarity_threshold"),
             "ttl_seconds": source.get("ttl_seconds"),
             "max_active_entries": source.get("max_active_entries"),
             "allow_corpora": source.get("allow_corpora_json") or [],
@@ -145,7 +153,7 @@ SELECT p.id, p.name, p.justification, p.owner, p.review_at, p.status,
        v.id AS version_id, v.policy_id AS version_policy_id,
        v.version_number AS version_version_number,
        v.cache_namespace AS version_cache_namespace,
-       v.status AS version_status, v.enabled, v.match_mode, v.ttl_seconds,
+       v.status AS version_status, v.enabled, v.match_mode, v.similarity_threshold, v.ttl_seconds,
        v.max_active_entries, v.allow_corpora_json, v.deny_corpora_json,
        v.allow_groups_json, v.deny_groups_json, v.allow_questions_json,
        v.deny_questions_json, v.safety_json,
@@ -175,6 +183,7 @@ def get_policy(policy_id: int) -> Optional[dict[str, Any]]:
             text(
                 """
                 SELECT id, policy_id, version_number, cache_namespace, status, enabled, match_mode,
+                       similarity_threshold,
                        ttl_seconds, max_active_entries, allow_corpora_json, deny_corpora_json,
                        allow_groups_json, deny_groups_json, allow_questions_json,
                        deny_questions_json, safety_json, created_by_external_user_id,
@@ -256,13 +265,13 @@ def _insert_version(conn, policy_id: int, version_number: int, config: dict[str,
                 """
                 INSERT INTO semantic_cache_policy_versions (
                     policy_id, version_number, cache_namespace, status, enabled, match_mode,
-                    ttl_seconds, max_active_entries, allow_corpora_json, deny_corpora_json,
+                    similarity_threshold, ttl_seconds, max_active_entries, allow_corpora_json, deny_corpora_json,
                     allow_groups_json, deny_groups_json, allow_questions_json,
                     deny_questions_json, safety_json, created_by_external_user_id, created_by_email
                 )
                 VALUES (
-                    :policy_id, :version_number, :namespace, 'draft', :enabled, 'exact',
-                    :ttl_seconds, :max_active_entries, CAST(:allow_corpora AS jsonb),
+                    :policy_id, :version_number, :namespace, 'draft', :enabled, :match_mode,
+                    :similarity_threshold, :ttl_seconds, :max_active_entries, CAST(:allow_corpora AS jsonb),
                     CAST(:deny_corpora AS jsonb), CAST(:allow_groups AS jsonb),
                     CAST(:deny_groups AS jsonb), CAST(:allow_questions AS jsonb),
                     CAST(:deny_questions AS jsonb), CAST(:safety AS jsonb), :actor_id, :actor_email
@@ -275,6 +284,8 @@ def _insert_version(conn, policy_id: int, version_number: int, config: dict[str,
                 "version_number": version_number,
                 "namespace": namespace,
                 "enabled": config["enabled"],
+                "match_mode": config["match_mode"],
+                "similarity_threshold": config["similarity_threshold"],
                 "ttl_seconds": config["ttl_seconds"],
                 "max_active_entries": config["max_active_entries"],
                 "allow_corpora": json.dumps(config["allow_corpora"]),

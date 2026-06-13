@@ -902,6 +902,25 @@ def _sync_live_tuning_configuration() -> None:
     sync_live_configuration_record()
 
 
+def _add_semantic_cache_similarity_threshold() -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "ALTER TABLE semantic_cache_policy_versions "
+                "ADD COLUMN IF NOT EXISTS similarity_threshold DOUBLE PRECISION NOT NULL DEFAULT 0.92;"
+            )
+        )
+        # AR6: similarity lookup ranks stored query embeddings within an already
+        # ACL/profile/corpus/mode-scoped candidate set; index the scope columns.
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS semantic_cache_similarity_scope_idx "
+                "ON semantic_cache_entries(cache_namespace, acl_scope_hash, profile_snapshot_hash, "
+                "corpus_scope_hash, retrieval_mode) WHERE invalidated_at IS NULL;"
+            )
+        )
+
+
 def _create_tuning_eval_runs_table() -> None:
     ddl = """
     CREATE TABLE IF NOT EXISTS tuning_eval_runs (
@@ -1035,6 +1054,11 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P021",
             description="Create tuning_eval_runs evidence table and promotion-event eval evidence column (AR4)",
             runner=_create_tuning_eval_runs_table,
+        ),
+        MigrationStep(
+            step_id="MIG-P022",
+            description="Add semantic cache similarity threshold column and similarity-scope index (AR6)",
+            runner=_add_semantic_cache_similarity_threshold,
         ),
     ]
 

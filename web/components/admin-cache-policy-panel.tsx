@@ -10,6 +10,8 @@ type PolicyVersion = GenericMap & {
   id: number;
   version_number: number;
   status: string;
+  match_mode: string;
+  similarity_threshold: number;
   ttl_seconds: number;
   max_active_entries: number;
   allow_corpora: string[];
@@ -36,6 +38,8 @@ const emptyForm = {
   justification: "",
   owner: "",
   review_at: "",
+  match_mode: "exact",
+  similarity_threshold: 0.92,
   ttl_seconds: 900,
   max_active_entries: 1000,
   allow_corpora: [] as string[],
@@ -114,6 +118,8 @@ export function AdminCachePolicyPanel() {
       justification: selected.justification || "",
       owner: selected.owner || "",
       review_at: selected.review_at ? String(selected.review_at).slice(0, 10) : "",
+      match_mode: String(version?.match_mode || "exact"),
+      similarity_threshold: Number(version?.similarity_threshold ?? 0.92),
       ttl_seconds: Number(version?.ttl_seconds || 900),
       max_active_entries: Number(version?.max_active_entries || 1000),
       allow_corpora: version?.allow_corpora || [],
@@ -236,7 +242,15 @@ export function AdminCachePolicyPanel() {
             <details>
               <summary>Advanced settings</summary>
               <div className="cache-policy-fields">
-                <label><span>Match mode</span><input value="Exact query (locked)" readOnly /></label>
+                <label><span>Match mode</span>
+                  <select value={form.match_mode} onChange={(event) => setForm({ ...form, match_mode: event.target.value })}>
+                    <option value="exact">Exact query</option>
+                    <option value="semantic">Semantic similarity</option>
+                  </select>
+                </label>
+                {form.match_mode === "semantic" ? (
+                  <label><span>Similarity threshold</span><input type="number" min={0.5} max={0.999} step={0.01} value={form.similarity_threshold} onChange={(event) => setForm({ ...form, similarity_threshold: Number(event.target.value) })} /></label>
+                ) : null}
                 <label><span>TTL seconds</span><input type="number" min={30} max={86400} value={form.ttl_seconds} onChange={(event) => setForm({ ...form, ttl_seconds: Number(event.target.value) })} /></label>
                 <label><span>Maximum active entries</span><input type="number" min={1} max={100000} value={form.max_active_entries} onChange={(event) => setForm({ ...form, max_active_entries: Number(event.target.value) })} /></label>
               </div>
