@@ -1498,6 +1498,7 @@ class SmokeTestAdminOps(SmokeTestBase):
         self.assertTrue(any(row["model_name"] == "cross-encoder/ms-marco-TinyBERT-L-2-v2" for row in list_model_warmups()))
 
     def test_m18_query_transform_is_disabled_by_default_and_trace_visible_when_enabled(self):
+        import app.core_rag.query_transform as qt
         from app.core_rag.query_transform import transform_query
         from app.profiles.models import RetrievalProfileConfig
 
@@ -1505,20 +1506,33 @@ class SmokeTestAdminOps(SmokeTestBase):
         self.assertFalse(default_result.trace["enabled"])
         self.assertEqual(default_result.effective_query, "Q4 liability subcontracting")
 
-        transformed = transform_query(
-            "Q4 liability subcontracting",
-            RetrievalProfileConfig(
-                query_transform_enabled=True,
-                rewrite_enabled=True,
-                expansion_enabled=True,
-                hyde_enabled=True,
-                transform_max_variants=4,
-            ),
-        )
+        # AR5: the hardcoded synonym dict is deleted — variants come from the LLM.
+        # Pin the LLM call so the test is deterministic and network-free.
+        responses = {
+            qt._REWRITE_SYSTEM: "Q4 liability subcontracting obligations",
+            qt._EXPANSION_SYSTEM: "fourth quarter, third party work",
+            qt._HYDE_SYSTEM: "The Q4 liability clause limits subcontracting obligations.",
+        }
+        original = qt._generate
+        qt._generate = lambda system_prompt, user_prompt, **_: {"success": True, "content": responses[system_prompt]}
+        try:
+            transformed = transform_query(
+                "Q4 liability subcontracting",
+                RetrievalProfileConfig(
+                    query_transform_enabled=True,
+                    rewrite_enabled=True,
+                    expansion_enabled=True,
+                    hyde_enabled=True,
+                    transform_max_variants=4,
+                ),
+            )
+        finally:
+            qt._generate = original
         self.assertTrue(transformed.trace["enabled"])
         self.assertIn("original_query", transformed.trace)
         self.assertGreaterEqual(len(transformed.generated_queries), 2)
-        self.assertIn("liability", transformed.effective_query)
+        self.assertEqual(transformed.trace["variant_status"]["rewrite"], "generated")
+        self.assertIn("obligations", transformed.effective_query)
 
     def test_m19_semantic_cache_is_acl_profile_and_mode_scoped(self):
         from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user

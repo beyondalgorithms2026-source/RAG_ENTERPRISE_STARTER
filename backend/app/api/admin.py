@@ -441,6 +441,7 @@ def _transform_posture(config: dict[str, Any]) -> dict[str, Any]:
         "hyde_enabled": bool(config.get("hyde_enabled")),
         "transform_timeout_ms": int(config.get("transform_timeout_ms") or 0),
         "transform_max_variants": int(config.get("transform_max_variants") or 0),
+        "multi_query_enabled": bool(config.get("multi_query_enabled")),
         "strategy": strategy,
     }
 

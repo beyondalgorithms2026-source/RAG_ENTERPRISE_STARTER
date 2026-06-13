@@ -125,6 +125,9 @@ function candidateRetrievalSummary(config: Record<string, unknown>, retrievalK: 
   parts.push(strategies.length ? strategies.join(" + ") : "Transform enabled");
   parts.push(`${Number(config.transform_max_variants ?? 3)} variants`);
   parts.push(`${Number(config.transform_timeout_ms ?? 750)} ms`);
+  if (config.multi_query_enabled) {
+    parts.push("Multi-query fan-out");
+  }
   return parts.join(" · ");
 }
 
@@ -948,6 +951,17 @@ export function ProfilesAdminPanel() {
                           enabled={Boolean(candidateRetrievalConfig.hyde_enabled)}
                           disabled={!queryTransformEnabled}
                           onToggle={() => updateRetrievalToggle("hyde_enabled", !Boolean(candidateRetrievalConfig.hyde_enabled))}
+                        />
+                      </div>
+                    </Field>
+                    <Field label="">
+                      <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
+                        <ParameterLabel label="Multi-query fan-out" tooltip="Retrieve each generated variant separately and RRF-fuse, instead of concatenating variants into one query." />
+                        <ToggleControl
+                          label="Multi-query fan-out"
+                          enabled={Boolean(candidateRetrievalConfig.multi_query_enabled)}
+                          disabled={!queryTransformEnabled}
+                          onToggle={() => updateRetrievalToggle("multi_query_enabled", !Boolean(candidateRetrievalConfig.multi_query_enabled))}
                         />
                       </div>
                     </Field>

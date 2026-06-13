@@ -323,6 +323,34 @@ def _fusion_trace_payload(*, fusion_method: Optional[str], alpha: float, rrf_k: 
     }
 
 
+def _fuse_multi_query_lists(result_lists: List[List[Dict]], *, rrf_k: int) -> List[Dict]:
+    """RRF-fuse per-variant candidate lists by chunk_id (AR5 multi-query fan-out).
+
+    Each list is already sorted best-first. A chunk's fused score sums its
+    reciprocal-rank contribution across the lists it appears in, so chunks
+    surfaced by multiple query variants rise. The representative row is the
+    best-scoring occurrence, with combined_score overwritten by the fused score.
+    """
+    best_row: dict[int, Dict] = {}
+    fused_score: dict[int, float] = {}
+    for results in result_lists:
+        for rank, item in enumerate(results):
+            chunk_id = item.get("chunk_id")
+            if chunk_id is None:
+                continue
+            fused_score[chunk_id] = fused_score.get(chunk_id, 0.0) + (1.0 / float(max(rrf_k, 1) + rank))
+            if chunk_id not in best_row or (item.get("combined_score") or 0.0) > (best_row[chunk_id].get("combined_score") or 0.0):
+                best_row[chunk_id] = item
+    fused: List[Dict] = []
+    for chunk_id, row in best_row.items():
+        merged = dict(row)
+        merged["multi_query_score"] = round(fused_score[chunk_id], 6)
+        merged["combined_score"] = fused_score[chunk_id]
+        fused.append(merged)
+    fused.sort(key=_result_sort_key)
+    return fused
+
+
 def _integrate_graph_candidates(
     *,
     baseline_results: List[Dict],
@@ -971,6 +999,91 @@ def _persist_trace(*, retrieval_trace: dict, question: str, score_diagnostics: l
         logger.debug("Failed to persist retrieval trace: %s", exc)
 
 
+def _variant_candidates(*, query: str, resolved_mode: str, request: SearchRequest, source_type, source_id, source_part_id, locator_filter, metadata_filters) -> List[Dict]:
+    variant_request = request.model_copy(update={"custom_query": query})
+    kwargs = dict(
+        request=variant_request,
+        source_type=source_type,
+        source_id=source_id,
+        source_part_id=source_part_id,
+        locator_filter=locator_filter,
+        metadata_filters=metadata_filters,
+    )
+    if resolved_mode == "vector":
+        return _run_vector_mode(**kwargs)
+    if resolved_mode == "keyword":
+        return _run_keyword_mode(**kwargs)
+    results, _ = _run_hybrid_baseline(**kwargs)
+    return results
+
+
+def _maybe_fan_out_multi_query(
+    *,
+    retrieval_profile,
+    request: SearchRequest,
+    resolved_mode: str,
+    transform_result,
+    base_results: List[Dict],
+    source_type,
+    source_id,
+    source_part_id,
+    locator_filter,
+    metadata_filters,
+) -> dict:
+    """AR5: retrieve each generated variant separately and RRF-fuse with the base
+    pool, instead of concatenating variants into one query string. Behind the
+    `multi_query_enabled` flag; standard modes only (deep research owns its own
+    recall). Trace carries per-variant candidate counts."""
+    variants = list(getattr(transform_result, "generated_queries", []) or [])
+    trace = {"applied": False, "reason": "disabled", "variant_count": 0, "fused_results": base_results}
+    if not getattr(retrieval_profile, "multi_query_enabled", False):
+        return trace
+    if request.deep_research:
+        trace["reason"] = "skipped_deep_research"
+        return trace
+    if resolved_mode not in {"vector", "keyword", "hybrid"}:
+        trace["reason"] = "skipped_unsupported_mode"
+        return trace
+    if not variants:
+        trace["reason"] = "no_variants"
+        return trace
+
+    result_lists = [base_results]
+    per_variant_counts = []
+    for variant in variants:
+        try:
+            candidates = _variant_candidates(
+                query=variant,
+                resolved_mode=resolved_mode,
+                request=request,
+                source_type=source_type,
+                source_id=source_id,
+                source_part_id=source_part_id,
+                locator_filter=locator_filter,
+                metadata_filters=metadata_filters,
+            )
+        except Exception as exc:  # one bad variant must not fail the search
+            logger.warning("Multi-query variant retrieval failed: %s", exc)
+            per_variant_counts.append({"query": variant, "count": 0, "error": str(exc)})
+            continue
+        result_lists.append(candidates)
+        per_variant_counts.append({"query": variant, "count": len(candidates)})
+
+    fused = _fuse_multi_query_lists(result_lists, rrf_k=int(retrieval_profile.rrf_k))
+    trace.update(
+        {
+            "applied": True,
+            "reason": "fused",
+            "variant_count": len(variants),
+            "base_candidate_count": len(base_results),
+            "fused_candidate_count": len(fused),
+            "per_variant": per_variant_counts,
+            "fused_results": fused,
+        }
+    )
+    return trace
+
+
 def perform_search(request: SearchRequest) -> SearchResponse:
     import uuid
     start_time = time.time()
@@ -985,7 +1098,10 @@ def perform_search(request: SearchRequest) -> SearchResponse:
     base_query = _resolve_query_text(request)
     transform_result = transform_query(base_query, retrieval_profile)
     retrieval_request = request
-    if transform_result.effective_query and transform_result.effective_query != base_query:
+    # Multi-query fan-out retrieves the original and each variant separately and
+    # fuses (below); single-query mode concatenates variants into one query.
+    multi_query_mode = bool(getattr(retrieval_profile, "multi_query_enabled", False)) and bool(transform_result.generated_queries)
+    if not multi_query_mode and transform_result.effective_query and transform_result.effective_query != base_query:
         retrieval_request = request.model_copy(update={"custom_query": transform_result.effective_query})
 
     log_event(
@@ -1113,6 +1229,23 @@ def perform_search(request: SearchRequest) -> SearchResponse:
                 alpha=rp.hybrid_alpha,
                 rrf_k=rp.rrf_k,
             )
+        multi_query_trace = _maybe_fan_out_multi_query(
+            retrieval_profile=retrieval_profile,
+            request=retrieval_request,
+            resolved_mode=resolved_mode,
+            transform_result=transform_result,
+            base_results=raw_results,
+            source_type=source_type,
+            source_id=source_id,
+            source_part_id=source_part_id,
+            locator_filter=locator_filter,
+            metadata_filters=metadata_filters,
+        )
+        if multi_query_trace.get("applied"):
+            raw_results = multi_query_trace.pop("fused_results")
+        else:
+            multi_query_trace.pop("fused_results", None)
+        retrieval_trace["multi_query"] = multi_query_trace
         search_ms = int((time.time() - search_start) * 1000)
         retrieval_trace["latency_ms"]["search"] = search_ms
         retrieval_trace["candidate_counts"]["pre_rerank"] = len(raw_results)

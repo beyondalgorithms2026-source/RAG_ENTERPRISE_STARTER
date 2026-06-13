@@ -151,6 +151,7 @@ def _transform_summary(retrieval_config: RetrievalProfileConfig) -> dict[str, An
         "hyde_enabled": retrieval_config.hyde_enabled,
         "transform_timeout_ms": retrieval_config.transform_timeout_ms,
         "transform_max_variants": retrieval_config.transform_max_variants,
+        "multi_query_enabled": retrieval_config.multi_query_enabled,
         "strategy": strategy,
     }
 
