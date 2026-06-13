@@ -317,6 +317,8 @@ class SemanticCachePolicyRequest(BaseModel):
     owner: str = ""
     review_at: Optional[datetime] = None
     enabled: bool = False
+    match_mode: str = Field(default="exact", pattern="^(exact|semantic)$")
+    similarity_threshold: float = Field(default=0.92, ge=0.5, le=0.999)
     ttl_seconds: int = Field(default=900, ge=30, le=86400)
     max_active_entries: int = Field(default=1000, ge=1, le=100000)
     allow_corpora: list[str] = Field(default_factory=list)
@@ -1224,6 +1226,8 @@ def get_semantic_cache_health():
 def _cache_policy_config(body: SemanticCachePolicyRequest) -> dict[str, Any]:
     return {
         "enabled": body.enabled,
+        "match_mode": body.match_mode,
+        "similarity_threshold": body.similarity_threshold,
         "ttl_seconds": body.ttl_seconds,
         "max_active_entries": body.max_active_entries,
         "allow_corpora": body.allow_corpora,

@@ -8,6 +8,7 @@ from sqlalchemy import text
 
 from app.auth.context import AuthenticatedUser
 from app.auth.access_strategy import active_corpus_grant_fingerprint, active_access_strategy
+from app.core.logging import logger
 from app.db.db import engine
 from app.db.repo_acl import active_direct_grant_fingerprint, can_current_user_access_source, current_acl_context
 from app.db.repo_semantic_cache_policies import (
@@ -22,6 +23,30 @@ from app.profiles.resolver import get_active_profile_snapshot
 def _stable_hash(payload: Any) -> str:
     raw = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _embed_question(question: str) -> Optional[list[float]]:
+    """Embed a question with the active embedder for semantic cache matching.
+    Returns None on any failure so the cache degrades to exact-only, never errors."""
+    try:
+        from app.core_rag.retrieval import embed_texts
+
+        vector = embed_texts([question])[0]
+        return [float(value) for value in vector]
+    except Exception as exc:  # pragma: no cover - embedding must never fail a lookup
+        logger.debug("Semantic cache embedding failed: %s", exc)
+        return None
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = sum(x * x for x in a) ** 0.5
+    norm_b = sum(y * y for y in b) ** 0.5
+    if norm_a == 0.0 or norm_b == 0.0:
+        return 0.0
+    return dot / (norm_a * norm_b)
 
 
 def cache_scope(*, question: str, retrieval_mode: Optional[str], corpus_scope: Optional[dict[str, Any]] = None) -> dict[str, str]:
@@ -193,6 +218,207 @@ def active_policy_decision(*, question: str, corpus_names: list[str]) -> tuple[O
     return (policy if allowed else None), reason
 
 
+_ENTRY_COLUMNS = """
+    id, policy_version_id, cache_namespace, normalized_question, answer_json,
+    citations_json, retrieved_chunk_ids_json, corpus_names_json,
+    source_revisions_json, revision_snapshot_json, answer_path,
+    original_latency_ms, metadata_json, created_at, expires_at
+"""
+
+
+def _serialize_entry(row: Any) -> dict[str, Any]:
+    return {key: (value.isoformat() if hasattr(value, "isoformat") else value) for key, value in dict(row).items()}
+
+
+def _finalize_hit(
+    conn,
+    row: Any,
+    *,
+    governed: Optional[dict[str, Any]],
+    actor: Optional[AuthenticatedUser],
+    question: str,
+    hit_type: str,
+    hit_reason: str,
+    similarity: Optional[float] = None,
+) -> Optional[dict[str, Any]]:
+    """Identical post-match governance for BOTH exact and similarity hits
+    (AR6): policy re-check, per-source ACL re-authorization, content/profile
+    revision validation, then hit accounting. A similarity hit is held to the
+    exact same safety bar as an exact hit; only the question dimension is
+    relaxed during candidate selection."""
+    if governed:
+        allowed, reason = policy_allows(
+            governed,
+            question=question,
+            corpus_names=list(row["corpus_names_json"] or []),
+            groups=list(current_acl_context().get("groups") or []),
+        )
+        if not allowed:
+            record_policy_event(
+                event_type="miss",
+                reason=reason,
+                policy_version_id=governed.get("id"),
+                cache_entry_id=row["id"],
+                actor=actor,
+            )
+            return None
+    source_ids = {
+        int(item.get("source_id"))
+        for item in (row["citations_json"] or [])
+        if isinstance(item, dict) and item.get("source_id") is not None
+    }
+    if any(not can_current_user_access_source(source_id) for source_id in source_ids):
+        conn.execute(
+            text(
+                """
+                INSERT INTO semantic_cache_hits (
+                    cache_entry_id, hit_type, actor_external_user_id, actor_email
+                )
+                VALUES (:cache_entry_id, 'reauthorization_miss', :actor_id, :actor_email)
+                """
+            ),
+            {"cache_entry_id": row["id"], "actor_id": actor.user_id if actor else None, "actor_email": actor.email if actor else None},
+        )
+        if governed:
+            record_policy_event(
+                event_type="reauthorization_miss",
+                reason="cited_source_not_accessible",
+                policy_version_id=governed.get("id"),
+                cache_entry_id=row["id"],
+                actor=actor,
+            )
+        return None
+    current_revisions = current_cache_revisions(
+        corpus_names=list(row["corpus_names_json"] or []),
+        source_ids=sorted(source_ids),
+    )
+    if dict(row["revision_snapshot_json"] or {}) != current_revisions:
+        conn.execute(
+            text(
+                """
+                UPDATE semantic_cache_entries
+                SET invalidated_at = now(),
+                    metadata_json = metadata_json || CAST(:metadata AS jsonb)
+                WHERE id = :id
+                """
+            ),
+            {"id": row["id"], "metadata": json.dumps({"invalidation_reason": "revision_changed"})},
+        )
+        if governed:
+            record_policy_event(
+                event_type="miss",
+                reason="revision_changed",
+                policy_version_id=governed.get("id"),
+                cache_entry_id=row["id"],
+                actor=actor,
+            )
+        return None
+    conn.execute(text("UPDATE semantic_cache_entries SET last_hit_at = now() WHERE id = :id"), {"id": row["id"]})
+    conn.execute(
+        text(
+            """
+            INSERT INTO semantic_cache_hits (
+                cache_entry_id, hit_type, actor_external_user_id, actor_email
+            )
+            VALUES (:cache_entry_id, :hit_type, :actor_id, :actor_email)
+            """
+        ),
+        {"cache_entry_id": row["id"], "hit_type": hit_type, "actor_id": actor.user_id if actor else None, "actor_email": actor.email if actor else None},
+    )
+    if governed:
+        metadata = {"similarity": round(float(similarity), 4)} if similarity is not None else None
+        record_policy_event(
+            event_type="hit",
+            reason=hit_reason,
+            policy_version_id=governed.get("id"),
+            cache_entry_id=row["id"],
+            latency_saved_ms=int(row["original_latency_ms"] or 0),
+            actor=actor,
+            metadata_json=metadata,
+        )
+    payload = _serialize_entry(row)
+    if similarity is not None:
+        payload["match_type"] = "similarity"
+        payload["similarity"] = round(float(similarity), 4)
+    else:
+        payload["match_type"] = "exact"
+    return payload
+
+
+def _semantic_lookup(
+    conn,
+    *,
+    question: str,
+    scope: dict[str, str],
+    namespace: str,
+    governed: dict[str, Any],
+    actor: Optional[AuthenticatedUser],
+) -> Optional[dict[str, Any]]:
+    """Embedding-similarity tier (AR6): relax ONLY the normalized-question
+    dimension; keep namespace + ACL + profile + corpus + mode scope identical to
+    exact matching, then rank stored query embeddings by cosine and gate on the
+    policy's similarity_threshold before running _finalize_hit governance."""
+    threshold = float(governed.get("similarity_threshold") or 0.92)
+    query_embedding = _embed_question(question)
+    if not query_embedding:
+        record_policy_event(
+            event_type="miss",
+            reason="semantic_embedding_unavailable",
+            policy_version_id=governed.get("id"),
+            actor=actor,
+            metadata_json={"namespace": namespace},
+        )
+        return None
+    candidate_rows = conn.execute(
+        text(
+            f"""
+            SELECT {_ENTRY_COLUMNS}, query_embedding_json
+            FROM semantic_cache_entries
+            WHERE cache_namespace = :cache_namespace
+              AND acl_scope_hash = :acl_scope_hash
+              AND profile_snapshot_hash = :profile_snapshot_hash
+              AND corpus_scope_hash = :corpus_scope_hash
+              AND retrieval_mode = :retrieval_mode
+              AND invalidated_at IS NULL
+              AND expires_at > now()
+              AND query_embedding_json <> '[]'::jsonb
+            ORDER BY created_at DESC, id DESC
+            LIMIT 200
+            """
+        ),
+        {**scope, "cache_namespace": namespace},
+    ).mappings().all()
+
+    best_row = None
+    best_score = 0.0
+    for candidate in candidate_rows:
+        stored = candidate.get("query_embedding_json") or []
+        score = _cosine(query_embedding, [float(v) for v in stored])
+        if score > best_score:
+            best_score = score
+            best_row = candidate
+    if best_row is None or best_score < threshold:
+        record_policy_event(
+            event_type="miss",
+            reason="below_similarity_threshold" if best_row is not None else "no_semantic_candidate",
+            policy_version_id=governed.get("id"),
+            cache_entry_id=(best_row["id"] if best_row is not None else None),
+            actor=actor,
+            metadata_json={"best_similarity": round(best_score, 4), "threshold": threshold},
+        )
+        return None
+    return _finalize_hit(
+        conn,
+        best_row,
+        governed=governed,
+        actor=actor,
+        question=question,
+        hit_type="similarity_hit",
+        hit_reason="semantic_similarity",
+        similarity=best_score,
+    )
+
+
 def get_cache_entry(
     *,
     question: str,
@@ -206,11 +432,8 @@ def get_cache_entry(
     governed = policy or get_active_policy_version()
     namespace = cache_namespace or str((governed or {}).get("cache_namespace") or "")
     sql = text(
-        """
-        SELECT id, policy_version_id, cache_namespace, normalized_question, answer_json,
-               citations_json, retrieved_chunk_ids_json, corpus_names_json,
-               source_revisions_json, revision_snapshot_json, answer_path,
-               original_latency_ms, metadata_json, created_at, expires_at
+        f"""
+        SELECT {_ENTRY_COLUMNS}
         FROM semantic_cache_entries
         WHERE cache_namespace = :cache_namespace
           AND normalized_question = :normalized_question
@@ -226,105 +449,38 @@ def get_cache_entry(
     )
     with engine.begin() as conn:
         row = conn.execute(sql, {**scope, "cache_namespace": namespace}).mappings().first()
-        if not row:
-            if governed:
-                record_policy_event(
-                    event_type="miss",
-                    reason="not_found",
-                    policy_version_id=governed.get("id"),
-                    actor=actor,
-                    metadata_json={"question": normalize_question(question), "namespace": namespace},
-                )
-            return None
-        if governed:
-            allowed, reason = policy_allows(
-                governed,
+        if row:
+            return _finalize_hit(
+                conn,
+                row,
+                governed=governed,
+                actor=actor,
                 question=question,
-                corpus_names=list(row["corpus_names_json"] or []),
-                groups=list(current_acl_context().get("groups") or []),
+                hit_type="hit",
+                hit_reason="exact_query",
             )
-            if not allowed:
-                record_policy_event(
-                    event_type="miss",
-                    reason=reason,
-                    policy_version_id=governed.get("id"),
-                    cache_entry_id=row["id"],
-                    actor=actor,
-                )
-                return None
-        source_ids = {
-            int(item.get("source_id"))
-            for item in (row["citations_json"] or [])
-            if isinstance(item, dict) and item.get("source_id") is not None
-        }
-        if any(not can_current_user_access_source(source_id) for source_id in source_ids):
-            conn.execute(
-                text(
-                    """
-                    INSERT INTO semantic_cache_hits (
-                        cache_entry_id, hit_type, actor_external_user_id, actor_email
-                    )
-                    VALUES (:cache_entry_id, 'reauthorization_miss', :actor_id, :actor_email)
-                    """
-                ),
-                {"cache_entry_id": row["id"], "actor_id": actor.user_id if actor else None, "actor_email": actor.email if actor else None},
-            )
-            if governed:
-                record_policy_event(
-                    event_type="reauthorization_miss",
-                    reason="cited_source_not_accessible",
-                    policy_version_id=governed.get("id"),
-                    cache_entry_id=row["id"],
-                    actor=actor,
-                )
-            return None
-        current_revisions = current_cache_revisions(
-            corpus_names=list(row["corpus_names_json"] or []),
-            source_ids=sorted(source_ids),
-        )
-        if dict(row["revision_snapshot_json"] or {}) != current_revisions:
-            conn.execute(
-                text(
-                    """
-                    UPDATE semantic_cache_entries
-                    SET invalidated_at = now(),
-                        metadata_json = metadata_json || CAST(:metadata AS jsonb)
-                    WHERE id = :id
-                    """
-                ),
-                {"id": row["id"], "metadata": json.dumps({"invalidation_reason": "revision_changed"})},
-            )
-            if governed:
-                record_policy_event(
-                    event_type="miss",
-                    reason="revision_changed",
-                    policy_version_id=governed.get("id"),
-                    cache_entry_id=row["id"],
-                    actor=actor,
-                )
-            return None
-        conn.execute(text("UPDATE semantic_cache_entries SET last_hit_at = now() WHERE id = :id"), {"id": row["id"]})
-        conn.execute(
-            text(
-                """
-                INSERT INTO semantic_cache_hits (
-                    cache_entry_id, hit_type, actor_external_user_id, actor_email
-                )
-                VALUES (:cache_entry_id, 'hit', :actor_id, :actor_email)
-                """
-            ),
-            {"cache_entry_id": row["id"], "actor_id": actor.user_id if actor else None, "actor_email": actor.email if actor else None},
-        )
-        if governed:
-            record_policy_event(
-                event_type="hit",
-                reason="exact_query",
-                policy_version_id=governed.get("id"),
-                cache_entry_id=row["id"],
-                latency_saved_ms=int(row["original_latency_ms"] or 0),
+        # AR6: semantic similarity tier — only when the active policy opts in.
+        if governed and str(governed.get("match_mode") or "exact") == "semantic":
+            semantic = _semantic_lookup(
+                conn,
+                question=question,
+                scope=scope,
+                namespace=namespace,
+                governed=governed,
                 actor=actor,
             )
-    return {key: (value.isoformat() if hasattr(value, "isoformat") else value) for key, value in dict(row).items()}
+            if semantic is not None:
+                return semantic
+            return None
+        if governed:
+            record_policy_event(
+                event_type="miss",
+                reason="not_found",
+                policy_version_id=governed.get("id"),
+                actor=actor,
+                metadata_json={"question": normalize_question(question), "namespace": namespace},
+            )
+        return None
 
 
 def store_cache_entry(
@@ -346,6 +502,10 @@ def store_cache_entry(
     scope = cache_scope(question=question, retrieval_mode=retrieval_mode, corpus_scope=corpus_scope)
     governed = policy or get_active_policy_version()
     namespace = cache_namespace or str((governed or {}).get("cache_namespace") or "")
+    # AR6: a semantic-match policy needs the stored query embedding for later
+    # similarity lookup; compute it here when the caller did not supply one.
+    if query_embedding is None and str((governed or {}).get("match_mode") or "exact") == "semantic":
+        query_embedding = _embed_question(question)
     source_ids, corpus_names, source_revisions = _source_scope(citations_json)
     revision_snapshot = current_cache_revisions(corpus_names=corpus_names, source_ids=source_ids)
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=max(ttl_seconds, 1))
@@ -465,10 +625,25 @@ def cache_health() -> dict[str, Any]:
             )
         ).mappings().one()
         hits = conn.execute(text("SELECT COUNT(*)::bigint FROM semantic_cache_hits")).scalar_one()
+        hit_breakdown = conn.execute(
+            text(
+                """
+                SELECT
+                  COUNT(*) FILTER (WHERE hit_type = 'hit')::bigint AS exact_hits,
+                  COUNT(*) FILTER (WHERE hit_type = 'similarity_hit')::bigint AS similarity_hits,
+                  COUNT(*) FILTER (WHERE hit_type = 'reauthorization_miss')::bigint AS reauthorization_misses
+                FROM semantic_cache_hits
+                """
+            )
+        ).mappings().one()
     active_policy = get_active_policy_version()
     return {
         **dict(row),
         "hit_count": int(hits),
+        "exact_hit_count": int(hit_breakdown["exact_hits"]),
+        "similarity_hit_count": int(hit_breakdown["similarity_hits"]),
+        "reauthorization_miss_count": int(hit_breakdown["reauthorization_misses"]),
+        "match_mode": str((active_policy or {}).get("match_mode") or "exact"),
         "global_default": "off",
         "active_policy": active_policy,
     }

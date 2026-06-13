@@ -56,7 +56,9 @@ class RetrievalProfileConfig(BaseModel):
     multi_query_enabled: bool = False
     semantic_cache_enabled: bool = False
     semantic_cache_ttl_seconds: int = 900
-    semantic_cache_similarity_threshold: float = 0.92
+    # AR6: semantic-cache similarity matching is governed per-policy
+    # (semantic_cache_policy_versions.similarity_threshold + match_mode), not on
+    # the retrieval profile. The former dead field here was removed.
 
 
 class EvalPackConfig(BaseModel):

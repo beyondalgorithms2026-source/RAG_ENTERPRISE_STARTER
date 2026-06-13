@@ -678,6 +678,7 @@ CREATE TABLE IF NOT EXISTS semantic_cache_policy_versions (
     status TEXT NOT NULL DEFAULT 'draft',
     enabled BOOLEAN NOT NULL DEFAULT FALSE,
     match_mode TEXT NOT NULL DEFAULT 'exact',
+    similarity_threshold DOUBLE PRECISION NOT NULL DEFAULT 0.92,
     ttl_seconds INTEGER NOT NULL DEFAULT 900,
     max_active_entries INTEGER NOT NULL DEFAULT 1000,
     allow_corpora_json JSONB NOT NULL DEFAULT '[]'::jsonb,
