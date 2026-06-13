@@ -299,7 +299,7 @@ def get_candidate_draft(draft_id: int) -> Optional[dict[str, Any]]:
 
 def _promotion_payload(row: Any) -> dict[str, Any]:
     payload = dict(row)
-    for key in ("selected_profiles_json", "rollback_target_json"):
+    for key in ("selected_profiles_json", "rollback_target_json", "eval_evidence_json"):
         payload[key] = payload.get(key) or {}
     return {key: _jsonable(value) for key, value in payload.items()}
 
@@ -312,7 +312,7 @@ def list_tuning_history(limit: int = 50) -> dict[str, Any]:
                 """
                 SELECT id, promoted_config_id, previous_live_version_label, new_live_version_label,
                        action, promotion_note, selected_profiles_json, rollback_target_json,
-                       actor_external_user_id, actor_email, created_at
+                       eval_evidence_json, actor_external_user_id, actor_email, created_at
                 FROM tuning_promotion_events
                 ORDER BY created_at DESC, id DESC
                 LIMIT :limit
@@ -352,6 +352,7 @@ def promote_candidate_to_live(
     draft_id: int,
     promotion_note: str,
     actor: Optional[AuthenticatedUser] = None,
+    eval_evidence: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     draft = get_candidate_draft(draft_id)
     if not draft:
@@ -438,12 +439,13 @@ def promote_candidate_to_live(
                 INSERT INTO tuning_promotion_events (
                     promoted_config_id, previous_live_version_label, new_live_version_label,
                     action, promotion_note, selected_profiles_json, rollback_target_json,
-                    actor_external_user_id, actor_email
+                    eval_evidence_json, actor_external_user_id, actor_email
                 )
                 VALUES (
                     :promoted_config_id, :previous_live_version_label, :new_live_version_label,
                     'promote', :promotion_note, CAST(:selected_profiles AS jsonb),
-                    CAST(:rollback_target AS jsonb), :actor_id, :actor_email
+                    CAST(:rollback_target AS jsonb), CAST(:eval_evidence AS jsonb),
+                    :actor_id, :actor_email
                 )
                 """
             ),
@@ -454,6 +456,7 @@ def promote_candidate_to_live(
                 "promotion_note": promotion_note.strip(),
                 "selected_profiles": json.dumps(selected_profiles),
                 "rollback_target": json.dumps(live_before),
+                "eval_evidence": json.dumps(eval_evidence or {}),
                 "actor_id": actor.user_id if actor else None,
                 "actor_email": actor.email if actor else None,
             },
@@ -465,7 +468,13 @@ def promote_candidate_to_live(
     return {"promoted_version": payload, "live_configuration": live_after, "previous_live_configuration": live_before}
 
 
-def rollback_to_version(*, version_label: str, reason: str, actor: Optional[AuthenticatedUser] = None) -> dict[str, Any]:
+def rollback_to_version(
+    *,
+    version_label: str,
+    reason: str,
+    actor: Optional[AuthenticatedUser] = None,
+    eval_evidence: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
     with engine.connect() as conn:
         row = conn.execute(
             text(
@@ -495,12 +504,13 @@ def rollback_to_version(*, version_label: str, reason: str, actor: Optional[Auth
                 INSERT INTO tuning_promotion_events (
                     promoted_config_id, previous_live_version_label, new_live_version_label,
                     action, promotion_note, selected_profiles_json, rollback_target_json,
-                    actor_external_user_id, actor_email
+                    eval_evidence_json, actor_external_user_id, actor_email
                 )
                 VALUES (
                     :promoted_config_id, :previous_live_version_label, :new_live_version_label,
                     'rollback', :promotion_note, CAST(:selected_profiles AS jsonb),
-                    CAST(:rollback_target AS jsonb), :actor_id, :actor_email
+                    CAST(:rollback_target AS jsonb), CAST(:eval_evidence AS jsonb),
+                    :actor_id, :actor_email
                 )
                 """
             ),
@@ -511,6 +521,7 @@ def rollback_to_version(*, version_label: str, reason: str, actor: Optional[Auth
                 "promotion_note": reason.strip(),
                 "selected_profiles": json.dumps(selected_profiles),
                 "rollback_target": json.dumps(live_before),
+                "eval_evidence": json.dumps(eval_evidence or {}),
                 "actor_id": actor.user_id if actor else None,
                 "actor_email": actor.email if actor else None,
             },

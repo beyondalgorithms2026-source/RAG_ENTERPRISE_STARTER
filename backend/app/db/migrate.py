@@ -902,6 +902,33 @@ def _sync_live_tuning_configuration() -> None:
     sync_live_configuration_record()
 
 
+def _create_tuning_eval_runs_table() -> None:
+    ddl = """
+    CREATE TABLE IF NOT EXISTS tuning_eval_runs (
+        id BIGSERIAL PRIMARY KEY,
+        run_label TEXT NOT NULL,
+        draft_id BIGINT REFERENCES tuning_config_versions(id) ON DELETE SET NULL,
+        config_fingerprint TEXT NOT NULL,
+        gate_status TEXT NOT NULL,
+        gate_aggregates_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        thresholds_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        selected_profiles_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        report_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        sample_size INTEGER,
+        duration_s DOUBLE PRECISION,
+        actor_external_user_id TEXT,
+        actor_email TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS tuning_eval_runs_draft_idx ON tuning_eval_runs(draft_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS tuning_eval_runs_created_idx ON tuning_eval_runs(created_at DESC);
+
+    ALTER TABLE tuning_promotion_events ADD COLUMN IF NOT EXISTS eval_evidence_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def _patch_steps() -> list[MigrationStep]:
     return [
         MigrationStep(
@@ -1003,6 +1030,11 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P020",
             description="Create independent governed semantic cache policies, events, and revisions",
             runner=_create_m33_semantic_cache_governance_tables,
+        ),
+        MigrationStep(
+            step_id="MIG-P021",
+            description="Create tuning_eval_runs evidence table and promotion-event eval evidence column (AR4)",
+            runner=_create_tuning_eval_runs_table,
         ),
     ]
 
