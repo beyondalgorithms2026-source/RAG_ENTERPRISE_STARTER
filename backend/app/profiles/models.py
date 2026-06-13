@@ -53,6 +53,7 @@ class RetrievalProfileConfig(BaseModel):
     hyde_enabled: bool = False
     transform_timeout_ms: int = 750
     transform_max_variants: int = 3
+    multi_query_enabled: bool = False
     semantic_cache_enabled: bool = False
     semantic_cache_ttl_seconds: int = 900
     semantic_cache_similarity_threshold: float = 0.92
