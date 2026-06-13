@@ -1003,6 +1003,47 @@ def _create_tuning_eval_runs_table() -> None:
         conn.execute(text(ddl))
 
 
+def _create_connector_operations_tables() -> None:
+    ddl = """
+    ALTER TABLE sources ADD COLUMN IF NOT EXISTS last_ingested_at TIMESTAMPTZ;
+    ALTER TABLE sources ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ;
+    ALTER TABLE sources ADD COLUMN IF NOT EXISTS last_enriched_at TIMESTAMPTZ;
+    UPDATE sources
+    SET last_ingested_at = COALESCE(last_ingested_at, updated_at)
+    WHERE ingestion_status = 'embedded' AND last_ingested_at IS NULL;
+    UPDATE sources
+    SET last_enriched_at = COALESCE(last_enriched_at, updated_at)
+    WHERE enrichment_status = 'completed' AND last_enriched_at IS NULL;
+
+    ALTER TABLE db_connectors ADD COLUMN IF NOT EXISTS schedule_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE db_connectors ADD COLUMN IF NOT EXISTS sync_interval_minutes INTEGER NOT NULL DEFAULT 60;
+    ALTER TABLE db_connectors ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMPTZ;
+    ALTER TABLE db_connectors ADD COLUMN IF NOT EXISTS consecutive_failures INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE db_connectors ADD COLUMN IF NOT EXISTS retry_at TIMESTAMPTZ;
+    ALTER TABLE db_connectors ADD COLUMN IF NOT EXISTS last_success_at TIMESTAMPTZ;
+    ALTER TABLE db_connectors ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMPTZ;
+    CREATE INDEX IF NOT EXISTS db_connectors_due_idx ON db_connectors(schedule_enabled, next_run_at);
+
+    CREATE TABLE IF NOT EXISTS connector_sync_runs (
+        id BIGSERIAL PRIMARY KEY,
+        connector_id BIGINT NOT NULL REFERENCES db_connectors(id) ON DELETE CASCADE,
+        trigger_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'running',
+        attempt_number INTEGER NOT NULL DEFAULT 1,
+        rows_ingested INTEGER NOT NULL DEFAULT 0,
+        source_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        error_message TEXT,
+        retry_at TIMESTAMPTZ,
+        started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        completed_at TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS connector_sync_runs_connector_idx
+        ON connector_sync_runs(connector_id, started_at DESC);
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def _patch_steps() -> list[MigrationStep]:
     return [
         MigrationStep(
@@ -1124,6 +1165,11 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P024",
             description="Create generation_usage_events table for token/cost governance (AR11)",
             runner=_create_generation_usage_events_table,
+        ),
+        MigrationStep(
+            step_id="MIG-P025",
+            description="Create connector scheduling/run history and source freshness timestamps (AR13)",
+            runner=_create_connector_operations_tables,
         ),
     ]
 

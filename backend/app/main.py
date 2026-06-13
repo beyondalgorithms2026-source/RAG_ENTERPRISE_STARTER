@@ -152,6 +152,9 @@ def start_background_workers() -> None:
 
     enforce_startup_coherence()
     start_ingestion_queue_worker()
+    from app.connectors.runtime import start_connector_scheduler
+
+    start_connector_scheduler()
 
 
 @app.get("/", include_in_schema=False)

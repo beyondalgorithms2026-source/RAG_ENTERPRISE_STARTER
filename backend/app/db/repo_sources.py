@@ -24,6 +24,9 @@ class SourceRow:
     ingestion_status: str
     enrichment_status: str
     source_metadata_json: Dict
+    last_ingested_at: Optional[str] = None
+    last_synced_at: Optional[str] = None
+    last_enriched_at: Optional[str] = None
 
 
 def _row_to_source(row) -> SourceRow:
@@ -34,7 +37,8 @@ def get_source_by_storage_path(storage_path: str) -> Optional[SourceRow]:
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
-               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json,
+               last_ingested_at, last_synced_at, last_enriched_at
         FROM sources
         WHERE storage_path = :storage_path
         """
@@ -50,7 +54,8 @@ def get_source_by_id(source_id: int) -> Optional[SourceRow]:
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
-               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json,
+               last_ingested_at, last_synced_at, last_enriched_at
         FROM sources
         WHERE id = :source_id
         """
@@ -67,7 +72,8 @@ def get_accessible_source_by_id(source_id: int) -> Optional[SourceRow]:
     sql = text(
         f"""
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
-               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json,
+               last_ingested_at, last_synced_at, last_enriched_at
         FROM sources s
         WHERE s.id = :source_id
           AND {source_access_sql(params=params, source_alias="s")}
@@ -87,7 +93,8 @@ def get_sources_by_ids(source_ids: List[int]) -> Dict[int, SourceRow]:
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
-               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json,
+               last_ingested_at, last_synced_at, last_enriched_at
         FROM sources
         WHERE id = ANY(:source_ids)
         """
@@ -101,7 +108,8 @@ def find_source_by_name_and_hash(file_name: str, hash_sha256: str) -> Optional[S
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
-               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json,
+               last_ingested_at, last_synced_at, last_enriched_at
         FROM sources
         WHERE file_name = :file_name AND hash_sha256 = :hash_sha256
         ORDER BY created_at DESC, id DESC
@@ -119,7 +127,8 @@ def get_latest_source_by_name(file_name: str) -> Optional[SourceRow]:
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
-               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json,
+               last_ingested_at, last_synced_at, last_enriched_at
         FROM sources
         WHERE file_name = :file_name
         ORDER BY created_at DESC, id DESC
@@ -190,7 +199,8 @@ def list_sources() -> List[SourceRow]:
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
-               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json,
+               last_ingested_at, last_synced_at, last_enriched_at
         FROM sources
         ORDER BY created_at DESC, id DESC
         """
@@ -205,7 +215,8 @@ def list_accessible_sources() -> List[SourceRow]:
     sql = text(
         f"""
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
-               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json,
+               last_ingested_at, last_synced_at, last_enriched_at
         FROM sources s
         WHERE {source_access_sql(params=params, source_alias="s")}
         ORDER BY created_at DESC, id DESC
@@ -257,9 +268,13 @@ def update_source_status(source_id: int, *, ingestion_status: Optional[str] = No
     if ingestion_status is not None:
         updates.append("ingestion_status = :ingestion_status")
         params["ingestion_status"] = ingestion_status
+        if ingestion_status == "embedded":
+            updates.append("last_ingested_at = now()")
     if enrichment_status is not None:
         updates.append("enrichment_status = :enrichment_status")
         params["enrichment_status"] = enrichment_status
+        if enrichment_status == "completed":
+            updates.append("last_enriched_at = now()")
     if not updates:
         return
 
@@ -267,6 +282,16 @@ def update_source_status(source_id: int, *, ingestion_status: Optional[str] = No
     sql = text(f"UPDATE sources SET {', '.join(updates)} WHERE id = :source_id")
     with engine.begin() as conn:
         conn.execute(sql, params)
+
+
+def mark_sources_synced(source_ids: List[int]) -> None:
+    if not source_ids:
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE sources SET last_synced_at = now(), updated_at = now() WHERE id = ANY(:source_ids)"),
+            {"source_ids": list(source_ids)},
+        )
 
 
 def _deep_merge_metadata(current_value: Any, patch_value: Any) -> Any:

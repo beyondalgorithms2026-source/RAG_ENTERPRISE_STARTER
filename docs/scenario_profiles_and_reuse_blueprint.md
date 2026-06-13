@@ -12,7 +12,7 @@ Current strongest implemented mode is enterprise-style OIDC/dev identity plus do
 
 | Module block | Main repo areas | Keep when | Replace or disable when |
 |---|---|---|---|
-| Ingestion connectors | `backend/app/api/upload.py`, `backend/app/connectors/`, `backend/app/ingestion/` | Files, DB rows, email, or queue visibility are needed | Static prebuilt index or read-only research corpus is enough |
+| Ingestion connectors | `backend/app/api/upload.py`, `backend/app/connectors/`, `backend/app/ingestion/` | Files, DB rows, uploaded `.eml`, or queue visibility are needed | Static prebuilt index or read-only research corpus is enough |
 | Parsing and chunking | `backend/app/adapters/`, `backend/app/ingestion/chunking.py` | Any uploaded or connected source must become searchable | External pipeline already emits normalized chunks |
 | Embeddings and index | `backend/app/embedding/`, `backend/app/db/repo_chunks.py`, `backend/app/db/repo_search.py` | Any vector, hybrid, or rerank retrieval is needed | A separate vector DB/search service owns indexing |
 | Retrieval engine | `backend/app/core_rag/`, `backend/app/db/repo_search.py` | Grounded search/ask/compare is required | Rarely replace first; adapt providers and access before retrieval internals |

@@ -368,6 +368,8 @@ def _report_summary(kind: str, path: Path) -> dict[str, Any]:
 
 
 def _source_to_payload(row) -> dict[str, Any]:
+    from app.freshness import source_freshness
+
     return {
         "id": row.id,
         "file_name": row.file_name,
@@ -380,6 +382,7 @@ def _source_to_payload(row) -> dict[str, Any]:
         "ingestion_status": row.ingestion_status,
         "enrichment_status": row.enrichment_status,
         "source_metadata_json": row.source_metadata_json,
+        "freshness": source_freshness(row),
     }
 
 

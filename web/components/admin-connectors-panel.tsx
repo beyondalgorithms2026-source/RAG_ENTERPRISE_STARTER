@@ -20,6 +20,24 @@ type DbConnector = {
   last_cursor_id?: string | null;
   last_run_at?: string | null;
   last_error?: string | null;
+  health_status: string;
+  schedule_enabled: boolean;
+  sync_interval_minutes: number;
+  next_run_at?: string | null;
+  retry_at?: string | null;
+  last_success_at?: string | null;
+  consecutive_failures: number;
+};
+
+type ConnectorRun = {
+  id: number;
+  trigger_type: string;
+  status: string;
+  attempt_number: number;
+  rows_ingested: number;
+  error_message?: string | null;
+  retry_at?: string | null;
+  started_at?: string | null;
 };
 
 type ConnectorRequest = {
@@ -73,6 +91,7 @@ export function AdminConnectorsPanel() {
   const [requests, setRequests] = useState<ConnectorRequest[]>([]);
   const [schemaById, setSchemaById] = useState<Record<number, SchemaPreview>>({});
   const [previewById, setPreviewById] = useState<Record<number, SyncPreview>>({});
+  const [runsById, setRunsById] = useState<Record<number, ConnectorRun[]>>({});
   const [expandedRequestId, setExpandedRequestId] = useState<number | null>(null);
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [setupDrafts, setSetupDrafts] = useState<Record<number, SetupDraft>>({});
@@ -248,6 +267,27 @@ export function AdminConnectorsPanel() {
     }
   }
 
+  async function updateSchedule(connector: DbConnector) {
+    setBusy(true);
+    try {
+      await browserFetch<DbConnector>(`/connectors/db/${connector.id}/schedule`, {
+        method: "PATCH",
+        json: {
+          schedule_enabled: !connector.schedule_enabled,
+          sync_interval_minutes: connector.sync_interval_minutes,
+        },
+      });
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadRuns(connectorId: number) {
+    const payload = await browserFetch<{ runs: ConnectorRun[] }>(`/connectors/db/${connectorId}/runs`);
+    setRunsById((current) => ({ ...current, [connectorId]: payload.runs }));
+  }
+
   return (
     <div className="admin-page page-stack">
       <section className="admin-section-intro">
@@ -354,19 +394,28 @@ export function AdminConnectorsPanel() {
                 <span className="material-symbols-outlined">database</span>
                 <div>
                   <strong>{connector.name}</strong>
-                  <span>{connector.connector_type} · {connector.table_name} · {titleCase(connector.status)}</span>
+                  <span>{connector.connector_type} · {connector.table_name} · {titleCase(connector.health_status)}</span>
                 </div>
               </div>
               <p>Text: {connector.text_columns.join(", ")}. Filters: {connector.metadata_columns.join(", ") || "none"}.</p>
               <p>ACL: {connector.acl_group_names.join(", ") || "none"} · Cursor: {connector.last_cursor_updated_at || "not synced"} / {connector.last_cursor_id || "none"}</p>
+              <p>Schedule: {connector.schedule_enabled ? `every ${connector.sync_interval_minutes} minute(s)` : "disabled"} · Next: {connector.next_run_at || "not scheduled"} · Failures: {connector.consecutive_failures}</p>
+              {connector.retry_at ? <p className="sources-connected-note">Retry scheduled: {connector.retry_at}</p> : null}
               {connector.last_error ? <p className="sources-connected-note">{connector.last_error}</p> : null}
               <div className="toolbar-inline">
                 <button type="button" className="stitch-button stitch-button-secondary" onClick={() => inspectSchema(connector.id)}>Inspect Schema</button>
                 <button type="button" className="stitch-button stitch-button-secondary" onClick={() => previewSync(connector.id)}>Preview Sync</button>
                 <button type="button" className="stitch-button stitch-button-primary" disabled={busy} onClick={() => syncRows(connector.id)}>Sync Rows</button>
+                <button type="button" className="stitch-button stitch-button-secondary" disabled={busy} onClick={() => updateSchedule(connector)}>{connector.schedule_enabled ? "Disable Schedule" : "Enable Schedule"}</button>
+                <button type="button" className="stitch-button stitch-button-secondary" onClick={() => loadRuns(connector.id)}>Run History</button>
               </div>
               {schemaById[connector.id] ? <p className="sources-connected-note">Columns: {schemaById[connector.id].columns.map((column) => `${column.name}${column.configured ? " *" : ""}`).join(", ")}</p> : null}
               {previewById[connector.id] ? <p className="sources-connected-note">Preview: {previewById[connector.id].preview_row_count} row(s) up to limit {previewById[connector.id].row_limit}.</p> : null}
+              {runsById[connector.id]?.map((run) => (
+                <p key={run.id} className="sources-connected-note">
+                  {run.started_at || "Unknown time"} · {titleCase(run.trigger_type)} · {titleCase(run.status)} · attempt {run.attempt_number} · {run.rows_ingested} row(s){run.error_message ? ` · ${run.error_message}` : ""}
+                </p>
+              ))}
             </article>
           ))}
         </div>

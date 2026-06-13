@@ -12,6 +12,11 @@ type SourceItem = {
   ingestion_status: string;
   enrichment_status: string;
   source_metadata_json: Record<string, unknown>;
+  freshness: {
+    status: string;
+    observed_at?: string | null;
+    threshold_hours: number;
+  };
   latest_ingestion_job?: IngestionJob | null;
 };
 
@@ -96,6 +101,12 @@ type DbConnector = {
   last_run_at?: string | null;
   last_error?: string | null;
   connector_metadata_json: Record<string, unknown>;
+  health_status: string;
+  schedule_enabled: boolean;
+  sync_interval_minutes: number;
+  next_run_at?: string | null;
+  retry_at?: string | null;
+  consecutive_failures: number;
 };
 
 function iconForSource(source: SourceItem) {
@@ -582,6 +593,9 @@ export function SourcesPage({ view = "sources", canManageConnectors = false }: {
                         <div className="sources-file-cell">
                           <span className="material-symbols-outlined">{iconForSource(source)}</span>
                           <span>{source.file_name}</span>
+                          <span className={`badge ${source.freshness.status === "fresh" ? "is-good" : source.freshness.status === "stale" ? "is-danger" : "is-warning"}`}>
+                            {source.freshness.status}
+                          </span>
                         </div>
                       </td>
                       <td>

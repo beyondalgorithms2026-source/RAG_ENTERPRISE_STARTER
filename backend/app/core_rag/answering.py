@@ -73,6 +73,7 @@ class CitationItem(BaseModel):
     heading: str
     locator: Optional[str] = None
     snippet: str
+    freshness: Optional[dict[str, Any]] = None
 
 
 class AskResponse(BaseModel):
@@ -138,6 +139,7 @@ def _build_context_blocks(raw_chunks) -> list[dict[str, Any]]:
             "heading": chunk.heading,
             "locator": chunk.locator,
             "snippet": snippet,
+            "freshness": chunk.freshness,
         }
         signals = log_prompt_injection_signals(
             stage="retrieval",
@@ -258,10 +260,21 @@ def _materialize_citations(*, citation_ids: list[str], context_blocks: list[dict
                         heading=block["heading"],
                         locator=block["locator"],
                         snippet=block["snippet"],
+                        freshness=block.get("freshness"),
                     )
                 )
                 break
     return final_citations
+
+
+def _refresh_citation_freshness(citations: list[CitationItem]) -> list[CitationItem]:
+    from app.freshness import freshness_by_source_ids
+
+    freshness_map = freshness_by_source_ids(sorted({citation.source_id for citation in citations}))
+    return [
+        citation.model_copy(update={"freshness": freshness_map.get(citation.source_id)})
+        for citation in citations
+    ]
 
 
 def _strip_fake_citations(answer_text: str, safe_citations: list[str]) -> str:
@@ -875,11 +888,12 @@ def perform_ask(
                 progress_callback(100, "Reused a validated answer")
             answer_json = cached.get("answer_json") or {}
             citations_json = cached.get("citations_json") or []
+            cached_citations = _refresh_citation_freshness([CitationItem(**item) for item in citations_json])
             created_at = datetime.fromisoformat(str(cached["created_at"]).replace("Z", "+00:00"))
             age_seconds = max(0, int((datetime.now(created_at.tzinfo) - created_at).total_seconds()))
             return AskResponse(
                 answer=answer_json.get("answer"),
-                citations=[CitationItem(**item) for item in citations_json],
+                citations=cached_citations,
                 used_chunks_count=int(answer_json.get("used_chunks_count") or 0),
                 latency_ms=0,
                 mode=answer_json.get("mode") or request.mode,

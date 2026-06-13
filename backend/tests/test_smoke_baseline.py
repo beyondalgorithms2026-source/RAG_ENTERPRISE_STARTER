@@ -591,9 +591,11 @@ class SmokeTestBaseline(SmokeTestBase):
             )
 
             self.assertEqual(result["rows_ingested"], 1)
+            self.assertIsInstance(result["run_id"], int)
             self.assertTrue(response.results)
             self.assertEqual(response.debug_info["structured_filters"], {"customer_id": "acme", "region": "eu"})
             self.assertEqual(response.results[0].source_type, "db_row")
+            self.assertEqual(response.results[0].freshness["status"], "fresh")
         finally:
             db_connector_module.process_embeddings = original_process_embeddings
             db_connector_module.run_post_ingestion_enrichment = original_run_enrichment
@@ -1522,6 +1524,7 @@ class SmokeTestBaseline(SmokeTestBase):
                 "MIG-P022",
                 "MIG-P023",
                 "MIG-P024",
+                "MIG-P025",
             ],
         )
         self.assertTrue(all(item["description"] for item in plan))

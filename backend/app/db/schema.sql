@@ -11,10 +11,16 @@ CREATE TABLE IF NOT EXISTS sources (
     file_size_bytes BIGINT,
     ingestion_status TEXT NOT NULL DEFAULT 'pending',
     enrichment_status TEXT NOT NULL DEFAULT 'not_started',
+    last_ingested_at TIMESTAMPTZ,
+    last_synced_at TIMESTAMPTZ,
+    last_enriched_at TIMESTAMPTZ,
     source_metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS last_ingested_at TIMESTAMPTZ;
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ;
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS last_enriched_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS source_parts (
     id BIGSERIAL PRIMARY KEY,
@@ -526,13 +532,44 @@ CREATE TABLE IF NOT EXISTS db_connectors (
     last_cursor_id TEXT,
     last_run_at TIMESTAMPTZ,
     last_error TEXT,
+    schedule_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    sync_interval_minutes INTEGER NOT NULL DEFAULT 60,
+    next_run_at TIMESTAMPTZ,
+    consecutive_failures INTEGER NOT NULL DEFAULT 0,
+    retry_at TIMESTAMPTZ,
+    last_success_at TIMESTAMPTZ,
+    lease_expires_at TIMESTAMPTZ,
     connector_metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE db_connectors ADD COLUMN IF NOT EXISTS schedule_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE db_connectors ADD COLUMN IF NOT EXISTS sync_interval_minutes INTEGER NOT NULL DEFAULT 60;
+ALTER TABLE db_connectors ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMPTZ;
+ALTER TABLE db_connectors ADD COLUMN IF NOT EXISTS consecutive_failures INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE db_connectors ADD COLUMN IF NOT EXISTS retry_at TIMESTAMPTZ;
+ALTER TABLE db_connectors ADD COLUMN IF NOT EXISTS last_success_at TIMESTAMPTZ;
+ALTER TABLE db_connectors ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS db_connectors_type_idx ON db_connectors(connector_type);
 CREATE INDEX IF NOT EXISTS db_connectors_status_idx ON db_connectors(status);
+CREATE INDEX IF NOT EXISTS db_connectors_due_idx ON db_connectors(schedule_enabled, next_run_at);
+
+CREATE TABLE IF NOT EXISTS connector_sync_runs (
+    id BIGSERIAL PRIMARY KEY,
+    connector_id BIGINT NOT NULL REFERENCES db_connectors(id) ON DELETE CASCADE,
+    trigger_type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'running',
+    attempt_number INTEGER NOT NULL DEFAULT 1,
+    rows_ingested INTEGER NOT NULL DEFAULT 0,
+    source_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    error_message TEXT,
+    retry_at TIMESTAMPTZ,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS connector_sync_runs_connector_idx ON connector_sync_runs(connector_id, started_at DESC);
 
 CREATE TABLE IF NOT EXISTS connector_requests (
     id BIGSERIAL PRIMARY KEY,

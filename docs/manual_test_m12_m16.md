@@ -28,9 +28,11 @@
 3. As user, open `/console/workspace/connectors`, submit a Postgres request with scope `m12_browser_cases`.
 4. As admin, open `/console/admin/connectors`, view and approve the request.
 5. In the DB setup form use URL `postgresql://rag_enterprise_starter:rag_enterprise_starter_dev_pass@localhost:55432/rag_enterprise_starter`, table `m12_browser_cases`, text columns `title,body`, metadata `customer_id,region`, corpus `db_rows`, ACL group `dev-users`.
-6. Click Save Connector, Inspect Schema, Preview Sync, then Sync Rows.
-7. As user, search for `Acme contract support EU rollout`.
-8. Cleanup SQL:
+6. Click Save Connector, confirm the interval schedule is enabled, then Inspect Schema, Preview Sync, and Sync Rows.
+7. Confirm Run History records the manual sync and the connected source shows a fresh badge.
+8. Temporarily change the connector URL to an unreachable port, sync, and confirm degraded health plus a future retry time; restore the URL afterward.
+9. As user, search for `Acme contract support EU rollout` and confirm the evidence card shows source freshness.
+10. Cleanup SQL:
    ```sql
    DELETE FROM db_connectors WHERE table_name = 'm12_browser_cases';
    DELETE FROM connector_requests WHERE requested_scope_json::text ILIKE '%m12_browser_cases%';
@@ -44,7 +46,7 @@
 3. Upload the `.eml` file and wait until it reaches completed/indexed state.
 4. Open `/console/workspace/sources` and confirm the email source plus supported attachment child source are visible.
 5. Search for text that appears only in the attachment.
-6. Optional request path: open `/console/workspace/connectors`, choose Email Archive, enter mailbox/folder scope, submit, then review it as admin under `/console/admin/connectors`.
+6. Email ingestion in this build is uploaded `.eml` only. The Email Archive request form captures demand but does not implement live mailbox/archive synchronization.
 
 ## M14 — Tool Actions With Policy Gate
 1. As admin, open `/console/admin/actions`.

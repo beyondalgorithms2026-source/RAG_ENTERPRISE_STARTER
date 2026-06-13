@@ -1132,6 +1132,9 @@ export function SourcesAdminPanel() {
                 </div>
                 <div className="table-metrics">
                   <span className={`badge ${statusTone(source.ingestion_status)}`}>{String(source.ingestion_status || "unknown")}</span>
+                  <span className={`badge ${normalizeText((source.freshness as GenericMap | undefined)?.status) === "fresh" ? "is-good" : normalizeText((source.freshness as GenericMap | undefined)?.status) === "stale" ? "is-danger" : "is-warning"}`}>
+                    {String((source.freshness as GenericMap | undefined)?.status || "unknown freshness")}
+                  </span>
                   <span>{formatFileSize(source.file_size_bytes)}</span>
                   <button type="button" className="button button-secondary" onClick={() => setSelectedSourceId(String(source.id))}>
                     Inspect

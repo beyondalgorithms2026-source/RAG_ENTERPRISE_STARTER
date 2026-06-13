@@ -23,6 +23,11 @@ type CitationContextResponse = {
   chunk_id: number;
   target?: CitationContextItem | null;
   neighbors: CitationContextItem[];
+  freshness: {
+    status: string;
+    observed_at?: string | null;
+    threshold_hours: number;
+  };
 };
 
 type EvidenceSection = {
@@ -1461,6 +1466,11 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                               <div>
                                 <strong>{citation.file_name}</strong>
                                 <span>{citation.locator || citation.heading}</span>
+                                {citation.freshness ? (
+                                  <span className={`badge ${citation.freshness.status === "fresh" ? "is-good" : citation.freshness.status === "stale" ? "is-danger" : "is-warning"}`}>
+                                    {citation.freshness.status}
+                                  </span>
+                                ) : null}
                               </div>
                             </div>
                             <div className="chat-evidence-snippet">{citation.snippet}</div>
@@ -1499,6 +1509,11 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                   <div>
                     <strong>{contextTitleLabel}</strong>
                     {contextLocator ? <span>{contextLocator}</span> : null}
+                    {citationContext?.freshness ? (
+                      <span className={`badge ${citationContext.freshness.status === "fresh" ? "is-good" : citationContext.freshness.status === "stale" ? "is-danger" : "is-warning"}`}>
+                        {citationContext.freshness.status}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 <a className="chat-context-link" href={browserApiUrl(`/corpus/${selectedCitation.source_id}/file`)} target="_blank" rel="noreferrer">
