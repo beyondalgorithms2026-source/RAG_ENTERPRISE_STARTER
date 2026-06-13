@@ -42,6 +42,7 @@ SCENARIO_ADMIN_MODULE_PRESETS: dict[str, set[str]] = {
 _PATH_MODULE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/modules", "overview"),
     ("/admin/overview", "overview"),
+    ("/admin/health", "overview"),
     ("/admin/tuning", "tuning"),
     ("/admin/semantic-cache", "tuning"),
     ("/admin/query-mining", "governance"),
