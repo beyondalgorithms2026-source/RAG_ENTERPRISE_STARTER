@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     # require everywhere else); explicit "require"/"warn" overrides.
     TUNING_EVAL_ENFORCEMENT: str = ""
 
+    # AR8: the ingestion queue wakeup, rate limiting, and model singletons are
+    # single-process. Starting multiple web workers silently breaks them, so the
+    # app refuses WEB_CONCURRENCY/UVICORN_WORKERS > 1 unless this is set true.
+    ALLOW_MULTI_WORKER: bool = False
+
     # Auth / OIDC configuration
     AUTH_ENABLED: bool = False
     AUTH_MODE: str = "none"

@@ -1,5 +1,7 @@
 import time
-from typing import Any, Optional
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Iterator, Optional
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -12,6 +14,43 @@ from app.profiles.models import (
 
 _CACHE_TTL_S = 5.0
 _cache: dict[str, tuple[float, Any]] = {}
+
+# AR8: request-scoped profile overrides. A ContextVar is isolated per thread and
+# per asyncio task, so a candidate bundle applied during a sandbox compare or
+# candidate eval cannot bleed into a concurrent live request — unlike the prior
+# module-global monkeypatching the audit flagged as a correctness hazard.
+_override_ctx: ContextVar[Optional[dict]] = ContextVar("profile_overrides", default=None)
+
+
+def current_profile_overrides() -> dict:
+    return _override_ctx.get() or {}
+
+
+@contextmanager
+def profile_overrides(
+    *,
+    retrieval: Optional[RetrievalProfileConfig] = None,
+    reranker: Optional[RerankerProfileConfig] = None,
+    llm: Optional[LLMProfileConfig] = None,
+    embedding: Optional[EmbeddingProfileConfig] = None,
+    chunk_cap: Optional[int] = None,
+) -> Iterator[None]:
+    """Apply profile/chunk-cap overrides for the current execution context only."""
+    base = dict(_override_ctx.get() or {})
+    for key, value in (
+        ("retrieval", retrieval),
+        ("reranker", reranker),
+        ("llm", llm),
+        ("embedding", embedding),
+        ("chunk_cap", chunk_cap),
+    ):
+        if value is not None:
+            base[key] = value
+    token = _override_ctx.set(base)
+    try:
+        yield
+    finally:
+        _override_ctx.reset(token)
 
 
 def _get_cached(profile_type: str) -> Optional[dict]:
@@ -48,6 +87,9 @@ def _load_active_config(profile_type: str) -> Optional[dict]:
 
 
 def get_effective_embedding() -> EmbeddingProfileConfig:
+    override = _override_ctx.get()
+    if override and override.get("embedding") is not None:
+        return override["embedding"]
     config = _load_active_config("embedding")
     if config:
         return EmbeddingProfileConfig(**config)
@@ -64,6 +106,9 @@ def get_effective_embedding() -> EmbeddingProfileConfig:
 
 
 def get_effective_reranker() -> RerankerProfileConfig:
+    override = _override_ctx.get()
+    if override and override.get("reranker") is not None:
+        return override["reranker"]
     config = _load_active_config("reranker")
     if config:
         return RerankerProfileConfig(**config)
@@ -81,6 +126,9 @@ def get_effective_reranker() -> RerankerProfileConfig:
 
 
 def get_effective_llm() -> LLMProfileConfig:
+    override = _override_ctx.get()
+    if override and override.get("llm") is not None:
+        return override["llm"]
     config = _load_active_config("llm")
     if config:
         return LLMProfileConfig(**config)
@@ -97,6 +145,9 @@ def get_effective_llm() -> LLMProfileConfig:
 
 
 def get_effective_retrieval() -> RetrievalProfileConfig:
+    override = _override_ctx.get()
+    if override and override.get("retrieval") is not None:
+        return override["retrieval"]
     config = _load_active_config("retrieval")
     if config:
         return RetrievalProfileConfig(**config)

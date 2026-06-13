@@ -6,13 +6,13 @@ Enterprise RAG Starter is a reusable internal-assistant foundation built around 
 
 If you are new to this repo, read in this order:
 
-1. [docs/01_quickstart.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/01_quickstart.md)
-2. [STATUS.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/STATUS.md)
-3. [docs/04_repo_navigation_blueprint.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/04_repo_navigation_blueprint.md)
-4. [docs/scenario_profiles_and_reuse_blueprint.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/scenario_profiles_and_reuse_blueprint.md)
-5. [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md)
-6. [docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md) — independent audit baseline (2026-06-11), not a marketing document
-7. [docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md) — AR0–AR14 audit remediation plan (active work track)
+1. [docs/01_quickstart.md](docs/01_quickstart.md)
+2. [STATUS.md](STATUS.md)
+3. [docs/04_repo_navigation_blueprint.md](docs/04_repo_navigation_blueprint.md)
+4. [docs/scenario_profiles_and_reuse_blueprint.md](docs/scenario_profiles_and_reuse_blueprint.md)
+5. [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md)
+6. [docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md](docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md) — independent audit baseline (2026-06-11), not a marketing document
+7. [docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md](docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md) — AR0–AR14 audit remediation plan (active work track)
 
 Those documents answer the core onboarding questions:
 
@@ -30,12 +30,12 @@ Those documents answer the core onboarding questions:
 
 ## How To Run It
 
-Use the canonical local run path in [docs/01_quickstart.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/01_quickstart.md).
+Use the canonical local run path in [docs/01_quickstart.md](docs/01_quickstart.md).
 
 Short version:
 
 ```bash
-cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER
+cd "$(git rev-parse --show-toplevel)"
 docker compose up -d
 make dev-web
 ```
@@ -45,13 +45,13 @@ Use `docs/01_quickstart.md` for env setup, Ollama, local accounts, and troublesh
 ## Current Status
 
 - Last completed M-series milestone: M33 governed semantic cache policies
-- Active work track: AR-series audit remediation ([docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md))
+- Active work track: AR-series audit remediation ([docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md](docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md))
 - Strongest implemented runtime scenario: enterprise-style OIDC/dev identity plus SQL-level access trimming and admin governance
 - Regression suite: green as of AR1 (2026-06-12) — `make test` passes 224/224 on a fresh DB and on the tuned dev DB (the 2026-06-11 audit had measured 158/7/57 of 222)
 
-Read the operational snapshot in [STATUS.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/STATUS.md).
-Read the independent audit baseline in [docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md).
-Read preserved historical detail in [docs/project_state/milestone_history_archive.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/project_state/milestone_history_archive.md).
+Read the operational snapshot in [STATUS.md](STATUS.md).
+Read the independent audit baseline in [docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md](docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md).
+Read preserved historical detail in [docs/project_state/milestone_history_archive.md](docs/project_state/milestone_history_archive.md).
 
 ## Canonical Paths
 
@@ -69,10 +69,10 @@ Read preserved historical detail in [docs/project_state/milestone_history_archiv
 
 ## Reader Paths By Persona
 
-- Engineer extending the product: start with [docs/04_repo_navigation_blueprint.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/04_repo_navigation_blueprint.md) and [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md)
-- Operator/admin running the product: start with [docs/01_quickstart.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/01_quickstart.md) and [docs/runbooks/LOCALHOST_DEV_RUNBOOK.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/runbooks/LOCALHOST_DEV_RUNBOOK.md)
-- Reviewer/auditor: start with [docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md), [STATUS.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/STATUS.md), [docs/project_state/milestone_history_archive.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/project_state/milestone_history_archive.md), and `docs/milestones/`
-- Team reusing the starter for a subset scenario: start with [docs/scenario_profiles_and_reuse_blueprint.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/scenario_profiles_and_reuse_blueprint.md) and `scenarios/`
+- Engineer extending the product: start with [docs/04_repo_navigation_blueprint.md](docs/04_repo_navigation_blueprint.md) and [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md)
+- Operator/admin running the product: start with [docs/01_quickstart.md](docs/01_quickstart.md) and [docs/runbooks/LOCALHOST_DEV_RUNBOOK.md](docs/runbooks/LOCALHOST_DEV_RUNBOOK.md)
+- Reviewer/auditor: start with [docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md](docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md), [STATUS.md](STATUS.md), [docs/project_state/milestone_history_archive.md](docs/project_state/milestone_history_archive.md), and `docs/milestones/`
+- Team reusing the starter for a subset scenario: start with [docs/scenario_profiles_and_reuse_blueprint.md](docs/scenario_profiles_and_reuse_blueprint.md) and `scenarios/`
 
 ## Safe Extension Guidance
 
@@ -85,11 +85,11 @@ Do not change retrieval internals first. Replace in this order unless you have a
 5. connectors/storage/runtime providers
 6. retrieval internals
 
-Use [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md) for the extension path and replacement points.
+Use [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md) for the extension path and replacement points.
 
 ## Repo Workflow
 
-Canonical git workflow guidance lives in [docs/runbooks/SOURCE_CONTROL_WORKFLOW.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/runbooks/SOURCE_CONTROL_WORKFLOW.md).
+Canonical git workflow guidance lives in [docs/runbooks/SOURCE_CONTROL_WORKFLOW.md](docs/runbooks/SOURCE_CONTROL_WORKFLOW.md).
 
 Key rules:
 

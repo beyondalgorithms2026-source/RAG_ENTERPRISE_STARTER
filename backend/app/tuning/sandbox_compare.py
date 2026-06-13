@@ -11,28 +11,21 @@ from app.profiles.resolver import (
     get_effective_llm,
     get_effective_reranker,
     get_effective_retrieval,
+    profile_overrides,
 )
 
 
-@contextmanager
-def _temporary_value(target: Any, attr_name: str, value: Any) -> Iterator[None]:
-    original = getattr(target, attr_name)
-    setattr(target, attr_name, value)
-    try:
-        yield
-    finally:
-        setattr(target, attr_name, original)
-
-
+# AR8: candidate profiles are applied through request-scoped ContextVar
+# overrides (app.profiles.resolver.profile_overrides), not module-global
+# monkeypatching. A concurrent live request runs in its own context and is never
+# served candidate profiles. These thin wrappers preserve the existing call
+# sites (including app.eval.promotion_evidence).
 @contextmanager
 def _temporary_llm_profile(profile: Optional[LLMProfileConfig]) -> Iterator[None]:
     if profile is None:
         yield
         return
-
-    import app.profiles.resolver as resolver_module
-
-    with _temporary_value(resolver_module, "get_effective_llm", lambda: profile):
+    with profile_overrides(llm=profile):
         yield
 
 
@@ -41,10 +34,7 @@ def _temporary_embedding_profile(profile: Optional[EmbeddingProfileConfig]) -> I
     if profile is None:
         yield
         return
-
-    import app.profiles.resolver as resolver_module
-
-    with _temporary_value(resolver_module, "get_effective_embedding", lambda: profile):
+    with profile_overrides(embedding=profile):
         yield
 
 
@@ -53,13 +43,8 @@ def _temporary_retrieval_profile(profile: Optional[RetrievalProfileConfig]) -> I
     if profile is None:
         yield
         return
-
-    import app.core_rag.retrieval as retrieval_module
-    import app.profiles.resolver as resolver_module
-
-    with _temporary_value(resolver_module, "get_effective_retrieval", lambda: profile):
-        with _temporary_value(retrieval_module, "get_effective_retrieval", lambda: profile):
-            yield
+    with profile_overrides(retrieval=profile):
+        yield
 
 
 @contextmanager
@@ -67,13 +52,8 @@ def _temporary_reranker_profile(profile: Optional[RerankerProfileConfig]) -> Ite
     if profile is None:
         yield
         return
-
-    import app.core_rag.retrieval as retrieval_module
-    import app.profiles.resolver as resolver_module
-
-    with _temporary_value(resolver_module, "get_effective_reranker", lambda: profile):
-        with _temporary_value(retrieval_module, "get_effective_reranker", lambda: profile):
-            yield
+    with profile_overrides(reranker=profile):
+        yield
 
 
 @contextmanager
@@ -81,10 +61,7 @@ def _temporary_chunk_cap(chunk_size_cap_chars: Optional[int]) -> Iterator[None]:
     if not chunk_size_cap_chars:
         yield
         return
-
-    import app.core_rag.answering as answering_module
-
-    with _temporary_value(answering_module, "MAX_CHUNK_CHARS", int(chunk_size_cap_chars)):
+    with profile_overrides(chunk_cap=int(chunk_size_cap_chars)):
         yield
 
 
