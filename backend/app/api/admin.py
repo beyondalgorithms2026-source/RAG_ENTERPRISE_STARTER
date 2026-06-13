@@ -844,6 +844,94 @@ def list_embedding_swaps_endpoint():
     return {"swap_runs": list_swap_runs(limit=50)}
 
 
+class FeedbackProposeRequest(BaseModel):
+    cluster_id: int
+
+
+class FeedbackAppendRequest(BaseModel):
+    pack_name: str
+    cases: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class FeedbackReviewRequest(BaseModel):
+    pack_name: str
+    case_id: str
+    relevant: dict[str, int] = Field(default_factory=dict)
+    review_status: str = Field(default="reviewed", pattern="^(reviewed|unreviewed)$")
+
+
+@router.post("/feedback-eval/propose")
+def feedback_eval_propose(body: FeedbackProposeRequest):
+    """AR12: propose quarantined eval cases from a failure cluster (not persisted)."""
+    from app.eval.feedback_flywheel import propose_cases_from_cluster
+
+    try:
+        return propose_cases_from_cluster(body.cluster_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/feedback-eval/append")
+def feedback_eval_append(body: FeedbackAppendRequest):
+    actor = get_current_user()
+    from app.eval.feedback_flywheel import append_cases_to_pack
+
+    try:
+        result = append_cases_to_pack(body.pack_name, body.cases, actor=actor)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    insert_admin_audit_event(
+        event_type="eval",
+        action="feedback_eval.append",
+        resource_type="eval_pack",
+        resource_id=body.pack_name,
+        resource_name=body.pack_name,
+        event_json={"added": result["added"], "added_count": result["added_count"]},
+        actor=actor,
+    )
+    return result
+
+
+@router.post("/feedback-eval/review")
+def feedback_eval_review(body: FeedbackReviewRequest):
+    actor = get_current_user()
+    from app.eval.feedback_flywheel import review_pack_case
+
+    try:
+        case = review_pack_case(
+            body.pack_name, body.case_id, relevant=body.relevant, review_status=body.review_status, reviewer=actor.email if actor else None
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    insert_admin_audit_event(
+        event_type="eval",
+        action="feedback_eval.review",
+        resource_type="eval_pack_case",
+        resource_id=body.case_id,
+        resource_name=body.pack_name,
+        event_json={"review_status": body.review_status, "relevant": body.relevant},
+        actor=actor,
+    )
+    return {"case": case}
+
+
+@router.get("/feedback-eval/quarantine")
+def feedback_eval_quarantine(pack_name: str):
+    from app.eval.feedback_flywheel import quarantine_summary
+
+    try:
+        return quarantine_summary(pack_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/feedback-eval/trend")
+def feedback_eval_trend():
+    from app.eval.feedback_flywheel import pack_passrate_trend
+
+    return pack_passrate_trend()
+
+
 @router.get("/cost/summary")
 def cost_summary_endpoint(group_by: str = "retrieval_mode"):
     """AR11: token/cost rollup. group_by=retrieval_mode answers 'deep research vs

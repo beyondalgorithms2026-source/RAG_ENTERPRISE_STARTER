@@ -47,6 +47,7 @@ _PATH_MODULE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/tuning", "tuning"),
     ("/admin/semantic-cache", "tuning"),
     ("/admin/query-mining", "governance"),
+    ("/admin/feedback-eval", "governance"),
     ("/admin/governance", "governance"),
     ("/admin/retention", "audit"),
     ("/admin/profiles/metadata", "policies"),
