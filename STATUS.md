@@ -2,7 +2,7 @@
 
 **Last completed M-series milestone:** M33 — Governed Semantic Cache Policies, Scoped Enablement, And User Refresh  
 **Active work track:** AR-series (Audit Remediation)  
-**Current AR milestone:** AR7 — Embedding And Index Lifecycle Management (AR0–AR3 closed 2026-06-12; AR4–AR6 closed 2026-06-13)
+**Current AR milestone:** AR8 — Deployment Portability And Multi-Worker Safety (AR0–AR3 closed 2026-06-12; AR4–AR7 closed 2026-06-13)
 
 ## Independent Product Audit (2026-06-11)
 
@@ -27,7 +27,7 @@ Git tag: `audit-baseline-2026-06-11`
 | AR4 — Eval Before Promotion | **Complete (2026-06-13)** | `POST /admin/tuning/eval-runs` runs AR3 packs under the candidate bundle; persisted `tuning_eval_runs` (MIG-P021); promotion blocked in `require` mode without a fresh passing run (degraded control unpromotable), loudly annotated in `warn`; promote/rollback events carry eval evidence + live-vs-candidate deltas; console shows gate/deltas; 249/249 suite; note: `docs/milestones/AR4_eval_before_promotion.md` |
 | AR5 — Real Query Transform | **Complete (2026-06-13)** | LLM-backed rewrite/expansion/HyDE behind the existing flags; hardcoded synonym dict + literal HyDE prefix deleted; `transform_timeout_ms` enforced as a real total budget with graceful per-strategy fallback; `multi_query_enabled` fan-out (retrieve per variant, RRF-fuse); measured transform on/off delta = 0.0000 because the configured gpt-oss model returns empty content (honest finding — mechanism proven by 8 unit tests); 257/257 suite; note: `docs/milestones/AR5_real_query_transformation.md` |
 | AR6 — Truthful Cache Naming | **Complete (2026-06-13)** | Implemented (not renamed) a real embedding-similarity tier: per-policy `match_mode`/`similarity_threshold` (MIG-P022), `_semantic_lookup` relaxes only the question dimension under identical ACL/profile/corpus/revision governance (shared `_finalize_hit`); dead `semantic_cache_similarity_threshold` removed from retrieval profile; `cache_health` splits exact vs similarity hits; truthful UI match-mode selector; measured calibration noted (bge-base paraphrases 0.70–0.83, so 0.92 is precision-first); 265/265 suite; note: `docs/milestones/AR6_semantic_cache_similarity.md` |
-| AR7 — Embedding Lifecycle | Not started | P1 — guided reindex, block mismatched states |
+| AR7 — Embedding Lifecycle | **Complete (2026-06-13)** | Managed swap lifecycle (`app/embedding/lifecycle.py`, MIG-P023 `embedding_swap_runs`): plan→reindexing→verifying→completed, resumable batches, abort, sampled self-similarity + counts verification; vector search hard-blocks to keyword-only on dimension mismatch (`degraded_vector` trace + `vector_serving` coherence invariant); dimension-changing embedding activation blocked (422 `embedding_reindex_required`) — only the lifecycle may bring it live; `POST /admin/embedding/swap/*` endpoints; runbook `docs/runbooks/EMBEDDING_MODEL_SWAP.md`; 273/273 suite; note: `docs/milestones/AR7_embedding_index_lifecycle.md` |
 | AR8 — Deployment Portability | Not started | P1 — fresh-machine quickstart, concurrency safety |
 | AR9 — Provider Abstraction | Not started | P1 — OpenAI-compatible client interface |
 | AR10 — Health Dashboard | Not started | P1 — operator coherence page |
@@ -62,7 +62,8 @@ M20, M21, M22, M23, M24, M25, M26, M27, M28, M29, M30
 
 ## Current Verification Debt
 
-- **Test suite is green:** `make test` — 265/265 on the dev DB (AR6); AR1 verified 224/224 on a freshly migrated empty DB as well
+- **Test suite is green:** `make test` — 273/273 on the dev DB (AR7); AR1 verified 224/224 on a freshly migrated empty DB as well
+- AR7: a dimension-changing embedding swap must go through `POST /admin/embedding/swap/*` (see `docs/runbooks/EMBEDDING_MODEL_SWAP.md`); direct activation is blocked and vector search degrades to keyword-only while a swap is mid-flight
 - AR6 semantic cache: similarity matching is live but off unless a policy sets `match_mode=semantic`; default threshold 0.92 is precision-first and should be lowered (~0.80) for bge-base paraphrase recall — calibrate per corpus
 - AR5 query transform calls the configured LLM; with `gpt-oss:20b-cloud` returning empty content for short prompts, transforms fall back to the original query (neutral eval delta) — a real generation model or AR9 provider abstraction is needed to realize a measurable gain
 - AR4 enforcement defaults to `warn` in `APP_ENV=local` (set `TUNING_EVAL_ENFORCEMENT=require` to enforce locally); `require` is the default everywhere else

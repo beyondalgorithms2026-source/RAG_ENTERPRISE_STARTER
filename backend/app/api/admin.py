@@ -666,6 +666,29 @@ def set_active(body: ActiveProfileRequest):
 
     _validated_profile_config(profile_type=body.profile_type, config=profile["config_json"] or {})
 
+    # AR7: a dimension-changing embedding activation cannot go live through the
+    # plain activate path — it would orphan the index. Route it through the
+    # managed swap lifecycle instead.
+    if body.profile_type == "embedding":
+        from app.coherence import index_vector_dimension
+
+        declared = int((profile["config_json"] or {}).get("dimension") or 0)
+        column = index_vector_dimension()
+        if column is not None and declared != column and body.profile_name != get_active_profile_name("embedding"):
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "embedding_reindex_required",
+                    "message": (
+                        f"Activating '{body.profile_name}' changes the embedding dimension "
+                        f"({declared} vs index vector({column})). Use POST /admin/embedding/swap/begin "
+                        "to run a managed reindex; direct activation is blocked to protect the index."
+                    ),
+                    "profile_dimension": declared,
+                    "index_dimension": column,
+                },
+            )
+
     previous_profile_name = get_active_profile_name(body.profile_type)
     set_active_profile(body.profile_type, body.profile_name)
     invalidate_cache(body.profile_type)
@@ -704,6 +727,111 @@ def health_coherence(deep: bool = False):
     from app.coherence import run_coherence_checks
 
     return run_coherence_checks(deep=deep)
+
+
+class EmbeddingSwapPlanRequest(BaseModel):
+    target_profile_name: str
+
+
+class EmbeddingSwapRunRequest(BaseModel):
+    run_id: int
+    batch_limit: Optional[int] = Field(default=None, ge=1, le=100000)
+
+
+class EmbeddingSwapAbortRequest(BaseModel):
+    run_id: int
+    reason: str = "operator_abort"
+
+
+@router.get("/embedding/serving")
+def embedding_serving_state():
+    """AR7: is vector search serviceable right now, and is a swap in flight?"""
+    from app.coherence import vector_serving_state
+    from app.embedding.lifecycle import list_swap_runs
+
+    runs = list_swap_runs(limit=1)
+    return {"vector_serving": vector_serving_state(), "latest_swap": runs[0] if runs else None}
+
+
+@router.post("/embedding/swap/plan")
+def plan_embedding_swap_endpoint(body: EmbeddingSwapPlanRequest):
+    from app.embedding.lifecycle import plan_embedding_swap
+
+    try:
+        return {"plan": plan_embedding_swap(target_profile_name=body.target_profile_name)}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/embedding/swap/begin")
+def begin_embedding_swap_endpoint(body: EmbeddingSwapPlanRequest, request: Request):
+    actor = get_current_user()
+    require_high_impact_approval(request=request, actor=actor, action="embedding.swap.begin")
+    from app.embedding.lifecycle import begin_embedding_swap
+
+    try:
+        run = begin_embedding_swap(target_profile_name=body.target_profile_name, actor=actor)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    insert_admin_audit_event(
+        event_type="embedding",
+        action="embedding.swap.begin",
+        resource_type="embedding_swap_run",
+        resource_id=str(run["id"]),
+        resource_name=body.target_profile_name,
+        event_json={"target_dimension": run["target_dimension"], "source_dimension": run["source_dimension"]},
+        actor=actor,
+    )
+    return {"swap_run": run}
+
+
+@router.post("/embedding/swap/run")
+def run_embedding_swap_endpoint(body: EmbeddingSwapRunRequest, request: Request, _rate_limit: None = Depends(rate_limit_admin_expensive)):
+    actor = get_current_user()
+    from app.embedding.lifecycle import run_embedding_swap
+
+    try:
+        return {"swap_run": run_embedding_swap(run_id=body.run_id, batch_limit=body.batch_limit)}
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/embedding/swap/verify")
+def verify_embedding_swap_endpoint(body: EmbeddingSwapRunRequest):
+    from app.embedding.lifecycle import verify_embedding_swap
+
+    try:
+        return {"swap_run": verify_embedding_swap(run_id=body.run_id)}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/embedding/swap/abort")
+def abort_embedding_swap_endpoint(body: EmbeddingSwapAbortRequest):
+    actor = get_current_user()
+    from app.embedding.lifecycle import abort_embedding_swap
+
+    try:
+        run = abort_embedding_swap(run_id=body.run_id, reason=body.reason)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    insert_admin_audit_event(
+        event_type="embedding",
+        action="embedding.swap.abort",
+        resource_type="embedding_swap_run",
+        resource_id=str(body.run_id),
+        resource_name=run.get("target_profile_name"),
+        event_json={"reason": body.reason},
+        actor=actor,
+    )
+    return {"swap_run": run}
+
+
+@router.get("/embedding/swaps")
+def list_embedding_swaps_endpoint():
+    from app.embedding.lifecycle import list_swap_runs
+
+    return {"swap_runs": list_swap_runs(limit=50)}
 
 
 @router.get("/profiles/metadata")

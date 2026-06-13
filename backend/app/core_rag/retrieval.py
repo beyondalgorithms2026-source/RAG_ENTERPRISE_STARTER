@@ -1104,6 +1104,25 @@ def perform_search(request: SearchRequest) -> SearchResponse:
     if not multi_query_mode and transform_result.effective_query and transform_result.effective_query != base_query:
         retrieval_request = request.model_copy(update={"custom_query": transform_result.effective_query})
 
+    # AR7 hard block: if the active embedding dimension diverges from the index
+    # (mid model-swap or unmanaged activation), vector search would error or
+    # return corrupt neighbours. Degrade to keyword-only with an operator banner.
+    degraded_vector = None
+    _vector_modes = {"vector", "hybrid", "graph_hybrid", "full"}
+    if resolved_mode in _vector_modes or request.deep_research:
+        from app.coherence import vector_serving_state
+
+        serving = vector_serving_state()
+        if not serving["serviceable"]:
+            degraded_vector = {
+                "reason": serving["reason"],
+                "profile_dimension": serving.get("profile_dimension"),
+                "index_dimension": serving.get("index_dimension"),
+                "original_mode": resolved_mode,
+                "deep_research_suppressed": bool(request.deep_research),
+            }
+            resolved_mode = "keyword"
+
     log_event(
         "search.started",
         source_id=source_id,
@@ -1127,6 +1146,7 @@ def perform_search(request: SearchRequest) -> SearchResponse:
         "manual_mode": route_decision.manual_mode,
         "deep_research_requested": request.deep_research,
         "deep_research_used": False,
+        "degraded_vector": degraded_vector,
         "effective_query": _resolve_query_text(retrieval_request),
         "query_transform": transform_result.trace,
         "anchor_terms_requested": _normalize_anchor_terms(request.anchor_terms),
@@ -1159,7 +1179,7 @@ def perform_search(request: SearchRequest) -> SearchResponse:
     try:
         effective_k = request.k
         search_start = time.time()
-        if request.deep_research:
+        if request.deep_research and not degraded_vector:
             raw_results, deep_trace = _run_deep_research_mode(
                 request=retrieval_request,
                 source_type=source_type,

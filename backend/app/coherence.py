@@ -158,6 +158,43 @@ def check_active_profiles_promoted() -> dict[str, Any]:
     return _invariant("active_profiles_promoted", True, "No active profile is an unpromoted draft.")
 
 
+def vector_serving_state() -> dict[str, Any]:
+    """AR7: whether vector search can safely run against the current index.
+
+    Vector/HNSW queries require the query vector and the stored column to share
+    a dimension. When the active embedding profile's dimension diverges from
+    chunks.embedding (mid model-swap, or an unmanaged activation), vector search
+    must degrade to keyword-only rather than error or return corrupt results."""
+    from app.profiles.resolver import get_effective_embedding
+
+    declared = int(get_effective_embedding().dimension)
+    column = index_vector_dimension()
+    if column is None:
+        return {"serviceable": True, "reason": "no_vector_column", "profile_dimension": declared, "index_dimension": None}
+    if declared != column:
+        return {
+            "serviceable": False,
+            "reason": "dimension_mismatch",
+            "profile_dimension": declared,
+            "index_dimension": column,
+        }
+    return {"serviceable": True, "reason": "ok", "profile_dimension": declared, "index_dimension": column}
+
+
+def check_vector_serving() -> dict[str, Any]:
+    state = vector_serving_state()
+    details = {"profile_dimension": state.get("profile_dimension"), "index_dimension": state.get("index_dimension"), "state": state["reason"]}
+    if not state["serviceable"] and state["reason"] == "dimension_mismatch":
+        return _invariant(
+            "vector_serving",
+            False,
+            f"Active embedding dimension {state['profile_dimension']} != index vector({state['index_dimension']}); "
+            "vector search is degraded to keyword-only until a reindex completes.",
+            **details,
+        )
+    return _invariant("vector_serving", True, "Vector search dimension matches the index.", **details)
+
+
 def check_migration_ledger() -> dict[str, Any]:
     from app.db.migrate import describe_migration_plan, recorded_migration_steps
 
@@ -182,6 +219,7 @@ def run_coherence_checks(*, deep: bool = False) -> dict[str, Any]:
         check_embedding_registry_metadata(load_models=deep),
         check_active_profiles_promoted(),
         check_migration_ledger(),
+        check_vector_serving(),
     ]
     failed = [item for item in invariants if item["status"] == "fail"]
     return {"status": "fail" if failed else "pass", "deep": deep, "invariants": invariants}

@@ -902,6 +902,33 @@ def _sync_live_tuning_configuration() -> None:
     sync_live_configuration_record()
 
 
+def _create_embedding_swap_runs_table() -> None:
+    ddl = """
+    CREATE TABLE IF NOT EXISTS embedding_swap_runs (
+        id BIGSERIAL PRIMARY KEY,
+        target_profile_name TEXT NOT NULL,
+        basis_profile_name TEXT,
+        target_model TEXT NOT NULL,
+        target_dimension INTEGER NOT NULL,
+        source_dimension INTEGER,
+        requires_reindex BOOLEAN NOT NULL DEFAULT TRUE,
+        status TEXT NOT NULL DEFAULT 'planned',
+        total_chunks INTEGER NOT NULL DEFAULT 0,
+        embedded_chunks INTEGER NOT NULL DEFAULT 0,
+        failed_chunks INTEGER NOT NULL DEFAULT 0,
+        verification_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        error TEXT,
+        actor_external_user_id TEXT,
+        actor_email TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS embedding_swap_runs_status_idx ON embedding_swap_runs(status, created_at DESC);
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def _add_semantic_cache_similarity_threshold() -> None:
     with engine.begin() as conn:
         conn.execute(
@@ -1059,6 +1086,11 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P022",
             description="Add semantic cache similarity threshold column and similarity-scope index (AR6)",
             runner=_add_semantic_cache_similarity_threshold,
+        ),
+        MigrationStep(
+            step_id="MIG-P023",
+            description="Create embedding_swap_runs lifecycle table for managed reindexing (AR7)",
+            runner=_create_embedding_swap_runs_table,
         ),
     ]
 

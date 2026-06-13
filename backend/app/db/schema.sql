@@ -198,6 +198,27 @@ CREATE TABLE IF NOT EXISTS embedding_experiment_chunks (
     UNIQUE (experiment_id, chunk_id)
 );
 
+CREATE TABLE IF NOT EXISTS embedding_swap_runs (
+    id BIGSERIAL PRIMARY KEY,
+    target_profile_name TEXT NOT NULL,
+    basis_profile_name TEXT,
+    target_model TEXT NOT NULL,
+    target_dimension INTEGER NOT NULL,
+    source_dimension INTEGER,
+    requires_reindex BOOLEAN NOT NULL DEFAULT TRUE,
+    status TEXT NOT NULL DEFAULT 'planned',
+    total_chunks INTEGER NOT NULL DEFAULT 0,
+    embedded_chunks INTEGER NOT NULL DEFAULT 0,
+    failed_chunks INTEGER NOT NULL DEFAULT 0,
+    verification_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    error TEXT,
+    actor_external_user_id TEXT,
+    actor_email TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS embedding_swap_runs_status_idx ON embedding_swap_runs(status, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS model_warmup_runs (
     id BIGSERIAL PRIMARY KEY,
     model_type TEXT NOT NULL,
