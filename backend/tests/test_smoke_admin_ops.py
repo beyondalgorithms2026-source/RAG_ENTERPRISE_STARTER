@@ -117,9 +117,11 @@ class SmokeTestAdminOps(SmokeTestBase):
             alpha_search = perform_search(SearchRequest(question="alphaonlytoken123", k=5, mode="keyword"))
             self.assertTrue(alpha_search.results)
             self.assertTrue(all(item.source_id == seeded["alpha_source_id"] for item in alpha_search.results))
+            self.assertTrue(all(item.freshness is not None for item in alpha_search.results))
 
             forbidden_search = perform_search(SearchRequest(question="betaonlytoken456", k=5, mode="keyword"))
             self.assertTrue(all(item.source_id != seeded["beta_source_id"] for item in forbidden_search.results))
+            self.assertTrue(all(item.freshness is not None for item in forbidden_search.results))
 
             forbidden_answer = perform_ask(AskRequest(question="betaonlytoken456", k_chunks=3, mode="keyword"))
             self.assertEqual(forbidden_answer.answer, "Not found in provided sources.")
@@ -409,7 +411,7 @@ class SmokeTestAdminOps(SmokeTestBase):
             )
             ingestion_job_id = create_ingestion_job(
                 source_id=None,
-                status="queued",
+                status="paused",
                 stage="admin_reindex",
                 triggered_by="admin_reindex",
                 job_metadata_json={"test": "m5"},

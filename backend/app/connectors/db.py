@@ -14,13 +14,10 @@ from app.db.repo_chunks import check_chunks_exist, delete_chunks_for_source, ins
 from app.db.repo_connectors import (
     DbConnectorRow,
     get_db_connector,
-    mark_db_connector_sync_completed,
-    mark_db_connector_sync_failed,
-    mark_db_connector_sync_started,
 )
 from app.db.repo_jobs import create_ingestion_job, finish_ingestion_job, update_ingestion_job
 from app.db.repo_source_parts import delete_source_parts_for_source, insert_source_part
-from app.db.repo_sources import get_source_by_id, update_source_status, upsert_source
+from app.db.repo_sources import mark_sources_synced, update_source_status, upsert_source
 from app.embedding.process import process_embeddings
 from app.ingestion.chunking import chunk_parsed_document
 from app.ingestion.enrichment import run_post_ingestion_enrichment
@@ -209,6 +206,7 @@ def _ingest_row(connector: DbConnectorRow, row: Dict[str, Any]) -> int:
     metadata = dict(parsed.metadata)
     metadata["row_updated_at"] = updated_at
     metadata["source_row_storage_path"] = f"connector/db/{connector.id}/{connector.table_name}/{row_id}"
+    metadata["freshness_threshold_hours"] = max(1, int(connector.sync_interval_minutes * 2 / 60))
     hash_sha256 = _hash_row(connector, row)
     source_id = upsert_source(
         storage_path=metadata["source_row_storage_path"],
@@ -259,32 +257,33 @@ def _ingest_row(connector: DbConnectorRow, row: Dict[str, Any]) -> int:
     return source_id
 
 
-def ingest_db_connector(connector_id: int, *, row_limit: int = 200) -> Dict[str, Any]:
+def _ingest_db_connector_rows(connector_id: int, *, row_limit: int = 200) -> Dict[str, Any]:
     connector = get_db_connector(connector_id)
     if connector is None:
         raise ValueError(f"DB connector {connector_id} not found")
-    mark_db_connector_sync_started(connector_id)
     rows_ingested = 0
     source_ids: List[int] = []
     last_updated_at: Optional[str] = None
     last_id: Optional[str] = None
-    try:
-        rows = _select_incremental_rows(connector, row_limit=row_limit)
-        for row in rows:
-            source_ids.append(_ingest_row(connector, row))
-            rows_ingested += 1
-            last_updated_at = _stringify(row.get(connector.updated_at_column)) or last_updated_at
-            last_id = _stringify(row.get(connector.id_column)) or last_id
-        mark_db_connector_sync_completed(
-            connector_id=connector_id,
-            last_cursor_updated_at=last_updated_at,
-            last_cursor_id=last_id,
-            rows_ingested=rows_ingested,
-        )
-        log_event("connector.db.sync.completed", source_id=source_ids[-1] if source_ids else None, stage="connector", status="completed", reason=connector.name)
-        return {"status": "completed", "connector_id": connector_id, "rows_ingested": rows_ingested, "source_ids": source_ids}
-    except Exception as exc:
-        mark_db_connector_sync_failed(connector_id, str(exc))
-        source = get_source_by_id(source_ids[-1]) if source_ids else None
-        log_event("connector.db.sync.failed", level=40, source_id=source.id if source else None, stage="connector", status="failed", reason=str(exc))
-        raise
+    rows = _select_incremental_rows(connector, row_limit=row_limit)
+    for row in rows:
+        source_ids.append(_ingest_row(connector, row))
+        rows_ingested += 1
+        last_updated_at = _stringify(row.get(connector.updated_at_column)) or last_updated_at
+        last_id = _stringify(row.get(connector.id_column)) or last_id
+    mark_sources_synced(source_ids)
+    log_event("connector.db.sync.completed", source_id=source_ids[-1] if source_ids else None, stage="connector", status="completed", reason=connector.name)
+    return {
+        "status": "completed",
+        "connector_id": connector_id,
+        "rows_ingested": rows_ingested,
+        "source_ids": source_ids,
+        "last_cursor_updated_at": last_updated_at,
+        "last_cursor_id": last_id,
+    }
+
+
+def ingest_db_connector(connector_id: int, *, row_limit: int = 200) -> Dict[str, Any]:
+    from app.connectors.runtime import run_connector_sync
+
+    return run_connector_sync(connector_id, trigger_type="manual", row_limit=row_limit)

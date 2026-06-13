@@ -48,6 +48,15 @@ class Settings(BaseSettings):
     # app refuses WEB_CONCURRENCY/UVICORN_WORKERS > 1 unless this is set true.
     ALLOW_MULTI_WORKER: bool = False
 
+    # AR13: connector scheduling and source freshness.
+    CONNECTOR_SCHEDULER_ENABLED: bool = True
+    CONNECTOR_SCHEDULER_POLL_SECONDS: int = 15
+    CONNECTOR_DEFAULT_INTERVAL_MINUTES: int = 60
+    CONNECTOR_RETRY_BASE_SECONDS: int = 60
+    CONNECTOR_RETRY_MAX_SECONDS: int = 3600
+    CONNECTOR_LEASE_SECONDS: int = 900
+    SOURCE_STALE_AFTER_HOURS: int = 168
+
     # AR11: cost governance. JSON override of the per-1K-token price table
     # ({"model": [input, output]}); per-request USD alert threshold (0 disables).
     LLM_PRICE_TABLE_JSON: str = ""

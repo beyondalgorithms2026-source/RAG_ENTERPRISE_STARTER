@@ -1,6 +1,6 @@
 import re
 import time
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -93,6 +93,7 @@ class SearchResultItem(BaseModel):
     keyword_score: Optional[float] = None
     combined_score: Optional[float] = None
     rank_score: Optional[float] = None
+    freshness: Optional[dict[str, Any]] = None
 
 
 class SearchResponse(BaseModel):
@@ -911,6 +912,11 @@ def _apply_graph_and_temporal_layers(*, request: SearchRequest, resolved_mode: s
 
 
 def _materialize_search_results(*, raw_results: List[Dict], resolved_mode: str, debug: bool) -> List[SearchResultItem]:
+    from app.freshness import freshness_by_source_ids
+
+    freshness_map = freshness_by_source_ids(
+        sorted({int(result["source_id"]) for result in raw_results if result.get("source_id") is not None})
+    )
     results = []
     for result in raw_results:
         if resolved_mode == "vector":
@@ -929,6 +935,7 @@ def _materialize_search_results(*, raw_results: List[Dict], resolved_mode: str, 
             heading=result["heading"],
             locator=result.get("locator"),
             snippet=result["snippet"],
+            freshness=freshness_map.get(int(result["source_id"])),
             score=round(score, 4),
             distance=round(result["distance"], 4) if result.get("distance") is not None else None,
             rerank_score=round(result["rerank_score"], 4) if "rerank_score" in result else None,

@@ -9,7 +9,13 @@ from app.auth.context import AuthenticatedUser, get_current_user
 from app.auth.dependencies import require_admin_user, require_connector_request_user
 from app.db.repo_chunks import fetch_chunk_context
 from app.db.repo_admin_audit import insert_admin_audit_event
-from app.db.repo_connectors import DbConnectorRow, list_db_connectors, upsert_db_connector
+from app.db.repo_connectors import (
+    DbConnectorRow,
+    list_connector_sync_runs,
+    list_db_connectors,
+    update_db_connector_schedule,
+    upsert_db_connector,
+)
 from app.db.repo_connectors import create_connector_request, list_connector_requests, update_connector_request_review
 from app.db.repo_jobs import get_ingestion_job, list_ingestion_jobs
 from app.db.repo_priority_requests import (
@@ -24,6 +30,8 @@ from app.ingestion.queue_metrics import priority_request_payload, summarize_inge
 from app.ingestion.jobs import delete_uploaded_source
 from app.ingestion.jobs import _source_file_absolute_path
 from app.connectors.db import ingest_db_connector, inspect_db_connector_schema, preview_db_connector_sync
+from app.connectors.runtime import ConnectorSyncConflict, poke_connector_scheduler
+from app.freshness import source_freshness
 
 
 router = APIRouter()
@@ -40,6 +48,7 @@ class CorpusItem(BaseModel):
     ingestion_status: str
     enrichment_status: str
     source_metadata_json: Dict[str, Any]
+    freshness: Dict[str, Any]
     latest_ingestion_job: Optional[Dict[str, Any]] = None
 
 
@@ -123,6 +132,7 @@ class ChunkContextResponse(BaseModel):
     source_id: int
     source_file_name: str
     chunk_id: int
+    freshness: Dict[str, Any]
     target: Optional[ChunkContextItem] = None
     neighbors: List[ChunkContextItem] = []
 
@@ -138,6 +148,8 @@ class DbConnectorCreate(BaseModel):
     metadata_columns: List[str] = Field(default_factory=list)
     corpus_name: Optional[str] = None
     acl_group_names: List[str] = Field(default_factory=list)
+    schedule_enabled: bool = True
+    sync_interval_minutes: int = Field(default=60, ge=1, le=10080)
 
 
 class DbConnectorItem(BaseModel):
@@ -157,6 +169,18 @@ class DbConnectorItem(BaseModel):
     last_run_at: Optional[str] = None
     last_error: Optional[str] = None
     connector_metadata_json: Dict[str, Any]
+    schedule_enabled: bool
+    sync_interval_minutes: int
+    next_run_at: Optional[str] = None
+    consecutive_failures: int
+    retry_at: Optional[str] = None
+    last_success_at: Optional[str] = None
+    health_status: str
+
+
+class DbConnectorScheduleUpdate(BaseModel):
+    schedule_enabled: bool
+    sync_interval_minutes: int = Field(default=60, ge=1, le=10080)
 
 
 class DbConnectorSyncRequest(BaseModel):
@@ -228,6 +252,13 @@ def _connector_payload(row: DbConnectorRow) -> DbConnectorItem:
         last_run_at=row.last_run_at,
         last_error=row.last_error,
         connector_metadata_json=row.connector_metadata_json,
+        schedule_enabled=row.schedule_enabled,
+        sync_interval_minutes=row.sync_interval_minutes,
+        next_run_at=row.next_run_at,
+        consecutive_failures=row.consecutive_failures,
+        retry_at=row.retry_at,
+        last_success_at=row.last_success_at,
+        health_status="degraded" if row.status in {"degraded", "failed"} else ("syncing" if row.status == "syncing" else "healthy"),
     )
 
 
@@ -244,7 +275,11 @@ def corpus_list_endpoint():
             continue
         latest_job_by_source.setdefault(int(source_id), job)
     return [
-        CorpusItem(**row.__dict__, latest_ingestion_job=latest_job_by_source.get(int(row.id)))
+        CorpusItem(
+            **row.__dict__,
+            freshness=source_freshness(row),
+            latest_ingestion_job=latest_job_by_source.get(int(row.id)),
+        )
         for row in list_accessible_sources()
     ]
 
@@ -329,6 +364,8 @@ def db_connector_create_endpoint(body: DbConnectorCreate, _admin=Depends(require
         corpus_name=body.corpus_name.strip() if body.corpus_name and body.corpus_name.strip() else None,
         acl_group_names=[group.strip() for group in body.acl_group_names if group.strip()],
         connector_metadata_json={"source": "console"},
+        schedule_enabled=body.schedule_enabled,
+        sync_interval_minutes=body.sync_interval_minutes,
     )
     insert_admin_audit_event(
         event_type="connector",
@@ -352,12 +389,34 @@ def db_connector_create_endpoint(body: DbConnectorCreate, _admin=Depends(require
     return _connector_payload(next(row for row in list_db_connectors() if row.id == connector_id))
 
 
+@router.patch("/connectors/db/{connector_id}/schedule", response_model=DbConnectorItem)
+def db_connector_schedule_endpoint(connector_id: int, body: DbConnectorScheduleUpdate, _admin=Depends(require_admin_user)):
+    connector = update_db_connector_schedule(
+        connector_id=connector_id,
+        schedule_enabled=body.schedule_enabled,
+        sync_interval_minutes=body.sync_interval_minutes,
+    )
+    if connector is None:
+        raise HTTPException(status_code=404, detail={"error": "connector_not_found", "connector_id": connector_id})
+    poke_connector_scheduler()
+    return _connector_payload(connector)
+
+
+@router.get("/connectors/db/{connector_id}/runs")
+def db_connector_runs_endpoint(connector_id: int, _admin=Depends(require_admin_user)):
+    if not any(row.id == connector_id for row in list_db_connectors()):
+        raise HTTPException(status_code=404, detail={"error": "connector_not_found", "connector_id": connector_id})
+    return {"runs": [row.__dict__ for row in list_connector_sync_runs(connector_id)]}
+
+
 @router.post("/connectors/db/{connector_id}/sync", response_model=DbConnectorSyncResponse)
 def db_connector_sync_endpoint(connector_id: int, body: DbConnectorSyncRequest, _admin=Depends(require_admin_user)):
     try:
         result = ingest_db_connector(connector_id, row_limit=body.row_limit)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail={"error": "connector_not_found", "message": str(exc)}) from exc
+    except ConnectorSyncConflict as exc:
+        raise HTTPException(status_code=409, detail={"error": "connector_sync_in_progress", "message": str(exc)}) from exc
     except Exception as exc:
         raise HTTPException(status_code=400, detail={"error": "connector_sync_failed", "message": str(exc)}) from exc
     insert_admin_audit_event(
@@ -468,6 +527,7 @@ def corpus_chunk_context_endpoint(source_id: int, chunk_id: int, radius: int = 1
         source_id=source_id,
         source_file_name=source.file_name,
         chunk_id=chunk_id,
+        freshness=source_freshness(source),
         target=ChunkContextItem(**target) if target else None,
         neighbors=[ChunkContextItem(**item) for item in neighbors],
     )

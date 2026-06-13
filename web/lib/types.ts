@@ -13,6 +13,17 @@ export type SearchResult = {
   keyword_score?: number | null;
   combined_score?: number | null;
   rank_score?: number | null;
+  freshness?: Freshness | null;
+};
+
+export type Freshness = {
+  status: "fresh" | "stale" | "unknown" | string;
+  observed_at?: string | null;
+  age_seconds?: number | null;
+  threshold_hours: number;
+  last_synced_at?: string | null;
+  last_ingested_at?: string | null;
+  last_enriched_at?: string | null;
 };
 
 export type SearchResponse = {
@@ -32,6 +43,7 @@ export type Citation = {
   heading: string;
   locator?: string | null;
   snippet: string;
+  freshness?: Freshness | null;
 };
 
 export type AskResponse = {

@@ -5057,6 +5057,14 @@ textarea {
   color: var(--danger);
 }
 
+.chat-evidence-card .badge,
+.chat-context-card .badge,
+.sources-file-cell .badge {
+  margin-left: 8px;
+  padding: 4px 8px;
+  font-size: 0.58rem;
+}
+
 .admin-form-grid,
 .form-inline {
   display: grid;

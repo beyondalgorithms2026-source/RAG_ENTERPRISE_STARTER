@@ -19,6 +19,15 @@ export type ThreadMessage = {
     heading: string;
     locator?: string | null;
     snippet: string;
+    freshness?: {
+      status: string;
+      observed_at?: string | null;
+      age_seconds?: number | null;
+      threshold_hours: number;
+      last_synced_at?: string | null;
+      last_ingested_at?: string | null;
+      last_enriched_at?: string | null;
+    } | null;
   }[];
   usedChunksCount?: number | null;
   mode?: string | null;
