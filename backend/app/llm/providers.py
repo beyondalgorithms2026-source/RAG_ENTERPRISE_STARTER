@@ -39,6 +39,10 @@ class LLMProvider:
     def verify_models(self, data: dict, model: str) -> bool:
         return True
 
+    def extract_usage(self, data: dict):
+        """Return (prompt_tokens, completion_tokens) if the provider reports usage, else None."""
+        return None
+
 
 class OpenAICompatibleProvider(LLMProvider):
     """OpenAI Chat Completions shape — covers OpenAI, Azure OpenAI, vLLM, and
@@ -79,6 +83,15 @@ class OpenAICompatibleProvider(LLMProvider):
         model_ids = [m.get("id") or m.get("name") for m in models]
         return any(model in (mid or "") for mid in model_ids)
 
+    def extract_usage(self, data):
+        usage = data.get("usage") or {}
+        if "prompt_tokens" in usage or "completion_tokens" in usage:
+            return int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0)
+        # Ollama's /v1 shape sometimes reports native eval counts instead.
+        if "prompt_eval_count" in data or "eval_count" in data:
+            return int(data.get("prompt_eval_count") or 0), int(data.get("eval_count") or 0)
+        return None
+
 
 class OllamaNativeProvider(LLMProvider):
     """Ollama's native /chat API (the existing `ollama_cloud` path)."""
@@ -112,6 +125,11 @@ class OllamaNativeProvider(LLMProvider):
     def verify_models(self, data, model):
         # Reachable is ready: cloud tag listings can lag behind available models.
         return True
+
+    def extract_usage(self, data):
+        if "prompt_eval_count" in data or "eval_count" in data:
+            return int(data.get("prompt_eval_count") or 0), int(data.get("eval_count") or 0)
+        return None
 
 
 class AnthropicProvider(LLMProvider):
@@ -150,6 +168,12 @@ class AnthropicProvider(LLMProvider):
 
     def verify_models(self, data, model):
         return True
+
+    def extract_usage(self, data):
+        usage = data.get("usage") or {}
+        if "input_tokens" in usage or "output_tokens" in usage:
+            return int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0)
+        return None
 
 
 _PROVIDERS: dict[str, LLMProvider] = {}

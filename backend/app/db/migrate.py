@@ -902,6 +902,34 @@ def _sync_live_tuning_configuration() -> None:
     sync_live_configuration_record()
 
 
+def _create_generation_usage_events_table() -> None:
+    ddl = """
+    CREATE TABLE IF NOT EXISTS generation_usage_events (
+        id BIGSERIAL PRIMARY KEY,
+        request_id TEXT,
+        provider TEXT,
+        model TEXT,
+        retrieval_mode TEXT,
+        answer_path TEXT,
+        prompt_tokens INTEGER NOT NULL DEFAULT 0,
+        completion_tokens INTEGER NOT NULL DEFAULT 0,
+        total_tokens INTEGER NOT NULL DEFAULT 0,
+        estimated BOOLEAN NOT NULL DEFAULT FALSE,
+        cost_usd DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+        latency_ms INTEGER,
+        call_count INTEGER NOT NULL DEFAULT 1,
+        over_budget BOOLEAN NOT NULL DEFAULT FALSE,
+        actor_external_user_id TEXT,
+        actor_email TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS generation_usage_events_model_idx ON generation_usage_events(model, created_at DESC);
+    CREATE INDEX IF NOT EXISTS generation_usage_events_mode_idx ON generation_usage_events(retrieval_mode, created_at DESC);
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def _create_embedding_swap_runs_table() -> None:
     ddl = """
     CREATE TABLE IF NOT EXISTS embedding_swap_runs (
@@ -1091,6 +1119,11 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P023",
             description="Create embedding_swap_runs lifecycle table for managed reindexing (AR7)",
             runner=_create_embedding_swap_runs_table,
+        ),
+        MigrationStep(
+            step_id="MIG-P024",
+            description="Create generation_usage_events table for token/cost governance (AR11)",
+            runner=_create_generation_usage_events_table,
         ),
     ]
 

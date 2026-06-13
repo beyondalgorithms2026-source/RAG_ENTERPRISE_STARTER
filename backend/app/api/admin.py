@@ -844,6 +844,15 @@ def list_embedding_swaps_endpoint():
     return {"swap_runs": list_swap_runs(limit=50)}
 
 
+@router.get("/cost/summary")
+def cost_summary_endpoint(group_by: str = "retrieval_mode"):
+    """AR11: token/cost rollup. group_by=retrieval_mode answers 'deep research vs
+    fast mode cost'; group_by=model gives per-model spend."""
+    from app.db.repo_generation_usage import cost_summary
+
+    return cost_summary(group_by=group_by)
+
+
 @router.get("/llm/providers")
 def list_llm_providers():
     """AR9: provider names a profile may select (gated by the approved-model
