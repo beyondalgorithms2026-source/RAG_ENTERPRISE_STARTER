@@ -2161,7 +2161,7 @@ class SmokeTestBaseline(SmokeTestBase):
                 return False
 
             @staticmethod
-            def get(url):
+            def get(url, headers=None):
                 return FakeResponse()
 
         class FakeHttpx:

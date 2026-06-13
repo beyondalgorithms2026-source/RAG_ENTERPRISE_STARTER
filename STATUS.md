@@ -2,7 +2,7 @@
 
 **Last completed M-series milestone:** M33 — Governed Semantic Cache Policies, Scoped Enablement, And User Refresh  
 **Active work track:** AR-series (Audit Remediation)  
-**Current AR milestone:** AR9 — Provider Abstraction For Generation (AR0–AR3 closed 2026-06-12; AR4–AR8 closed 2026-06-13)
+**Current AR milestone:** AR10 — Operator Health And Trust Dashboard (AR0–AR3 closed 2026-06-12; AR4–AR9 closed 2026-06-13)
 
 ## Independent Product Audit (2026-06-11)
 
@@ -29,7 +29,7 @@ Git tag: `audit-baseline-2026-06-11`
 | AR6 — Truthful Cache Naming | **Complete (2026-06-13)** | Implemented (not renamed) a real embedding-similarity tier: per-policy `match_mode`/`similarity_threshold` (MIG-P022), `_semantic_lookup` relaxes only the question dimension under identical ACL/profile/corpus/revision governance (shared `_finalize_hit`); dead `semantic_cache_similarity_threshold` removed from retrieval profile; `cache_health` splits exact vs similarity hits; truthful UI match-mode selector; measured calibration noted (bge-base paraphrases 0.70–0.83, so 0.92 is precision-first); 265/265 suite; note: `docs/milestones/AR6_semantic_cache_similarity.md` |
 | AR7 — Embedding Lifecycle | **Complete (2026-06-13)** | Managed swap lifecycle (`app/embedding/lifecycle.py`, MIG-P023 `embedding_swap_runs`): plan→reindexing→verifying→completed, resumable batches, abort, sampled self-similarity + counts verification; vector search hard-blocks to keyword-only on dimension mismatch (`degraded_vector` trace + `vector_serving` coherence invariant); dimension-changing embedding activation blocked (422 `embedding_reindex_required`) — only the lifecycle may bring it live; `POST /admin/embedding/swap/*` endpoints; runbook `docs/runbooks/EMBEDDING_MODEL_SWAP.md`; 273/273 suite; note: `docs/milestones/AR7_embedding_index_lifecycle.md` |
 | AR8 — Deployment Portability | **Complete (2026-06-13)** | docker-compose uses a portable named volume + env overrides (no host path); README/quickstart absolute `/Users/Work/...` paths made repo-relative; sandbox/candidate overrides moved from module-global monkeypatching to a `ContextVar` (`profile_overrides`) so candidate profiles never bleed into concurrent live requests; startup refuses `WEB_CONCURRENCY>1` unless `ALLOW_MULTI_WORKER=true` (single-process assumptions named, not hidden); 279/279 suite; note: `docs/milestones/AR8_deployment_portability_and_worker_safety.md` |
-| AR9 — Provider Abstraction | Not started | P1 — OpenAI-compatible client interface |
+| AR9 — Provider Abstraction | **Complete (2026-06-13)** | Pluggable provider registry (`app/llm/providers.py`): OpenAI-compatible (OpenAI/Azure/vLLM/Ollama), Ollama-native (cloud), Anthropic; `client.py` delegates via one `_provider_generate` path; `verify_llm_ready` generalized; `structured_output_mode`/native-JSON honored per provider capability (GPT-OSS path unchanged); `GET /admin/llm/providers`; registry gating untouched; full answer contract proven against 2 provider shapes; 286/286 suite; note: `docs/milestones/AR9_provider_abstraction.md` |
 | AR10 — Health Dashboard | Not started | P1 — operator coherence page |
 | AR11 — Cost/Token Governance | Not started | P2 |
 | AR12 — Feedback→Eval Flywheel | Not started | P2 |
@@ -62,7 +62,8 @@ M20, M21, M22, M23, M24, M25, M26, M27, M28, M29, M30
 
 ## Current Verification Debt
 
-- **Test suite is green:** `make test` — 279/279 on the dev DB (AR8); AR1 verified 224/224 on a freshly migrated empty DB as well
+- **Test suite is green:** `make test` — 286/286 on the dev DB (AR9); AR1 verified 224/224 on a freshly migrated empty DB as well
+- AR9: non-Ollama providers (OpenAI/Azure/vLLM/Anthropic) are validated against mocked transports only — no live keys in this environment; Ollama remains the sole end-to-end exercised path
 - AR8: the app is single-process by design — it refuses `WEB_CONCURRENCY>1` unless `ALLOW_MULTI_WORKER=true`; making the queue/rate-limiter/model-singletons multi-worker safe remains future work (fenced, not yet solved)
 - AR7: a dimension-changing embedding swap must go through `POST /admin/embedding/swap/*` (see `docs/runbooks/EMBEDDING_MODEL_SWAP.md`); direct activation is blocked and vector search degrades to keyword-only while a swap is mid-flight
 - AR6 semantic cache: similarity matching is live but off unless a policy sets `match_mode=semantic`; default threshold 0.92 is precision-first and should be lowered (~0.80) for bge-base paraphrase recall — calibrate per corpus
