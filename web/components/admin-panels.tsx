@@ -6,6 +6,10 @@ import { useSearchParams } from "next/navigation";
 
 import { browserApiUrl, browserFetch } from "@/lib/api-browser";
 import { findThreadMessageByRequestId } from "@/lib/workspace";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
+import { TextInput } from "@/components/ui/TextInput";
+import { Toggle } from "@/components/ui/Toggle";
 
 type GenericMap = Record<string, unknown>;
 
@@ -322,7 +326,7 @@ function SavedViewsToolbar({
   return (
     <div className="admin-saved-view-stack">
       <div className="admin-saved-view-form">
-        <input value={draftName} onChange={(event) => onDraftNameChange(event.target.value)} placeholder={`Save ${viewLabel} view`} />
+        <TextInput value={draftName} onChange={(event) => onDraftNameChange(event.target.value)} placeholder={`Save ${viewLabel} view`} />
         <button type="button" className="button button-secondary" onClick={onSave} disabled={!draftName.trim()}>
           Save view
         </button>
@@ -660,8 +664,8 @@ export function CorporaAdminPanel() {
           </div>
         </div>
         <form className="admin-form-grid" onSubmit={createCorpus}>
-          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Corpus name" />
-          <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description" />
+          <TextInput value={name} onChange={(event) => setName(event.target.value)} placeholder="Corpus name" />
+          <TextInput value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description" />
           <button className="button button-primary" type="submit" disabled={isSubmitting || !name.trim()}>
             {isSubmitting ? "Saving..." : "Create corpus"}
           </button>
@@ -738,7 +742,7 @@ export function CorporaAdminPanel() {
                         <span className="muted-copy">{`${String(source.source_type || "source")} • ${formatFileSize(source.file_size_bytes)}`}</span>
                       </div>
                       <div className="table-metrics">
-                        <input
+                        <TextInput
                           type="checkbox"
                           checked={checked}
                           onChange={(event) =>
@@ -1013,36 +1017,36 @@ export function SourcesAdminPanel() {
           </div>
         </div>
         <div className="admin-filter-grid admin-filter-grid-5">
-          <input value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search file, corpus, ACL group, or type" />
-          <select value={draftFilters.status} onChange={(event) => setDraftFilters((current) => ({ ...current, status: event.target.value }))}>
+          <TextInput value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search file, corpus, ACL group, or type" />
+          <Select value={draftFilters.status} onChange={(event) => setDraftFilters((current) => ({ ...current, status: event.target.value }))}>
             <option value="all">All statuses</option>
             <option value="indexed">indexed</option>
             <option value="embedded">embedded</option>
             <option value="processing">processing</option>
             <option value="queued">queued</option>
             <option value="failed">failed</option>
-          </select>
-          <select value={draftFilters.corpus} onChange={(event) => setDraftFilters((current) => ({ ...current, corpus: event.target.value }))}>
+          </Select>
+          <Select value={draftFilters.corpus} onChange={(event) => setDraftFilters((current) => ({ ...current, corpus: event.target.value }))}>
             <option value="all">All corpora</option>
             {corpusOptions.map((corpus) => (
               <option key={corpus} value={corpus.toLowerCase()}>{corpus}</option>
             ))}
             <option value="">No corpus</option>
-          </select>
-          <select value={draftFilters.sensitivity} onChange={(event) => setDraftFilters((current) => ({ ...current, sensitivity: event.target.value }))}>
+          </Select>
+          <Select value={draftFilters.sensitivity} onChange={(event) => setDraftFilters((current) => ({ ...current, sensitivity: event.target.value }))}>
             <option value="all">All sensitivity</option>
             <option value="public">public</option>
             <option value="internal">internal</option>
             <option value="confidential">confidential</option>
-          </select>
-          <select value={draftFilters.sort} onChange={(event) => setDraftFilters((current) => ({ ...current, sort: event.target.value }))}>
+          </Select>
+          <Select value={draftFilters.sort} onChange={(event) => setDraftFilters((current) => ({ ...current, sort: event.target.value }))}>
             <option value="name_asc">Name A-Z</option>
             <option value="name_desc">Name Z-A</option>
             <option value="size_desc">Largest first</option>
             <option value="size_asc">Smallest first</option>
             <option value="status">Status</option>
             <option value="corpus">Corpus</option>
-          </select>
+          </Select>
         </div>
         <div className="toolbar-inline">
           <span className={`badge ${hasPendingFilterChanges ? "is-warning" : ""}`}>{hasPendingFilterChanges ? "Unapplied filter changes" : `Showing ${filteredCount} of ${payload.sources.length} sources`}</span>
@@ -1079,19 +1083,19 @@ export function SourcesAdminPanel() {
           <span className="badge">{formatCount(selectionCount, "selected source")}</span>
         </div>
         <div className="admin-filter-grid admin-filter-grid-4">
-          <select value={bulkCorpusName} onChange={(event) => setBulkCorpusName(event.target.value)}>
+          <Select value={bulkCorpusName} onChange={(event) => setBulkCorpusName(event.target.value)}>
             <option value="__keep__">Keep current corpus</option>
             <option value="__none__">Remove corpus</option>
             {corpusOptions.map((corpus) => (
               <option key={`bulk-${corpus}`} value={corpus}>{corpus}</option>
             ))}
-          </select>
-          <select value={bulkSensitivityLabel} onChange={(event) => setBulkSensitivityLabel(event.target.value)}>
+          </Select>
+          <Select value={bulkSensitivityLabel} onChange={(event) => setBulkSensitivityLabel(event.target.value)}>
             <option value="__keep__">Keep current sensitivity</option>
             <option value="public">public</option>
             <option value="internal">internal</option>
             <option value="confidential">confidential</option>
-          </select>
+          </Select>
           <button type="button" className="button button-secondary" disabled={!visibleSources.length} onClick={() => toggleAllVisibleSources(true)}>
             Select filtered
           </button>
@@ -1124,7 +1128,7 @@ export function SourcesAdminPanel() {
               <article key={String(source.id)} className={`table-row ${selectedSourceIds.includes(Number(source.id)) ? "is-selected" : ""}`}>
                 <div>
                   <label className="table-row-selector">
-                    <input type="checkbox" checked={selectedSourceIds.includes(Number(source.id))} onChange={(event) => toggleSelectedSource(Number(source.id), event.target.checked)} />
+                    <Toggle checked={selectedSourceIds.includes(Number(source.id))} onChange={(event) => toggleSelectedSource(Number(source.id), event.target.checked)} />
                     <span className="sr-only">Select source {String(source.file_name)}</span>
                   </label>
                   <strong>{String(source.file_name)}</strong>
@@ -1155,18 +1159,18 @@ export function SourcesAdminPanel() {
           {!selectedSource ? <EmptyState title={isLoading ? "Loading source detail..." : "Select a source."} copy={isLoading ? "Waiting for source inventory before detail controls can render." : "Choose a source from the inventory to inspect and modify its admin-facing controls."} icon={isLoading ? "progress_activity" : "description"} /> : (
             <div className="page-stack">
               <div className="form-inline">
-                <select value={draft.corpusName} onChange={(event) => setDraft((current) => ({ ...current, corpusName: event.target.value }))}>
+                <Select value={draft.corpusName} onChange={(event) => setDraft((current) => ({ ...current, corpusName: event.target.value }))}>
                   <option value="">No corpus</option>
                   {corporaPayload.corpora.map((corpus) => (
                     <option key={String(corpus.name)} value={String(corpus.name)}>{String(corpus.name)}</option>
                   ))}
-                </select>
-                <select value={draft.sensitivityLabel} onChange={(event) => setDraft((current) => ({ ...current, sensitivityLabel: event.target.value }))}>
+                </Select>
+                <Select value={draft.sensitivityLabel} onChange={(event) => setDraft((current) => ({ ...current, sensitivityLabel: event.target.value }))}>
                   <option value="public">public</option>
                   <option value="internal">internal</option>
                   <option value="confidential">confidential</option>
-                </select>
-                <input value={draft.aclGroups} onChange={(event) => setDraft((current) => ({ ...current, aclGroups: event.target.value }))} placeholder="ACL groups, comma separated" />
+                </Select>
+                <TextInput value={draft.aclGroups} onChange={(event) => setDraft((current) => ({ ...current, aclGroups: event.target.value }))} placeholder="ACL groups, comma separated" />
               </div>
               <div className="toolbar-inline">
                 <button type="button" className="button button-primary" onClick={saveSource} disabled={busy !== ""}>
@@ -1462,13 +1466,13 @@ export function JobsAdminPanel() {
           </div>
         </div>
         <div className="admin-filter-grid admin-filter-grid-5">
-          <input value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search source, stage, corpus, owner, or source type" />
-          <select value={draftFilters.kind} onChange={(event) => setDraftFilters((current) => ({ ...current, kind: event.target.value }))}>
+          <TextInput value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search source, stage, corpus, owner, or source type" />
+          <Select value={draftFilters.kind} onChange={(event) => setDraftFilters((current) => ({ ...current, kind: event.target.value }))}>
             <option value="all">All job kinds</option>
             <option value="ingestion">ingestion</option>
             <option value="enrichment">enrichment</option>
-          </select>
-          <select value={draftFilters.status} onChange={(event) => setDraftFilters((current) => ({ ...current, status: event.target.value }))}>
+          </Select>
+          <Select value={draftFilters.status} onChange={(event) => setDraftFilters((current) => ({ ...current, status: event.target.value }))}>
             <option value="all">All statuses</option>
             <option value="queued">queued</option>
             <option value="processing">processing</option>
@@ -1476,42 +1480,42 @@ export function JobsAdminPanel() {
             <option value="paused">paused</option>
             <option value="completed">completed</option>
             <option value="failed">failed</option>
-          </select>
-          <select value={draftFilters.owner} onChange={(event) => setDraftFilters((current) => ({ ...current, owner: event.target.value }))}>
+          </Select>
+          <Select value={draftFilters.owner} onChange={(event) => setDraftFilters((current) => ({ ...current, owner: event.target.value }))}>
             <option value="all">All owners</option>
             {ownerOptions.map((owner) => (
               <option key={owner} value={owner}>{owner}</option>
             ))}
-          </select>
-          <select value={draftFilters.stage} onChange={(event) => setDraftFilters((current) => ({ ...current, stage: event.target.value }))}>
+          </Select>
+          <Select value={draftFilters.stage} onChange={(event) => setDraftFilters((current) => ({ ...current, stage: event.target.value }))}>
             <option value="all">All stages</option>
             {stageOptions.map((stage) => (
               <option key={stage} value={stage}>{stage}</option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className="admin-filter-grid admin-filter-grid-5">
-          <select value={draftFilters.priority} onChange={(event) => setDraftFilters((current) => ({ ...current, priority: event.target.value }))}>
+          <Select value={draftFilters.priority} onChange={(event) => setDraftFilters((current) => ({ ...current, priority: event.target.value }))}>
             <option value="all">All priorities</option>
             <option value="urgent">urgent</option>
             <option value="high">high</option>
             <option value="elevated">elevated</option>
             <option value="normal">normal</option>
-          </select>
-          <select value={draftFilters.sourceType} onChange={(event) => setDraftFilters((current) => ({ ...current, sourceType: event.target.value }))}>
+          </Select>
+          <Select value={draftFilters.sourceType} onChange={(event) => setDraftFilters((current) => ({ ...current, sourceType: event.target.value }))}>
             <option value="all">All source types</option>
             {sourceTypeOptions.map((sourceType) => (
               <option key={sourceType} value={sourceType}>{sourceType}</option>
             ))}
-          </select>
-          <select value={draftFilters.sort} onChange={(event) => setDraftFilters((current) => ({ ...current, sort: event.target.value }))}>
+          </Select>
+          <Select value={draftFilters.sort} onChange={(event) => setDraftFilters((current) => ({ ...current, sort: event.target.value }))}>
             <option value="active_first">Active jobs first</option>
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="duration_desc">Longest duration</option>
             <option value="duration_asc">Shortest duration</option>
             <option value="source">Source name</option>
-          </select>
+          </Select>
         </div>
         <div className="toolbar-inline">
           <span className={`badge ${hasPendingFilterChanges ? "is-warning" : ""}`}>{hasPendingFilterChanges ? "Unapplied filter changes" : `Showing ${visibleJobs.length} of ${jobs.length} jobs`}</span>
@@ -1603,14 +1607,14 @@ export function JobsAdminPanel() {
                       <SummaryMetricCard label="ETA" value={formatEtaWindow(selectedIngestionJob.eta_window)} />
                     </div>
                     <div className="admin-filter-grid admin-filter-grid-3">
-                      <select value={priorityValue} onChange={(event) => setPriorityValue(event.target.value)}>
+                      <Select value={priorityValue} onChange={(event) => setPriorityValue(event.target.value)}>
                         <option value="200">Urgent</option>
                         <option value="160">High</option>
                         <option value="120">Elevated</option>
                         <option value="100">Normal</option>
                         <option value="80">Lower priority</option>
-                      </select>
-                      <input value={priorityReason} onChange={(event) => setPriorityReason(event.target.value)} placeholder="Reason for reprioritization or queue action" />
+                      </Select>
+                      <TextInput value={priorityReason} onChange={(event) => setPriorityReason(event.target.value)} placeholder="Reason for reprioritization or queue action" />
                       <div className="toolbar-inline">
                         <button type="button" className="button button-secondary" disabled={!selectedIngestionJob || busyAction !== ""} onClick={previewPriorityChange}>
                           {busyAction === "priority-preview" ? "Previewing..." : "Preview impact"}
@@ -1640,7 +1644,7 @@ export function JobsAdminPanel() {
                           </div>
                         </article>
                         <div className="admin-filter-grid admin-filter-grid-3">
-                          <input value={reviewReason} onChange={(event) => setReviewReason(event.target.value)} placeholder="Review note for the requester and audit trail" />
+                          <TextInput value={reviewReason} onChange={(event) => setReviewReason(event.target.value)} placeholder="Review note for the requester and audit trail" />
                           <button type="button" className="button button-secondary" disabled={busyAction !== ""} onClick={() => reviewPriorityRequest("under_review")}>Mark under review</button>
                           <div className="toolbar-inline">
                             <button type="button" className="button button-primary" disabled={busyAction !== ""} onClick={() => reviewPriorityRequest("approved")}>Approve request</button>
@@ -1695,299 +1699,6 @@ export function JobsAdminPanel() {
               </section>
             </div>
           )}
-        </section>
-      </div>
-    </div>
-  );
-}
-
-export function ProfilesAdminPanel() {
-  const [payload, setPayload] = useState<{ profiles: GenericMap[]; current_live_retrieval?: GenericMap }>({ profiles: [] });
-  const [history, setHistory] = useState<{ events: GenericMap[] }>({ events: [] });
-  const [error, setError] = useState("");
-  const [activating, setActivating] = useState("");
-  const [savingProfile, setSavingProfile] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedRetrievalProfile, setSelectedRetrievalProfile] = useState("");
-  const [retrievalProfileName, setRetrievalProfileName] = useState("");
-  const [retrievalEditor, setRetrievalEditor] = useState<GenericMap>({});
-
-  const retrievalProfiles = useMemo(
-    () => payload.profiles.filter((profile) => String(profile.profile_type) === "retrieval"),
-    [payload.profiles],
-  );
-
-  function loadRetrievalProfile(profileName: string, nextName?: string) {
-    const match = retrievalProfiles.find((profile) => String(profile.name) === profileName);
-    if (!match) {
-      return;
-    }
-    setSelectedRetrievalProfile(String(match.name));
-    setRetrievalProfileName(nextName || String(match.name));
-    setRetrievalEditor({ ...((match.config as GenericMap | undefined) || {}) });
-  }
-
-  async function refresh() {
-    setIsLoading(true);
-    try {
-      const [profiles, audit, metadata] = await Promise.all([
-        browserFetch<{ profiles: GenericMap[] }>("/admin/profiles"),
-        browserFetch<{ events: GenericMap[] }>("/admin/audit-log?action=profile.activate"),
-        browserFetch<GenericMap>("/admin/profiles/metadata"),
-      ]);
-      setPayload({ ...profiles, current_live_retrieval: (metadata.current_live_retrieval as GenericMap | undefined) || {} });
-      setHistory(audit);
-      const retrievalItems = profiles.profiles.filter((profile) => String(profile.profile_type) === "retrieval");
-      const activeRetrieval = retrievalItems.find((profile) => Boolean(profile.is_active)) || retrievalItems[0];
-      setSelectedRetrievalProfile((current) => {
-        const existing = retrievalItems.find((profile) => String(profile.name) === current);
-        return existing ? current : String(activeRetrieval?.name || "");
-      });
-      setRetrievalProfileName((current) => current || String(activeRetrieval?.name || ""));
-      setRetrievalEditor((current) => {
-        if (Object.keys(current).length && retrievalItems.some((profile) => String(profile.name) === selectedRetrievalProfile)) {
-          return current;
-        }
-        return { ...(((activeRetrieval?.config as GenericMap | undefined) || {})) };
-      });
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load profiles.");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    refresh();
-  }, []);
-
-  async function activate(profileType: string, profileName: string) {
-    const key = `${profileType}:${profileName}`;
-    setActivating(key);
-    try {
-      await browserFetch("/admin/profiles/active", {
-        method: "POST",
-        json: { profile_type: profileType, profile_name: profileName },
-      });
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to activate profile.");
-    } finally {
-      setActivating("");
-    }
-  }
-
-  function updateRetrievalField(key: string, value: unknown) {
-    setRetrievalEditor((current) => ({ ...current, [key]: value }));
-  }
-
-  async function saveRetrievalProfile(mode: "create" | "update") {
-    const profileName = retrievalProfileName.trim();
-    if (!profileName) {
-      setError("Retrieval profile name is required.");
-      return;
-    }
-    setSavingProfile(mode);
-    try {
-      if (mode === "create") {
-        await browserFetch("/admin/profiles", {
-          method: "POST",
-          json: {
-            profile_type: "retrieval",
-            profile_name: profileName,
-            config: retrievalEditor,
-          },
-        });
-      } else {
-        await browserFetch(`/admin/profiles/retrieval/${encodeURIComponent(selectedRetrievalProfile)}`, {
-          method: "PATCH",
-          json: { config: retrievalEditor },
-        });
-      }
-      setSelectedRetrievalProfile(profileName);
-      setRetrievalProfileName(profileName);
-      await refresh();
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save retrieval profile.");
-    } finally {
-      setSavingProfile("");
-    }
-  }
-
-  const currentLiveRetrieval = (payload.current_live_retrieval || {}) as GenericMap;
-  const currentLiveTransform = (currentLiveRetrieval.transform_posture || {}) as GenericMap;
-
-  return (
-    <div className="admin-route-page">
-      <AdminSectionIntro
-        eyebrow="Interactive"
-        title="Profiles"
-        description="Review live profile inventory, activate current profiles, and inspect activation history from the audit foundation."
-        badge={`${payload.profiles.length} profiles`}
-      />
-      {error ? <div className="error-banner">{error}</div> : null}
-      <div className="results-grid">
-        <section className="card">
-          <div className="section-head">
-            <div>
-              <h2>Profile Registry</h2>
-              <p>Embedding, retrieval, reranker, and LLM profiles currently known to the control plane.</p>
-            </div>
-          </div>
-          <section className="admin-summary-cards">
-            <SummaryMetricCard label="Live Retrieval Profile" value={String(currentLiveRetrieval.profile_name || "Unavailable")} tone={currentLiveTransform.enabled ? "is-warning" : "is-good"} />
-            <SummaryMetricCard
-              label="Query Transform"
-              value={Boolean(currentLiveTransform.enabled) ? String(((currentLiveTransform.strategy as string[] | undefined) || []).join(", ") || "Enabled") : "Disabled"}
-              tone={currentLiveTransform.enabled ? "is-warning" : "is-good"}
-            />
-            <SummaryMetricCard label="Variant Cap" value={String(currentLiveTransform.transform_max_variants || 0)} />
-          </section>
-          <div className="table-list">
-            <article className="table-row">
-              <div>
-                <strong>Current live retrieval configuration</strong>
-                <span className="muted-copy">
-                  {`Mode ${String((currentLiveRetrieval.config as GenericMap | undefined)?.default_mode || "hybrid")} • timeout ${String(currentLiveTransform.transform_timeout_ms || 0)} ms`}
-                </span>
-              </div>
-              <div className="table-metrics">
-                <span className={`badge ${statusTone(currentLiveTransform.enabled ? "pending" : "active")}`}>{currentLiveTransform.enabled ? "Transform enabled" : "Transform off"}</span>
-              </div>
-            </article>
-          </div>
-          <div className="section-head">
-            <div>
-              <h2>Retrieval Transform Controls</h2>
-              <p>Create or update governed retrieval profiles, then activate them directly or compare them in the sandbox.</p>
-            </div>
-          </div>
-          <div className="admin-form-grid">
-            <label>
-              <span className="muted-copy">Load existing retrieval profile</span>
-              <select value={selectedRetrievalProfile} onChange={(event) => loadRetrievalProfile(event.target.value)}>
-                {retrievalProfiles.map((profile) => (
-                  <option key={String(profile.name)} value={String(profile.name)}>
-                    {String(profile.name)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span className="muted-copy">Profile name</span>
-              <input value={retrievalProfileName} onChange={(event) => setRetrievalProfileName(event.target.value)} placeholder="e.g. rewrite-only-lab" />
-            </label>
-            <label>
-              <span className="muted-copy">Transform max variants</span>
-              <input type="number" min="1" max="12" value={String(retrievalEditor.transform_max_variants ?? 3)} onChange={(event) => updateRetrievalField("transform_max_variants", Number(event.target.value || 0))} />
-            </label>
-            <label>
-              <span className="muted-copy">Transform timeout (ms)</span>
-              <input type="number" min="100" max="5000" value={String(retrievalEditor.transform_timeout_ms ?? 750)} onChange={(event) => updateRetrievalField("transform_timeout_ms", Number(event.target.value || 0))} />
-            </label>
-            <label>
-              <span className="muted-copy">Default retrieval mode</span>
-              <input value={String(retrievalEditor.default_mode ?? "hybrid")} onChange={(event) => updateRetrievalField("default_mode", event.target.value)} />
-            </label>
-            <label>
-              <span className="muted-copy">Fusion method</span>
-              <input value={String(retrievalEditor.fusion_method ?? "linear")} onChange={(event) => updateRetrievalField("fusion_method", event.target.value)} />
-            </label>
-            <label>
-              <span className="muted-copy">Master switch</span>
-              <select value={String(Boolean(retrievalEditor.query_transform_enabled))} onChange={(event) => updateRetrievalField("query_transform_enabled", event.target.value === "true")}>
-                <option value="false">Disabled</option>
-                <option value="true">Enabled</option>
-              </select>
-            </label>
-            <label>
-              <span className="muted-copy">Rewrite</span>
-              <select value={String(Boolean(retrievalEditor.rewrite_enabled))} onChange={(event) => updateRetrievalField("rewrite_enabled", event.target.value === "true")}>
-                <option value="false">Off</option>
-                <option value="true">On</option>
-              </select>
-            </label>
-            <label>
-              <span className="muted-copy">Expansion</span>
-              <select value={String(Boolean(retrievalEditor.expansion_enabled))} onChange={(event) => updateRetrievalField("expansion_enabled", event.target.value === "true")}>
-                <option value="false">Off</option>
-                <option value="true">On</option>
-              </select>
-            </label>
-            <label>
-              <span className="muted-copy">HyDE</span>
-              <select value={String(Boolean(retrievalEditor.hyde_enabled))} onChange={(event) => updateRetrievalField("hyde_enabled", event.target.value === "true")}>
-                <option value="false">Off</option>
-                <option value="true">On</option>
-              </select>
-            </label>
-          </div>
-          <div className="toolbar-inline">
-            <button type="button" className="button button-secondary" onClick={() => loadRetrievalProfile(String(currentLiveRetrieval.profile_name || selectedRetrievalProfile), `${String(currentLiveRetrieval.profile_name || selectedRetrievalProfile)}-copy`)}>
-              Clone live retrieval
-            </button>
-            <button type="button" className="button button-secondary" onClick={() => saveRetrievalProfile("create")} disabled={savingProfile !== ""}>
-              {savingProfile === "create" ? "Saving..." : "Save as new retrieval profile"}
-            </button>
-            <button type="button" className="button button-primary" onClick={() => saveRetrievalProfile("update")} disabled={savingProfile !== "" || !selectedRetrievalProfile}>
-              {savingProfile === "update" ? "Updating..." : "Update selected retrieval profile"}
-            </button>
-          </div>
-          <div className="table-list">
-            {isLoading ? <EmptyState title="Loading profiles..." copy="Fetching registered profile metadata and current active selections." icon="progress_activity" /> : payload.profiles.length ? payload.profiles.map((profile) => {
-              const profileType = String(profile.profile_type);
-              const profileName = String(profile.name);
-              const key = `${profileType}:${profileName}`;
-              return (
-                <article key={key} className="table-row">
-                  <div>
-                    <strong>{`${profileType} / ${profileName}`}</strong>
-                    <span className="muted-copy">
-                      {profileType === "retrieval"
-                        ? `Query transform ${Boolean((profile.transform_posture as GenericMap | undefined)?.enabled) ? `on (${String((((profile.transform_posture as GenericMap | undefined)?.strategy as string[] | undefined) || []).join(", ") || "configured")})` : "off"}`
-                        : profile.is_active ? "Active profile" : "Available for activation"}
-                    </span>
-                  </div>
-                  <div className="table-metrics">
-                    <span className={`badge ${statusTone(profile.is_active ? "active" : "available")}`}>{profile.is_active ? "Active" : "Available"}</span>
-                    <button
-                      type="button"
-                      className="button button-secondary"
-                      disabled={Boolean(profile.is_active) || activating === key}
-                      onClick={() => activate(profileType, profileName)}
-                    >
-                      {profile.is_active ? "Active" : activating === key ? "Activating..." : "Activate"}
-                    </button>
-                  </div>
-                </article>
-              );
-            }) : <EmptyState title="No profiles found." copy="Profile metadata will appear here once the backend registry is seeded." />}
-          </div>
-        </section>
-
-        <section className="card">
-          <div className="section-head">
-            <div>
-              <h2>Activation History</h2>
-              <p>Audit-backed profile changes rather than inferred active state alone.</p>
-            </div>
-          </div>
-          <div className="table-list">
-            {isLoading ? <EmptyState title="Loading activation history..." copy="Fetching prior profile activation events from the audit foundation." icon="progress_activity" /> : history.events.length ? history.events.map((event) => (
-              <article key={String(event.id)} className="table-row">
-                <div>
-                  <strong>{String(event.resource_name || event.profile_name || "Profile change")}</strong>
-                  <span className="muted-copy">{`${String(event.actor_email || event.actor_external_user_id || "unknown actor")} • ${String((event.after_json as GenericMap | undefined)?.profile_name || "")}`}</span>
-                </div>
-                <div className="table-metrics">
-                  <span className={`badge ${statusTone(event.outcome)}`}>{String(event.outcome || "completed")}</span>
-                  <span>{formatTimestamp(event.created_at)}</span>
-                </div>
-              </article>
-            )) : <EmptyState title="No activation history yet." copy="Profile activation events will appear here once operators begin switching profiles." />}
-          </div>
         </section>
       </div>
     </div>
@@ -2113,16 +1824,16 @@ export function EvalsAdminPanel() {
           {existingReports.length ? (
             <div className="page-stack">
               <div className="admin-filter-grid admin-filter-grid-2">
-                <select value={compareLeftKind} onChange={(event) => setCompareLeftKind(event.target.value)}>
+                <Select value={compareLeftKind} onChange={(event) => setCompareLeftKind(event.target.value)}>
                   {existingReports.map((report) => (
                     <option key={`left-${String(report.kind)}`} value={String(report.kind)}>{String(report.kind)}</option>
                   ))}
-                </select>
-                <select value={compareRightKind} onChange={(event) => setCompareRightKind(event.target.value)}>
+                </Select>
+                <Select value={compareRightKind} onChange={(event) => setCompareRightKind(event.target.value)}>
                   {existingReports.map((report) => (
                     <option key={`right-${String(report.kind)}`} value={String(report.kind)}>{String(report.kind)}</option>
                   ))}
-                </select>
+                </Select>
               </div>
               <section className="admin-summary-cards">
                 <SummaryMetricCard label={`${String(compareLeft?.kind || "Left")} pass rate`} value={`${String(compareLeftSummary.pass_rate_percent ?? "-")}%`} tone="is-good" />
@@ -2391,14 +2102,14 @@ export function TracesAdminPanel() {
           </div>
         </div>
         <div className="form-inline">
-          <input value={debugQuestion} onChange={(event) => setDebugQuestion(event.target.value)} placeholder="Question to debug" />
-          <select value={debugMode} onChange={(event) => setDebugMode(event.target.value)}>
+          <TextInput value={debugQuestion} onChange={(event) => setDebugQuestion(event.target.value)} placeholder="Question to debug" />
+          <Select value={debugMode} onChange={(event) => setDebugMode(event.target.value)}>
             <option value="hybrid">hybrid</option>
             <option value="keyword">keyword</option>
             <option value="vector">vector</option>
             <option value="graph_hybrid">graph_hybrid</option>
-          </select>
-          <input value={debugK} onChange={(event) => setDebugK(event.target.value)} placeholder="Top K" />
+          </Select>
+          <TextInput value={debugK} onChange={(event) => setDebugK(event.target.value)} placeholder="Top K" />
         </div>
         <div className="toolbar-inline">
           <button type="button" className="button button-primary" disabled={busy || !debugQuestion.trim()} onClick={runQueryDebug}>
@@ -2415,26 +2126,26 @@ export function TracesAdminPanel() {
           </div>
         </div>
         <div className="admin-filter-grid admin-filter-grid-4">
-          <input value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search question, path, or fallback reason" />
-          <select value={draftFilters.mode} onChange={(event) => setDraftFilters((current) => ({ ...current, mode: event.target.value }))}>
+          <TextInput value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search question, path, or fallback reason" />
+          <Select value={draftFilters.mode} onChange={(event) => setDraftFilters((current) => ({ ...current, mode: event.target.value }))}>
             <option value="all">All modes</option>
             <option value="hybrid">hybrid</option>
             <option value="keyword">keyword</option>
             <option value="vector">vector</option>
             <option value="graph_hybrid">graph_hybrid</option>
             <option value="full">full</option>
-          </select>
-          <select value={draftFilters.fallback} onChange={(event) => setDraftFilters((current) => ({ ...current, fallback: event.target.value }))}>
+          </Select>
+          <Select value={draftFilters.fallback} onChange={(event) => setDraftFilters((current) => ({ ...current, fallback: event.target.value }))}>
             <option value="all">All traces</option>
             <option value="fallback_only">Fallback only</option>
             <option value="direct_only">Direct only</option>
-          </select>
-          <select value={draftFilters.sort} onChange={(event) => setDraftFilters((current) => ({ ...current, sort: event.target.value }))}>
+          </Select>
+          <Select value={draftFilters.sort} onChange={(event) => setDraftFilters((current) => ({ ...current, sort: event.target.value }))}>
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="latency_desc">Latency high to low</option>
             <option value="latency_asc">Latency low to high</option>
-          </select>
+          </Select>
         </div>
         <div className="toolbar-inline">
           <span className={`badge ${hasPendingFilterChanges ? "is-warning" : ""}`}>{hasPendingFilterChanges ? "Unapplied filter changes" : `Showing ${visibleTraces.length} of ${payload.traces.length} traces`}</span>
@@ -2565,121 +2276,6 @@ export function PoliciesAdminPanel() {
           </div>
         </div>
         <JsonPanel value={payload?.supported_corpus_policies || []} />
-      </section>
-    </div>
-  );
-}
-
-export function AccessAdminPanel() {
-  const [payload, setPayload] = useState<GenericMap | null>(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    browserFetch<GenericMap>("/admin/access")
-      .then((value) => {
-        setPayload(value);
-        setError("");
-      })
-      .catch((err) => {
-        setPayload(null);
-        setError(err instanceof Error ? err.message : "Failed to load access posture.");
-      });
-  }, []);
-
-  const summary = (payload?.summary || {}) as GenericMap;
-  const users = (payload?.users || []) as GenericMap[];
-  const groups = (payload?.groups || []) as GenericMap[];
-  const sourceAcl = (payload?.source_acl || []) as GenericMap[];
-
-  return (
-    <div className="admin-route-page">
-      <AdminSectionIntro
-        eyebrow="Read-only"
-        title="Access"
-        description="Review users, groups, and document ACL posture so operators do not have to inspect the database directly."
-        badge={`${formatCount(summary.group_count, "group")}`}
-      />
-      {error ? <div className="error-banner">{error}</div> : null}
-      <section className="admin-summary-cards">
-        <article className="card">
-          <h2>Users</h2>
-          <p>{formatCount(summary.user_count, "synced user")}</p>
-        </article>
-        <article className="card">
-          <h2>Groups</h2>
-          <p>{formatCount(summary.group_count, "group")}</p>
-        </article>
-        <article className="card">
-          <h2>Protected Sources</h2>
-          <p>{formatCount(summary.protected_source_count, "protected source")}</p>
-        </article>
-        <article className="card">
-          <h2>Open Sources</h2>
-          <p>{formatCount(summary.open_source_count, "open source")}</p>
-        </article>
-      </section>
-      <div className="results-grid">
-        <section className="card">
-          <div className="section-head">
-            <div>
-              <h2>Groups</h2>
-              <p>Member counts and protected-source coverage by group.</p>
-            </div>
-          </div>
-          <div className="table-list">
-            {groups.length ? groups.map((group) => (
-              <article key={String(group.name)} className="table-row">
-                <div>
-                  <strong>{String(group.name)}</strong>
-                  <span className="muted-copy">{`${formatCount(group.member_count, "member")} • ${formatCount(group.source_count, "source")}`}</span>
-                </div>
-              </article>
-            )) : <EmptyState title="No groups synced yet." copy="Groups will appear here once authenticated users and ACLs are synced." />}
-          </div>
-        </section>
-        <section className="card">
-          <div className="section-head">
-            <div>
-              <h2>Users</h2>
-              <p>Recent synced users and their current group memberships.</p>
-            </div>
-          </div>
-          <div className="table-list">
-            {users.length ? users.map((user) => (
-              <article key={String(user.external_user_id)} className="table-row">
-                <div>
-                  <strong>{String(user.display_name || user.email || user.external_user_id)}</strong>
-                  <span className="muted-copy">{Array.isArray(user.groups) && user.groups.length ? (user.groups as string[]).join(", ") : "No groups synced"}</span>
-                </div>
-                <div className="table-metrics">
-                  <span>{formatTimestamp(user.updated_at)}</span>
-                </div>
-              </article>
-            )) : <EmptyState title="No users synced yet." copy="User sync will populate after authenticated requests pass through the system." />}
-          </div>
-        </section>
-      </div>
-      <section className="card">
-        <div className="section-head">
-          <div>
-            <h2>Document ACL Coverage</h2>
-            <p>Source-level ACL posture across the current source inventory.</p>
-          </div>
-        </div>
-        <div className="table-list">
-          {sourceAcl.length ? sourceAcl.map((item) => (
-            <article key={String(item.source_id)} className="table-row">
-              <div>
-                <strong>{String(item.file_name)}</strong>
-                <span className="muted-copy">{`${String(item.corpus_name || "No corpus")} • ${String(item.sensitivity_label || "internal")}`}</span>
-              </div>
-              <div className="table-metrics">
-                <span>{Array.isArray(item.groups) && item.groups.length ? (item.groups as string[]).join(", ") : "No explicit ACL"}</span>
-                <Link href={`/console/admin/sources?sourceId=${String(item.source_id)}`} className="admin-inline-link">Open source</Link>
-              </div>
-            </article>
-          )) : <EmptyState title="No source ACL data yet." copy="Once sources exist, their group assignments and open/protected posture will appear here." />}
-        </div>
       </section>
     </div>
   );
@@ -2846,28 +2442,28 @@ export function AuditLogAdminPanel() {
           </div>
         </div>
         <div className="admin-filter-grid admin-filter-grid-3">
-          <input value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search action, actor, or resource" />
-          <input value={draftFilters.action} onChange={(event) => setDraftFilters((current) => ({ ...current, action: event.target.value }))} placeholder="Action, e.g. profile.activate" />
-          <input value={draftFilters.resourceType} onChange={(event) => setDraftFilters((current) => ({ ...current, resourceType: event.target.value }))} placeholder="Resource type, e.g. source" />
+          <TextInput value={draftFilters.query} onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Search action, actor, or resource" />
+          <TextInput value={draftFilters.action} onChange={(event) => setDraftFilters((current) => ({ ...current, action: event.target.value }))} placeholder="Action, e.g. profile.activate" />
+          <TextInput value={draftFilters.resourceType} onChange={(event) => setDraftFilters((current) => ({ ...current, resourceType: event.target.value }))} placeholder="Resource type, e.g. source" />
         </div>
         <div className="admin-filter-grid admin-filter-grid-3">
-          <input value={draftFilters.actor} onChange={(event) => setDraftFilters((current) => ({ ...current, actor: event.target.value }))} placeholder="Actor email or id" />
-          <input value={draftFilters.sourceId} onChange={(event) => setDraftFilters((current) => ({ ...current, sourceId: event.target.value }))} placeholder="Source id" />
-          <input value={draftFilters.jobId} onChange={(event) => setDraftFilters((current) => ({ ...current, jobId: event.target.value }))} placeholder="Job id" />
+          <TextInput value={draftFilters.actor} onChange={(event) => setDraftFilters((current) => ({ ...current, actor: event.target.value }))} placeholder="Actor email or id" />
+          <TextInput value={draftFilters.sourceId} onChange={(event) => setDraftFilters((current) => ({ ...current, sourceId: event.target.value }))} placeholder="Source id" />
+          <TextInput value={draftFilters.jobId} onChange={(event) => setDraftFilters((current) => ({ ...current, jobId: event.target.value }))} placeholder="Job id" />
         </div>
         <div className="admin-filter-grid admin-filter-grid-3">
-          <input type="datetime-local" value={draftFilters.fromTs} onChange={(event) => setDraftFilters((current) => ({ ...current, fromTs: event.target.value }))} />
-          <input type="datetime-local" value={draftFilters.toTs} onChange={(event) => setDraftFilters((current) => ({ ...current, toTs: event.target.value }))} />
-          <select value={draftFilters.outcome} onChange={(event) => setDraftFilters((current) => ({ ...current, outcome: event.target.value }))}>
+          <TextInput type="datetime-local" value={draftFilters.fromTs} onChange={(event) => setDraftFilters((current) => ({ ...current, fromTs: event.target.value }))} />
+          <TextInput type="datetime-local" value={draftFilters.toTs} onChange={(event) => setDraftFilters((current) => ({ ...current, toTs: event.target.value }))} />
+          <Select value={draftFilters.outcome} onChange={(event) => setDraftFilters((current) => ({ ...current, outcome: event.target.value }))}>
             <option value="">Any outcome</option>
             <option value="completed">completed</option>
             <option value="failed">failed</option>
-          </select>
-          <select value={draftFilters.sort} onChange={(event) => setDraftFilters((current) => ({ ...current, sort: event.target.value }))}>
+          </Select>
+          <Select value={draftFilters.sort} onChange={(event) => setDraftFilters((current) => ({ ...current, sort: event.target.value }))}>
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="action">Action</option>
-          </select>
+          </Select>
         </div>
         <div className="toolbar-inline">
           <span className={`badge ${hasPendingFilterChanges ? "is-warning" : ""}`}>{hasPendingFilterChanges ? "Unapplied filter changes" : `Showing ${visibleEvents.length} of ${payload.events.length} events`}</span>

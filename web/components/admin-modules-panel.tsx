@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
 import type { AdminModulesPayload } from "@/lib/admin-modules";
+import { TextInput } from "@/components/ui/TextInput";
+import { Toggle } from "@/components/ui/Toggle";
 
 export function AdminModulesPanel() {
   const [payload, setPayload] = useState<AdminModulesPayload | null>(null);
@@ -93,7 +95,7 @@ export function AdminModulesPanel() {
                     background: checked ? "var(--color-background-secondary)" : "var(--color-background-primary)",
                   }}
                 >
-                  <input type="checkbox" checked={checked} disabled={locked || busy} onChange={() => toggle(module.key)} />
+                  <Toggle checked={checked} disabled={locked || busy} onChange={() => toggle(module.key)} />
                   <span style={{ display: "grid", gap: 4 }}>
                     <strong>{module.label}{locked ? " (always on)" : ""}</strong>
                     <small style={{ color: "var(--color-text-secondary)" }}>{module.description}</small>
@@ -106,7 +108,7 @@ export function AdminModulesPanel() {
 
           <label style={{ display: "grid", gap: 4, maxWidth: 360 }}>
             <span>Approval actor (required in governed production)</span>
-            <input value={approvalActor} onChange={(event) => setApprovalActor(event.target.value)} placeholder="Separate approver user ID" />
+            <TextInput value={approvalActor} onChange={(event) => setApprovalActor(event.target.value)} placeholder="Separate approver user ID" />
           </label>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

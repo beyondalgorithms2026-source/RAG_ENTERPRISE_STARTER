@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
+import { TextInput } from "@/components/ui/TextInput";
 
 type GenericMap = Record<string, unknown>;
 
@@ -83,11 +84,11 @@ export function AdminFlywheelPanel() {
       {error ? <p style={{ color: "var(--color-text-danger)" }}>{error}</p> : null}
 
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-        <input style={{ width: 140 }} placeholder="Cluster id" value={clusterId} onChange={(e) => setClusterId(e.target.value)} />
+        <TextInput style={{ width: 140 }} placeholder="Cluster id" value={clusterId} onChange={(e) => setClusterId(e.target.value)} />
         <button type="button" className="button button-secondary" onClick={propose} disabled={busy === "propose" || !clusterId}>
           {busy === "propose" ? "Proposing…" : "Propose cases"}
         </button>
-        <input style={{ width: 160 }} placeholder="Pack name" value={packName} onChange={(e) => setPackName(e.target.value)} />
+        <TextInput style={{ width: 160 }} placeholder="Pack name" value={packName} onChange={(e) => setPackName(e.target.value)} />
         <button type="button" className="button button-primary" onClick={append} disabled={busy === "append" || proposed.length === 0}>
           {busy === "append" ? "Appending…" : `Append ${proposed.length} (quarantined)`}
         </button>

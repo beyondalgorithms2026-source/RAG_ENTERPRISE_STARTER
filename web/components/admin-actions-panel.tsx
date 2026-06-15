@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
+import { TextInput } from "@/components/ui/TextInput";
 
 type Approval = {
   id: number;
@@ -208,9 +211,9 @@ export function AdminActionsPanel() {
       <section className="admin-card page-stack">
         <h2>Tool Invocation</h2>
         <div className="admin-form-grid">
-          <label><span>Tool</span><select value={toolDraft.tool_name} onChange={(event) => setToolDraft((current) => ({ ...current, tool_name: event.target.value }))}><option value="generate_report">generate_report</option><option value="send_email">send_email</option><option value="send_slack">send_slack</option><option value="create_calendar_event">create_calendar_event</option></select></label>
-          <label><span>Corpus</span><input value={toolDraft.corpus_name} onChange={(event) => setToolDraft((current) => ({ ...current, corpus_name: event.target.value }))} /></label>
-          <label className="form-span-3"><span>Payload JSON</span><textarea value={toolDraft.payload} rows={4} onChange={(event) => setToolDraft((current) => ({ ...current, payload: event.target.value }))} /></label>
+          <label><span>Tool</span><Select value={toolDraft.tool_name} onChange={(event) => setToolDraft((current) => ({ ...current, tool_name: event.target.value }))}><option value="generate_report">generate_report</option><option value="send_email">send_email</option><option value="send_slack">send_slack</option><option value="create_calendar_event">create_calendar_event</option></Select></label>
+          <label><span>Corpus</span><TextInput value={toolDraft.corpus_name} onChange={(event) => setToolDraft((current) => ({ ...current, corpus_name: event.target.value }))} /></label>
+          <label className="form-span-3"><span>Payload JSON</span><Textarea value={toolDraft.payload} rows={4} onChange={(event) => setToolDraft((current) => ({ ...current, payload: event.target.value }))} /></label>
         </div>
         <div className="toolbar-inline">
           <button type="button" className="stitch-button stitch-button-primary" onClick={invokeTool}>Invoke Tool</button>
@@ -235,7 +238,7 @@ export function AdminActionsPanel() {
                   <button type="button" className="stitch-button stitch-button-secondary" disabled={approval.status !== "pending"} onClick={() => reviewApproval(approval.id, "denied")}>Deny</button>
                 </div>
               </div>
-              <textarea value={reviewReasons[approval.id] || ""} rows={2} onChange={(event) => setReviewReasons((current) => ({ ...current, [approval.id]: event.target.value }))} placeholder="Review reason" />
+              <Textarea value={reviewReasons[approval.id] || ""} rows={2} onChange={(event) => setReviewReasons((current) => ({ ...current, [approval.id]: event.target.value }))} placeholder="Review reason" />
             </article>
           ))}
         </div>

@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
+import { Select } from "@/components/ui/Select";
+import { TextInput } from "@/components/ui/TextInput";
+import { Field } from "@/components/ui/Field";
+import { NumberInput } from "@/components/ui/NumberInput";
 
 type GenericMap = Record<string, unknown>;
 
@@ -157,34 +161,34 @@ export function AdminProvidersPanel() {
       {message ? <p style={{ color: "var(--color-text-success)" }}>{message}</p> : null}
 
       <Field label="Existing profile">
-        <select value={selectedName} onChange={(event) => selectProfile(event.target.value)}>
+        <Select value={selectedName} onChange={(event) => selectProfile(event.target.value)}>
           <option value="">Create a new profile</option>
           {profiles.map((profile) => (
             <option key={profile.name} value={profile.name}>
               {profile.name}{profile.is_active ? " (active)" : ""}
             </option>
           ))}
-        </select>
+        </Select>
       </Field>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" }}>
-        <Field label="Profile name"><input value={form.profile_name} disabled={Boolean(selectedName)} onChange={(e) => update("profile_name", e.target.value)} placeholder="e.g. azure-gpt4o" /></Field>
+        <Field label="Profile name"><TextInput value={form.profile_name} disabled={Boolean(selectedName)} onChange={(e) => update("profile_name", e.target.value)} placeholder="e.g. azure-gpt4o" /></Field>
         <Field label="Provider">
-          <select value={form.provider} onChange={(e) => update("provider", e.target.value)}>
+          <Select value={form.provider} onChange={(e) => update("provider", e.target.value)}>
             {providers.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
+          </Select>
         </Field>
-        <Field label="Model"><input value={form.model} onChange={(e) => update("model", e.target.value)} placeholder="gpt-4o-mini" /></Field>
-        <Field label="Base URL"><input value={form.base_url} onChange={(e) => update("base_url", e.target.value)} placeholder="https://api.openai.com" /></Field>
-        <Field label={`API key (write-only${profiles.find((profile) => profile.name === selectedName)?.config.api_key_configured ? ", configured" : ""})`}><input type="password" value={form.api_key} onChange={(e) => update("api_key", e.target.value)} placeholder={selectedName ? "Leave blank to preserve current key" : "Enter provider key"} autoComplete="new-password" /></Field>
-        <Field label="Timeout (s)"><input type="number" min={1} value={form.timeout_s} onChange={(e) => update("timeout_s", Number(e.target.value))} /></Field>
+        <Field label="Model"><TextInput value={form.model} onChange={(e) => update("model", e.target.value)} placeholder="gpt-4o-mini" /></Field>
+        <Field label="Base URL"><TextInput value={form.base_url} onChange={(e) => update("base_url", e.target.value)} placeholder="https://api.openai.com" /></Field>
+        <Field label={`API key (write-only${profiles.find((profile) => profile.name === selectedName)?.config.api_key_configured ? ", configured" : ""})`}><TextInput type="password" value={form.api_key} onChange={(e) => update("api_key", e.target.value)} placeholder={selectedName ? "Leave blank to preserve current key" : "Enter provider key"} autoComplete="new-password" /></Field>
+        <Field label="Timeout (s)"><NumberInput min={1} value={form.timeout_s} onChange={(e) => update("timeout_s", Number(e.target.value))} /></Field>
         <Field label="Structured output mode">
-          <select value={form.structured_output_mode} onChange={(e) => update("structured_output_mode", e.target.value)}>
+          <Select value={form.structured_output_mode} onChange={(e) => update("structured_output_mode", e.target.value)}>
             <option value="native_json">native_json</option>
             <option value="prompt_json_only">prompt_json_only</option>
-          </select>
+          </Select>
         </Field>
-        <Field label="Reasoning effort (optional)"><input value={form.reasoning_effort} onChange={(e) => update("reasoning_effort", e.target.value)} placeholder="none / low / …" /></Field>
+        <Field label="Reasoning effort (optional)"><TextInput value={form.reasoning_effort} onChange={(e) => update("reasoning_effort", e.target.value)} placeholder="none / low / …" /></Field>
       </div>
 
       <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
@@ -197,14 +201,5 @@ export function AdminProvidersPanel() {
         ) : null}
       </div>
     </section>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
-      <span style={{ color: "var(--color-text-secondary)" }}>{label}</span>
-      {children}
-    </label>
   );
 }

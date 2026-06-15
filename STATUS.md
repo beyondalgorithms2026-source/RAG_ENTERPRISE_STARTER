@@ -2,7 +2,7 @@
 
 **Last completed M-series milestone:** M33 — Governed Semantic Cache Policies, Scoped Enablement, And User Refresh  
 **Active work track:** M20–M30 manual verification closure
-**Current AR milestone:** AR0–AR18 complete. Next: AR19 — Admin Console Component & Form-System Refactor.
+**Current AR milestone:** AR0–AR19 complete. Next: AR20 — UI Consistency & Alignment Remediation.
 
 ## Independent Product Audit (2026-06-11)
 
@@ -42,7 +42,7 @@ Git tag: `audit-baseline-2026-06-11`
 | AR16 — Embedding & Model-Swap Console | **Complete (2026-06-15)** | `/console/admin/embedding` drives the AR7 lifecycle (plan→begin→run batches with progress→verify→abort), serving-state header + keyword-only banner during reindex, swap history; web-only (no backend change); 321/321 suite; tsc clean; note: `docs/milestones/AR16_embedding_model_swap_console.md` |
 | AR17 — Provider & Cost-Governance Console | **Complete (2026-06-15)** | `/console/admin/providers` creates/updates/tests/activates provider profiles; API keys are write-only and redacted from responses/audits; MIG-P027 runtime settings provide runtime→env→default budget, price-table, and eval-enforcement precedence; cost/tuning consoles edit governed values with approval-actor support; 333/333 suite; note: `docs/milestones/AR17_generation_provider_cost_governance_console.md` |
 | AR18 — UI Modularity & Least-Privilege Gating | **Complete (2026-06-15)** | Health/cost/flywheel/embedding/providers are first-class modules; formerly ungated embedding/LLM/retrieval endpoint groups now return 403 when disabled; runtime→env→scenario precedence uses MIG-P027; `/console/admin/modules` manages the audited deployment-wide subset; 340/340 suite; note: `docs/milestones/AR18_admin_ui_modularity_and_least_privilege_gating.md` |
-| AR19 — Console Component & Form-System Refactor | Not started | P2 — decompose the 1.3k-line profiles mega-panel; shared `web/components/ui` primitives |
+| AR19 — Console Component & Form-System Refactor | **Complete (2026-06-15)** | 1,403-line profiles mega-component replaced by a 36-line composer + four sub-400-line panels; shared form primitives adopted across active admin controls; endpoint behavior preserved; note: `docs/milestones/AR19_admin_console_component_and_form_system_refactor.md` |
 | AR20 — UI Consistency & Alignment | Not started | P2 — fix unstyled selects, tan/olive input fills, label spacing, grid alignment; consistency checklist |
 
 ## Current Repo Posture
@@ -71,7 +71,8 @@ M20, M21, M22, M23, M24, M25, M26, M27, M28, M29, M30
 
 ## Current Verification Debt
 
-- **Test suite is green:** `make test` — 340/340 on the live vector(768) dev DB (AR18); AR1 verified 224/224 on a freshly migrated empty DB as well
+- **Test suite is green:** AR19 final count pending release-gate run on the live vector(768) dev DB; AR18 baseline was 340/340; AR1 verified 224/224 on a freshly migrated empty DB as well
+- AR19: form structure is unified, but visual spacing/alignment and native select polish remain explicitly deferred to AR20
 - AR18: admin-module composition is deployment-wide, not tenant-scoped; arbitrary custom subsets may disable a module needed by another panel, so scenario presets remain the supported coherent defaults
 - AR17: provider API keys are no longer returned or written to audit payloads, but remain stored in profile JSON; production deployments must provide database-at-rest encryption or an external secret manager
 - AR17: OpenAI/Azure/vLLM/Anthropic provider flows are transport-mocked because no live cloud credentials are available; the console and provider-specific request contracts are tested

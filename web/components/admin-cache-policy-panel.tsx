@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
+import { TextInput } from "@/components/ui/TextInput";
+import { Toggle } from "@/components/ui/Toggle";
+import { NumberInput } from "@/components/ui/NumberInput";
 
 type GenericMap = Record<string, unknown>;
 type PolicyVersion = GenericMap & {
@@ -215,10 +220,10 @@ export function AdminCachePolicyPanel() {
           <section className="card">
             <h2>A. Purpose</h2>
             <div className="cache-policy-fields">
-              <label><span>Policy name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
-              <label><span>Owner</span><input value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })} /></label>
-              <label><span>Review date</span><input type="date" value={form.review_at} onChange={(event) => setForm({ ...form, review_at: event.target.value })} /></label>
-              <label className="is-wide"><span>Business justification</span><textarea rows={3} value={form.justification} onChange={(event) => setForm({ ...form, justification: event.target.value })} /></label>
+              <label><span>Policy name</span><TextInput value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
+              <label><span>Owner</span><TextInput value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })} /></label>
+              <label><span>Review date</span><TextInput type="date" value={form.review_at} onChange={(event) => setForm({ ...form, review_at: event.target.value })} /></label>
+              <label className="is-wide"><span>Business justification</span><Textarea rows={3} value={form.justification} onChange={(event) => setForm({ ...form, justification: event.target.value })} /></label>
             </div>
           </section>
 
@@ -226,14 +231,14 @@ export function AdminCachePolicyPanel() {
             <h2>B. Scope</h2>
             <p className="cache-policy-scope-statement">{scopeText}</p>
             <div className="cache-policy-scope-grid">
-              <fieldset><legend>Allowed corpora</legend>{corpora.map((item) => <label key={item}><input type="checkbox" checked={form.allow_corpora.includes(item)} onChange={() => toggle("allow_corpora", item)} />{item}</label>)}</fieldset>
-              <fieldset><legend>Denied corpora</legend>{corpora.map((item) => <label key={item}><input type="checkbox" checked={form.deny_corpora.includes(item)} onChange={() => toggle("deny_corpora", item)} />{item}</label>)}</fieldset>
-              <fieldset><legend>Allowed ACL groups</legend>{groups.map((item) => <label key={item}><input type="checkbox" checked={form.allow_groups.includes(item)} onChange={() => toggle("allow_groups", item)} />{item}</label>)}</fieldset>
-              <fieldset><legend>Denied ACL groups</legend>{groups.map((item) => <label key={item}><input type="checkbox" checked={form.deny_groups.includes(item)} onChange={() => toggle("deny_groups", item)} />{item}</label>)}</fieldset>
+              <fieldset><legend>Allowed corpora</legend>{corpora.map((item) => <Toggle key={item} label={item} checked={form.allow_corpora.includes(item)} onChange={() => toggle("allow_corpora", item)} />)}</fieldset>
+              <fieldset><legend>Denied corpora</legend>{corpora.map((item) => <Toggle key={item} label={item} checked={form.deny_corpora.includes(item)} onChange={() => toggle("deny_corpora", item)} />)}</fieldset>
+              <fieldset><legend>Allowed ACL groups</legend>{groups.map((item) => <Toggle key={item} label={item} checked={form.allow_groups.includes(item)} onChange={() => toggle("allow_groups", item)} />)}</fieldset>
+              <fieldset><legend>Denied ACL groups</legend>{groups.map((item) => <Toggle key={item} label={item} checked={form.deny_groups.includes(item)} onChange={() => toggle("deny_groups", item)} />)}</fieldset>
             </div>
             <div className="cache-policy-fields">
-              <label><span>Approved exact questions, one per line</span><textarea rows={5} value={form.allow_questions} onChange={(event) => setForm({ ...form, allow_questions: event.target.value })} /></label>
-              <label><span>Denied exact questions, one per line</span><textarea rows={5} value={form.deny_questions} onChange={(event) => setForm({ ...form, deny_questions: event.target.value })} /></label>
+              <label><span>Approved exact questions, one per line</span><Textarea rows={5} value={form.allow_questions} onChange={(event) => setForm({ ...form, allow_questions: event.target.value })} /></label>
+              <label><span>Denied exact questions, one per line</span><Textarea rows={5} value={form.deny_questions} onChange={(event) => setForm({ ...form, deny_questions: event.target.value })} /></label>
             </div>
           </section>
 
@@ -243,16 +248,16 @@ export function AdminCachePolicyPanel() {
               <summary>Advanced settings</summary>
               <div className="cache-policy-fields">
                 <label><span>Match mode</span>
-                  <select value={form.match_mode} onChange={(event) => setForm({ ...form, match_mode: event.target.value })}>
+                  <Select value={form.match_mode} onChange={(event) => setForm({ ...form, match_mode: event.target.value })}>
                     <option value="exact">Exact query</option>
                     <option value="semantic">Semantic similarity</option>
-                  </select>
+                  </Select>
                 </label>
                 {form.match_mode === "semantic" ? (
-                  <label><span>Similarity threshold</span><input type="number" min={0.5} max={0.999} step={0.01} value={form.similarity_threshold} onChange={(event) => setForm({ ...form, similarity_threshold: Number(event.target.value) })} /></label>
+                  <label><span>Similarity threshold</span><NumberInput min={0.5} max={0.999} step={0.01} value={form.similarity_threshold} onChange={(event) => setForm({ ...form, similarity_threshold: Number(event.target.value) })} /></label>
                 ) : null}
-                <label><span>TTL seconds</span><input type="number" min={30} max={86400} value={form.ttl_seconds} onChange={(event) => setForm({ ...form, ttl_seconds: Number(event.target.value) })} /></label>
-                <label><span>Maximum active entries</span><input type="number" min={1} max={100000} value={form.max_active_entries} onChange={(event) => setForm({ ...form, max_active_entries: Number(event.target.value) })} /></label>
+                <label><span>TTL seconds</span><NumberInput min={30} max={86400} value={form.ttl_seconds} onChange={(event) => setForm({ ...form, ttl_seconds: Number(event.target.value) })} /></label>
+                <label><span>Maximum active entries</span><NumberInput min={1} max={100000} value={form.max_active_entries} onChange={(event) => setForm({ ...form, max_active_entries: Number(event.target.value) })} /></label>
               </div>
               <p>Locked on: grounded answer, citations, ACL revalidation, and exclusion of no-evidence, approval, tool-action, failed, incomplete, and dry-run responses.</p>
             </details>
@@ -272,9 +277,9 @@ export function AdminCachePolicyPanel() {
             <section className="card">
               <h2>Validate And Activate</h2>
               <div className="cache-policy-fields">
-                <label><span>Eligible test question</span><input value={checkQuestion} onChange={(event) => setCheckQuestion(event.target.value)} /></label>
-                <label><span>Approval actor (required outside local mode)</span><input value={approvalActor} onChange={(event) => setApprovalActor(event.target.value)} /></label>
-                <label><span>Type policy name to activate</span><input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label>
+                <label><span>Eligible test question</span><TextInput value={checkQuestion} onChange={(event) => setCheckQuestion(event.target.value)} /></label>
+                <label><span>Approval actor (required outside local mode)</span><TextInput value={approvalActor} onChange={(event) => setApprovalActor(event.target.value)} /></label>
+                <label><span>Type policy name to activate</span><TextInput value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label>
               </div>
               <div className="toolbar-inline">
                 <button className="button button-secondary" type="button" disabled={!checkQuestion || busy !== "" || !selected.draft_version} onClick={() => action("check")}>Run Scoped Policy Check</button>
