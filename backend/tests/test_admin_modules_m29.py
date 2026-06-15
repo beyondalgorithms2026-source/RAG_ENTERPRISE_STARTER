@@ -7,6 +7,7 @@ from app.auth.admin_modules import admin_modules_payload, enabled_admin_modules
 from app.auth.context import AuthenticatedUser
 from app.auth.service import AuthError, validate_security_posture
 from app.core.config import settings
+from app.db.repo_runtime_settings import delete_setting, get_setting, set_setting
 from app.main import app
 
 
@@ -20,6 +21,8 @@ class AdminModulesM29Tests(unittest.TestCase):
         }
         self.original_authenticate = main_module.authenticate_request
         self.original_sync = main_module.sync_authenticated_user
+        self.original_runtime_modules = get_setting("admin_modules_enabled")
+        delete_setting("admin_modules_enabled")
         settings.AUTH_MODE = "dev"
         settings.APP_ENV = "local"
         self.admin = AuthenticatedUser(user_id="m29-admin", email="m29-admin@example.test", roles=["admin"])
@@ -27,6 +30,10 @@ class AdminModulesM29Tests(unittest.TestCase):
         main_module.sync_authenticated_user = lambda user: None
 
     def tearDown(self):
+        if self.original_runtime_modules is None:
+            delete_setting("admin_modules_enabled")
+        else:
+            set_setting("admin_modules_enabled", self.original_runtime_modules)
         for key, value in self.original.items():
             setattr(settings, key, value)
         main_module.authenticate_request = self.original_authenticate
