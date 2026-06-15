@@ -210,7 +210,7 @@ export function AdminActionsPanel() {
 
       <section className="admin-card page-stack">
         <h2>Tool Invocation</h2>
-        <div className="admin-form-grid">
+        <div className="admin-form-grid" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>
           <label><span>Tool</span><Select value={toolDraft.tool_name} onChange={(event) => setToolDraft((current) => ({ ...current, tool_name: event.target.value }))}><option value="generate_report">generate_report</option><option value="send_email">send_email</option><option value="send_slack">send_slack</option><option value="create_calendar_event">create_calendar_event</option></Select></label>
           <label><span>Corpus</span><TextInput value={toolDraft.corpus_name} onChange={(event) => setToolDraft((current) => ({ ...current, corpus_name: event.target.value }))} /></label>
           <label className="form-span-3"><span>Payload JSON</span><Textarea value={toolDraft.payload} rows={4} onChange={(event) => setToolDraft((current) => ({ ...current, payload: event.target.value }))} /></label>
