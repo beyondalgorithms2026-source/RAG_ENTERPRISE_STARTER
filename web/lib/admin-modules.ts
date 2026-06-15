@@ -28,6 +28,7 @@ const enterpriseNavigation: AdminNavItem[] = [
   { module: "corpora", href: "/console/admin/corpora", label: "Corpora", icon: "folder_shared" },
   { module: "jobs", href: "/console/admin/jobs", label: "Jobs", icon: "work_history" },
   { module: "profiles", href: "/console/admin/profiles", label: "Profiles", icon: "account_circle" },
+  { module: "profiles", href: "/console/admin/embedding", label: "Embedding", icon: "swap_horiz" },
   { module: "evals", href: "/console/admin/evals", label: "Evals", icon: "analytics" },
   { module: "traces", href: "/console/admin/traces", label: "Traces", icon: "timeline" },
   { module: "policies", href: "/console/admin/policies", label: "Policies", icon: "policy" },
