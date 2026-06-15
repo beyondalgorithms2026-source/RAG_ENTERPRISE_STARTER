@@ -1,8 +1,8 @@
 # STATUS.md — Operational Snapshot
 
 **Last completed M-series milestone:** M33 — Governed Semantic Cache Policies, Scoped Enablement, And User Refresh  
-**Active work track:** AR-series (Audit Remediation)  
-**Current AR milestone:** AR14 — Retrieval Enhancements (AR0–AR3 closed 2026-06-12; AR4–AR13 closed 2026-06-13)
+**Active work track:** M20–M30 manual verification closure
+**Current AR milestone:** AR-series complete (AR0–AR14)
 
 ## Independent Product Audit (2026-06-11)
 
@@ -34,7 +34,7 @@ Git tag: `audit-baseline-2026-06-11`
 | AR11 — Cost/Token Governance | **Complete (2026-06-13)** | Per-call token usage (provider-reported or documented char-heuristic estimate, flagged); configurable price table (`LLM_PRICE_TABLE_JSON`); request-scoped ContextVar accumulation into trace `generation_usage`; `generation_usage_events` (MIG-P024) + `GET /admin/cost/summary` (per mode/model/provider); `LLM_COST_ALERT_USD` budget alert → audit event; sandbox compare cost/token deltas; `/console/admin/cost` page; 302/302 suite; note: `docs/milestones/AR11_cost_token_latency_governance.md` |
 | AR12 — Feedback→Eval Flywheel | **Complete (2026-06-13)** | `app/eval/feedback_flywheel.py`: failure cluster → quarantined (`unreviewed`) AR3 pack cases with trace-evidence prefill → human review/label → gating; quarantine guardrail (AR3 gate excludes unreviewed); pass-rate trend from AR4 `tuning_eval_runs`; `POST /admin/feedback-eval/{propose,append,review}` + `GET /{quarantine,trend}`; `/console/admin/flywheel` page; DoD full path tested (thumbs-down → pack → review → next eval gates it); 305/305 suite; note: `docs/milestones/AR12_feedback_to_eval_flywheel.md` |
 | AR13 — Connector Operations | **Complete (2026-06-13)** | Postgres-backed interval schedules, atomic leases, durable sync-run history, degraded health + exponential retry, source lifecycle timestamps/freshness badges across admin/user/evidence views; email truthfully scoped to uploaded `.eml`; 310/310 suite; note: `docs/milestones/AR13_connector_operations_and_source_freshness.md` |
-| AR14 — Retrieval Enhancements | Not started | P2 — only with eval-proven gains |
+| AR14 — Retrieval Enhancements | **Complete (2026-06-13)** | Real MMR with ACL-trimmed vectors and traced fallback; weighted heading/body FTS (MIG-P026); ContextVar scoring ablations; demo `causal_terms` deleted; evidence API/console; 400-case AR3 control passed with recall@5 0.504167→0.505000, MRR unchanged 0.850086, nDCG@10 0.765736→0.765930; 315/315 suite; note: `docs/milestones/AR14_eval_proven_retrieval_enhancements.md` |
 
 ## Current Repo Posture
 
@@ -62,7 +62,8 @@ M20, M21, M22, M23, M24, M25, M26, M27, M28, M29, M30
 
 ## Current Verification Debt
 
-- **Test suite is green:** `make test` — 310/310 on the dev DB (AR13); AR1 verified 224/224 on a freshly migrated empty DB as well
+- **Test suite is green:** `make test` — 315/315 on the dev DB (AR14); AR1 verified 224/224 on a freshly migrated empty DB as well
+- AR14: graph/temporal verdicts use deterministic reviewed isolation fixtures because the dev DB contains smoke-test residue rather than a real reviewed graph/temporal corpus; production-corpus validation remains open
 - AR13: connector scheduling remains an in-process poller under AR8's single-worker default; PostgreSQL leases prevent duplicate claims, but a dedicated external scheduler/worker is future production hardening
 - AR13: live mailbox/archive connectors remain unimplemented; email ingestion is uploaded `.eml` with attachment handling
 - AR12: feedback-derived eval cases land quarantined (`unreviewed`) and never gate until a human labels them; trend is per-eval-run, not yet per-corpus/profile

@@ -39,7 +39,9 @@ def _create_search_tsv_trigger() -> None:
     trigger_sql = """
     CREATE OR REPLACE FUNCTION chunks_search_tsv_update() RETURNS trigger AS $$
     BEGIN
-        NEW.search_tsv := to_tsvector('english', COALESCE(NEW.chunk_text, ''));
+        NEW.search_tsv :=
+            setweight(to_tsvector('english', COALESCE(NEW.heading, '')), 'A')
+            || setweight(to_tsvector('english', COALESCE(NEW.chunk_text, '')), 'B');
         RETURN NEW;
     END
     $$ LANGUAGE plpgsql;
@@ -47,14 +49,56 @@ def _create_search_tsv_trigger() -> None:
     DROP TRIGGER IF EXISTS chunks_search_tsv_trigger ON chunks;
 
     CREATE TRIGGER chunks_search_tsv_trigger
-    BEFORE INSERT OR UPDATE OF chunk_text
+    BEFORE INSERT OR UPDATE OF heading, chunk_text
     ON chunks
     FOR EACH ROW
     EXECUTE FUNCTION chunks_search_tsv_update();
     """
     with engine.begin() as conn:
         conn.execute(text(trigger_sql))
-        conn.execute(text("UPDATE chunks SET search_tsv = to_tsvector('english', COALESCE(chunk_text, '')) WHERE search_tsv IS NULL;"))
+        conn.execute(
+            text(
+                """
+                UPDATE chunks
+                SET search_tsv =
+                    setweight(to_tsvector('english', COALESCE(heading, '')), 'A')
+                    || setweight(to_tsvector('english', COALESCE(chunk_text, '')), 'B')
+                WHERE search_tsv IS NULL
+                """
+            )
+        )
+
+
+def _install_weighted_search_tsv() -> None:
+    trigger_sql = """
+    CREATE OR REPLACE FUNCTION chunks_search_tsv_update() RETURNS trigger AS $$
+    BEGIN
+        NEW.search_tsv :=
+            setweight(to_tsvector('english', COALESCE(NEW.heading, '')), 'A')
+            || setweight(to_tsvector('english', COALESCE(NEW.chunk_text, '')), 'B');
+        RETURN NEW;
+    END
+    $$ LANGUAGE plpgsql;
+
+    DROP TRIGGER IF EXISTS chunks_search_tsv_trigger ON chunks;
+    CREATE TRIGGER chunks_search_tsv_trigger
+    BEFORE INSERT OR UPDATE OF heading, chunk_text
+    ON chunks
+    FOR EACH ROW
+    EXECUTE FUNCTION chunks_search_tsv_update();
+    """
+    with engine.begin() as conn:
+        conn.execute(text(trigger_sql))
+        conn.execute(
+            text(
+                """
+                UPDATE chunks
+                SET search_tsv =
+                    setweight(to_tsvector('english', COALESCE(heading, '')), 'A')
+                    || setweight(to_tsvector('english', COALESCE(chunk_text, '')), 'B')
+                """
+            )
+        )
 
 
 def _patch_enrichment_job_artifact_version() -> None:
@@ -1170,6 +1214,11 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P025",
             description="Create connector scheduling/run history and source freshness timestamps (AR13)",
             runner=_create_connector_operations_tables,
+        ),
+        MigrationStep(
+            step_id="MIG-P026",
+            description="Install field-weighted heading/body full-text search (AR14)",
+            runner=_install_weighted_search_tsv,
         ),
     ]
 

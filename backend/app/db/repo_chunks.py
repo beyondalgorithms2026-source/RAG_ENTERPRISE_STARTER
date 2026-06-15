@@ -41,7 +41,9 @@ def insert_chunks(source_id: int, chunks: List[Dict], source_part_id: Optional[i
             :source_id, :source_part_id, :chunk_index, :heading, :section_path, :chunk_text,
             :token_count, CAST(:locator_json AS jsonb), CAST(:entities_json AS jsonb),
             CAST(:relations_json AS jsonb), CAST(:temporal_json AS jsonb),
-            CAST(:provenance_json AS jsonb), to_tsvector('english', :chunk_text)
+            CAST(:provenance_json AS jsonb),
+            setweight(to_tsvector('english', COALESCE(:heading, '')), 'A')
+            || setweight(to_tsvector('english', COALESCE(:chunk_text, '')), 'B')
         )
         """
     )
@@ -175,6 +177,25 @@ def update_chunk_embeddings(chunk_embeddings: List[tuple[int, List[float]]]) -> 
     with engine.begin() as conn:
         for chunk_id, embedding_vector in chunk_embeddings:
             conn.execute(sql, {"chunk_id": chunk_id, "embedding": _pgvector_literal(embedding_vector)})
+
+
+def fetch_chunk_embeddings(chunk_ids: List[int]) -> Dict[int, List[float]]:
+    if not chunk_ids:
+        return {}
+    params = {"chunk_ids": list(chunk_ids)}
+    sql = text(
+        f"""
+        SELECT c.id, c.embedding::text
+        FROM chunks c
+        JOIN sources s ON s.id = c.source_id
+        WHERE c.id = ANY(:chunk_ids)
+          AND c.embedding IS NOT NULL
+          AND {source_access_sql(params=params, source_alias="s")}
+        """
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return {int(row[0]): [float(value) for value in json.loads(row[1])] for row in rows}
 
 
 def fetch_neighbor_chunks(chunk_ids: List[int], radius: int = 1) -> List[Dict]:

@@ -1,0 +1,56 @@
+{
+  "kind": "ar14_retrieval_isolation_cases",
+  "review_status": "reviewed",
+  "limitations": "Deterministic isolation cases prove causal ranking behavior. Graph and temporal cases are fixtures because the dev DB contains smoke-test artifacts, not a real reviewed graph/temporal corpus.",
+  "features": [
+    {
+      "feature": "mmr",
+      "baseline": {"ranked": [1, 2, 3], "relevant": {"1": 3, "2": 2, "3": 2}, "diversity": 0.02},
+      "variants": [
+        {"name": "lambda_0_3", "ranked": [1, 3, 2], "diversity": 0.52, "latency_ms": 2.3},
+        {"name": "lambda_0_5", "ranked": [1, 3, 2], "diversity": 0.52, "latency_ms": 1.9},
+        {"name": "lambda_0_7", "ranked": [1, 2, 3], "diversity": 0.02, "latency_ms": 1.8}
+      ]
+    },
+    {
+      "feature": "field_weighted_fts",
+      "baseline": {"ranked": [2, 1, 3], "relevant": {"1": 3, "2": 1}, "latency_ms": 1.0},
+      "variants": [
+        {"name": "heading_A_body_B", "ranked": [1, 2, 3], "latency_ms": 1.1}
+      ]
+    },
+    {
+      "feature": "anchor_boost",
+      "baseline": {"ranked": [2, 1, 3], "relevant": {"1": 3, "2": 1}, "latency_ms": 0.0},
+      "variants": [
+        {"name": "adopted_caps", "ranked": [1, 2, 3], "latency_ms": 0.1}
+      ]
+    },
+    {
+      "feature": "graph_blend",
+      "baseline": {"ranked": [2, 1, 3], "relevant": {"1": 3, "2": 1}, "latency_ms": 0.0},
+      "variants": [
+        {"name": "weight_0_10", "ranked": [2, 1, 3], "latency_ms": 0.1},
+        {"name": "weight_0_20", "ranked": [1, 2, 3], "latency_ms": 0.1},
+        {"name": "weight_0_35", "ranked": [1, 3, 2], "latency_ms": 0.1}
+      ]
+    },
+    {
+      "feature": "temporal_blend",
+      "baseline": {"ranked": [2, 1, 3], "relevant": {"1": 3, "2": 1}, "latency_ms": 0.0},
+      "variants": [
+        {"name": "weight_0_05", "ranked": [2, 1, 3], "latency_ms": 0.1},
+        {"name": "weight_0_10", "ranked": [1, 2, 3], "latency_ms": 0.1},
+        {"name": "weight_0_20", "ranked": [1, 3, 2], "latency_ms": 0.1}
+      ]
+    },
+    {
+      "feature": "deep_research",
+      "baseline": {"ranked": [2, 3], "relevant": {"1": 3, "2": 1}, "latency_ms": 1.0},
+      "variants": [
+        {"name": "widened_without_neighbors", "ranked": [1, 2, 3], "latency_ms": 1.5},
+        {"name": "widened_with_neighbors", "ranked": [1, 2, 3, 4], "latency_ms": 1.8}
+      ]
+    }
+  ]
+}

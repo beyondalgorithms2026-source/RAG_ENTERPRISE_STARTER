@@ -1,0 +1,396 @@
+{
+  "kind": "ar14_retrieval_ablation",
+  "gate": "no_unfalsifiable_tuning",
+  "decision_policy": {
+    "core_non_regression": [
+      "recall_at_5",
+      "mrr"
+    ],
+    "minimum_gain": 0.01,
+    "gain_metrics": [
+      "ndcg_at_10",
+      "feature_specific"
+    ]
+  },
+  "limitations": "Deterministic isolation cases prove causal ranking behavior. Graph and temporal cases are fixtures because the dev DB contains smoke-test artifacts, not a real reviewed graph/temporal corpus.",
+  "global_control": {
+    "before": {
+      "mrr": 0.8500863095238096,
+      "ndcg_at_10": 0.7657362254892962,
+      "ndcg_at_5": 0.7600787174102241,
+      "recall_at_10": 0.5391666666666667,
+      "recall_at_5": 0.5041666666666667
+    },
+    "after": {
+      "mrr": 0.8500863095238096,
+      "ndcg_at_10": 0.7659302161437149,
+      "ndcg_at_5": 0.760272708064643,
+      "recall_at_10": 0.54,
+      "recall_at_5": 0.505
+    },
+    "after_gate": {
+      "status": "pass",
+      "thresholds": {
+        "recall_at_5": 0.45,
+        "mrr": 0.78
+      },
+      "failures": []
+    }
+  },
+  "evidence": [
+    {
+      "feature": "mmr",
+      "baseline_metrics": {
+        "mrr": 1.0,
+        "recall_at_5": 1.0,
+        "ndcg_at_5": 1.0,
+        "recall_at_10": 1.0,
+        "ndcg_at_10": 1.0
+      },
+      "variants": [
+        {
+          "name": "lambda_0_3",
+          "metrics": {
+            "mrr": 1.0,
+            "recall_at_5": 1.0,
+            "ndcg_at_5": 1.0,
+            "recall_at_10": 1.0,
+            "ndcg_at_10": 1.0
+          },
+          "deltas": {
+            "recall_at_5": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_10": 0.0
+          },
+          "feature_metric": {
+            "name": "intra_list_diversity",
+            "delta": 0.5
+          },
+          "latency_ms": 2.3,
+          "passes": true
+        },
+        {
+          "name": "lambda_0_5",
+          "metrics": {
+            "mrr": 1.0,
+            "recall_at_5": 1.0,
+            "ndcg_at_5": 1.0,
+            "recall_at_10": 1.0,
+            "ndcg_at_10": 1.0
+          },
+          "deltas": {
+            "recall_at_5": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_10": 0.0
+          },
+          "feature_metric": {
+            "name": "intra_list_diversity",
+            "delta": 0.5
+          },
+          "latency_ms": 1.9,
+          "passes": true
+        },
+        {
+          "name": "lambda_0_7",
+          "metrics": {
+            "mrr": 1.0,
+            "recall_at_5": 1.0,
+            "ndcg_at_5": 1.0,
+            "recall_at_10": 1.0,
+            "ndcg_at_10": 1.0
+          },
+          "deltas": {
+            "recall_at_5": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_10": 0.0
+          },
+          "feature_metric": {
+            "name": "intra_list_diversity",
+            "delta": 0.0
+          },
+          "latency_ms": 1.8,
+          "passes": false
+        }
+      ],
+      "verdict": "adopted",
+      "chosen": "lambda_0_5"
+    },
+    {
+      "feature": "field_weighted_fts",
+      "baseline_metrics": {
+        "mrr": 1.0,
+        "recall_at_5": 1.0,
+        "ndcg_at_5": 0.7098097413968655,
+        "recall_at_10": 1.0,
+        "ndcg_at_10": 0.7098097413968655
+      },
+      "variants": [
+        {
+          "name": "heading_A_body_B",
+          "metrics": {
+            "mrr": 1.0,
+            "recall_at_5": 1.0,
+            "ndcg_at_5": 1.0,
+            "recall_at_10": 1.0,
+            "ndcg_at_10": 1.0
+          },
+          "deltas": {
+            "recall_at_5": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_10": 0.2902
+          },
+          "feature_metric": null,
+          "latency_ms": 1.1,
+          "passes": true
+        }
+      ],
+      "verdict": "adopted",
+      "chosen": "heading_A_body_B"
+    },
+    {
+      "feature": "anchor_boost",
+      "baseline_metrics": {
+        "mrr": 1.0,
+        "recall_at_5": 1.0,
+        "ndcg_at_5": 0.7098097413968655,
+        "recall_at_10": 1.0,
+        "ndcg_at_10": 0.7098097413968655
+      },
+      "variants": [
+        {
+          "name": "adopted_caps",
+          "metrics": {
+            "mrr": 1.0,
+            "recall_at_5": 1.0,
+            "ndcg_at_5": 1.0,
+            "recall_at_10": 1.0,
+            "ndcg_at_10": 1.0
+          },
+          "deltas": {
+            "recall_at_5": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_10": 0.2902
+          },
+          "feature_metric": null,
+          "latency_ms": 0.1,
+          "passes": true
+        }
+      ],
+      "verdict": "adopted",
+      "chosen": "adopted_caps"
+    },
+    {
+      "feature": "graph_blend",
+      "baseline_metrics": {
+        "mrr": 1.0,
+        "recall_at_5": 1.0,
+        "ndcg_at_5": 0.7098097413968655,
+        "recall_at_10": 1.0,
+        "ndcg_at_10": 0.7098097413968655
+      },
+      "variants": [
+        {
+          "name": "weight_0_10",
+          "metrics": {
+            "mrr": 1.0,
+            "recall_at_5": 1.0,
+            "ndcg_at_5": 0.7098097413968655,
+            "recall_at_10": 1.0,
+            "ndcg_at_10": 0.7098097413968655
+          },
+          "deltas": {
+            "recall_at_5": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_10": 0.0
+          },
+          "feature_metric": null,
+          "latency_ms": 0.1,
+          "passes": false
+        },
+        {
+          "name": "weight_0_20",
+          "metrics": {
+            "mrr": 1.0,
+            "recall_at_5": 1.0,
+            "ndcg_at_5": 1.0,
+            "recall_at_10": 1.0,
+            "ndcg_at_10": 1.0
+          },
+          "deltas": {
+            "recall_at_5": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_10": 0.2902
+          },
+          "feature_metric": null,
+          "latency_ms": 0.1,
+          "passes": true
+        },
+        {
+          "name": "weight_0_35",
+          "metrics": {
+            "mrr": 1.0,
+            "recall_at_5": 1.0,
+            "ndcg_at_5": 0.9828422279067397,
+            "recall_at_10": 1.0,
+            "ndcg_at_10": 0.9828422279067397
+          },
+          "deltas": {
+            "recall_at_5": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_10": 0.273
+          },
+          "feature_metric": null,
+          "latency_ms": 0.1,
+          "passes": true
+        }
+      ],
+      "verdict": "adopted",
+      "chosen": "weight_0_20"
+    },
+    {
+      "feature": "temporal_blend",
+      "baseline_metrics": {
+        "mrr": 1.0,
+        "recall_at_5": 1.0,
+        "ndcg_at_5": 0.7098097413968655,
+        "recall_at_10": 1.0,
+        "ndcg_at_10": 0.7098097413968655
+      },
+      "variants": [
+        {
+          "name": "weight_0_05",
+          "metrics": {
+            "mrr": 1.0,
+            "recall_at_5": 1.0,
+            "ndcg_at_5": 0.7098097413968655,
+            "recall_at_10": 1.0,
+            "ndcg_at_10": 0.7098097413968655
+          },
+          "deltas": {
+            "recall_at_5": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_10": 0.0
+          },
+          "feature_metric": null,
+          "latency_ms": 0.1,
+          "passes": false
+        },
+        {
+          "name": "weight_0_10",
+          "metrics": {
+            "mrr": 1.0,
+            "recall_at_5": 1.0,
+            "ndcg_at_5": 1.0,
+            "recall_at_10": 1.0,
+            "ndcg_at_10": 1.0
+          },
+          "deltas": {
+            "recall_at_5": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_10": 0.2902
+          },
+          "feature_metric": null,
+          "latency_ms": 0.1,
+          "passes": true
+        },
+        {
+          "name": "weight_0_20",
+          "metrics": {
+            "mrr": 1.0,
+            "recall_at_5": 1.0,
+            "ndcg_at_5": 0.9828422279067397,
+            "recall_at_10": 1.0,
+            "ndcg_at_10": 0.9828422279067397
+          },
+          "deltas": {
+            "recall_at_5": 0.0,
+            "mrr": 0.0,
+            "ndcg_at_10": 0.273
+          },
+          "feature_metric": null,
+          "latency_ms": 0.1,
+          "passes": true
+        }
+      ],
+      "verdict": "adopted",
+      "chosen": "weight_0_10"
+    },
+    {
+      "feature": "deep_research",
+      "baseline_metrics": {
+        "mrr": 1.0,
+        "recall_at_5": 0.5,
+        "ndcg_at_5": 0.1310456303875653,
+        "recall_at_10": 0.5,
+        "ndcg_at_10": 0.1310456303875653
+      },
+      "variants": [
+        {
+          "name": "widened_without_neighbors",
+          "metrics": {
+            "mrr": 1.0,
+            "recall_at_5": 1.0,
+            "ndcg_at_5": 1.0,
+            "recall_at_10": 1.0,
+            "ndcg_at_10": 1.0
+          },
+          "deltas": {
+            "recall_at_5": 0.5,
+            "mrr": 0.0,
+            "ndcg_at_10": 0.869
+          },
+          "feature_metric": null,
+          "latency_ms": 1.5,
+          "passes": true
+        },
+        {
+          "name": "widened_with_neighbors",
+          "metrics": {
+            "mrr": 1.0,
+            "recall_at_5": 1.0,
+            "ndcg_at_5": 1.0,
+            "recall_at_10": 1.0,
+            "ndcg_at_10": 1.0
+          },
+          "deltas": {
+            "recall_at_5": 0.5,
+            "mrr": 0.0,
+            "ndcg_at_10": 0.869
+          },
+          "feature_metric": null,
+          "latency_ms": 1.8,
+          "passes": true
+        }
+      ],
+      "verdict": "adopted",
+      "chosen": "widened_without_neighbors"
+    }
+  ],
+  "adopted_scoring": {
+    "anchor_cooccurrence_cap": 0.18,
+    "anchor_cooccurrence_term": 0.03,
+    "anchor_cooccurrence_pair": 0.02,
+    "anchor_explicit_cap": 0.24,
+    "anchor_explicit_term": 0.035,
+    "anchor_explicit_pair": 0.025,
+    "soft_keyword_anchor_term": 0.05,
+    "graph_existing_weight": 0.2,
+    "graph_supplemental_weight": 0.2,
+    "temporal_signal_score": 1.0,
+    "temporal_weight": 0.1,
+    "neighbor_base": 0.03,
+    "neighbor_anchor_term": 0.025,
+    "anchor_window_base": 0.12,
+    "anchor_window_term": 0.04,
+    "anchor_window_overlap_cap": 0.08,
+    "anchor_window_overlap_term": 0.01,
+    "anchor_window_cap": 0.31,
+    "anchor_window_neighbor_weight": 0.7,
+    "anchor_window_offset_bonus": 0.08,
+    "anchor_window_neighbor_bonus": 0.08,
+    "anchor_window_neighbor_cap": 0.24
+  },
+  "removed": [
+    "demo_causal_terms_vocabulary"
+  ]
+}

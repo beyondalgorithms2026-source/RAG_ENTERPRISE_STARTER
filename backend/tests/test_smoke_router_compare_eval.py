@@ -42,13 +42,13 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         self.assertEqual(eligible["reason"], "eligible_policy_match")
         self.assertEqual(eligible["observed_corpora"], ["finance"])
         self.assertTrue(eligible["mmr"]["enabled"])
-        self.assertEqual(eligible["mmr"]["reason"], "placeholder_reserved_for_future_milestone")
+        self.assertEqual(eligible["mmr"]["reason"], "eligible")
         self.assertFalse(wrong_mode["eligible"])
         self.assertEqual(wrong_mode["reason"], "mode_not_enabled")
         self.assertFalse(too_slow["eligible"])
         self.assertEqual(too_slow["reason"], "latency_budget_exceeded")
 
-    def test_m8_search_trace_exposes_rerank_policy_and_mmr_placeholder(self):
+    def test_m8_search_trace_exposes_applied_mmr(self):
         from types import SimpleNamespace
 
         import app.core_rag.reranker as reranker_module
@@ -62,6 +62,7 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         original_apply_graph_and_temporal_layers = retrieval_module._apply_graph_and_temporal_layers
         original_get_sources_by_ids = retrieval_module.get_sources_by_ids
         original_rerank = reranker_module.rerank
+        original_fetch_embeddings = None
         try:
             patched_reranker_profile = lambda: RerankerProfileConfig(
                 enabled=True,
@@ -119,10 +120,14 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
                 101: SimpleNamespace(id=101, sensitivity_label="public", source_metadata_json={"corpus": "ops"}),
                 102: SimpleNamespace(id=102, sensitivity_label="public", source_metadata_json={"corpus": "ops"}),
             }
-            reranker_module.rerank = lambda question, chunks, top_k: [
+            reranker_module.rerank = lambda question, chunks: [
                 {**chunk, "rerank_score": 0.95 - (index * 0.1)}
-                for index, chunk in enumerate(chunks[:top_k])
+                for index, chunk in enumerate(chunks)
             ]
+            from app.db import repo_chunks
+
+            original_fetch_embeddings = repo_chunks.fetch_chunk_embeddings
+            repo_chunks.fetch_chunk_embeddings = lambda ids: {11: [1.0, 0.0], 12: [0.0, 1.0]}
 
             response = perform_search(SearchRequest(question="ops policy", k=2, mode="hybrid", debug=True))
         finally:
@@ -132,14 +137,18 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
             retrieval_module._apply_graph_and_temporal_layers = original_apply_graph_and_temporal_layers
             retrieval_module.get_sources_by_ids = original_get_sources_by_ids
             reranker_module.rerank = original_rerank
+            if original_fetch_embeddings is not None:
+                from app.db import repo_chunks
+
+                repo_chunks.fetch_chunk_embeddings = original_fetch_embeddings
 
         self.assertEqual(response.mode, "hybrid")
         self.assertEqual(response.debug_info["rerank_policy"]["reason"], "eligible_policy_match")
         self.assertTrue(response.debug_info["rerank_policy"]["applied"])
         self.assertEqual(response.debug_info["rerank_policy"]["observed_corpora"], ["ops"])
         self.assertTrue(response.debug_info["rerank_policy"]["mmr"]["enabled"])
-        self.assertFalse(response.debug_info["rerank_policy"]["mmr"]["applied"])
-        self.assertEqual(response.debug_info["rerank_policy"]["mmr"]["reason"], "placeholder_reserved_for_future_milestone")
+        self.assertTrue(response.debug_info["rerank_policy"]["mmr"]["applied"])
+        self.assertEqual(response.debug_info["rerank_policy"]["mmr"]["reason"], "eval_proven_diversity")
         self.assertEqual(response.debug_info["latency_ms"]["rerank"], 0)
 
     def test_m7_router_selects_keyword_for_quote_like_lookup(self):

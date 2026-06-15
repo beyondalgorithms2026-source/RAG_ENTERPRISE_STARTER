@@ -4,12 +4,12 @@
 Build an enterprise-usable RAG system based on the existing stable baseline that supports SSO + ACL security trimming, multi-source ingestion (cloud DB + enterprise email), configurable retrieval/model controls, end-user chat UI + admin console, tool actions with approvals, feedback loops, and per-corpus indexing policies — without breaking baseline correctness.
 
 **Current phase**  
-M-series milestones (M0–M33) are complete or pending DB-backed reruns. The active work track is **AR-series (AR0–AR14)**: audit remediation milestones driven by the independent product audit of 2026-06-11. See `docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md` for the full plan and `docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md` for the audit baseline.
+AR0–AR14 audit remediation is complete. The remaining work is M20–M30 manual verification closure. See `docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md` for the remediation plan and `docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md` for the audit baseline.
 
 **Current baseline (what the codebase already does today)**
 This repository is substantially more real than a typical RAG demo. It supports document-type-specific parsing and chunking, one dense embedding path, multiple retrieval modes, heuristic query routing, optional cross-encoder reranking, graph and temporal enrichment layers, a deep-research retrieval path, governed tuning (drafts/compare/promote/rollback), semantic cache with governance, ~80 admin endpoints, pervasive trace observability, and citation provenance enforcement.  
 It is best described as a **strong PoC with genuine starter scaffolding** — past demo, not yet enterprise starter.  
-The main retrieval baseline is hybrid search with linear score fusion (combined_score = α × vector_score + (1-α) × keyword_score, default α=0.65). Advanced levers exist: anchor boosts, graph/temporal signals, deep research, rerank policy gating.
+The main retrieval baseline is hybrid search with linear score fusion (combined_score = α × vector_score + (1-α) × keyword_score, default α=0.65). AR14 added field-weighted FTS, real optional MMR, and committed ablation evidence for anchor, graph, temporal, and deep-research scoring.
 
 **What the system DOES**
 - Chat UI with grounded answers + enforced citation provenance (whitelist, stripping, forced not-found)
@@ -21,7 +21,7 @@ The main retrieval baseline is hybrid search with linear score fusion (combined_
 - Governed config change: drafts → compare → promote → rollback → audit trail
 
 **What it does NOT do**
-- Multi-tenant SaaS, full async pipelines, sovereign data residency, multi-worker deployment, real LLM query transformation, real semantic similarity cache, real MMR diversity, eval-gated promotion, non-Ollama LLM providers.
+- Multi-tenant SaaS, full async pipelines, sovereign data residency, or unrestricted multi-worker deployment. Mailbox/archive synchronization is not implemented; email ingestion remains uploaded `.eml`.
 
 **Architecture (two planes)**
 - Ingestion Plane: connectors → parsing → chunking → embeddings → index (single in-process worker)

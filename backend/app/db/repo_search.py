@@ -1,10 +1,13 @@
 import math
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
 
 from app.auth.access_strategy import source_access_sql
+from app.core_rag.retrieval_scoring import get_retrieval_scoring
 from app.db.db import engine
 
 
@@ -35,6 +38,30 @@ _KEYWORD_STOPWORDS = {
     "with",
     "would",
 }
+_keyword_vector_mode: ContextVar[str] = ContextVar("keyword_vector_mode", default="stored")
+
+
+def _keyword_vector_sql(alias: str = "c") -> str:
+    mode = _keyword_vector_mode.get()
+    if mode == "body":
+        return f"to_tsvector('english', COALESCE({alias}.chunk_text, ''))"
+    if mode == "weighted":
+        return (
+            f"setweight(to_tsvector('english', COALESCE({alias}.heading, '')), 'A') || "
+            f"setweight(to_tsvector('english', COALESCE({alias}.chunk_text, '')), 'B')"
+        )
+    return f"{alias}.search_tsv"
+
+
+@contextmanager
+def keyword_vector_mode(mode: str):
+    if mode not in {"stored", "body", "weighted"}:
+        raise ValueError(f"Unsupported keyword vector mode: {mode}")
+    token = _keyword_vector_mode.set(mode)
+    try:
+        yield
+    finally:
+        _keyword_vector_mode.reset(token)
 
 
 def _pgvector_literal(vec: List[float], decimals: int = 8) -> str:
@@ -116,7 +143,8 @@ def _soft_keyword_results(
         return []
 
     soft_query = " | ".join(anchors)
-    sql_base = """
+    vector_sql = _keyword_vector_sql()
+    sql_base = f"""
         SELECT
             c.id AS chunk_id,
             c.source_id,
@@ -126,12 +154,12 @@ def _soft_keyword_results(
             c.heading,
             COALESCE(c.locator_json::text, sp.locator_json::text, '') AS locator,
             c.chunk_text,
-            ts_rank_cd(c.search_tsv, to_tsquery('english', :soft_query)) AS rank_score,
+            ts_rank_cd({vector_sql}, to_tsquery('english', :soft_query), 32) AS rank_score,
             c.chunk_index
         FROM chunks c
         JOIN sources s ON c.source_id = s.id
         LEFT JOIN source_parts sp ON c.source_part_id = sp.id
-        WHERE c.search_tsv @@ to_tsquery('english', :soft_query)
+        WHERE {vector_sql} @@ to_tsquery('english', :soft_query)
     """
     conditions = []
     params: Dict[str, Any] = {"soft_query": soft_query, "k": max(k * 3, 12)}
@@ -167,11 +195,14 @@ def _soft_keyword_results(
         rows = conn.execute(text(sql_base), params).fetchall()
 
     scored_results: List[Dict[str, Any]] = []
+    scoring = get_retrieval_scoring()
     for row in rows:
         item = _row_to_result(row, "rank_score", float(row[8]))
         haystack = f"{item.get('heading', '')} {item.get('snippet', '')}".lower()
         matched_anchor_count = sum(1 for anchor in anchors if anchor in haystack)
-        item["rank_score"] = float(item["rank_score"] or 0.0) + (matched_anchor_count * 0.05)
+        item["rank_score"] = float(item["rank_score"] or 0.0) + (
+            matched_anchor_count * scoring.soft_keyword_anchor_term
+        )
         item["distance"] = None
         scored_results.append(item)
 
@@ -252,7 +283,8 @@ def search_chunks_keyword(
     locator_filter: Optional[str] = None,
     metadata_filters: Optional[Dict[str, str]] = None,
 ) -> List[Dict[str, Any]]:
-    sql_base = """
+    vector_sql = _keyword_vector_sql()
+    sql_base = f"""
         SELECT
             c.id AS chunk_id,
             c.source_id,
@@ -262,12 +294,12 @@ def search_chunks_keyword(
             c.heading,
             COALESCE(c.locator_json::text, sp.locator_json::text, '') AS locator,
             c.chunk_text,
-            ts_rank_cd(c.search_tsv, websearch_to_tsquery('english', :query_text)) AS rank_score,
+            ts_rank_cd({vector_sql}, websearch_to_tsquery('english', :query_text), 32) AS rank_score,
             c.chunk_index
         FROM chunks c
         JOIN sources s ON c.source_id = s.id
         LEFT JOIN source_parts sp ON c.source_part_id = sp.id
-        WHERE c.search_tsv @@ websearch_to_tsquery('english', :query_text)
+        WHERE {vector_sql} @@ websearch_to_tsquery('english', :query_text)
     """
     conditions = []
     params: Dict[str, Any] = {"query_text": query_text, "k": k}
