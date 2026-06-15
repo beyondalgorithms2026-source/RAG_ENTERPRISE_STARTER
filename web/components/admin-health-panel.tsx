@@ -202,13 +202,13 @@ function SystemPosture() {
                 <InfoDot help={group.help} />
               </p>
               {headline ? <p style={{ fontSize: 12.5, color: "var(--color-text-secondary)", margin: "0 0 6px" }}>{headline}</p> : null}
-              <table style={{ width: "100%", fontSize: 12.5, borderCollapse: "collapse" }}>
+              <table className="admin-data-table">
                 <tbody>
                   {items.map((item, i) => (
-                    <tr key={i} style={{ borderTop: "0.5px solid var(--color-border-tertiary)" }}>
-                      <td style={{ padding: "5px 8px", color: "var(--color-text-secondary)", width: "40%" }}>{item.label}</td>
-                      <td style={{ padding: "5px 8px" }}>{item.value === null || item.value === undefined ? "—" : String(item.value)}</td>
-                      <td style={{ padding: "5px 8px", textAlign: "right" }}>
+                    <tr key={i}>
+                      <td style={{ color: "var(--color-text-secondary)", width: "40%" }}>{item.label}</td>
+                      <td>{item.value === null || item.value === undefined ? "—" : String(item.value)}</td>
+                      <td style={{ textAlign: "right" }}>
                         {editBadge(item.editable_via)}
                         {item.requires_restart ? <span style={{ fontSize: 11, color: "var(--color-text-warning)", marginLeft: 6 }}>restart</span> : null}
                       </td>

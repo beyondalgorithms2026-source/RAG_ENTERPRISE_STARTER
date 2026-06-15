@@ -2,7 +2,7 @@
 
 **Last completed M-series milestone:** M33 — Governed Semantic Cache Policies, Scoped Enablement, And User Refresh  
 **Active work track:** M20–M30 manual verification closure
-**Current AR milestone:** AR0–AR19 complete. Next: AR20 — UI Consistency & Alignment Remediation.
+**Current AR milestone:** AR0–AR20 complete (audit remediation + post-audit console/UI). No open AR milestones.
 
 ## Independent Product Audit (2026-06-11)
 
@@ -43,7 +43,7 @@ Git tag: `audit-baseline-2026-06-11`
 | AR17 — Provider & Cost-Governance Console | **Complete (2026-06-15)** | `/console/admin/providers` creates/updates/tests/activates provider profiles; API keys are write-only and redacted from responses/audits; MIG-P027 runtime settings provide runtime→env→default budget, price-table, and eval-enforcement precedence; cost/tuning consoles edit governed values with approval-actor support; 333/333 suite; note: `docs/milestones/AR17_generation_provider_cost_governance_console.md` |
 | AR18 — UI Modularity & Least-Privilege Gating | **Complete (2026-06-15)** | Health/cost/flywheel/embedding/providers are first-class modules; formerly ungated embedding/LLM/retrieval endpoint groups now return 403 when disabled; runtime→env→scenario precedence uses MIG-P027; `/console/admin/modules` manages the audited deployment-wide subset; 340/340 suite; note: `docs/milestones/AR18_admin_ui_modularity_and_least_privilege_gating.md` |
 | AR19 — Console Component & Form-System Refactor | **Complete (2026-06-15)** | 1,403-line profiles mega-component replaced by a 36-line composer + four sub-400-line panels; shared form primitives adopted across active admin controls; endpoint behavior preserved; note: `docs/milestones/AR19_admin_console_component_and_form_system_refactor.md` |
-| AR20 — UI Consistency & Alignment | Not started | P2 — fix unstyled selects, tan/olive input fills, label spacing, grid alignment; consistency checklist |
+| AR20 — UI Consistency & Alignment | **Complete (2026-06-15)** | Boxed white controls + select chevron (root-cause CSS fix across all panels); `.admin-data-table`/scroll on flywheel/posture/cost tables; sticky + reveal-on-select detail panes for Sources/Jobs/Audit Log; human-readable values; Visual Mode + retrieval-evidence tooltips; source download with size warning (`/admin/sources/{id}/download`); `UI_CONSISTENCY_CHECKLIST.md`; 349/349 suite; note: `docs/milestones/AR20_ui_consistency_and_alignment.md` |
 
 ## Current Repo Posture
 

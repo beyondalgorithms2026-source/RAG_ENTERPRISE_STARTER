@@ -30,6 +30,10 @@ function usd(value: unknown) {
   return `$${n.toFixed(4)}`;
 }
 
+function humanize(value: string) {
+  return String(value || "").replace(/_/g, " ");
+}
+
 export function AdminCostPanel() {
   const [groupBy, setGroupBy] = useState("retrieval_mode");
   const [data, setData] = useState<CostSummary | null>(null);
@@ -189,40 +193,40 @@ export function AdminCostPanel() {
             </div>
           </div>
 
-          <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ textAlign: "left", color: "var(--color-text-secondary)" }}>
-                <th style={{ padding: "6px 8px" }}>{data.group_by}</th>
-                <th style={{ padding: "6px 8px" }}>Requests</th>
-                <th style={{ padding: "6px 8px" }}>Tokens</th>
-                <th style={{ padding: "6px 8px" }}>Total cost</th>
-                <th style={{ padding: "6px 8px" }}>Avg latency</th>
-                <th style={{ padding: "6px 8px" }}>Over budget</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.buckets.map((b) => (
-                <tr key={String(b.bucket)} style={{ borderTop: "0.5px solid var(--color-border-tertiary)" }}>
-                  <td style={{ padding: "6px 8px" }}>
-                    {String(b.bucket)}
-                    {b.any_estimated ? <span style={{ color: "var(--color-text-warning)", marginLeft: 6, fontSize: 11 }}>est.</span> : null}
-                  </td>
-                  <td style={{ padding: "6px 8px" }}>{String(b.request_count)}</td>
-                  <td style={{ padding: "6px 8px" }}>{String(b.total_tokens ?? 0)}</td>
-                  <td style={{ padding: "6px 8px" }}>{usd(b.total_cost_usd)}</td>
-                  <td style={{ padding: "6px 8px" }}>{b.avg_latency_ms != null ? `${Number(b.avg_latency_ms).toFixed(0)} ms` : "—"}</td>
-                  <td style={{ padding: "6px 8px" }}>{String(b.over_budget_count ?? 0)}</td>
-                </tr>
-              ))}
-              {data.buckets.length === 0 ? (
+          <div className="admin-table-scroll">
+            <table className="admin-data-table">
+              <thead>
                 <tr>
-                  <td colSpan={6} style={{ padding: "12px 8px", color: "var(--color-text-secondary)" }}>
-                    No generation usage recorded yet.
-                  </td>
+                  <th>{humanize(data.group_by)}</th>
+                  <th>Requests</th>
+                  <th>Tokens</th>
+                  <th>Total cost</th>
+                  <th>Avg latency</th>
+                  <th>Over budget</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.buckets.map((b) => (
+                  <tr key={String(b.bucket)}>
+                    <td>
+                      {humanize(String(b.bucket))}
+                      {b.any_estimated ? <span style={{ color: "var(--color-text-warning)", marginLeft: 6, fontSize: 11 }}>est.</span> : null}
+                    </td>
+                    <td>{String(b.request_count)}</td>
+                    <td>{String(b.total_tokens ?? 0)}</td>
+                    <td>{usd(b.total_cost_usd)}</td>
+                    <td>{b.avg_latency_ms != null ? `${Number(b.avg_latency_ms).toFixed(0)} ms` : "—"}</td>
+                    <td>{String(b.over_budget_count ?? 0)}</td>
+                  </tr>
+                ))}
+                {data.buckets.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ color: "var(--color-text-secondary)" }}>No generation usage recorded yet.</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
         </>
       ) : null}
     </section>
