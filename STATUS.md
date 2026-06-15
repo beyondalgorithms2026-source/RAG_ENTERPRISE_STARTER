@@ -2,7 +2,7 @@
 
 **Last completed M-series milestone:** M33 — Governed Semantic Cache Policies, Scoped Enablement, And User Refresh  
 **Active work track:** M20–M30 manual verification closure
-**Current AR milestone:** AR0–AR14 complete (audit remediation). Next: AR15 — Operator Visibility & System Posture (first of the post-audit console/UI milestones AR15–AR20).
+**Current AR milestone:** AR0–AR14 complete (audit remediation); AR15 complete (2026-06-15). Next: AR16 — Embedding & Model-Swap Console.
 
 ## Independent Product Audit (2026-06-11)
 
@@ -38,7 +38,7 @@ Git tag: `audit-baseline-2026-06-11`
 
 **AR0–AR14 audit remediation plan complete (tag `ar-remediation-complete-2026-06-13`).** AR15+ below extend the plan from a follow-up console/UI completeness review (not the original audit).
 
-| AR15 — Operator Visibility & System Posture | Not started | P1 — global health banner, serving-state, read-only System Posture panel incl. "semantic cache globally OFF"; `GET /admin/system/posture` |
+| AR15 — Operator Visibility & System Posture | **Complete (2026-06-15)** | `app/system_posture.py` + `GET /admin/system/posture` (7 sections, each with editable_via/restart); global `admin-health-banner` on every admin page when not healthy; health `semantic_cache` tile now warns "globally OFF" when no policy; read-only System Posture table in the health page; 321/321 suite; note: `docs/milestones/AR15_operator_visibility_system_posture.md` |
 | AR16 — Embedding & Model-Swap Console | Not started | P1 — console UI to drive the AR7 swap lifecycle + serving guard |
 | AR17 — Provider & Cost-Governance Console | Not started | P1 — BYO-model config + "test connection"; runtime-editable cost budget/price table/enforcement (`runtime_settings`, MIG-P027) |
 | AR18 — UI Modularity & Least-Privilege Gating | Not started | P1 — first-class toggleable modules; gate the 3 ungated endpoint groups; runtime module override + module-manager UI (single-deployment, not multi-tenant) |

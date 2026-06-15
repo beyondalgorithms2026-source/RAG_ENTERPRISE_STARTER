@@ -732,6 +732,16 @@ def health_coherence(deep: bool = False):
     return run_coherence_checks(deep=deep)
 
 
+@router.get("/system/posture")
+def system_posture_endpoint():
+    """AR15: read-only operator posture — serving state, cache on/off, retrieval
+    defaults, eval enforcement, worker posture, rate limits, cost governance —
+    each with how it is changed (UI / env / policy / profile)."""
+    from app.system_posture import system_posture
+
+    return system_posture()
+
+
 @router.get("/health/dashboard")
 def health_dashboard_endpoint(deep: bool = False):
     """AR10: one operator-facing answer to 'is this system coherent right now?'

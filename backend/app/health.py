@@ -56,7 +56,9 @@ def semantic_cache_tile() -> dict[str, Any]:
     health = cache_health()
     policy = health.get("active_policy")
     if not policy:
-        return _tile("semantic_cache", "pass", "Cache globally off (no active policy).", state="off")
+        # AR15: surface the off state as an informational warning so the operator
+        # knows the cache is doing nothing until a policy is activated. Not P0.
+        return _tile("semantic_cache", "warn", "Semantic cache is globally OFF (no active policy).", state="off")
     return _tile(
         "semantic_cache",
         "pass",

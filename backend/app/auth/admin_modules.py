@@ -43,6 +43,7 @@ _PATH_MODULE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/modules", "overview"),
     ("/admin/overview", "overview"),
     ("/admin/health", "overview"),
+    ("/admin/system", "overview"),
     ("/admin/cost", "overview"),
     ("/admin/tuning", "tuning"),
     ("/admin/semantic-cache", "tuning"),
