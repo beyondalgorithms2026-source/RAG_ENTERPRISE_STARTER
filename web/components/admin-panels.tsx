@@ -379,6 +379,34 @@ function formatCount(value: unknown, singular: string, plural = `${singular}s`) 
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
+const DOWNLOAD_WARN_BYTES = 25 * 1024 * 1024;
+
+async function downloadSourceFile(source: GenericMap) {
+  const id = Number(source.id);
+  const size = Number(source.file_size_bytes || 0);
+  const name = String(source.file_name || `source-${id}`);
+  if (size > DOWNLOAD_WARN_BYTES) {
+    const mb = (size / (1024 * 1024)).toFixed(1);
+    if (!window.confirm(`"${name}" is ${mb} MB. Downloading a large file may take a while. Download anyway?`)) {
+      return;
+    }
+  }
+  const response = await fetch(browserApiUrl(`/admin/sources/${id}/download`), { credentials: "include" });
+  if (!response.ok) {
+    window.alert(`Download failed (${response.status}).`);
+    return;
+  }
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 function formatFileSize(value: unknown) {
   const size = Number(value || 0);
   if (!size) {
@@ -1140,6 +1168,9 @@ export function SourcesAdminPanel() {
                     {String((source.freshness as GenericMap | undefined)?.status || "unknown freshness")}
                   </span>
                   <span>{formatFileSize(source.file_size_bytes)}</span>
+                  <button type="button" className="button button-secondary" onClick={() => downloadSourceFile(source)}>
+                    Download
+                  </button>
                   <button type="button" className="button button-secondary" onClick={() => setSelectedSourceId(String(source.id))}>
                     Inspect
                   </button>
