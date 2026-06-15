@@ -105,17 +105,35 @@ export function AdminHealthPanel() {
               key={tile.tile}
               style={{
                 background: "var(--color-background-primary)",
-                border: "0.5px solid var(--color-border-tertiary)",
+                border: "1px solid var(--color-border-tertiary)",
                 borderRadius: "var(--border-radius-lg)",
-                padding: "1rem 1.25rem",
+                padding: "0.9rem 1rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                minHeight: 104,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                <span style={{ width: 10, height: 10, borderRadius: "50%", background: color.dot, flexShrink: 0 }} />
-                <strong style={{ fontSize: 14 }}>{TILE_LABELS[tile.tile] ?? tile.tile}</strong>
-                <span style={{ marginLeft: "auto", fontSize: 12, color: color.fg, textTransform: "uppercase" }}>{tile.status}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ width: 9, height: 9, borderRadius: "50%", background: color.dot, flexShrink: 0 }} />
+                <strong style={{ fontSize: 13.5, lineHeight: 1.2 }}>{TILE_LABELS[tile.tile] ?? tile.tile}</strong>
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    fontSize: 10.5,
+                    fontWeight: 600,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
+                    color: color.fg,
+                    background: color.bg,
+                    borderRadius: "999px",
+                    padding: "2px 8px",
+                  }}
+                >
+                  {tile.status}
+                </span>
               </div>
-              <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: 0, lineHeight: 1.5 }}>{tile.reason}</p>
+              <p style={{ fontSize: 12.5, color: "var(--color-text-secondary)", margin: 0, lineHeight: 1.5 }}>{tile.reason}</p>
             </article>
           );
         })}
@@ -202,13 +220,25 @@ function SystemPosture() {
                 <InfoDot help={group.help} />
               </p>
               {headline ? <p style={{ fontSize: 12.5, color: "var(--color-text-secondary)", margin: "0 0 6px" }}>{headline}</p> : null}
-              <table className="admin-data-table">
+              <table className="admin-data-table" style={{ tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: "38%" }} />
+                  <col style={{ width: "42%" }} />
+                  <col style={{ width: "20%" }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Setting</th>
+                    <th>Current value</th>
+                    <th style={{ textAlign: "right" }}>Change via</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {items.map((item, i) => (
                     <tr key={i}>
-                      <td style={{ color: "var(--color-text-secondary)", width: "40%" }}>{item.label}</td>
-                      <td>{item.value === null || item.value === undefined ? "—" : String(item.value)}</td>
-                      <td style={{ textAlign: "right" }}>
+                      <td style={{ color: "var(--color-text-secondary)", overflowWrap: "anywhere" }}>{item.label}</td>
+                      <td style={{ overflowWrap: "anywhere" }}>{item.value === null || item.value === undefined ? "—" : String(item.value)}</td>
+                      <td style={{ textAlign: "right", overflowWrap: "anywhere" }}>
                         {editBadge(item.editable_via)}
                         {item.requires_restart ? <span style={{ fontSize: 11, color: "var(--color-text-warning)", marginLeft: 6 }}>restart</span> : null}
                       </td>
