@@ -473,12 +473,228 @@ Implement or retire each enhancement based on AR3 evidence — never on plausibi
 
 ---
 
+## Post-Audit Console Completeness, UI Quality & Modularity (AR15+)
+
+**Provenance.** AR15+ extend this plan beyond the original 2026-06-11 product audit. They come from a follow-up console/UI completeness review (2026-06-13) conducted after AR0–AR14 closed. The review found that many AR4/AR7/AR9/AR11 capabilities are reachable only via API or environment variables, the admin console has concrete visual-consistency defects, and the UI-level modularity needed to ship functional subsets to clients is coarse and partly unenforced. Audit-style honesty applies: gaps are named, not softened.
+
+**Scope guard.** AR18 is *single-deployment admin-module composition* (ship a precise subset of the console), **not** multi-tenant SaaS — multi-tenancy remains an explicit non-goal (see "Do Not Pursue Yet").
+
+**Execution rules (same as AR0–AR14).** Every milestone leaves the full suite green (`cd backend && . .venv/bin/activate && python -m unittest discover -s tests`); any new table/column adds an idempotent `MIG-Pxxx` step in `backend/app/db/migrate.py`, a matching `schema.sql` block, AND an update to the ordered-plan assertion in `tests/test_smoke_baseline.py`; web changes must pass `cd web && npx tsc --noEmit`; `make reader-clarity-check` stays green; `git diff docs/02_Enterprise_RAG_Project_Plan_Milestones.md` stays empty; each milestone gets a `docs/milestones/ARnn_*.md` note, a STATUS.md update, and a commit + annotated tag.
+
+---
+
+### Milestone AR15 — Operator Visibility: Global Health Banner, Serving State, And System Posture (Gate AR15: an admin sees everything they must know without reading env or the DB)
+
+**Why this is required**
+AR10 built a health page, but its P0 banner is page-local; degraded vector serving (AR7) is invisible in the UI; and the things an admin must know — that the semantic cache is globally OFF unless a policy is active, that query transform / multi-query / deep research / reranker default off, the eval enforcement mode, the single-process posture, rate limits, and the cost-alert threshold — are not surfaced anywhere. An operator should never have to read `.env` or query the DB to know the system's posture.
+
+**What is missing today (verified)**
+- `GET /admin/health/dashboard` exists but is consumed only by `/console/admin/health`; no banner on other admin pages.
+- `app/coherence.vector_serving_state()` and `GET /admin/embedding/serving` exist, but no UI banner appears when vector search is degraded to keyword-only.
+- No surface states the default-off features or the env-only operational settings (`TUNING_EVAL_ENFORCEMENT`, `ALLOW_MULTI_WORKER`, `RATE_LIMIT_*`, `LLM_COST_ALERT_USD`, `LLM_PRICE_TABLE_JSON`).
+
+**Goal**
+A global, always-visible health signal plus a read-only "System Posture" panel that states every operationally relevant default/flag, its current value, and — for env-only items — the exact env var and whether a restart is required.
+
+**Deliverables (numbered; exact paths)**
+1. Backend `backend/app/system_posture.py::system_posture()` returning sections, each item shaped `{label, value, editable_via, requires_restart}` where `editable_via ∈ {"ui","env:VAR","policy","profile"}`:
+   - `vector_serving` ← `coherence.vector_serving_state()`.
+   - `semantic_cache` ← `repo_semantic_cache.cache_health()` → `{enabled, reason: "no_active_policy"|"active", match_mode}`.
+   - `retrieval_defaults` ← live `get_effective_retrieval()` (`query_transform_enabled`, `multi_query_enabled`, `default_mode`) + `get_effective_reranker().enabled`.
+   - `eval_enforcement` ← `app.eval.promotion_evidence.resolve_enforcement_mode()` + whether it is env-explicit or derived.
+   - `worker_posture` ← `{single_process: true, allow_multi_worker: settings.ALLOW_MULTI_WORKER, configured_workers: runtime_safety.configured_worker_count()}`.
+   - `rate_limits` ← the `RATE_LIMIT_*` settings.
+   - `cost_governance` ← `{alert_usd: settings.LLM_COST_ALERT_USD, price_table_overridden: bool(settings.LLM_PRICE_TABLE_JSON)}`.
+2. Backend `GET /admin/system/posture` in `backend/app/api/admin.py`; add `("/admin/system", "overview")` to `_PATH_MODULE_PREFIXES`.
+3. Backend: extend `app/health.py::health_dashboard()` to add an informational `semantic_cache` tile with `status="warn"` and reason `"globally off — no active policy"` when no active policy exists (P0 set unchanged; banner may go to warn, never P0-fail for this).
+4. Web `web/components/admin-health-banner.tsx` (client): fetch `/admin/health/dashboard`; render a slim banner ONLY when `banner !== "pass"` (fail → danger styling, warn → warning), with a link to `/console/admin/health`. Mount in `web/app/console/admin/layout.tsx` so it appears on every admin page. Must not collapse layout height or break SSR (client component).
+5. Web: add a "System Posture" section to `web/components/admin-health-panel.tsx` consuming `/admin/system/posture` — a read-only grouped table (Serving / Cache / Retrieval defaults / Eval enforcement / Workers / Rate limits / Cost) with columns Setting / Current value / How to change (badge from `editable_via`) / Restart needed. The literal line **"Semantic cache is globally OFF (no active policy)"** must render when applicable.
+
+**DoD**
+- On a fresh dev DB (cache off, no enforcement env set), `/console/admin/health` shows the "Semantic cache is globally OFF" line and the System Posture table lists every item with correct values and edit method.
+- Forcing a dimension mismatch (or injecting an AR2 incoherent state) makes the global banner appear (danger) on a non-health admin page.
+- `tsc --noEmit` clean; full backend suite green.
+
+**Re-run checks**
+- New `tests/test_system_posture_ar15.py` (all sections present; cache-off line condition; banner status reflects coherence); existing AR10 health tests; tsc.
+
+**Priority:** P1 · **Effort:** M · **Depends on:** AR2, AR7, AR10, AR11.
+
+---
+
+### Milestone AR16 — Embedding & Model-Swap Console (Gate AR16: a managed model swap runs from the console, no CLI)
+
+**Why this is required**
+AR7 shipped the embedding/index swap lifecycle and the serving guard as API-only. The audit-critical "safe model swap" is unreachable for a non-CLI operator.
+
+**What is missing today (verified)**
+`GET /admin/embedding/serving`, `GET /admin/embedding/swaps`, and `POST /admin/embedding/swap/{plan,begin,run,verify,abort}` have zero references under `web/`.
+
+**Goal**
+A console page that drives the AR7 state machine with live progress and the serving-state guard visible.
+
+**Deliverables**
+1. Web `web/app/console/admin/embedding/page.tsx` (gate to module `embedding` once AR18 lands; until then gate to `profiles`) + `web/components/admin-embedding-panel.tsx`:
+   1. Serving-state card from `GET /admin/embedding/serving` (serviceable/degraded + declared vs index dims).
+   2. Target embedding-profile selector from `GET /admin/profiles` (embedding registry options).
+   3. "Plan swap" → `POST /admin/embedding/swap/plan`; render `requires_reindex`, `requires_column_resize`, `total_chunks`, `already_embedded`.
+   4. "Begin" (send the high-impact approval header used by other governed actions) → `/begin`; then "Run batch" → `/run` with a `batch_limit` input, showing an `embedded_chunks/total_chunks` progress bar; allow repeated runs until `status == "verifying"`.
+   5. "Verify" → `/verify` (counts + sampled self-similarity result); "Abort" → `/abort` with a reason field.
+   6. Run-history table from `GET /admin/embedding/swaps`.
+   7. A persistent warning banner while `status == "reindexing"`: "Vector search is serving keyword-only until reindex completes."
+2. Backend: only if the UI needs a field the payloads lack (e.g., percent complete), add it in `app/embedding/lifecycle.py` payloads; otherwise no backend change.
+
+**DoD**
+- A swap runs end-to-end from the console on a small corpus (plan → begin → run(s) → verify → completed) with progress visible; the degraded-serving banner shows during reindex.
+- `tsc --noEmit` clean; full backend suite green.
+
+**Re-run checks**
+- Existing AR7 lifecycle tests; a manual console walkthrough recorded in the note; tsc.
+
+**Priority:** P1 · **Effort:** M · **Depends on:** AR7 (AR18 optional for the dedicated module).
+
+---
+
+### Milestone AR17 — Generation Provider & Cost-Governance Console (Gate AR17: BYO-model and budgets are set from the console, not env)
+
+**Why this is required**
+AR9 made providers pluggable and AR11 added cost tracking, but provider/model/endpoint config and the cost budget + price table are env/profile-file only. "Bring your own model" and "cost governance" are not operable from the UI, and an admin promoting a candidate cannot see or set the eval enforcement mode.
+
+**What is missing today (verified)**
+`GET /admin/llm/providers` has no UI; `LLMProfileConfig` (provider, model, base_url, api_key, timeout_s, structured_output_mode, reasoning_effort) has no dedicated form; `LLM_COST_ALERT_USD` and `LLM_PRICE_TABLE_JSON` are env-only; enforcement mode is invisible at promote time.
+
+**Goal**
+Console control over generation provider/model config, cost budget, and price table; show and (where safe) edit the eval enforcement mode where promotion happens.
+
+**Deliverables**
+1. Backend — make selected settings runtime-editable (DB-backed, overriding env), with a strict allowlist:
+   1. `MIG-P027` table `runtime_settings (key TEXT PRIMARY KEY, value_json JSONB NOT NULL, updated_by TEXT, updated_at TIMESTAMPTZ)` (+ `schema.sql` + plan assertion).
+   2. `backend/app/db/repo_runtime_settings.py`: `get(key)`, `set(key, value, actor)`, `all()`; allowlist `{"llm_cost_alert_usd","llm_price_table","tuning_eval_enforcement"}`; validate (cost ≥ 0; price table `{model:[in,out]}` floats; enforcement ∈ `{"require","warn",""}`).
+   3. Make consumers consult runtime settings first, then env: `app/llm/pricing.py` (`_price_table`, and a new `cost_alert_usd()` helper), and `app.eval.promotion_evidence.resolve_enforcement_mode()`. Document the precedence (runtime override → env → default) in each.
+   4. Endpoints `GET /admin/runtime-settings`, `PATCH /admin/runtime-settings` (high-impact approval + audit event); map `/admin/runtime-settings` to module `policies` (or `providers` after AR18).
+2. Backend — provider validation: extend `_validated_profile_config` (or coherence) so an LLM profile with `provider ∉ supported_providers()` is rejected with a 422 and a clear message. Add `POST /admin/llm/verify` that runs `verify_llm_ready()` for a *candidate* profile applied via `profile_overrides(...)` (request-scoped — never mutate live) and returns `{ready, reason}`.
+3. Web `web/app/console/admin/providers/page.tsx` + `web/components/admin-providers-panel.tsx`:
+   1. Provider picker from `GET /admin/llm/providers`; fields model, base_url, api_key (masked input; never re-display saved key in plaintext), timeout_s, structured_output_mode, reasoning_effort.
+   2. Create/update an LLM profile via `POST`/`PATCH /admin/profiles`; activate via `POST /admin/profiles/active`.
+   3. "Test connection" → `POST /admin/llm/verify` for the candidate; show ready/not-ready + reason.
+4. Web — extend `web/components/admin-cost-panel.tsx`: editable cost-alert USD (number) and a price-table editor (model → input/output per-1K), persisted via `PATCH /admin/runtime-settings`; show effective value + source (env vs runtime override).
+5. Web — surface eval enforcement mode in the tuning/promote UI (`admin-profiles-panel.tsx`) read from `/admin/system/posture` (AR15) or `/admin/runtime-settings`, with an edit control where allowed.
+
+**DoD**
+- An operator can: (a) configure + activate a non-Ollama provider profile and "test connection" from the console; (b) set the cost-alert threshold and a model price from the console and see them reflected in `/admin/cost/summary` and in budget alerts; (c) see and change the eval enforcement mode at promote time.
+- API keys are never logged or returned in plaintext after save.
+- `MIG-P027` reconciled in the ledger + plan assertion; full suite green; tsc clean.
+
+**Re-run checks**
+- `tests/test_runtime_settings_ar17.py` (precedence runtime>env, allowlist + validation, audit event, key masking); provider-validation test; migration plan assertion updated.
+
+**Priority:** P1 · **Effort:** L · **Depends on:** AR9, AR11, AR4, AR15.
+
+---
+
+### Milestone AR18 — Admin UI Modularity & Least-Privilege Gating (Gate AR18: a deployment ships a precise, enforced console subset)
+
+**Why this is required**
+Shipping functional subsets to clients is a stated goal. The module system exists but is coarse (new surfaces ride `overview`/`governance`), enablement is env/preset-only with no admin UI, and — critically — three powerful endpoint groups bypass module gating entirely.
+
+**What is missing today (verified)**
+- New surfaces are not first-class modules: Health and Cost ride `overview` (always on); Flywheel rides `governance`; Embedding/Providers have no module.
+- `/admin/embedding/*`, `/admin/llm/*`, `/admin/retrieval/*` are NOT in `_PATH_MODULE_PREFIXES` → `admin_module_for_path()` returns `None` → any admin can call them regardless of the enabled subset (modularity hole + least-privilege gap).
+- Enablement is `ADMIN_MODULES_ENABLED` env / hardcoded `SCENARIO_ADMIN_MODULE_PRESETS` only; no runtime/DB override; no module-manager UI.
+
+**Goal**
+Every console surface is a first-class, independently toggleable, server-enforced module, configurable at runtime from a module-manager screen — for a single deployment (not multi-tenant).
+
+**Deliverables**
+1. Backend `backend/app/auth/admin_modules.py`:
+   1. Add modules to `ADMIN_MODULES`: `health`, `cost`, `flywheel`, `embedding`, `providers` (label/href/icon/description each).
+   2. Update `_PATH_MODULE_PREFIXES`: `/admin/health`→health, `/admin/cost`→cost, `/admin/feedback-eval`→flywheel, `/admin/embedding`→embedding, `/admin/llm`→providers, `/admin/retrieval`→tuning, `/admin/system`→overview, `/admin/runtime-settings`→policies. Remove the previous overview/governance ride-alongs for these paths.
+   3. Update `SCENARIO_ADMIN_MODULE_PRESETS` (enterprise_oidc_acl = all; smaller presets exclude embedding/providers/cost as appropriate). `overview` is always force-included by `enabled_admin_modules()`.
+2. Backend least-privilege enforcement: find where module gating is enforced for endpoints (the admin router dependency). If gating only filters nav and does not 403 disabled-module endpoints, add enforcement so a disabled module's endpoints return 403 — especially the previously-ungated `/admin/embedding/*`, `/admin/llm/*`, `/admin/retrieval/*`.
+3. Backend runtime override: store under the AR17 `runtime_settings` key `admin_modules_enabled` (validated subset of `ADMIN_MODULES`, `overview` always added). `enabled_admin_modules()` precedence: runtime override → `ADMIN_MODULES_ENABLED` env → scenario preset.
+4. Web module-manager `web/app/console/admin/modules/page.tsx` + `web/components/admin-modules-panel.tsx` (gate `overview`): list all modules with enable/disable toggles (`overview` locked on), persist via `PATCH /admin/modules` (high-impact + audit), reflect the active scenario preset. `web/lib/admin-modules.ts` (`getAdminModules` → `/admin/modules`) already filters nav by enabled modules; add the new nav entries.
+
+**DoD**
+- Disabling a module (e.g., `cost`) from the module-manager hides its nav AND makes its endpoints return 403 (a test asserts 403 specifically for the previously-ungated `embedding`/`llm`/`retrieval` groups when their module is disabled).
+- The subset persists across reload (runtime override); presets still work; `overview` cannot be disabled.
+- Explicitly single-deployment (no per-request tenant scoping). `MIG`-backed only via the AR17 `runtime_settings` table (no new migration unless a dedicated table is chosen — if so, `MIG-P028` + plan assertion).
+- Full suite green; tsc clean.
+
+**Re-run checks**
+- `tests/test_admin_modularity_ar18.py` (endpoint 403 on disabled module incl. the three formerly-ungated groups; override precedence; overview locked); migration plan assertion if a new table is added; existing admin tests.
+
+**Priority:** P1 · **Effort:** L · **Depends on:** AR15, AR17 (`runtime_settings`).
+
+---
+
+### Milestone AR19 — Admin Console Component & Form-System Refactor (Gate AR19: no mega-component; one form vocabulary)
+
+**Why this is required**
+`web/components/admin-profiles-panel.tsx` (~1,300 lines) bundles tuning + cache + query-mining + governance + eval + multi-query + retrieval-evidence; forms are hand-rolled per panel with inconsistent inputs and no shared validation. This is the maintainability risk behind the visual defects AR20 fixes.
+
+**What is not working**
+One component owns many unrelated concerns; duplicated input markup; no shared `Field`/`Select`/`Input`/`Toggle`/validation layer; divergent classNames drive the inconsistency seen in AR20.
+
+**Goal**
+Decompose the mega-panel and introduce a small shared form-primitive layer used everywhere, with zero behavior change.
+
+**Deliverables**
+1. Shared primitives in `web/components/ui/`: `Field.tsx` (label + help + error + consistent spacing), `TextInput.tsx`, `NumberInput.tsx`, `Select.tsx` (styled native select — coordinate with AR20), `Textarea.tsx`, `Toggle.tsx`, `FormActions.tsx`, plus a small `useFieldState`/validation helper. All use CSS-variable tokens, 36px control height, one border/background.
+2. Decompose `admin-profiles-panel.tsx` into composed sub-panels on the profiles page: `TuningLabPanel`, `EvalEvidencePanel`, `QueryMiningPanel`, `GovernanceOpsPanel` (cache policy is already separate). Same endpoints, same behavior — structure + primitives only.
+3. Migrate the other panels (connectors, jobs/queue, traces, access, cost, health, flywheel, providers, embedding) to the shared primitives so all controls look identical.
+4. No backend change.
+
+**DoD**
+- `admin-profiles-panel.tsx` is replaced by composed sub-panels, each under ~400 lines; every console form control uses `web/components/ui` primitives; behavior unchanged (identical network calls).
+- `tsc --noEmit` clean; before/after note. Backend suite unaffected (green).
+
+**Re-run checks**
+- tsc; manual click-through of each migrated panel recorded in the note; backend suite green.
+
+**Priority:** P2 · **Effort:** L · **Depends on:** AR15–AR18 (so new panels migrate too).
+
+---
+
+### Milestone AR20 — UI Consistency & Alignment Remediation (Gate AR20: every control is boxed, aligned, and visually consistent)
+
+**Why this is required**
+A console review found concrete, reproducible defects (screenshots captured 2026-06-13): native `<select>`s render as bare text + chevron (unboxed); input backgrounds are inconsistent (white vs tan/olive across selects/textareas); labels are cramped against controls; and grid columns are misaligned in several forms.
+
+**What is not working (verified from screenshots)**
+- `Admin DB Connector Setup`: the Type `<select>` and Connection URL input are not visually boxed like the text inputs; columns are unevenly aligned.
+- `Queue Views`: filter `<select>`s render as plain text; the "Save job view" input has a tan/olive fill unlike the white inputs; chip/button baselines are misaligned.
+- `Query Debug` / `Trace Views`: the mode `<select>` is unstyled; the "Save trace view" input is tan/olive.
+- `User Directory` / `Source ACL Editor`: selects and textareas have tan/olive fills; labels (`User`, `Groups`, `Source`, `ACL groups`) touch their controls with no spacing.
+
+**Goal**
+One input/select/textarea surface and spacing token applied everywhere; all controls boxed, equal-height, consistently backgrounded, with consistent label spacing and aligned grids.
+
+**Deliverables**
+1. Root-cause the styling: locate the global stylesheet (`web/app/globals.css` or equivalent) and the classnames driving the tan/olive fill (likely a missing input class or a native `appearance`/autofill default on `select`/`textarea`).
+2. Style native controls uniformly: `select`, `input`, `textarea` share one rule — `appearance: none` on selects with a custom chevron; `background: var(--color-background-primary)` (canonical input token); `0.5px` border; `var(--border-radius-md)`; ≥36px min-height; consistent padding and focus ring. Remove all tan/olive fills. Apply via the AR19 `web/components/ui` primitives, and add the equivalent global CSS for any panel not yet migrated.
+3. Label spacing: consistent `margin` between a field label/title and its control (via the `Field` primitive).
+4. Grid alignment: audit each multi-column form (connector setup, queue filters, query-debug, trace filters, access panels) for equal column widths, gap, and vertical baseline; fix with a responsive grid token (`repeat(auto-fit, minmax(…, 1fr))`) and uniform control heights so rows align.
+5. `docs/runbooks/UI_CONSISTENCY_CHECKLIST.md`: control height, border, background token, chevron, label spacing, grid gap, focus ring — the standard for future panels. Optional automated guard: a lightweight jsdom/regex check that every `<select>/<input>/<textarea>` under `web/components` uses the shared class/primitive, failing on a bare control.
+6. Re-screenshot the previously-broken panels; embed before/after in the milestone note.
+
+**DoD**
+- The four screenshotted panels (connector setup, queue views, query/trace debug, user-directory/ACL) render with boxed, equal-height, consistently-backgrounded controls and proper label spacing; no tan/olive input fills remain anywhere in the console.
+- `tsc --noEmit` clean; the consistency checklist exists and (if implemented) the bare-control guard passes.
+
+**Re-run checks**
+- tsc; the optional bare-control guard; manual screenshot walkthrough in the note.
+
+**Priority:** P2 · **Effort:** M · **Depends on:** AR19 (primitives); global-CSS fixes may run partly in parallel.
+
+---
+
 ## Recommended 30/60/90-Day Execution
 
 - **30 days:** AR0, AR1, AR2 — baseline preserved, regression gate green and environment-independent, coherence enforced and repaired. Nothing else starts until these close.
 - **60 days:** AR3, AR4, AR8 — real eval packs and metrics, eval-gated promotion, fresh-machine portability and concurrency safety.
 - **90 days:** AR5, AR6, AR7, AR9 — real query transformation, truthful cache, embedding/index lifecycle, provider abstraction.
 - **Beyond 90 days:** AR10–AR13 as operator-trust and flywheel work; AR14 strictly last and strictly evidence-gated.
+- **Post-audit console hardening (AR15–AR20):** surface and make tunable every backend capability the console hides today (health/serving/posture, embedding swap, providers, cost budgets), enforce first-class UI modularity with least-privilege gating, refactor the form system, and fix the visual-consistency defects. These extend the plan beyond the original audit and assume AR0–AR14 are closed.
 
 ## Do Not Pursue Yet
 
