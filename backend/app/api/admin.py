@@ -2245,6 +2245,50 @@ def update_source(source_id: int, body: SourceUpdateRequest, request: Request):
     return {"status": "ok", "source": _source_payload_with_acl(updated or row, acl_map)}
 
 
+DOWNLOAD_WARN_BYTES = 25 * 1024 * 1024  # 25 MB: above this the console warns before downloading
+
+
+@router.get("/sources/{source_id}/download-info")
+def source_download_info(source_id: int):
+    """AR20/console: metadata for the download affordance — name, size, and
+    whether the console should warn before downloading a large file."""
+    row = get_source_by_id(source_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail={"error": "source_not_found", "message": f"Source {source_id} not found"})
+    size = int(getattr(row, "file_size_bytes", 0) or 0)
+    return {
+        "source_id": source_id,
+        "file_name": row.file_name,
+        "source_type": row.source_type,
+        "file_size_bytes": size,
+        "warn_threshold_bytes": DOWNLOAD_WARN_BYTES,
+        "too_large_warning": size > DOWNLOAD_WARN_BYTES,
+    }
+
+
+@router.get("/sources/{source_id}/download")
+def download_source_file(source_id: int):
+    """Admin-scoped download of a source's original file so an operator can read
+    it on their machine before acting. db_row sources stream their text."""
+    from fastapi.responses import FileResponse
+
+    row = get_source_by_id(source_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail={"error": "source_not_found", "message": f"Source {source_id} not found"})
+    if row.source_type == "db_row":
+        from app.db.repo_source_parts import list_source_parts
+
+        body = "\n\n".join((part.content_text or "") for part in list_source_parts(source_id)).strip()
+        return PlainTextResponse(body or row.file_name, media_type="text/plain")
+    from app.ingestion.jobs import _source_file_absolute_path
+
+    absolute_path = _source_file_absolute_path(row.storage_path)
+    if not absolute_path.exists():
+        raise HTTPException(status_code=404, detail={"error": "source_file_not_found", "source_id": source_id, "storage_path": row.storage_path})
+    media_type = getattr(row, "mime_type", None) or ("application/pdf" if row.source_type == "pdf" else "application/octet-stream")
+    return FileResponse(path=str(absolute_path), media_type=media_type, filename=row.file_name)
+
+
 @router.post("/sources/{source_id}/reindex")
 def trigger_reindex(source_id: int, body: ReindexRequest):
     row = get_source_by_id(source_id)

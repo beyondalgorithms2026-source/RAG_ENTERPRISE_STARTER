@@ -128,15 +128,40 @@ export function AdminHealthPanel() {
 
 type PostureItem = { label: string; value: unknown; editable_via: string; requires_restart: boolean };
 
-const POSTURE_GROUPS: { key: string; label: string }[] = [
-  { key: "serving", label: "Vector serving" },
-  { key: "cache", label: "Semantic cache" },
-  { key: "retrieval_defaults", label: "Retrieval defaults" },
-  { key: "eval_enforcement", label: "Eval enforcement" },
-  { key: "workers", label: "Workers" },
-  { key: "rate_limits", label: "Rate limits" },
-  { key: "cost_governance", label: "Cost governance" },
+const POSTURE_GROUPS: { key: string; label: string; help: string }[] = [
+  { key: "serving", label: "Vector serving", help: "Whether semantic (vector) search can run. If the active embedding model's dimension differs from the index, search falls back to keyword-only until a reindex completes." },
+  { key: "cache", label: "Semantic cache", help: "Whether answers are reused from the governed cache. It is OFF until an admin creates and activates a cache policy — until then every question is answered fresh." },
+  { key: "retrieval_defaults", label: "Retrieval defaults", help: "The live retrieval profile's defaults — search mode, query transformation, multi-query fan-out, and reranking. Several are off by default and tuned per profile." },
+  { key: "eval_enforcement", label: "Eval enforcement", help: "Whether promoting a tuning candidate requires a passing eval run. 'require' blocks promotion without evidence; 'warn' allows it but records a warning." },
+  { key: "workers", label: "Workers", help: "This build is single-process: the ingestion queue, rate limits, and model singletons live in one process. Running multiple web workers is refused unless explicitly allowed." },
+  { key: "rate_limits", label: "Rate limits", help: "Per-minute request caps protecting the backend. Changed via environment variables and a restart." },
+  { key: "cost_governance", label: "Cost governance", help: "The per-request USD alert threshold and the model price table used to estimate generation cost. Both are editable from the Cost / Providers console." },
 ];
+
+function InfoDot({ help }: { help: string }) {
+  return (
+    <span
+      title={help}
+      aria-label={help}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 15,
+        height: 15,
+        borderRadius: "50%",
+        border: "1px solid var(--color-border-secondary)",
+        color: "var(--color-text-secondary)",
+        fontSize: 10,
+        fontWeight: 600,
+        cursor: "help",
+        flexShrink: 0,
+      }}
+    >
+      i
+    </span>
+  );
+}
 
 function editBadge(via: string) {
   const ui = via.startsWith("ui");
@@ -172,7 +197,10 @@ function SystemPosture() {
           const headline = section?.headline as string | undefined;
           return (
             <div key={group.key}>
-              <p style={{ fontSize: 13, fontWeight: 500, margin: "0 0 4px" }}>{group.label}</p>
+              <p style={{ fontSize: 13, fontWeight: 500, margin: "0 0 4px", display: "flex", alignItems: "center", gap: 6 }}>
+                {group.label}
+                <InfoDot help={group.help} />
+              </p>
               {headline ? <p style={{ fontSize: 12.5, color: "var(--color-text-secondary)", margin: "0 0 6px" }}>{headline}</p> : null}
               <table style={{ width: "100%", fontSize: 12.5, borderCollapse: "collapse" }}>
                 <tbody>
