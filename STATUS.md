@@ -2,7 +2,7 @@
 
 **Last completed M-series milestone:** M33 — Governed Semantic Cache Policies, Scoped Enablement, And User Refresh  
 **Active work track:** M20–M30 manual verification closure
-**Current AR milestone:** AR-series complete (AR0–AR14)
+**Current AR milestone:** AR0–AR14 complete (audit remediation). Next: AR15 — Operator Visibility & System Posture (first of the post-audit console/UI milestones AR15–AR20).
 
 ## Independent Product Audit (2026-06-11)
 
@@ -35,6 +35,15 @@ Git tag: `audit-baseline-2026-06-11`
 | AR12 — Feedback→Eval Flywheel | **Complete (2026-06-13)** | `app/eval/feedback_flywheel.py`: failure cluster → quarantined (`unreviewed`) AR3 pack cases with trace-evidence prefill → human review/label → gating; quarantine guardrail (AR3 gate excludes unreviewed); pass-rate trend from AR4 `tuning_eval_runs`; `POST /admin/feedback-eval/{propose,append,review}` + `GET /{quarantine,trend}`; `/console/admin/flywheel` page; DoD full path tested (thumbs-down → pack → review → next eval gates it); 305/305 suite; note: `docs/milestones/AR12_feedback_to_eval_flywheel.md` |
 | AR13 — Connector Operations | **Complete (2026-06-13)** | Postgres-backed interval schedules, atomic leases, durable sync-run history, degraded health + exponential retry, source lifecycle timestamps/freshness badges across admin/user/evidence views; email truthfully scoped to uploaded `.eml`; 310/310 suite; note: `docs/milestones/AR13_connector_operations_and_source_freshness.md` |
 | AR14 — Retrieval Enhancements | **Complete (2026-06-13)** | Real MMR with ACL-trimmed vectors and traced fallback; weighted heading/body FTS (MIG-P026); ContextVar scoring ablations; demo `causal_terms` deleted; evidence API/console; 400-case AR3 control passed with recall@5 0.504167→0.505000, MRR unchanged 0.850086, nDCG@10 0.765736→0.765930; 315/315 suite; note: `docs/milestones/AR14_eval_proven_retrieval_enhancements.md` |
+
+**AR0–AR14 audit remediation plan complete (tag `ar-remediation-complete-2026-06-13`).** AR15+ below extend the plan from a follow-up console/UI completeness review (not the original audit).
+
+| AR15 — Operator Visibility & System Posture | Not started | P1 — global health banner, serving-state, read-only System Posture panel incl. "semantic cache globally OFF"; `GET /admin/system/posture` |
+| AR16 — Embedding & Model-Swap Console | Not started | P1 — console UI to drive the AR7 swap lifecycle + serving guard |
+| AR17 — Provider & Cost-Governance Console | Not started | P1 — BYO-model config + "test connection"; runtime-editable cost budget/price table/enforcement (`runtime_settings`, MIG-P027) |
+| AR18 — UI Modularity & Least-Privilege Gating | Not started | P1 — first-class toggleable modules; gate the 3 ungated endpoint groups; runtime module override + module-manager UI (single-deployment, not multi-tenant) |
+| AR19 — Console Component & Form-System Refactor | Not started | P2 — decompose the 1.3k-line profiles mega-panel; shared `web/components/ui` primitives |
+| AR20 — UI Consistency & Alignment | Not started | P2 — fix unstyled selects, tan/olive input fills, label spacing, grid alignment; consistency checklist |
 
 ## Current Repo Posture
 
