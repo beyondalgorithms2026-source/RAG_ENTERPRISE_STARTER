@@ -87,10 +87,13 @@ class HealthDashboardAR10Tests(SmokeTestBase):
         else:
             self.assertIn("gate_status", tile.get("details", {}))
 
-    def test_semantic_cache_tile_is_present_and_passes(self):
+    def test_semantic_cache_tile_present(self):
+        # AR15: pass when an active policy exists, else warn "globally OFF".
         tile = semantic_cache_tile()
         self.assertEqual(tile["tile"], "semantic_cache")
-        self.assertEqual(tile["status"], "pass")
+        self.assertIn(tile["status"], {"pass", "warn"})
+        if tile["status"] == "warn":
+            self.assertIn("globally OFF", tile["reason"])
 
     def test_dashboard_endpoint_returns_banner_and_tiles(self):
         from fastapi.testclient import TestClient

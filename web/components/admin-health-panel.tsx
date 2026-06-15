@@ -120,6 +120,78 @@ export function AdminHealthPanel() {
           );
         })}
       </div>
+
+      <SystemPosture />
     </section>
+  );
+}
+
+type PostureItem = { label: string; value: unknown; editable_via: string; requires_restart: boolean };
+
+const POSTURE_GROUPS: { key: string; label: string }[] = [
+  { key: "serving", label: "Vector serving" },
+  { key: "cache", label: "Semantic cache" },
+  { key: "retrieval_defaults", label: "Retrieval defaults" },
+  { key: "eval_enforcement", label: "Eval enforcement" },
+  { key: "workers", label: "Workers" },
+  { key: "rate_limits", label: "Rate limits" },
+  { key: "cost_governance", label: "Cost governance" },
+];
+
+function editBadge(via: string) {
+  const ui = via.startsWith("ui");
+  const env = via.startsWith("env");
+  const bg = ui ? "var(--color-background-info)" : env ? "var(--color-background-secondary)" : "var(--color-background-secondary)";
+  const fg = ui ? "var(--color-text-info)" : "var(--color-text-secondary)";
+  return <span style={{ fontSize: 11, background: bg, color: fg, borderRadius: "var(--border-radius-md)", padding: "1px 8px", fontFamily: "var(--font-mono)" }}>{via}</span>;
+}
+
+function SystemPosture() {
+  const [posture, setPosture] = useState<Record<string, GenericMap> | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    browserFetch<Record<string, GenericMap>>("/admin/system/posture")
+      .then(setPosture)
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load system posture."));
+  }, []);
+
+  if (error) return <p style={{ color: "var(--color-text-danger)", fontSize: 13 }}>{error}</p>;
+  if (!posture) return null;
+
+  return (
+    <div style={{ borderTop: "0.5px solid var(--color-border-tertiary)", paddingTop: "1rem" }}>
+      <h3 style={{ fontSize: 16, margin: "0 0 4px" }}>System Posture</h3>
+      <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "0 0 12px" }}>
+        Everything an operator must know without reading the environment or the database. Items marked <code>env:…</code> are changed by editing configuration and restarting; <code>policy</code>/<code>profile</code> are changed in this console.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        {POSTURE_GROUPS.map((group) => {
+          const section = posture[group.key] as GenericMap | undefined;
+          const items = (section?.items as PostureItem[] | undefined) ?? [];
+          const headline = section?.headline as string | undefined;
+          return (
+            <div key={group.key}>
+              <p style={{ fontSize: 13, fontWeight: 500, margin: "0 0 4px" }}>{group.label}</p>
+              {headline ? <p style={{ fontSize: 12.5, color: "var(--color-text-secondary)", margin: "0 0 6px" }}>{headline}</p> : null}
+              <table style={{ width: "100%", fontSize: 12.5, borderCollapse: "collapse" }}>
+                <tbody>
+                  {items.map((item, i) => (
+                    <tr key={i} style={{ borderTop: "0.5px solid var(--color-border-tertiary)" }}>
+                      <td style={{ padding: "5px 8px", color: "var(--color-text-secondary)", width: "40%" }}>{item.label}</td>
+                      <td style={{ padding: "5px 8px" }}>{item.value === null || item.value === undefined ? "—" : String(item.value)}</td>
+                      <td style={{ padding: "5px 8px", textAlign: "right" }}>
+                        {editBadge(item.editable_via)}
+                        {item.requires_restart ? <span style={{ fontSize: 11, color: "var(--color-text-warning)", marginLeft: 6 }}>restart</span> : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
