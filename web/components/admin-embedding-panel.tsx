@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
+import { Select } from "@/components/ui/Select";
+import { TextInput } from "@/components/ui/TextInput";
+import { NumberInput } from "@/components/ui/NumberInput";
 
 type GenericMap = Record<string, unknown>;
 
@@ -166,13 +169,13 @@ export function AdminEmbeddingPanel() {
       <div style={{ display: "flex", gap: "8px", alignItems: "flex-end", flexWrap: "wrap" }}>
         <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
           <span style={{ color: "var(--color-text-secondary)" }}>Target embedding profile</span>
-          <select value={target} onChange={(e) => setTarget(e.target.value)} style={{ minWidth: 240 }}>
+          <Select value={target} onChange={(e) => setTarget(e.target.value)} style={{ minWidth: 240 }}>
             {options.map((o) => (
               <option key={o.name} value={o.name}>
                 {(o.display_name || o.name) + (o.model ? ` · ${o.model}` : "")}{o.name === liveEmbedding ? " (live)" : ""}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <button type="button" className="button button-secondary" onClick={doPlan} disabled={busy === "plan" || !target}>
           {busy === "plan" ? "Planning…" : "Plan swap"}
@@ -187,7 +190,7 @@ export function AdminEmbeddingPanel() {
           <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5 }}>
               <span style={{ color: "var(--color-text-secondary)" }}>Approval actor (prod only)</span>
-              <input value={approvalActor} onChange={(e) => setApprovalActor(e.target.value)} placeholder="approver user id" />
+              <TextInput value={approvalActor} onChange={(e) => setApprovalActor(e.target.value)} placeholder="approver user id" />
             </label>
             <button type="button" className="button button-primary" onClick={doBegin} disabled={busy === "begin" || !!runActive}>
               {busy === "begin" ? "Beginning…" : "Begin swap"}
@@ -216,7 +219,7 @@ export function AdminEmbeddingPanel() {
           <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5 }}>
               <span style={{ color: "var(--color-text-secondary)" }}>Batch limit</span>
-              <input type="number" min={1} value={batchLimit} onChange={(e) => setBatchLimit(Number(e.target.value))} style={{ width: 120 }} />
+              <NumberInput min={1} value={batchLimit} onChange={(e) => setBatchLimit(Number(e.target.value))} style={{ width: 120 }} />
             </label>
             <button type="button" className="button button-secondary" onClick={doRun} disabled={busy === "run" || run.status === "verifying" || TERMINAL.has(run.status)}>
               {busy === "run" ? "Running…" : "Run batch"}

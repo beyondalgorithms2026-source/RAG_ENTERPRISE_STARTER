@@ -66,6 +66,94 @@ textarea {
   font: inherit;
 }
 
+.ui-control {
+  min-height: 36px;
+  border: 1px solid var(--outline-strong);
+  background: var(--surface-highest);
+  border-radius: 10px;
+  padding: 7px 10px;
+}
+
+.ui-control:focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-soft);
+}
+
+.ui-textarea {
+  min-height: 72px;
+}
+
+.ui-field {
+  display: grid;
+  gap: 6px;
+}
+
+.ui-field-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.ui-field-help,
+.ui-field-error {
+  font-size: 0.75rem;
+}
+
+.ui-field-help {
+  color: var(--muted);
+}
+
+.ui-field-error {
+  color: var(--danger);
+}
+
+.ui-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.ui-toggle-switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ui-toggle-track {
+  display: inline-flex;
+  width: 38px;
+  height: 22px;
+  padding: 3px;
+  border: 1px solid var(--outline-strong);
+  border-radius: 999px;
+  background: var(--surface-highest);
+}
+
+.ui-toggle-track i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.ui-toggle-switch input:checked + .ui-toggle-track {
+  background: var(--primary-soft);
+}
+
+.ui-toggle-switch input:checked + .ui-toggle-track i {
+  transform: translateX(16px);
+  background: var(--primary);
+}
+
+.ui-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 button {
   border: 0;
   cursor: pointer;

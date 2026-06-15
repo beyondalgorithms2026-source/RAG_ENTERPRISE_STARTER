@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
+import { TextInput } from "@/components/ui/TextInput";
+import { NumberInput } from "@/components/ui/NumberInput";
 
 type GenericMap = Record<string, unknown>;
 
@@ -147,15 +149,15 @@ export function AdminCostPanel() {
             </div>
             <label style={{ display: "grid", gap: 4, maxWidth: 280 }}>
               <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>Per-request cost alert (USD)</span>
-              <input type="number" min={0} step="0.000001" value={budget} onChange={(event) => setBudget(Number(event.target.value))} />
+              <NumberInput min={0} step="0.000001" value={budget} onChange={(event) => setBudget(Number(event.target.value))} />
               <small>Effective source: {runtime?.settings.llm_cost_alert_usd.source || "unknown"}</small>
             </label>
             <div style={{ display: "grid", gap: 8 }}>
               {prices.map((row, index) => (
                 <div key={`${row.model}-${index}`} style={{ display: "grid", gridTemplateColumns: "minmax(160px, 1fr) 140px 140px auto", gap: 8 }}>
-                  <input aria-label="Model" placeholder="model name" value={row.model} onChange={(event) => setPrices((current) => current.map((item, i) => i === index ? { ...item, model: event.target.value } : item))} />
-                  <input aria-label="Input USD per 1K" type="number" min={0} step="0.000001" value={row.input} onChange={(event) => setPrices((current) => current.map((item, i) => i === index ? { ...item, input: Number(event.target.value) } : item))} />
-                  <input aria-label="Output USD per 1K" type="number" min={0} step="0.000001" value={row.output} onChange={(event) => setPrices((current) => current.map((item, i) => i === index ? { ...item, output: Number(event.target.value) } : item))} />
+                  <TextInput aria-label="Model" placeholder="model name" value={row.model} onChange={(event) => setPrices((current) => current.map((item, i) => i === index ? { ...item, model: event.target.value } : item))} />
+                  <TextInput aria-label="Input USD per 1K" type="number" min={0} step="0.000001" value={row.input} onChange={(event) => setPrices((current) => current.map((item, i) => i === index ? { ...item, input: Number(event.target.value) } : item))} />
+                  <TextInput aria-label="Output USD per 1K" type="number" min={0} step="0.000001" value={row.output} onChange={(event) => setPrices((current) => current.map((item, i) => i === index ? { ...item, output: Number(event.target.value) } : item))} />
                   <button type="button" className="button button-secondary" onClick={() => setPrices((current) => current.filter((_, i) => i !== index))}>Remove</button>
                 </div>
               ))}
@@ -164,7 +166,7 @@ export function AdminCostPanel() {
             </div>
             <label style={{ display: "grid", gap: 4, maxWidth: 320 }}>
               <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>Approval actor (required in governed production)</span>
-              <input value={approvalActor} onChange={(event) => setApprovalActor(event.target.value)} placeholder="Separate approver user ID" />
+              <TextInput value={approvalActor} onChange={(event) => setApprovalActor(event.target.value)} placeholder="Separate approver user ID" />
             </label>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" className="button button-primary" disabled={saving} onClick={saveGovernance}>{saving ? "Saving…" : "Save governance"}</button>

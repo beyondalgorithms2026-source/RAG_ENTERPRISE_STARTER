@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
+import { TextInput } from "@/components/ui/TextInput";
 
 type AccessRequest = {
   id: number;
@@ -359,15 +362,15 @@ export function AccessRequestsAdminPanel() {
           </div>
           <label>
             <span>User</span>
-            <select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
+            <Select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
               {users.map((user) => (
                 <option key={user.external_user_id} value={user.external_user_id}>{user.display_name || user.email || user.external_user_id}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             <span>Groups (comma separated)</span>
-            <input value={membershipDraft} onChange={(event) => setMembershipDraft(event.target.value)} placeholder="public_users, contract_reviewers" />
+            <TextInput value={membershipDraft} onChange={(event) => setMembershipDraft(event.target.value)} placeholder="public_users, contract_reviewers" />
           </label>
           <div className="toolbar-inline">
             <button type="button" className="stitch-button stitch-button-primary stitch-button-small" onClick={() => saveMemberships()}>Save Memberships</button>
@@ -394,15 +397,15 @@ export function AccessRequestsAdminPanel() {
           </div>
           <label>
             <span>Source</span>
-            <select value={selectedSourceId} onChange={(event) => setSelectedSourceId(event.target.value)}>
+            <Select value={selectedSourceId} onChange={(event) => setSelectedSourceId(event.target.value)}>
               {sources.map((source) => (
                 <option key={source.source_id} value={String(source.source_id)}>#{source.source_id} · {source.file_name}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             <span>ACL groups (comma separated)</span>
-            <input value={sourceAclDraft} onChange={(event) => setSourceAclDraft(event.target.value)} placeholder="legal, executive_access" />
+            <TextInput value={sourceAclDraft} onChange={(event) => setSourceAclDraft(event.target.value)} placeholder="legal, executive_access" />
           </label>
           <div className="toolbar-inline">
             <button type="button" className="stitch-button stitch-button-primary stitch-button-small" onClick={() => saveSourceAcl()}>Save ACL</button>
@@ -410,7 +413,7 @@ export function AccessRequestsAdminPanel() {
           </div>
           <label>
             <span>Contacts (`role|email|display|external_user_id`, one per line)</span>
-            <textarea rows={6} value={contactDraft} onChange={(event) => setContactDraft(event.target.value)} placeholder="business_approver|approver@ragenterprise.local|M161 Approver|m161-approver" />
+            <Textarea rows={6} value={contactDraft} onChange={(event) => setContactDraft(event.target.value)} placeholder="business_approver|approver@ragenterprise.local|M161 Approver|m161-approver" />
           </label>
           <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => saveSourceContacts()}>Save Contacts</button>
           <div className="table-list">
@@ -477,13 +480,13 @@ export function AccessRequestsAdminPanel() {
                     </div>
                   </div>
                   <div className="admin-form-grid">
-                    <label><span>Source ids</span><input value={draft.sourceIds} onChange={(event) => setRoutingDrafts((current) => ({ ...current, [request.id]: { ...draft, sourceIds: event.target.value } }))} placeholder="Optional if approver will map source ids" /></label>
-                    <label><span>Business approver email</span><input value={draft.businessApproverEmail} onChange={(event) => setRoutingDrafts((current) => ({ ...current, [request.id]: { ...draft, businessApproverEmail: event.target.value } }))} placeholder="owner@example.com" /></label>
-                    <label><span>Business approver name</span><input value={draft.businessApproverDisplayName} onChange={(event) => setRoutingDrafts((current) => ({ ...current, [request.id]: { ...draft, businessApproverDisplayName: event.target.value } }))} placeholder="Source Owner" /></label>
-                    <label><span>ACL manager email</span><input value={draft.aclManagerEmail} onChange={(event) => setRoutingDrafts((current) => ({ ...current, [request.id]: { ...draft, aclManagerEmail: event.target.value } }))} placeholder="acl-manager@example.com" /></label>
-                    <label><span>Requester manager email</span><input value={draft.requesterManagerEmail} onChange={(event) => setRoutingDrafts((current) => ({ ...current, [request.id]: { ...draft, requesterManagerEmail: event.target.value } }))} placeholder="manager@example.com" /></label>
-                    <label className="form-span-3"><span>Routing note</span><textarea rows={2} value={draft.reviewReason} onChange={(event) => setRoutingDrafts((current) => ({ ...current, [request.id]: { ...draft, reviewReason: event.target.value } }))} placeholder="Why this request is being routed or how the source mapping was chosen" /></label>
-                    <label className="form-span-3"><span>Close reason</span><textarea rows={2} value={denyReasons[request.id] || ""} onChange={(event) => setDenyReasons((current) => ({ ...current, [request.id]: event.target.value }))} placeholder="Reason to close without grant" /></label>
+                    <label><span>Source ids</span><TextInput value={draft.sourceIds} onChange={(event) => setRoutingDrafts((current) => ({ ...current, [request.id]: { ...draft, sourceIds: event.target.value } }))} placeholder="Optional if approver will map source ids" /></label>
+                    <label><span>Business approver email</span><TextInput value={draft.businessApproverEmail} onChange={(event) => setRoutingDrafts((current) => ({ ...current, [request.id]: { ...draft, businessApproverEmail: event.target.value } }))} placeholder="owner@example.com" /></label>
+                    <label><span>Business approver name</span><TextInput value={draft.businessApproverDisplayName} onChange={(event) => setRoutingDrafts((current) => ({ ...current, [request.id]: { ...draft, businessApproverDisplayName: event.target.value } }))} placeholder="Source Owner" /></label>
+                    <label><span>ACL manager email</span><TextInput value={draft.aclManagerEmail} onChange={(event) => setRoutingDrafts((current) => ({ ...current, [request.id]: { ...draft, aclManagerEmail: event.target.value } }))} placeholder="acl-manager@example.com" /></label>
+                    <label><span>Requester manager email</span><TextInput value={draft.requesterManagerEmail} onChange={(event) => setRoutingDrafts((current) => ({ ...current, [request.id]: { ...draft, requesterManagerEmail: event.target.value } }))} placeholder="manager@example.com" /></label>
+                    <label className="form-span-3"><span>Routing note</span><Textarea rows={2} value={draft.reviewReason} onChange={(event) => setRoutingDrafts((current) => ({ ...current, [request.id]: { ...draft, reviewReason: event.target.value } }))} placeholder="Why this request is being routed or how the source mapping was chosen" /></label>
+                    <label className="form-span-3"><span>Close reason</span><Textarea rows={2} value={denyReasons[request.id] || ""} onChange={(event) => setDenyReasons((current) => ({ ...current, [request.id]: event.target.value }))} placeholder="Reason to close without grant" /></label>
                   </div>
                   <div className="toolbar-inline">
                     <button type="button" className="stitch-button stitch-button-primary stitch-button-small" disabled={request.status === "grant_completed" || request.status === "cancelled"} onClick={() => routeRequest(request)}>Route For Approval</button>

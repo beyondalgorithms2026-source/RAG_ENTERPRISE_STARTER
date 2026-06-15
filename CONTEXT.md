@@ -4,7 +4,7 @@
 Build an enterprise-usable RAG system based on the existing stable baseline that supports SSO + ACL security trimming, multi-source ingestion (cloud DB + enterprise email), configurable retrieval/model controls, end-user chat UI + admin console, tool actions with approvals, feedback loops, and per-corpus indexing policies — without breaking baseline correctness.
 
 **Current phase**  
-AR0–AR18 is complete. AR18 made health, cost, flywheel, embedding, and providers first-class modules with server-enforced endpoint gating and a deployment-wide runtime module manager. AR19 console component/form refactoring is next; M20–M30 manual verification notes also remain open.
+AR0–AR19 is complete. AR19 replaced the profiles mega-component with four focused panels and migrated active admin forms to one shared control vocabulary. AR20 visual consistency remediation is next; M20–M30 manual verification notes also remain open.
 
 **Current baseline (what the codebase already does today)**
 This repository is substantially more real than a typical RAG demo. It supports document-type-specific parsing and chunking, one dense embedding path, multiple retrieval modes, heuristic query routing, optional cross-encoder reranking, graph and temporal enrichment layers, a deep-research retrieval path, governed tuning (drafts/compare/promote/rollback), semantic cache with governance, ~80 admin endpoints, pervasive trace observability, and citation provenance enforcement.  

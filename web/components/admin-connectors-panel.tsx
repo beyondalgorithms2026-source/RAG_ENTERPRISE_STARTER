@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
+import { TextInput } from "@/components/ui/TextInput";
 
 type DbConnector = {
   id: number;
@@ -338,20 +341,20 @@ export function AdminConnectorsPanel() {
                       <div className="request-setup-box">
                         <h3>Approve With DB Connector Setup</h3>
                         <div className="admin-form-grid">
-                          <label><span>Name</span><input value={setupDraftFor(request).name} onChange={(event) => updateSetupDraft(request, { name: event.target.value })} /></label>
-                          <label><span>Type</span><select value={setupDraftFor(request).connector_type} onChange={(event) => updateSetupDraft(request, { connector_type: event.target.value })}><option value="postgres">Postgres</option><option value="mysql">MySQL</option></select></label>
-                          <label><span>Connection URL</span><input value={setupDraftFor(request).db_url} onChange={(event) => updateSetupDraft(request, { db_url: event.target.value })} placeholder="postgresql://user:pass@host:5432/db" /></label>
-                          <label><span>Table</span><input value={setupDraftFor(request).table_name} onChange={(event) => updateSetupDraft(request, { table_name: event.target.value })} placeholder="public.customer_cases" /></label>
-                          <label><span>ID Column</span><input value={setupDraftFor(request).id_column} onChange={(event) => updateSetupDraft(request, { id_column: event.target.value })} /></label>
-                          <label><span>Updated At Column</span><input value={setupDraftFor(request).updated_at_column} onChange={(event) => updateSetupDraft(request, { updated_at_column: event.target.value })} /></label>
-                          <label><span>Text Columns</span><input value={setupDraftFor(request).text_columns} onChange={(event) => updateSetupDraft(request, { text_columns: event.target.value })} placeholder="title,body,notes" /></label>
-                          <label><span>Metadata Filters</span><input value={setupDraftFor(request).metadata_columns} onChange={(event) => updateSetupDraft(request, { metadata_columns: event.target.value })} placeholder="customer_id,region" /></label>
-                          <label><span>Corpus</span><input value={setupDraftFor(request).corpus_name} onChange={(event) => updateSetupDraft(request, { corpus_name: event.target.value })} /></label>
-                          <label><span>ACL Groups</span><input value={setupDraftFor(request).acl_group_names} onChange={(event) => updateSetupDraft(request, { acl_group_names: event.target.value })} placeholder="support,finance" /></label>
+                          <label><span>Name</span><TextInput value={setupDraftFor(request).name} onChange={(event) => updateSetupDraft(request, { name: event.target.value })} /></label>
+                          <label><span>Type</span><Select value={setupDraftFor(request).connector_type} onChange={(event) => updateSetupDraft(request, { connector_type: event.target.value })}><option value="postgres">Postgres</option><option value="mysql">MySQL</option></Select></label>
+                          <label><span>Connection URL</span><TextInput value={setupDraftFor(request).db_url} onChange={(event) => updateSetupDraft(request, { db_url: event.target.value })} placeholder="postgresql://user:pass@host:5432/db" /></label>
+                          <label><span>Table</span><TextInput value={setupDraftFor(request).table_name} onChange={(event) => updateSetupDraft(request, { table_name: event.target.value })} placeholder="public.customer_cases" /></label>
+                          <label><span>ID Column</span><TextInput value={setupDraftFor(request).id_column} onChange={(event) => updateSetupDraft(request, { id_column: event.target.value })} /></label>
+                          <label><span>Updated At Column</span><TextInput value={setupDraftFor(request).updated_at_column} onChange={(event) => updateSetupDraft(request, { updated_at_column: event.target.value })} /></label>
+                          <label><span>Text Columns</span><TextInput value={setupDraftFor(request).text_columns} onChange={(event) => updateSetupDraft(request, { text_columns: event.target.value })} placeholder="title,body,notes" /></label>
+                          <label><span>Metadata Filters</span><TextInput value={setupDraftFor(request).metadata_columns} onChange={(event) => updateSetupDraft(request, { metadata_columns: event.target.value })} placeholder="customer_id,region" /></label>
+                          <label><span>Corpus</span><TextInput value={setupDraftFor(request).corpus_name} onChange={(event) => updateSetupDraft(request, { corpus_name: event.target.value })} /></label>
+                          <label><span>ACL Groups</span><TextInput value={setupDraftFor(request).acl_group_names} onChange={(event) => updateSetupDraft(request, { acl_group_names: event.target.value })} placeholder="support,finance" /></label>
                         </div>
                       </div>
                     ) : null}
-                    <label><span>Review Note</span><textarea value={reviewReasons[request.id] || ""} onChange={(event) => setReviewReasons((current) => ({ ...current, [request.id]: event.target.value }))} rows={3} placeholder="Explain what was approved, denied, or still needed." /></label>
+                    <label><span>Review Note</span><Textarea value={reviewReasons[request.id] || ""} onChange={(event) => setReviewReasons((current) => ({ ...current, [request.id]: event.target.value }))} rows={3} placeholder="Explain what was approved, denied, or still needed." /></label>
                     <div className="toolbar-inline">
                       {request.connector_type === "database" ? <button type="button" className="stitch-button stitch-button-primary" disabled={busy} onClick={() => approveWithConnector(request)}>Approve + Save Connector</button> : null}
                       <button type="button" className="stitch-button stitch-button-secondary" disabled={busy} onClick={() => reviewRequest(request.id, "denied")}>Deny Request</button>
@@ -367,16 +370,16 @@ export function AdminConnectorsPanel() {
       <section className="admin-card page-stack">
         <h2>Admin DB Connector Setup</h2>
         <div className="admin-form-grid">
-          <label><span>Name</span><input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></label>
-          <label><span>Type</span><select value={form.connector_type} onChange={(event) => setForm((current) => ({ ...current, connector_type: event.target.value }))}><option value="postgres">Postgres</option><option value="mysql">MySQL</option></select></label>
-          <label><span>Connection URL</span><input value={form.db_url} onChange={(event) => setForm((current) => ({ ...current, db_url: event.target.value }))} placeholder="postgresql://user:pass@host:5432/db" /></label>
-          <label><span>Table</span><input value={form.table_name} onChange={(event) => setForm((current) => ({ ...current, table_name: event.target.value }))} placeholder="public.customer_cases" /></label>
-          <label><span>ID Column</span><input value={form.id_column} onChange={(event) => setForm((current) => ({ ...current, id_column: event.target.value }))} /></label>
-          <label><span>Updated At Column</span><input value={form.updated_at_column} onChange={(event) => setForm((current) => ({ ...current, updated_at_column: event.target.value }))} /></label>
-          <label><span>Text Columns</span><input value={form.text_columns} onChange={(event) => setForm((current) => ({ ...current, text_columns: event.target.value }))} placeholder="title,body,notes" /></label>
-          <label><span>Metadata Filters</span><input value={form.metadata_columns} onChange={(event) => setForm((current) => ({ ...current, metadata_columns: event.target.value }))} placeholder="customer_id,region" /></label>
-          <label><span>Corpus</span><input value={form.corpus_name} onChange={(event) => setForm((current) => ({ ...current, corpus_name: event.target.value }))} /></label>
-          <label><span>ACL Groups</span><input value={form.acl_group_names} onChange={(event) => setForm((current) => ({ ...current, acl_group_names: event.target.value }))} placeholder="support,finance" /></label>
+          <label><span>Name</span><TextInput value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></label>
+          <label><span>Type</span><Select value={form.connector_type} onChange={(event) => setForm((current) => ({ ...current, connector_type: event.target.value }))}><option value="postgres">Postgres</option><option value="mysql">MySQL</option></Select></label>
+          <label><span>Connection URL</span><TextInput value={form.db_url} onChange={(event) => setForm((current) => ({ ...current, db_url: event.target.value }))} placeholder="postgresql://user:pass@host:5432/db" /></label>
+          <label><span>Table</span><TextInput value={form.table_name} onChange={(event) => setForm((current) => ({ ...current, table_name: event.target.value }))} placeholder="public.customer_cases" /></label>
+          <label><span>ID Column</span><TextInput value={form.id_column} onChange={(event) => setForm((current) => ({ ...current, id_column: event.target.value }))} /></label>
+          <label><span>Updated At Column</span><TextInput value={form.updated_at_column} onChange={(event) => setForm((current) => ({ ...current, updated_at_column: event.target.value }))} /></label>
+          <label><span>Text Columns</span><TextInput value={form.text_columns} onChange={(event) => setForm((current) => ({ ...current, text_columns: event.target.value }))} placeholder="title,body,notes" /></label>
+          <label><span>Metadata Filters</span><TextInput value={form.metadata_columns} onChange={(event) => setForm((current) => ({ ...current, metadata_columns: event.target.value }))} placeholder="customer_id,region" /></label>
+          <label><span>Corpus</span><TextInput value={form.corpus_name} onChange={(event) => setForm((current) => ({ ...current, corpus_name: event.target.value }))} /></label>
+          <label><span>ACL Groups</span><TextInput value={form.acl_group_names} onChange={(event) => setForm((current) => ({ ...current, acl_group_names: event.target.value }))} placeholder="support,finance" /></label>
         </div>
         <div className="toolbar-inline">
           <button type="button" className="stitch-button stitch-button-primary" disabled={busy} onClick={saveConnector}>Save Connector</button>
