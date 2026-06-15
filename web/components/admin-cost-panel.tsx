@@ -10,7 +10,12 @@ type CostSummary = {
   group_by: string;
   buckets: GenericMap[];
   totals: GenericMap;
+  governance: GenericMap;
 };
+
+type RuntimeSetting = { effective: unknown; override: unknown; source: string };
+type RuntimeSettings = { settings: Record<string, RuntimeSetting> };
+type PriceRow = { model: string; input: number; output: number };
 
 const GROUPINGS = [
   { key: "retrieval_mode", label: "By mode (deep research vs fast)" },
@@ -28,11 +33,26 @@ export function AdminCostPanel() {
   const [data, setData] = useState<CostSummary | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [runtime, setRuntime] = useState<RuntimeSettings | null>(null);
+  const [budget, setBudget] = useState(0);
+  const [prices, setPrices] = useState<PriceRow[]>([]);
+  const [approvalActor, setApprovalActor] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
 
   async function refresh(group: string) {
     setLoading(true);
     try {
-      setData(await browserFetch<CostSummary>(`/admin/cost/summary?group_by=${group}`));
+      const [summary, settings] = await Promise.all([
+        browserFetch<CostSummary>(`/admin/cost/summary?group_by=${group}`),
+        browserFetch<RuntimeSettings>("/admin/runtime-settings"),
+      ]);
+      setData(summary);
+      setRuntime(settings);
+      const alert = settings.settings.llm_cost_alert_usd;
+      setBudget(Number(alert.override ?? alert.effective ?? 0));
+      const table = (settings.settings.llm_price_table.override ?? settings.settings.llm_price_table.effective ?? {}) as Record<string, number[]>;
+      setPrices(Object.entries(table).map(([model, values]) => ({ model, input: Number(values[0] || 0), output: Number(values[1] || 0) })));
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load cost summary.");
@@ -44,6 +64,55 @@ export function AdminCostPanel() {
   useEffect(() => {
     refresh(groupBy);
   }, [groupBy]);
+
+  function approvalHeaders() {
+    return approvalActor.trim() ? { "X-Approval-Actor": approvalActor.trim() } : undefined;
+  }
+
+  async function saveGovernance() {
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const priceTable = Object.fromEntries(prices.filter((row) => row.model.trim()).map((row) => [row.model.trim(), [row.input, row.output]]));
+      await browserFetch("/admin/runtime-settings", {
+        method: "PATCH",
+        headers: approvalHeaders(),
+        json: { key: "llm_cost_alert_usd", value: budget },
+      });
+      await browserFetch("/admin/runtime-settings", {
+        method: "PATCH",
+        headers: approvalHeaders(),
+        json: { key: "llm_price_table", value: priceTable },
+      });
+      setMessage("Cost governance saved.");
+      await refresh(groupBy);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save cost governance.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function resetGovernance() {
+    setSaving(true);
+    setError("");
+    try {
+      for (const key of ["llm_cost_alert_usd", "llm_price_table"]) {
+        await browserFetch("/admin/runtime-settings", {
+          method: "PATCH",
+          headers: approvalHeaders(),
+          json: { key, value: null },
+        });
+      }
+      setMessage("Runtime overrides cleared.");
+      await refresh(groupBy);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reset cost governance.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <section className="card" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -66,10 +135,43 @@ export function AdminCostPanel() {
       </div>
 
       {error ? <p style={{ color: "var(--color-text-danger)" }}>{error}</p> : null}
+      {message ? <p style={{ color: "var(--color-text-success)" }}>{message}</p> : null}
       {loading ? <p style={{ color: "var(--color-text-secondary)" }}>Loading…</p> : null}
 
       {data ? (
         <>
+          <div style={{ border: "0.5px solid var(--color-border-tertiary)", borderRadius: "var(--border-radius-md)", padding: "1rem", display: "grid", gap: "12px" }}>
+            <div className="section-head">
+              <h3>Runtime budget and model prices</h3>
+              <p>Prices are USD per 1K input/output tokens. Runtime values override environment settings without a restart.</p>
+            </div>
+            <label style={{ display: "grid", gap: 4, maxWidth: 280 }}>
+              <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>Per-request cost alert (USD)</span>
+              <input type="number" min={0} step="0.000001" value={budget} onChange={(event) => setBudget(Number(event.target.value))} />
+              <small>Effective source: {runtime?.settings.llm_cost_alert_usd.source || "unknown"}</small>
+            </label>
+            <div style={{ display: "grid", gap: 8 }}>
+              {prices.map((row, index) => (
+                <div key={`${row.model}-${index}`} style={{ display: "grid", gridTemplateColumns: "minmax(160px, 1fr) 140px 140px auto", gap: 8 }}>
+                  <input aria-label="Model" placeholder="model name" value={row.model} onChange={(event) => setPrices((current) => current.map((item, i) => i === index ? { ...item, model: event.target.value } : item))} />
+                  <input aria-label="Input USD per 1K" type="number" min={0} step="0.000001" value={row.input} onChange={(event) => setPrices((current) => current.map((item, i) => i === index ? { ...item, input: Number(event.target.value) } : item))} />
+                  <input aria-label="Output USD per 1K" type="number" min={0} step="0.000001" value={row.output} onChange={(event) => setPrices((current) => current.map((item, i) => i === index ? { ...item, output: Number(event.target.value) } : item))} />
+                  <button type="button" className="button button-secondary" onClick={() => setPrices((current) => current.filter((_, i) => i !== index))}>Remove</button>
+                </div>
+              ))}
+              <small>Effective price source: {runtime?.settings.llm_price_table.source || "unknown"}</small>
+              <button type="button" className="button button-secondary" style={{ width: "fit-content" }} onClick={() => setPrices((current) => [...current, { model: "", input: 0, output: 0 }])}>Add model price</button>
+            </div>
+            <label style={{ display: "grid", gap: 4, maxWidth: 320 }}>
+              <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>Approval actor (required in governed production)</span>
+              <input value={approvalActor} onChange={(event) => setApprovalActor(event.target.value)} placeholder="Separate approver user ID" />
+            </label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" className="button button-primary" disabled={saving} onClick={saveGovernance}>{saving ? "Saving…" : "Save governance"}</button>
+              <button type="button" className="button button-secondary" disabled={saving} onClick={resetGovernance}>Reset runtime overrides</button>
+            </div>
+          </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
             <div style={{ background: "var(--color-background-secondary)", borderRadius: "var(--border-radius-md)", padding: "1rem" }}>
               <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "0 0 4px" }}>Total requests</p>

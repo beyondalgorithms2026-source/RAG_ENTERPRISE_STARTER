@@ -32,6 +32,7 @@ const enterpriseNavigation: AdminNavItem[] = [
   { module: "evals", href: "/console/admin/evals", label: "Evals", icon: "analytics" },
   { module: "traces", href: "/console/admin/traces", label: "Traces", icon: "timeline" },
   { module: "policies", href: "/console/admin/policies", label: "Policies", icon: "policy" },
+  { module: "policies", href: "/console/admin/providers", label: "Providers", icon: "dns" },
   { module: "access", href: "/console/admin/access", label: "Access", icon: "shield_lock" },
   { module: "audit", href: "/console/admin/audit-log", label: "Audit Log", icon: "receipt_long" },
 ];

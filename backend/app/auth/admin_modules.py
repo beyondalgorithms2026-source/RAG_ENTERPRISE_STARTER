@@ -44,6 +44,8 @@ _PATH_MODULE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/overview", "overview"),
     ("/admin/health", "overview"),
     ("/admin/system", "overview"),
+    ("/admin/runtime-settings", "policies"),
+    ("/admin/llm", "policies"),
     ("/admin/cost", "overview"),
     ("/admin/tuning", "tuning"),
     ("/admin/semantic-cache", "tuning"),
@@ -93,21 +95,32 @@ def admin_module_for_path(path: str) -> str | None:
 
 def admin_modules_payload() -> dict[str, Any]:
     enabled = enabled_admin_modules()
+    navigation = [
+        {
+            "module": module.key,
+            "href": module.href,
+            "label": module.label,
+            "icon": module.icon,
+            "description": module.description,
+        }
+        for key, module in ADMIN_MODULES.items()
+        if key in enabled and key != "tuning" and key != "governance"
+    ]
+    if "policies" in enabled:
+        navigation.append(
+            {
+                "module": "policies",
+                "href": "/console/admin/providers",
+                "label": "Providers",
+                "icon": "dns",
+                "description": "Generation providers, models, endpoints, and connection verification.",
+            }
+        )
     return {
         "scenario_profile": active_scenario_profile(),
         "enabled_modules": sorted(enabled),
         "disabled_modules": sorted(set(ADMIN_MODULES) - enabled),
-        "navigation": [
-            {
-                "module": module.key,
-                "href": module.href,
-                "label": module.label,
-                "icon": module.icon,
-                "description": module.description,
-            }
-            for key, module in ADMIN_MODULES.items()
-            if key in enabled and key != "tuning" and key != "governance"
-        ],
+        "navigation": navigation,
         "modules": [
             {
                 "key": module.key,

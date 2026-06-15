@@ -6,6 +6,7 @@ import Link from "next/link";
 import { browserFetch } from "@/lib/api-browser";
 
 type GenericMap = Record<string, unknown>;
+type RuntimeSetting = { effective: unknown; override: unknown; source: string };
 
 type TuningPayload = {
   live_configuration: GenericMap;
@@ -344,6 +345,9 @@ export function ProfilesAdminPanel() {
   const [draftDescription, setDraftDescription] = useState("Interactive sandbox candidate for side-by-side compare against the live baseline.");
   const [sampleQuery, setSampleQuery] = useState("How does the Q4 liability clause affect subcontracting?");
   const [promotionNote, setPromotionNote] = useState("Validated in sandbox compare.");
+  const [evalEnforcement, setEvalEnforcement] = useState<RuntimeSetting>({ effective: "require", override: null, source: "default" });
+  const [approvalActor, setApprovalActor] = useState("");
+  const [savingEnforcement, setSavingEnforcement] = useState(false);
   const [selectedProfiles, setSelectedProfiles] = useState<Record<string, string>>({
     llm: "",
     embedding: "",
@@ -363,11 +367,12 @@ export function ProfilesAdminPanel() {
     try {
       const tuning = await browserFetch<TuningPayload>("/admin/tuning/configurations");
       const history = await browserFetch<TuningHistory>("/admin/tuning/history");
-      const [semanticCache, queryMiningPayload, governance, evidence] = await Promise.all([
+      const [semanticCache, queryMiningPayload, governance, evidence, runtimeSettings] = await Promise.all([
         browserFetch<GenericMap>("/admin/semantic-cache"),
         browserFetch<GenericMap>("/admin/query-mining"),
         browserFetch<TuningOpsPayload["governance"]>("/admin/governance"),
         browserFetch<RetrievalEvidence>("/admin/retrieval/evidence"),
+        browserFetch<{ settings: Record<string, RuntimeSetting> }>("/admin/runtime-settings").catch(() => null),
       ]);
       const queryMining = {
         events: ((queryMiningPayload.events || queryMiningPayload.query_events || []) as GenericMap[]),
@@ -378,6 +383,9 @@ export function ProfilesAdminPanel() {
       setTuningHistory(history);
       setTuningOps({ semanticCache, queryMining, governance });
       setRetrievalEvidence(evidence);
+      if (runtimeSettings?.settings.tuning_eval_enforcement) {
+        setEvalEnforcement(runtimeSettings.settings.tuning_eval_enforcement);
+      }
       setError("");
       const liveSelected = (tuning.live_configuration?.selected_profiles || {}) as Record<string, string>;
       const resolved = (tuning.live_configuration?.resolved_config || {}) as Record<string, GenericMap>;
@@ -647,6 +655,7 @@ export function ProfilesAdminPanel() {
     try {
       await browserFetch("/admin/tuning/promote", {
         method: "POST",
+        headers: approvalActor.trim() ? { "X-Approval-Actor": approvalActor.trim() } : undefined,
         json: {
           draft_id: editingDraftId,
           promotion_note: promotionNote,
@@ -667,6 +676,7 @@ export function ProfilesAdminPanel() {
     try {
       await browserFetch("/admin/tuning/rollback", {
         method: "POST",
+        headers: approvalActor.trim() ? { "X-Approval-Actor": approvalActor.trim() } : undefined,
         json: {
           version_label: versionLabel,
           reason: "Operator rollback from tuning history.",
@@ -678,6 +688,23 @@ export function ProfilesAdminPanel() {
       setError(err instanceof Error ? err.message : "Rollback failed.");
     } finally {
       setIsRollingBack(false);
+    }
+  }
+
+  async function saveEvalEnforcement(value: string | null) {
+    setSavingEnforcement(true);
+    try {
+      const response = await browserFetch<{ settings: Record<string, RuntimeSetting> }>("/admin/runtime-settings", {
+        method: "PATCH",
+        headers: approvalActor.trim() ? { "X-Approval-Actor": approvalActor.trim() } : undefined,
+        json: { key: "tuning_eval_enforcement", value },
+      });
+      setEvalEnforcement(response.settings.tuning_eval_enforcement);
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update evaluation enforcement.");
+    } finally {
+      setSavingEnforcement(false);
     }
   }
 
@@ -1212,6 +1239,17 @@ export function ProfilesAdminPanel() {
           Discard Candidate
         </button>
         <input className="tuning-lab-promotion-note" value={promotionNote} onChange={(event) => setPromotionNote(event.target.value)} aria-label="Promotion note" />
+        <select
+          aria-label="Promotion evaluation enforcement"
+          value={evalEnforcement.override == null ? "" : String(evalEnforcement.override)}
+          disabled={savingEnforcement}
+          onChange={(event) => saveEvalEnforcement(event.target.value || null)}
+        >
+          <option value="">Default ({String(evalEnforcement.effective)} via {evalEnforcement.source})</option>
+          <option value="require">Require passing eval</option>
+          <option value="warn">Warn only</option>
+        </select>
+        <input className="tuning-lab-promotion-note" value={approvalActor} onChange={(event) => setApprovalActor(event.target.value)} aria-label="Approval actor" placeholder="Approval actor (production)" />
         <span className="tuning-lab-draft-state">
           {editingDraftId ? (hasUnsavedDraftChanges ? "Draft has unsaved changes" : "Draft saved") : "Save draft before promotion"}
         </span>
@@ -1224,13 +1262,13 @@ export function ProfilesAdminPanel() {
         <span className="tuning-lab-draft-state">
           {evalRun
             ? `Eval gate: ${String(evalRun.gate_status)} · recall@5 ${Number((evalRun.gate_aggregates as GenericMap)?.recall_at_5 ?? NaN).toFixed(3)} · MRR ${Number((evalRun.gate_aggregates as GenericMap)?.mrr ?? NaN).toFixed(3)}${(evalRun.deltas_vs_live_baseline as GenericMap) ? ` · vs live: recall@5 Δ ${formatMetricDelta((evalRun.deltas_vs_live_baseline as GenericMap)?.recall_at_5)} · MRR Δ ${formatMetricDelta((evalRun.deltas_vs_live_baseline as GenericMap)?.mrr)}` : ""}`
-            : "No eval evidence yet — promotion is blocked in require mode"}
+            : `No eval evidence yet — mode is ${String(evalEnforcement.effective)}`}
         </span>
         <button
           type="button"
           className="button button-primary"
           onClick={promoteCandidate}
-          disabled={isPromoting || savingDraft || (evalRun ? evalRun.gate_status !== "pass" : false)}
+          disabled={isPromoting || savingDraft || (String(evalEnforcement.effective) === "require" && (evalRun ? evalRun.gate_status !== "pass" : true))}
         >
           {isPromoting ? "Promoting..." : evalRun && evalRun.gate_status !== "pass" ? "Eval Gate Failed" : "Promote to Live"}
         </button>

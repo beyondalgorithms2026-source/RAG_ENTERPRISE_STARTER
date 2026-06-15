@@ -1088,6 +1088,19 @@ def _create_connector_operations_tables() -> None:
         conn.execute(text(ddl))
 
 
+def _create_runtime_settings_table() -> None:
+    ddl = """
+    CREATE TABLE IF NOT EXISTS runtime_settings (
+        key TEXT PRIMARY KEY,
+        value_json JSONB NOT NULL,
+        updated_by TEXT,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+
 def _patch_steps() -> list[MigrationStep]:
     return [
         MigrationStep(
@@ -1219,6 +1232,11 @@ def _patch_steps() -> list[MigrationStep]:
             step_id="MIG-P026",
             description="Install field-weighted heading/body full-text search (AR14)",
             runner=_install_weighted_search_tsv,
+        ),
+        MigrationStep(
+            step_id="MIG-P027",
+            description="Create runtime_settings table for console-editable governed settings (AR17)",
+            runner=_create_runtime_settings_table,
         ),
     ]
 

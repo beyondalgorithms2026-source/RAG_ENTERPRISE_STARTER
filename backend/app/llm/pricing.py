@@ -33,21 +33,72 @@ def estimate_tokens(text: str) -> int:
     return int(math.ceil(len(str(text or "")) / CHARS_PER_TOKEN))
 
 
-def _price_table() -> dict[str, tuple[float, float]]:
-    table = dict(_DEFAULT_PRICES)
+def _runtime_setting(key: str):
+    try:  # never let DB access break pricing
+        from app.db.repo_runtime_settings import get_setting
+
+        return get_setting(key)
+    except Exception:
+        return None
+
+
+def _environment_price_table() -> dict[str, tuple[float, float]]:
+    table: dict[str, tuple[float, float]] = {}
     raw = str(getattr(settings, "LLM_PRICE_TABLE_JSON", "") or "").strip()
     if raw:
         try:
             for model, prices in json.loads(raw).items():
                 table[str(model)] = (float(prices[0]), float(prices[1]))
-        except Exception:  # malformed override must not break generation
-            pass
+        except Exception:
+            return {}
     return table
+
+
+def effective_price_table() -> dict[str, list[float]]:
+    """Precedence (lowest→highest): defaults → env LLM_PRICE_TABLE_JSON → runtime override."""
+    table = dict(_DEFAULT_PRICES)
+    table.update(_environment_price_table())
+    runtime = _runtime_setting("llm_price_table")
+    if isinstance(runtime, dict):
+        for model, prices in runtime.items():
+            try:
+                table[str(model)] = (float(prices[0]), float(prices[1]))
+            except Exception:
+                pass
+    return {model: [prices[0], prices[1]] for model, prices in table.items()}
+
+
+def price_table_source() -> str:
+    if isinstance(_runtime_setting("llm_price_table"), dict):
+        return "runtime"
+    if _environment_price_table():
+        return "environment"
+    return "default"
+
+
+def cost_alert_source() -> str:
+    if _runtime_setting("llm_cost_alert_usd") is not None:
+        return "runtime"
+    if float(getattr(settings, "LLM_COST_ALERT_USD", 0.0) or 0.0):
+        return "environment"
+    return "default"
+
+
+def cost_alert_usd() -> float:
+    """Per-request budget threshold; runtime override wins over env (0 disables)."""
+    runtime = _runtime_setting("llm_cost_alert_usd")
+    if runtime is not None:
+        try:
+            return float(runtime)
+        except Exception:
+            pass
+    return float(getattr(settings, "LLM_COST_ALERT_USD", 0.0) or 0.0)
 
 
 def price_for(model: str) -> tuple[float, float]:
     """(input_per_1k, output_per_1k) USD; (0,0) for unknown/local models."""
-    return _price_table().get(str(model or ""), (0.0, 0.0))
+    prices = effective_price_table().get(str(model or ""), [0.0, 0.0])
+    return float(prices[0]), float(prices[1])
 
 
 def cost_usd(model: str, prompt_tokens: int, completion_tokens: int) -> float:
