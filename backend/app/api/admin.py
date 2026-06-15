@@ -131,6 +131,39 @@ def get_admin_modules():
     return admin_modules_payload()
 
 
+class AdminModulesUpdateRequest(BaseModel):
+    enabled_modules: Optional[list[str]] = None
+
+
+@router.patch("/modules")
+def patch_admin_modules(body: AdminModulesUpdateRequest, request: Request):
+    actor = get_current_user()
+    approval = require_high_impact_approval(request=request, actor=actor, action="admin_modules.update")
+    from app.db.repo_runtime_settings import delete_setting, set_setting
+
+    before = admin_modules_payload()
+    try:
+        if body.enabled_modules is None:
+            delete_setting("admin_modules_enabled")
+        else:
+            set_setting("admin_modules_enabled", body.enabled_modules, actor=actor)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    after = admin_modules_payload()
+    insert_admin_audit_event(
+        event_type="config",
+        action="admin_modules.update",
+        resource_type="runtime_setting",
+        resource_id="admin_modules_enabled",
+        resource_name="Admin console modules",
+        before_json=before,
+        after_json=after,
+        event_json=approval,
+        actor=actor,
+    )
+    return after
+
+
 class ActiveProfileRequest(BaseModel):
     profile_type: str
     profile_name: str

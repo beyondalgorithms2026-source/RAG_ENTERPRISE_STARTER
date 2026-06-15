@@ -46,7 +46,13 @@ def _validate(key: str, value: Any) -> Any:
     if key == "admin_modules_enabled":
         if not isinstance(value, list):
             raise ValueError("admin_modules_enabled must be a list of module names")
-        return [str(item).strip().lower() for item in value if str(item).strip()]
+        from app.auth.admin_modules import ADMIN_MODULES
+
+        requested = {str(item).strip().lower() for item in value if str(item).strip()}
+        unknown = sorted(requested - set(ADMIN_MODULES))
+        if unknown:
+            raise ValueError(f"Unsupported admin modules: {', '.join(unknown)}")
+        return sorted(requested | {"overview"})
     raise ValueError(f"Setting '{key}' is not runtime-editable")
 
 

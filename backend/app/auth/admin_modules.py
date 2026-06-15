@@ -17,6 +17,11 @@ class AdminModule:
 
 ADMIN_MODULES: dict[str, AdminModule] = {
     "overview": AdminModule("overview", "Overview", "/console/admin", "space_dashboard", "System summary and first-run posture."),
+    "health": AdminModule("health", "Health", "/console/admin/health", "health_and_safety", "Operational health, coherence, and system posture."),
+    "cost": AdminModule("cost", "Cost", "/console/admin/cost", "payments", "Generation cost, token usage, budgets, and price governance."),
+    "flywheel": AdminModule("flywheel", "Flywheel", "/console/admin/flywheel", "autorenew", "Feedback-derived evaluation quarantine and review."),
+    "embedding": AdminModule("embedding", "Embedding", "/console/admin/embedding", "swap_horiz", "Embedding profile and index-swap lifecycle."),
+    "providers": AdminModule("providers", "Providers", "/console/admin/providers", "dns", "Generation providers, models, endpoints, and verification."),
     "sources": AdminModule("sources", "Sources", "/console/admin/sources", "description", "Source inventory and source-level controls."),
     "connectors": AdminModule("connectors", "Connectors", "/console/admin/connectors", "hub", "Database connector setup and review."),
     "actions": AdminModule("actions", "Actions", "/console/admin/actions", "approval", "Approvals, tools, and feedback review."),
@@ -33,24 +38,26 @@ ADMIN_MODULES: dict[str, AdminModule] = {
 }
 
 SCENARIO_ADMIN_MODULE_PRESETS: dict[str, set[str]] = {
-    "research_no_auth": {"overview", "sources", "corpora", "jobs", "evals", "traces", "audit"},
-    "employee_wide_rag": {"overview", "sources", "corpora", "jobs", "evals", "traces", "access", "audit"},
-    "small_enterprise_corpus_acl": {"overview", "sources", "corpora", "jobs", "access", "evals", "traces", "audit"},
+    "research_no_auth": {"overview", "health", "sources", "corpora", "jobs", "evals", "traces", "audit"},
+    "employee_wide_rag": {"overview", "health", "sources", "corpora", "jobs", "evals", "traces", "access", "audit"},
+    "small_enterprise_corpus_acl": {"overview", "health", "sources", "corpora", "jobs", "access", "evals", "traces", "audit"},
     "enterprise_oidc_acl": set(ADMIN_MODULES.keys()),
 }
 
 _PATH_MODULE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/admin/modules", "overview"),
     ("/admin/overview", "overview"),
-    ("/admin/health", "overview"),
+    ("/admin/health", "health"),
     ("/admin/system", "overview"),
     ("/admin/runtime-settings", "policies"),
-    ("/admin/llm", "policies"),
-    ("/admin/cost", "overview"),
+    ("/admin/llm", "providers"),
+    ("/admin/cost", "cost"),
+    ("/admin/embedding", "embedding"),
+    ("/admin/retrieval", "tuning"),
     ("/admin/tuning", "tuning"),
     ("/admin/semantic-cache", "tuning"),
     ("/admin/query-mining", "governance"),
-    ("/admin/feedback-eval", "governance"),
+    ("/admin/feedback-eval", "flywheel"),
     ("/admin/governance", "governance"),
     ("/admin/retention", "audit"),
     ("/admin/profiles/metadata", "policies"),
@@ -75,11 +82,26 @@ def active_scenario_profile() -> str:
 
 
 def enabled_admin_modules() -> set[str]:
+    from app.db.repo_runtime_settings import get_setting
+
+    runtime_override = get_setting("admin_modules_enabled")
+    if runtime_override is not None:
+        return {item for item in runtime_override if item in ADMIN_MODULES} | {"overview"}
     override = (settings.ADMIN_MODULES_ENABLED or "").strip()
     if override:
         requested = {item.strip().lower() for item in override.split(",") if item.strip()}
         return {item for item in requested if item in ADMIN_MODULES} | {"overview"}
-    return set(SCENARIO_ADMIN_MODULE_PRESETS[active_scenario_profile()])
+    return set(SCENARIO_ADMIN_MODULE_PRESETS[active_scenario_profile()]) | {"overview"}
+
+
+def admin_modules_source() -> str:
+    from app.db.repo_runtime_settings import get_setting
+
+    if get_setting("admin_modules_enabled") is not None:
+        return "runtime"
+    if (settings.ADMIN_MODULES_ENABLED or "").strip():
+        return "environment"
+    return "scenario"
 
 
 def disabled_admin_modules() -> set[str]:
@@ -94,7 +116,11 @@ def admin_module_for_path(path: str) -> str | None:
 
 
 def admin_modules_payload() -> dict[str, Any]:
+    from app.db.repo_runtime_settings import get_setting
+
     enabled = enabled_admin_modules()
+    scenario = active_scenario_profile()
+    runtime_override = get_setting("admin_modules_enabled")
     navigation = [
         {
             "module": module.key,
@@ -106,18 +132,21 @@ def admin_modules_payload() -> dict[str, Any]:
         for key, module in ADMIN_MODULES.items()
         if key in enabled and key != "tuning" and key != "governance"
     ]
-    if "policies" in enabled:
-        navigation.append(
-            {
-                "module": "policies",
-                "href": "/console/admin/providers",
-                "label": "Providers",
-                "icon": "dns",
-                "description": "Generation providers, models, endpoints, and connection verification.",
-            }
-        )
+    navigation.insert(
+        1,
+        {
+            "module": "overview",
+            "href": "/console/admin/modules",
+            "label": "Modules",
+            "icon": "view_module",
+            "description": "Deployment-wide admin console composition.",
+        },
+    )
     return {
-        "scenario_profile": active_scenario_profile(),
+        "scenario_profile": scenario,
+        "source": admin_modules_source(),
+        "preset_modules": sorted(SCENARIO_ADMIN_MODULE_PRESETS[scenario]),
+        "runtime_override": sorted(runtime_override) if runtime_override is not None else None,
         "enabled_modules": sorted(enabled),
         "disabled_modules": sorted(set(ADMIN_MODULES) - enabled),
         "navigation": navigation,

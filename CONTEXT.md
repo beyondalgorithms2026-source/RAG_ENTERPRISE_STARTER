@@ -4,7 +4,7 @@
 Build an enterprise-usable RAG system based on the existing stable baseline that supports SSO + ACL security trimming, multi-source ingestion (cloud DB + enterprise email), configurable retrieval/model controls, end-user chat UI + admin console, tool actions with approvals, feedback loops, and per-corpus indexing policies — without breaking baseline correctness.
 
 **Current phase**  
-AR0–AR17 is complete. AR17 added console-managed generation providers, cost budgets/prices, and promotion eval enforcement. AR18 UI modularity and least-privilege gating is next; M20–M30 manual verification notes also remain open.
+AR0–AR18 is complete. AR18 made health, cost, flywheel, embedding, and providers first-class modules with server-enforced endpoint gating and a deployment-wide runtime module manager. AR19 console component/form refactoring is next; M20–M30 manual verification notes also remain open.
 
 **Current baseline (what the codebase already does today)**
 This repository is substantially more real than a typical RAG demo. It supports document-type-specific parsing and chunking, one dense embedding path, multiple retrieval modes, heuristic query routing, optional cross-encoder reranking, graph and temporal enrichment layers, a deep-research retrieval path, governed tuning (drafts/compare/promote/rollback), semantic cache with governance, ~80 admin endpoints, pervasive trace observability, and citation provenance enforcement.  
@@ -18,6 +18,7 @@ The main retrieval baseline is hybrid search with linear score fusion (combined_
 - Admin console: profiles, tuning, sandbox compare, cache policies, traces, audit, governance
 - Generation provider console: create/update/test/activate provider profiles with write-only API keys
 - Runtime cost budget, model price table, and promotion enforcement controls with audited precedence
+- Deployment-wide admin module composition with runtime overrides, audited changes, and server-enforced disabled endpoints
 - Connectors: uploads (7 adapters), DB sync, .eml parsing
 - Observability: per-stage latency, full decision traces, query mining tables
 - Governed config change: drafts → compare → promote → rollback → audit trail

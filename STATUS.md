@@ -2,7 +2,7 @@
 
 **Last completed M-series milestone:** M33 — Governed Semantic Cache Policies, Scoped Enablement, And User Refresh  
 **Active work track:** M20–M30 manual verification closure
-**Current AR milestone:** AR0–AR14 complete (audit remediation); AR15–AR16 complete (2026-06-15). Next: AR17 — Generation Provider & Cost-Governance Console.
+**Current AR milestone:** AR0–AR18 complete. Next: AR19 — Admin Console Component & Form-System Refactor.
 
 ## Independent Product Audit (2026-06-11)
 
@@ -41,7 +41,7 @@ Git tag: `audit-baseline-2026-06-11`
 | AR15 — Operator Visibility & System Posture | **Complete (2026-06-15)** | `app/system_posture.py` + `GET /admin/system/posture` (7 sections, each with editable_via/restart); global `admin-health-banner` on every admin page when not healthy; health `semantic_cache` tile now warns "globally OFF" when no policy; read-only System Posture table in the health page; 321/321 suite; note: `docs/milestones/AR15_operator_visibility_system_posture.md` |
 | AR16 — Embedding & Model-Swap Console | **Complete (2026-06-15)** | `/console/admin/embedding` drives the AR7 lifecycle (plan→begin→run batches with progress→verify→abort), serving-state header + keyword-only banner during reindex, swap history; web-only (no backend change); 321/321 suite; tsc clean; note: `docs/milestones/AR16_embedding_model_swap_console.md` |
 | AR17 — Provider & Cost-Governance Console | **Complete (2026-06-15)** | `/console/admin/providers` creates/updates/tests/activates provider profiles; API keys are write-only and redacted from responses/audits; MIG-P027 runtime settings provide runtime→env→default budget, price-table, and eval-enforcement precedence; cost/tuning consoles edit governed values with approval-actor support; 333/333 suite; note: `docs/milestones/AR17_generation_provider_cost_governance_console.md` |
-| AR18 — UI Modularity & Least-Privilege Gating | Not started | P1 — first-class toggleable modules; gate the 3 ungated endpoint groups; runtime module override + module-manager UI (single-deployment, not multi-tenant) |
+| AR18 — UI Modularity & Least-Privilege Gating | **Complete (2026-06-15)** | Health/cost/flywheel/embedding/providers are first-class modules; formerly ungated embedding/LLM/retrieval endpoint groups now return 403 when disabled; runtime→env→scenario precedence uses MIG-P027; `/console/admin/modules` manages the audited deployment-wide subset; 340/340 suite; note: `docs/milestones/AR18_admin_ui_modularity_and_least_privilege_gating.md` |
 | AR19 — Console Component & Form-System Refactor | Not started | P2 — decompose the 1.3k-line profiles mega-panel; shared `web/components/ui` primitives |
 | AR20 — UI Consistency & Alignment | Not started | P2 — fix unstyled selects, tan/olive input fills, label spacing, grid alignment; consistency checklist |
 
@@ -71,7 +71,8 @@ M20, M21, M22, M23, M24, M25, M26, M27, M28, M29, M30
 
 ## Current Verification Debt
 
-- **Test suite is green:** `make test` — 333/333 on the live vector(768) dev DB (AR17); AR1 verified 224/224 on a freshly migrated empty DB as well
+- **Test suite is green:** `make test` — 340/340 on the live vector(768) dev DB (AR18); AR1 verified 224/224 on a freshly migrated empty DB as well
+- AR18: admin-module composition is deployment-wide, not tenant-scoped; arbitrary custom subsets may disable a module needed by another panel, so scenario presets remain the supported coherent defaults
 - AR17: provider API keys are no longer returned or written to audit payloads, but remain stored in profile JSON; production deployments must provide database-at-rest encryption or an external secret manager
 - AR17: OpenAI/Azure/vLLM/Anthropic provider flows are transport-mocked because no live cloud credentials are available; the console and provider-specific request contracts are tested
 - AR14: graph/temporal verdicts use deterministic reviewed isolation fixtures because the dev DB contains smoke-test residue rather than a real reviewed graph/temporal corpus; production-corpus validation remains open
