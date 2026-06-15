@@ -32,6 +32,26 @@ type TuningOpsPayload = {
   };
 };
 
+type RetrievalEvidence = {
+  limitations: string;
+  global_control: {
+    before?: Record<string, number>;
+    after?: Record<string, number>;
+    after_gate?: { status?: string };
+  };
+  evidence: Array<{
+    feature: string;
+    verdict: string;
+    chosen?: string | null;
+    variants: Array<{
+      name: string;
+      deltas: Record<string, number | null>;
+      feature_metric?: { name: string; delta: number | null } | null;
+      passes: boolean;
+    }>;
+  }>;
+};
+
 type CompareRun = {
   label: string;
   status: string;
@@ -315,6 +335,7 @@ export function ProfilesAdminPanel() {
     queryMining: { events: [], clusters: [], eval_packs: [] },
     governance: { risk_signals: [], restrictions: [] },
   });
+  const [retrievalEvidence, setRetrievalEvidence] = useState<RetrievalEvidence | null>(null);
   const [visualMode, setVisualMode] = useState(true);
   const [preparedCandidate, setPreparedCandidate] = useState<PreparedCandidate | null>(null);
   const [savedDraftSignature, setSavedDraftSignature] = useState("");
@@ -342,10 +363,11 @@ export function ProfilesAdminPanel() {
     try {
       const tuning = await browserFetch<TuningPayload>("/admin/tuning/configurations");
       const history = await browserFetch<TuningHistory>("/admin/tuning/history");
-      const [semanticCache, queryMiningPayload, governance] = await Promise.all([
+      const [semanticCache, queryMiningPayload, governance, evidence] = await Promise.all([
         browserFetch<GenericMap>("/admin/semantic-cache"),
         browserFetch<GenericMap>("/admin/query-mining"),
         browserFetch<TuningOpsPayload["governance"]>("/admin/governance"),
+        browserFetch<RetrievalEvidence>("/admin/retrieval/evidence"),
       ]);
       const queryMining = {
         events: ((queryMiningPayload.events || queryMiningPayload.query_events || []) as GenericMap[]),
@@ -355,6 +377,7 @@ export function ProfilesAdminPanel() {
       setTuningPayload(tuning);
       setTuningHistory(history);
       setTuningOps({ semanticCache, queryMining, governance });
+      setRetrievalEvidence(evidence);
       setError("");
       const liveSelected = (tuning.live_configuration?.selected_profiles || {}) as Record<string, string>;
       const resolved = (tuning.live_configuration?.resolved_config || {}) as Record<string, GenericMap>;
@@ -823,6 +846,29 @@ export function ProfilesAdminPanel() {
               <span className="material-symbols-outlined">experiment</span>
               <p>LLM, reranker, retrieval depth, and answer-time context shaping are safe sandbox dimensions here. Embedding swaps remain visible for planning but are not executed in compare yet.</p>
             </div>
+
+            {retrievalEvidence ? (
+              <section className="tuning-lab-parameter-card">
+                <strong className="tuning-lab-card-eyebrow">AR14 Retrieval Evidence</strong>
+                <p>
+                  Global gate: {String(retrievalEvidence.global_control.after_gate?.status || "pending")}.
+                  Only paired non-regressing gains remain configurable.
+                </p>
+                <div className="admin-inline-list">
+                  {retrievalEvidence.evidence.map((item) => {
+                    const chosen = item.variants.find((variant) => variant.name === item.chosen);
+                    const gain = chosen?.feature_metric?.delta ?? chosen?.deltas?.ndcg_at_10;
+                    return (
+                      <span key={item.feature} className={`status-chip ${item.verdict === "adopted" ? "is-success" : "is-warning"}`}>
+                        {item.feature.replaceAll("_", " ")}: {item.verdict}
+                        {item.chosen ? ` (${item.chosen}${typeof gain === "number" ? `, +${gain.toFixed(3)}` : ""})` : ""}
+                      </span>
+                    );
+                  })}
+                </div>
+                <small>{retrievalEvidence.limitations}</small>
+              </section>
+            ) : null}
 
             <div className="tuning-lab-sandbox-grid">
               <div className="tuning-lab-sandbox-left">

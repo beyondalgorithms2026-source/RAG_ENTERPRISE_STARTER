@@ -132,7 +132,10 @@ Conceptually:
 MMR = λ * relevance_to_query - (1 - λ) * similarity_to_selected_results
 ```
 
-The repo does not implement MMR today.
+AR14 implements standard MMR after full-pool reranking. It uses reranker
+relevance plus ACL-trimmed stored chunk embeddings, with eval-selected
+`lambda=0.5`. Missing vectors produce a traced original-order fallback rather
+than an exception.
 
 ### 1.6 Why is reranking optional?
 
@@ -158,7 +161,8 @@ Current repo behavior:
 - keep linear fusion as baseline-safe until RRF lands
 - add RRF as a configurable alternative
 - keep reranking optional at system level, not a raw end-user toggle
-- add MMR later only if repeated near-duplicate top results become a real issue
+- keep MMR profile-controlled; AR14 isolation evidence showed higher top-k
+  diversity without recall@5 or MRR loss
 
 ---
 

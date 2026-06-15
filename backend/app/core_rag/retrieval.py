@@ -180,6 +180,9 @@ def _combined_anchor_terms(request: SearchRequest, query_text: str) -> List[str]
 
 
 def _apply_anchor_cooccurrence_boost(*, question: str, raw_results: List[Dict]) -> List[Dict]:
+    from app.core_rag.retrieval_scoring import get_retrieval_scoring
+
+    scoring = get_retrieval_scoring()
     anchors = _extract_query_anchors(question)
     if not anchors:
         return raw_results
@@ -189,7 +192,11 @@ def _apply_anchor_cooccurrence_boost(*, question: str, raw_results: List[Dict]) 
         updated = dict(item)
         haystack = f"{item.get('heading', '')} {item.get('snippet', '')}".lower()
         matched = [anchor for anchor in anchors if anchor in haystack]
-        anchor_score = min(0.18, (len(matched) * 0.03) + (max(len(matched) - 1, 0) * 0.02))
+        anchor_score = min(
+            scoring.anchor_cooccurrence_cap,
+            (len(matched) * scoring.anchor_cooccurrence_term)
+            + (max(len(matched) - 1, 0) * scoring.anchor_cooccurrence_pair),
+        )
         updated["anchor_score"] = round(anchor_score, 4)
         updated["combined_score"] = _blend_score(updated.get("combined_score", 0.0), anchor_score, 1.0)
         adjusted.append(updated)
@@ -199,6 +206,9 @@ def _apply_anchor_cooccurrence_boost(*, question: str, raw_results: List[Dict]) 
 
 
 def _apply_anchor_boost_with_terms(*, anchors: List[str], raw_results: List[Dict]) -> List[Dict]:
+    from app.core_rag.retrieval_scoring import get_retrieval_scoring
+
+    scoring = get_retrieval_scoring()
     if not anchors:
         return raw_results
 
@@ -207,7 +217,11 @@ def _apply_anchor_boost_with_terms(*, anchors: List[str], raw_results: List[Dict
         updated = dict(item)
         haystack = f"{item.get('heading', '')} {item.get('snippet', '')}".lower()
         matched = [anchor for anchor in anchors if anchor in haystack]
-        anchor_score = min(0.24, (len(matched) * 0.035) + (max(len(matched) - 1, 0) * 0.025))
+        anchor_score = min(
+            scoring.anchor_explicit_cap,
+            (len(matched) * scoring.anchor_explicit_term)
+            + (max(len(matched) - 1, 0) * scoring.anchor_explicit_pair),
+        )
         updated["anchor_score"] = round(anchor_score, 4)
         updated["combined_score"] = _blend_score(updated.get("combined_score", 0.0), anchor_score, 1.0)
         adjusted.append(updated)
@@ -358,6 +372,9 @@ def _integrate_graph_candidates(
     graph_candidates: List[Dict],
     k: int,
 ) -> List[Dict]:
+    from app.core_rag.retrieval_scoring import get_retrieval_scoring
+
+    scoring = get_retrieval_scoring()
     merged = {item["chunk_id"]: dict(item) for item in baseline_results}
 
     for item in merged.values():
@@ -371,7 +388,7 @@ def _integrate_graph_candidates(
             merged[chunk_id]["combined_score"] = _blend_score(
                 merged[chunk_id].get("combined_score", 0.0),
                 graph_score,
-                0.35,
+                scoring.graph_existing_weight,
             )
             continue
 
@@ -384,7 +401,7 @@ def _integrate_graph_candidates(
         supplemental.setdefault("keyword_score", 0.0)
         supplemental.setdefault("rank_score", 0.0)
         supplemental["graph_score"] = graph_score
-        supplemental["combined_score"] = graph_score * 0.2
+        supplemental["combined_score"] = graph_score * scoring.graph_supplemental_weight
         merged[chunk_id] = supplemental
 
     results = list(merged.values())
@@ -413,6 +430,9 @@ def _extract_temporal_query_signals(question: str) -> Dict[str, set[str]]:
 
 
 def _apply_temporal_signals(*, question: str, baseline_results: List[Dict], k: int) -> List[Dict]:
+    from app.core_rag.retrieval_scoring import get_retrieval_scoring
+
+    scoring = get_retrieval_scoring()
     if not (settings.ENABLE_TEMPORAL or settings.EXTRACT_TEMPORAL_METADATA or settings.TEMPORAL_RERANK_ENABLED):
         return baseline_results[:k]
 
@@ -431,7 +451,7 @@ def _apply_temporal_signals(*, question: str, baseline_results: List[Dict], k: i
             adjusted.append(updated)
             continue
 
-        temporal_score = 0.0
+        matched_signal = False
         date_bounds = temporal_metadata.get("date_bounds") or {}
         effective_window = temporal_metadata.get("effective_window") or {}
         version_refs = temporal_metadata.get("document_version_refs") or []
@@ -443,17 +463,21 @@ def _apply_temporal_signals(*, question: str, baseline_results: List[Dict], k: i
         }
         bound_years = {value[:4] for value in bound_values if len(value) >= 4}
         if query_signals["normalized_dates"] & bound_values:
-            temporal_score = max(temporal_score, 0.12)
+            matched_signal = True
         elif query_signals["years"] & bound_years:
-            temporal_score = max(temporal_score, 0.08)
+            matched_signal = True
 
         source_versions = {str(item.get("value")) for item in version_refs if item.get("value")}
         if query_signals["versions"] & source_versions:
-            temporal_score = max(temporal_score, 0.1)
+            matched_signal = True
 
-        if temporal_score > 0:
-            updated["combined_score"] = _blend_score(updated.get("combined_score", 0.0), temporal_score, 0.2)
-            updated["temporal_score"] = temporal_score
+        if matched_signal:
+            updated["combined_score"] = _blend_score(
+                updated.get("combined_score", 0.0),
+                scoring.temporal_signal_score,
+                scoring.temporal_weight,
+            )
+            updated["temporal_score"] = scoring.temporal_signal_score
         adjusted.append(updated)
 
     adjusted.sort(key=_result_sort_key)
@@ -580,6 +604,9 @@ def _run_hybrid_baseline(*, request: SearchRequest, source_type: Optional[str], 
 
 
 def _expand_neighbor_context(*, raw_results: List[Dict], request: SearchRequest, k: int) -> List[Dict]:
+    from app.core_rag.retrieval_scoring import get_retrieval_scoring
+
+    scoring = get_retrieval_scoring()
     if not request.expand_neighbors or not raw_results:
         return raw_results
 
@@ -597,7 +624,7 @@ def _expand_neighbor_context(*, raw_results: List[Dict], request: SearchRequest,
         snippet = neighbor["chunk_text"]
         haystack = f"{neighbor.get('heading', '')} {snippet}".lower()
         matched_count = sum(1 for anchor in anchors if anchor in haystack)
-        bonus = 0.03 + (matched_count * 0.025)
+        bonus = scoring.neighbor_base + (matched_count * scoring.neighbor_anchor_term)
         expanded.append(
             {
                 "chunk_id": neighbor["id"],
@@ -681,7 +708,9 @@ def _build_anchor_window_candidates(
     chunk_count = len(source_chunks)
     anchor_frequency: Dict[str, int] = {}
     tokenized_query_terms = set(_tokenize_text(query_text))
-    causal_terms = {"because", "challenging", "dominated", "making", "hard", "difficult", "saturated", "rank"}
+    from app.core_rag.retrieval_scoring import get_retrieval_scoring
+
+    scoring = get_retrieval_scoring()
 
     for anchor in anchors:
         anchor_frequency[anchor] = sum(1 for chunk in source_chunks if anchor in str(chunk.get("chunk_text", "")).lower())
@@ -710,20 +739,30 @@ def _build_anchor_window_candidates(
             continue
 
         lexical_overlap = len(tokenized_query_terms & set(_tokenize_text(haystack)))
-        causal_bonus = 0.05 if any(term in haystack for term in causal_terms) else 0.0
-        base_score = min(0.36, 0.12 + (len(matched_anchors) * 0.04) + min(0.08, lexical_overlap * 0.01) + causal_bonus)
+        base_score = min(
+            scoring.anchor_window_cap,
+            scoring.anchor_window_base
+            + (len(matched_anchors) * scoring.anchor_window_term)
+            + min(scoring.anchor_window_overlap_cap, lexical_overlap * scoring.anchor_window_overlap_term),
+        )
         chunk_id = int(chunk["id"])
         candidate_scores[chunk_id] = max(candidate_scores.get(chunk_id, 0.0), base_score)
 
         chunk_index = int(chunk["chunk_index"])
         neighbors_added = []
         if request.expand_neighbors:
-            for offset, bonus in [(-1, 0.08), (1, 0.08)]:
+            for offset, bonus in [
+                (-1, scoring.anchor_window_offset_bonus),
+                (1, scoring.anchor_window_offset_bonus),
+            ]:
                 neighbor = chunk_by_index.get(chunk_index + offset)
                 if neighbor is None:
                     continue
                 neighbor_id = int(neighbor["id"])
-                neighbor_score = min(0.24, base_score * 0.7 + bonus)
+                neighbor_score = min(
+                    scoring.anchor_window_neighbor_cap,
+                    base_score * scoring.anchor_window_neighbor_weight + scoring.anchor_window_neighbor_bonus,
+                )
                 candidate_scores[neighbor_id] = max(candidate_scores.get(neighbor_id, 0.0), neighbor_score)
                 neighbors_added.append(neighbor_id)
 
@@ -1294,7 +1333,7 @@ def perform_search(request: SearchRequest) -> SearchResponse:
         _persist_trace(retrieval_trace=retrieval_trace, question=request.question, score_diagnostics=[])
         return SearchResponse(results=[], latency_ms=total_ms, mode=resolved_mode, debug_info=retrieval_trace)
 
-    from app.core_rag.reranker import apply_mmr_placeholder, evaluate_rerank_policy, rerank
+    from app.core_rag.reranker import apply_mmr, evaluate_rerank_policy, rerank
 
     rerank_ms = 0
     rerank_policy = evaluate_rerank_policy(
@@ -1306,8 +1345,9 @@ def perform_search(request: SearchRequest) -> SearchResponse:
     if rerank_policy["eligible"]:
         logger.info(f"Reranking {len(raw_results)} candidates down to {request.k}")
         rerank_start = time.time()
-        raw_results = rerank(request.question, raw_results, request.k)
-        raw_results = apply_mmr_placeholder(raw_results, rerank_policy)
+        raw_results = rerank(request.question, raw_results)
+        reranker_top = get_effective_reranker().top_n or request.k
+        raw_results = apply_mmr(raw_results, rerank_policy, top_k=min(request.k, reranker_top))
         rerank_ms = int((time.time() - rerank_start) * 1000)
         rerank_policy["applied"] = True
         retrieval_trace["latency_ms"]["rerank"] = rerank_ms

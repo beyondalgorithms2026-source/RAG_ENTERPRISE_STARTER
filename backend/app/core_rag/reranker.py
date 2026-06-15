@@ -1,3 +1,5 @@
+import math
+import time
 from typing import Dict, List
 
 from app.core.logging import logger
@@ -82,17 +84,76 @@ def evaluate_rerank_policy(
 
     policy["eligible"] = True
     policy["reason"] = "eligible_policy_match"
-    policy["mmr"]["reason"] = "placeholder_reserved_for_future_milestone" if profile.mmr_enabled else "disabled"
+    policy["mmr"]["reason"] = "eligible" if profile.mmr_enabled else "disabled"
     return policy
 
 
-def apply_mmr_placeholder(chunks: List[Dict], policy: dict) -> List[Dict]:
+def _cosine_similarity(left: List[float], right: List[float]) -> float:
+    dot = sum(a * b for a, b in zip(left, right))
+    left_norm = math.sqrt(sum(value * value for value in left))
+    right_norm = math.sqrt(sum(value * value for value in right))
+    if left_norm == 0.0 or right_norm == 0.0:
+        return 0.0
+    return dot / (left_norm * right_norm)
+
+
+def _normalized_relevance(chunks: List[Dict]) -> dict[int, float]:
+    scores = [float(chunk.get("rerank_score") or 0.0) for chunk in chunks]
+    low = min(scores, default=0.0)
+    high = max(scores, default=0.0)
+    if high <= low:
+        return {int(chunk["chunk_id"]): 1.0 for chunk in chunks}
+    return {
+        int(chunk["chunk_id"]): (float(chunk.get("rerank_score") or 0.0) - low) / (high - low)
+        for chunk in chunks
+    }
+
+
+def apply_mmr(chunks: List[Dict], policy: dict, *, top_k: int) -> List[Dict]:
+    started_at = time.perf_counter()
     mmr_policy = dict(policy.get("mmr") or {})
-    if mmr_policy.get("enabled"):
+    effective_top = max(0, min(int(top_k), len(chunks)))
+    if not mmr_policy.get("enabled") or effective_top == 0:
         mmr_policy["applied"] = False
-        mmr_policy["reason"] = "placeholder_reserved_for_future_milestone"
+        mmr_policy["reason"] = "disabled" if not mmr_policy.get("enabled") else "no_candidates"
+        mmr_policy["latency_ms"] = round((time.perf_counter() - started_at) * 1000, 3)
+        policy["mmr"] = mmr_policy
+        return chunks[:effective_top]
+
+    from app.db.repo_chunks import fetch_chunk_embeddings
+
+    embeddings = fetch_chunk_embeddings([int(chunk["chunk_id"]) for chunk in chunks])
+    if len(embeddings) != len(chunks):
+        mmr_policy["applied"] = False
+        mmr_policy["reason"] = "missing_candidate_embeddings"
+        mmr_policy["latency_ms"] = round((time.perf_counter() - started_at) * 1000, 3)
+        policy["mmr"] = mmr_policy
+        return chunks[:effective_top]
+
+    relevance = _normalized_relevance(chunks)
+    candidate_by_id = {int(chunk["chunk_id"]): chunk for chunk in chunks}
+    remaining = list(candidate_by_id)
+    selected: List[int] = []
+    lambda_value = min(1.0, max(0.0, float(mmr_policy.get("lambda") or 0.5)))
+    while remaining and len(selected) < effective_top:
+        def mmr_score(chunk_id: int) -> tuple[float, float, int]:
+            redundancy = max(
+                (_cosine_similarity(embeddings[chunk_id], embeddings[selected_id]) for selected_id in selected),
+                default=0.0,
+            )
+            score = lambda_value * relevance[chunk_id] - (1.0 - lambda_value) * redundancy
+            return score, relevance[chunk_id], -remaining.index(chunk_id)
+
+        chosen = max(remaining, key=mmr_score)
+        selected.append(chosen)
+        remaining.remove(chosen)
+
+    mmr_policy["applied"] = True
+    mmr_policy["reason"] = "eval_proven_diversity"
+    mmr_policy["selected_chunk_ids"] = selected
+    mmr_policy["latency_ms"] = round((time.perf_counter() - started_at) * 1000, 3)
     policy["mmr"] = mmr_policy
-    return chunks
+    return [candidate_by_id[chunk_id] for chunk_id in selected]
 
 
 def get_reranker():
@@ -114,7 +175,7 @@ def get_reranker():
     return _reranker
 
 
-def rerank(question: str, chunks: List[Dict], top_k: int) -> List[Dict]:
+def rerank(question: str, chunks: List[Dict]) -> List[Dict]:
     from app.profiles.resolver import get_effective_reranker
     profile = get_effective_reranker()
     model = get_reranker()
@@ -128,5 +189,4 @@ def rerank(question: str, chunks: List[Dict], top_k: int) -> List[Dict]:
         chunks = [c for c in chunks if c["rerank_score"] >= profile.score_threshold]
 
     chunks.sort(key=lambda item: item["rerank_score"], reverse=True)
-    effective_top = profile.top_n or top_k
-    return chunks[:effective_top]
+    return chunks

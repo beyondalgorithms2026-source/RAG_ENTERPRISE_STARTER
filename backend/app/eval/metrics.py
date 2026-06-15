@@ -94,3 +94,10 @@ def aggregate_case_metrics(case_metrics: Sequence[dict[str, Any]]) -> dict[str, 
         return {}
     keys = sorted({key for metrics in case_metrics for key in metrics if isinstance(metrics.get(key), (int, float)) or metrics.get(key) is None})
     return {key: aggregate_metric(metrics.get(key) for metrics in case_metrics) for key in keys}
+
+
+def intra_list_diversity(similarities: Sequence[float]) -> Optional[float]:
+    values = [min(1.0, max(-1.0, float(value))) for value in similarities]
+    if not values:
+        return None
+    return sum(1.0 - value for value in values) / len(values)

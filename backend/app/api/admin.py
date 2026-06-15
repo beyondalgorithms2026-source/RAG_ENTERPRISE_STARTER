@@ -1004,6 +1004,15 @@ def get_profile_metadata():
     }
 
 
+@router.get("/retrieval/evidence")
+def get_retrieval_evidence():
+    from app.eval.retrieval_ablation import REPORT_PATH
+
+    if not REPORT_PATH.exists():
+        raise HTTPException(status_code=503, detail="AR14 retrieval evidence report has not been generated")
+    return json.loads(REPORT_PATH.read_text(encoding="utf-8"))
+
+
 @router.get("/tuning/configurations")
 def get_tuning_configurations():
     live_configuration = get_live_configuration()

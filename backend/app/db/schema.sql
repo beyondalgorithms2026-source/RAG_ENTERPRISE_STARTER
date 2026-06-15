@@ -107,6 +107,22 @@ CREATE INDEX IF NOT EXISTS source_parts_source_id_idx ON source_parts(source_id)
 CREATE INDEX IF NOT EXISTS chunks_source_id_idx ON chunks(source_id);
 CREATE INDEX IF NOT EXISTS chunks_source_part_id_idx ON chunks(source_part_id);
 CREATE INDEX IF NOT EXISTS chunks_search_tsv_gin ON chunks USING gin(search_tsv);
+
+CREATE OR REPLACE FUNCTION chunks_search_tsv_update() RETURNS trigger AS $$
+BEGIN
+    NEW.search_tsv :=
+        setweight(to_tsvector('english', COALESCE(NEW.heading, '')), 'A')
+        || setweight(to_tsvector('english', COALESCE(NEW.chunk_text, '')), 'B');
+    RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS chunks_search_tsv_trigger ON chunks;
+CREATE TRIGGER chunks_search_tsv_trigger
+BEFORE INSERT OR UPDATE OF heading, chunk_text
+ON chunks
+FOR EACH ROW
+EXECUTE FUNCTION chunks_search_tsv_update();
 CREATE INDEX IF NOT EXISTS ingestion_jobs_source_id_idx ON ingestion_jobs(source_id);
 CREATE INDEX IF NOT EXISTS ingestion_jobs_status_idx ON ingestion_jobs(status);
 CREATE INDEX IF NOT EXISTS enrichment_jobs_source_id_idx ON enrichment_jobs(source_id);
