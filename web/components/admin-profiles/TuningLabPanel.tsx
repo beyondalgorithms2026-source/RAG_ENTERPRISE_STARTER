@@ -89,7 +89,7 @@ export function TuningLabPanel() {
                       <h2>Experimentation Sandbox</h2>
                       <p>Create a candidate configuration to benchmark against production.</p>
                     </div>
-                    <button type="button" className={`tuning-lab-visual-toggle ${visualMode ? "is-on" : ""}`} onClick={() => setVisualMode((current) => !current)}>
+                    <button type="button" title="Switch between the guided visual editor and the raw parameter form. Display only — it does not change what gets saved." className={`tuning-lab-visual-toggle ${visualMode ? "is-on" : ""}`} onClick={() => setVisualMode((current) => !current)}>
                       <span>Visual Mode</span>
                       <i />
                     </button>
@@ -102,7 +102,7 @@ export function TuningLabPanel() {
       
                   {retrievalEvidence ? (
                     <section className="tuning-lab-parameter-card">
-                      <strong className="tuning-lab-card-eyebrow">AR14 Retrieval Evidence</strong>
+                      <strong className="tuning-lab-card-eyebrow" title="Eval-proven verdict for each retrieval enhancement (the AR14 ablation): which features were adopted and their measured gain. Further tuning is gated by this evidence.">Retrieval tuning evidence</strong>
                       <p>
                         Global gate: {String(retrievalEvidence.global_control.after_gate?.status || "pending")}.
                         Only paired non-regressing gains remain configurable.

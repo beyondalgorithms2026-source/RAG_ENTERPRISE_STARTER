@@ -154,6 +154,62 @@ textarea {
   gap: 10px;
 }
 
+/* AR20: one consistent data-table look (zebra rows, sticky header, padding) so
+   dense admin tables read as the design system instead of a bare HTML table. */
+.admin-table-scroll {
+  max-height: 440px;
+  overflow: auto;
+  border: 1px solid var(--outline-strong);
+  border-radius: 10px;
+  background: var(--surface-panel);
+}
+
+.admin-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.admin-data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: 9px 12px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface-high);
+  border-bottom: 1px solid var(--outline-strong);
+  white-space: nowrap;
+}
+
+.admin-data-table tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--outline-strong);
+  vertical-align: top;
+}
+
+.admin-data-table tbody tr:nth-child(even) {
+  background: var(--surface-low);
+}
+
+.admin-data-table tbody tr:hover {
+  background: var(--surface-mid);
+}
+
+.admin-data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* AR20: keep a master/detail pane in view while a long list scrolls. */
+.admin-sticky-detail {
+  position: sticky;
+  top: 1rem;
+  align-self: start;
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+}
+
 button {
   border: 0;
   cursor: pointer;

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { browserApiUrl, browserFetch } from "@/lib/api-browser";
@@ -799,6 +799,13 @@ export function SourcesAdminPanel() {
   const [payload, setPayload] = useState<{ sources: GenericMap[] }>({ sources: [] });
   const [corporaPayload, setCorporaPayload] = useState<{ corpora: GenericMap[] }>({ corpora: [] });
   const [selectedSourceId, setSelectedSourceId] = useState("");
+  const detailRef = useRef<HTMLElement>(null);
+  // AR20: when a source far down the list is selected, bring the detail pane
+  // into view so the operator never loses the selected record.
+  function selectSourceAndReveal(id: string) {
+    setSelectedSourceId(id);
+    requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
   const [draft, setDraft] = useState<SourceDraft>(sourceDraftFromItem(null));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
@@ -1171,7 +1178,7 @@ export function SourcesAdminPanel() {
                   <button type="button" className="button button-secondary" onClick={() => downloadSourceFile(source)}>
                     Download
                   </button>
-                  <button type="button" className="button button-secondary" onClick={() => setSelectedSourceId(String(source.id))}>
+                  <button type="button" className="button button-secondary" onClick={() => selectSourceAndReveal(String(source.id))}>
                     Inspect
                   </button>
                 </div>
@@ -1180,7 +1187,7 @@ export function SourcesAdminPanel() {
           </div>
         </section>
 
-        <section className="card">
+        <section className="card admin-sticky-detail" ref={detailRef}>
           <div className="section-head">
             <div>
               <h2>{selectedSource ? String(selectedSource.file_name) : "Source detail"}</h2>
@@ -1240,6 +1247,11 @@ export function JobsAdminPanel() {
   const defaultFilters = { query: "", kind: "all", status: "all", owner: "all", stage: "all", priority: "all", sourceType: "all", sort: "active_first" };
   const [payload, setPayload] = useState<{ ingestion_jobs: GenericMap[]; enrichment_jobs: GenericMap[]; queue_summary?: GenericMap; priority_requests?: GenericMap[] }>({ ingestion_jobs: [], enrichment_jobs: [], queue_summary: {}, priority_requests: [] });
   const [selectedJobKey, setSelectedJobKey] = useState("");
+  const jobDetailRef = useRef<HTMLElement>(null);
+  function selectJobAndReveal(key: string) {
+    setSelectedJobKey(key);
+    requestAnimationFrame(() => jobDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState({ ...defaultFilters });
@@ -1593,7 +1605,7 @@ export function JobsAdminPanel() {
                   <span className={`badge ${statusTone(job.status)}`}>{titleCaseWords(job.status || "unknown")}</span>
                   <span>{formatPriorityLabel(job.priority)}</span>
                   <span>{formatJobTimingLabel(job)}</span>
-                  <button type="button" className="button button-secondary" onClick={() => setSelectedJobKey(`${String(job.job_kind)}:${String(job.id)}`)}>
+                  <button type="button" className="button button-secondary" onClick={() => selectJobAndReveal(`${String(job.job_kind)}:${String(job.id)}`)}>
                     Open detail
                   </button>
                 </div>
@@ -1602,7 +1614,7 @@ export function JobsAdminPanel() {
           </div>
         </section>
 
-        <section className="card">
+        <section className="card admin-sticky-detail" ref={jobDetailRef}>
           <div className="section-head">
             <div>
               <h2>{selectedJob ? `Job #${String(selectedJob.id)}` : "Job detail"}</h2>
@@ -2318,6 +2330,11 @@ export function AuditLogAdminPanel() {
   const [draftFilters, setDraftFilters] = useState({ ...defaultFilters });
   const [payload, setPayload] = useState<{ events: GenericMap[] }>({ events: [] });
   const [selectedEventId, setSelectedEventId] = useState("");
+  const eventDetailRef = useRef<HTMLElement>(null);
+  function selectEventAndReveal(id: string) {
+    setSelectedEventId(id);
+    requestAnimationFrame(() => eventDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [savedViews, setSavedViews] = useState<SavedViewEntry[]>([]);
@@ -2543,7 +2560,7 @@ export function AuditLogAdminPanel() {
                 <div className="table-metrics">
                   <span className={`badge ${statusTone(event.outcome)}`}>{String(event.outcome || "completed")}</span>
                   <span>{formatTimestamp(event.created_at)}</span>
-                  <button type="button" className="button button-secondary" onClick={() => setSelectedEventId(String(event.id))}>
+                  <button type="button" className="button button-secondary" onClick={() => selectEventAndReveal(String(event.id))}>
                     Inspect
                   </button>
                 </div>
@@ -2552,7 +2569,7 @@ export function AuditLogAdminPanel() {
           </div>
         </section>
 
-        <section className="card">
+        <section className="card admin-sticky-detail" ref={eventDetailRef}>
           <div className="section-head">
             <div>
               <h2>{selectedEvent ? `Event #${String(selectedEvent.id)}` : "Event detail"}</h2>

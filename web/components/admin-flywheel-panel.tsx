@@ -111,37 +111,37 @@ export function AdminFlywheelPanel() {
 
       <div>
         <h3 style={{ fontSize: 15, margin: "0 0 8px" }}>Pack pass-rate trend {overall != null ? `(overall ${(overall * 100).toFixed(0)}%)` : ""}</h3>
-        <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "var(--color-text-secondary)" }}>
-              <th style={{ padding: "6px 8px" }}>Run</th>
-              <th style={{ padding: "6px 8px" }}>Label</th>
-              <th style={{ padding: "6px 8px" }}>Gate</th>
-              <th style={{ padding: "6px 8px" }}>recall@5</th>
-              <th style={{ padding: "6px 8px" }}>MRR</th>
-              <th style={{ padding: "6px 8px" }}>Cumulative pass</th>
-            </tr>
-          </thead>
-          <tbody>
-            {trend.map((p) => (
-              <tr key={p.run_id} style={{ borderTop: "0.5px solid var(--color-border-tertiary)" }}>
-                <td style={{ padding: "6px 8px" }}>{p.run_id}</td>
-                <td style={{ padding: "6px 8px" }}>{p.label}</td>
-                <td style={{ padding: "6px 8px", color: p.gate_status === "pass" ? "var(--color-text-success)" : "var(--color-text-danger)" }}>{p.gate_status}</td>
-                <td style={{ padding: "6px 8px" }}>{p.recall_at_5 != null ? p.recall_at_5.toFixed(3) : "—"}</td>
-                <td style={{ padding: "6px 8px" }}>{p.mrr != null ? p.mrr.toFixed(3) : "—"}</td>
-                <td style={{ padding: "6px 8px" }}>{(p.cumulative_pass_rate * 100).toFixed(0)}%</td>
-              </tr>
-            ))}
-            {trend.length === 0 ? (
+        <div className="admin-table-scroll">
+          <table className="admin-data-table">
+            <thead>
               <tr>
-                <td colSpan={6} style={{ padding: "12px 8px", color: "var(--color-text-secondary)" }}>
-                  No eval runs recorded yet.
-                </td>
+                <th>Run</th>
+                <th>Label</th>
+                <th>Gate</th>
+                <th>recall@5</th>
+                <th>MRR</th>
+                <th>Cumulative pass</th>
               </tr>
-            ) : null}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {trend.map((p) => (
+                <tr key={p.run_id}>
+                  <td>{p.run_id}</td>
+                  <td>{p.label}</td>
+                  <td style={{ color: p.gate_status === "pass" ? "var(--color-text-success)" : "var(--color-text-danger)", fontWeight: 500 }}>{p.gate_status}</td>
+                  <td>{p.recall_at_5 != null ? p.recall_at_5.toFixed(3) : "—"}</td>
+                  <td>{p.mrr != null ? p.mrr.toFixed(3) : "—"}</td>
+                  <td>{(p.cumulative_pass_rate * 100).toFixed(0)}%</td>
+                </tr>
+              ))}
+              {trend.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ color: "var(--color-text-secondary)" }}>No eval runs recorded yet.</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   );
