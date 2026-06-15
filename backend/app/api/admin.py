@@ -431,6 +431,18 @@ def _validated_profile_config(*, profile_type: str, config: dict[str, Any], base
         raise HTTPException(status_code=422, detail=f"Profile config validation failed: {exc}") from exc
 
 
+def _redact_secrets(value: Any) -> Any:
+    if isinstance(value, dict):
+        redacted = {key: _redact_secrets(item) for key, item in value.items() if key != "api_key_configured"}
+        if "api_key" in value:
+            redacted["api_key"] = ""
+            redacted["api_key_configured"] = bool(value.get("api_key"))
+        return redacted
+    if isinstance(value, list):
+        return [_redact_secrets(item) for item in value]
+    return value
+
+
 def _transform_posture(config: dict[str, Any]) -> dict[str, Any]:
     strategy: list[str] = []
     if config.get("rewrite_enabled"):
@@ -459,6 +471,20 @@ def _effective_tuning_selected_profiles(selected_profiles: Optional[dict[str, st
         if token:
             effective[profile_type] = token
     return effective
+
+
+def _enforce_llm_provider(*, profile_type: str, config: dict[str, Any]) -> None:
+    """AR17: an LLM profile may only name a provider the registry can serve."""
+    if profile_type != "llm":
+        return
+    from app.llm.providers import supported_providers
+
+    provider = str(config.get("provider") or "").strip().lower()
+    if provider not in supported_providers():
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "unknown_llm_provider", "message": f"Provider '{provider}' is not supported. Known: {supported_providers()}"},
+        )
 
 
 def _enforce_embedding_dimension_coherence(*, profile_type: str, config: dict[str, Any]) -> None:
@@ -509,7 +535,7 @@ def _profile_payload(row: dict[str, Any], *, active_map: dict[str, Optional[str]
         "id": row["id"],
         "profile_type": profile_type,
         "name": row["name"],
-        "config": config,
+        "config": _redact_secrets(config),
         "is_default": row["is_default"],
         "is_active": row["name"] == active_map.get(profile_type),
         "created_at": str(row["created_at"]),
@@ -598,6 +624,7 @@ def create_profile(body: ProfileCreateRequest):
 
     validated_config = _validated_profile_config(profile_type=profile_type, config=body.config)
     _enforce_embedding_dimension_coherence(profile_type=profile_type, config=validated_config)
+    _enforce_llm_provider(profile_type=profile_type, config=validated_config)
     upsert_profile(profile_type, profile_name, validated_config, is_default=body.is_default)
     actor = get_current_user()
     insert_admin_audit_event(
@@ -609,7 +636,7 @@ def create_profile(body: ProfileCreateRequest):
         profile_type=profile_type,
         profile_name=profile_name,
         before_json={},
-        after_json={"config": validated_config, "is_default": body.is_default},
+        after_json={"config": _redact_secrets(validated_config), "is_default": body.is_default},
         actor=actor,
     )
     return {"status": "ok", "profile": _profile_payload(get_profile(profile_type, profile_name), active_map={profile_type: get_active_profile_name(profile_type)})}
@@ -623,6 +650,7 @@ def update_profile(profile_type: str, profile_name: str, body: ProfileUpdateRequ
 
     validated_config = _validated_profile_config(profile_type=profile_type, config=body.config, base_config=existing["config_json"] or {})
     _enforce_embedding_dimension_coherence(profile_type=profile_type, config=validated_config)
+    _enforce_llm_provider(profile_type=profile_type, config=validated_config)
     upsert_profile(profile_type, profile_name, validated_config, is_default=bool(existing["is_default"]))
 
     if get_active_profile_name(profile_type) == profile_name:
@@ -640,8 +668,8 @@ def update_profile(profile_type: str, profile_name: str, body: ProfileUpdateRequ
         resource_name=profile_name,
         profile_type=profile_type,
         profile_name=profile_name,
-        before_json={"config": existing["config_json"] or {}, "is_default": bool(existing["is_default"])},
-        after_json={"config": validated_config, "is_default": bool(existing["is_default"])},
+        before_json={"config": _redact_secrets(existing["config_json"] or {}), "is_default": bool(existing["is_default"])},
+        after_json={"config": _redact_secrets(validated_config), "is_default": bool(existing["is_default"])},
         actor=actor,
     )
     return {"status": "ok", "profile": _profile_payload(get_profile(profile_type, profile_name), active_map={profile_type: get_active_profile_name(profile_type)})}
@@ -667,7 +695,8 @@ def set_active(body: ActiveProfileRequest):
             },
         )
 
-    _validated_profile_config(profile_type=body.profile_type, config=profile["config_json"] or {})
+    validated_config = _validated_profile_config(profile_type=body.profile_type, config=profile["config_json"] or {})
+    _enforce_llm_provider(profile_type=body.profile_type, config=validated_config)
 
     # AR7: a dimension-changing embedding activation cannot go live through the
     # plain activate path — it would orphan the index. Route it through the
@@ -716,7 +745,7 @@ def set_active(body: ActiveProfileRequest):
         "status": "ok",
         "profile_type": body.profile_type,
         "profile_name": body.profile_name,
-        "live_configuration": live_config,
+        "live_configuration": _redact_secrets(live_config),
     }
 
 
@@ -950,8 +979,14 @@ def cost_summary_endpoint(group_by: str = "retrieval_mode"):
     """AR11: token/cost rollup. group_by=retrieval_mode answers 'deep research vs
     fast mode cost'; group_by=model gives per-model spend."""
     from app.db.repo_generation_usage import cost_summary
+    from app.llm.pricing import cost_alert_source, cost_alert_usd, effective_price_table, price_table_source
 
-    return cost_summary(group_by=group_by)
+    payload = cost_summary(group_by=group_by)
+    payload["governance"] = {
+        "llm_cost_alert_usd": {"effective": cost_alert_usd(), "source": cost_alert_source()},
+        "llm_price_table": {"effective": effective_price_table(), "source": price_table_source()},
+    }
+    return payload
 
 
 @router.get("/llm/providers")
@@ -961,6 +996,106 @@ def list_llm_providers():
     from app.llm.providers import supported_providers
 
     return {"providers": supported_providers()}
+
+
+class LLMVerifyRequest(BaseModel):
+    profile_name: Optional[str] = None
+    config: Optional[dict[str, Any]] = None
+
+
+@router.post("/llm/verify")
+def verify_llm_profile(body: LLMVerifyRequest):
+    """AR17: preflight a candidate LLM profile (by name or inline config) WITHOUT
+    activating it — applied request-scoped via profile_overrides so live traffic
+    is never affected."""
+    from app.llm.client import verify_llm_connection
+    from app.profiles.models import LLMProfileConfig
+    from app.profiles.resolver import profile_overrides
+
+    if body.profile_name:
+        profile = get_profile("llm", body.profile_name)
+        if not profile:
+            raise HTTPException(status_code=404, detail=f"LLM profile '{body.profile_name}' not found")
+        config = profile["config_json"] or {}
+    else:
+        config = body.config or {}
+    try:
+        candidate = LLMProfileConfig(**config)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid LLM config: {exc}") from exc
+    _enforce_llm_provider(profile_type="llm", config=candidate.model_dump())
+    with profile_overrides(llm=candidate):
+        result = verify_llm_connection(update_global=False)
+    return {**result, "provider": candidate.provider, "model": candidate.model}
+
+
+_RUNTIME_SETTING_KEYS = {"llm_cost_alert_usd", "llm_price_table", "tuning_eval_enforcement"}
+
+
+class RuntimeSettingRequest(BaseModel):
+    key: str
+    value: Any
+
+
+@router.get("/runtime-settings")
+def get_runtime_settings():
+    """AR17: console-editable governed settings + their effective values."""
+    from app.db.repo_runtime_settings import all_settings
+    from app.eval.promotion_evidence import enforcement_mode_source, resolve_enforcement_mode
+    from app.llm.pricing import cost_alert_source, cost_alert_usd, effective_price_table, price_table_source
+
+    overrides = all_settings()
+    return {
+        "settings": {
+            "llm_cost_alert_usd": {
+                "effective": cost_alert_usd(),
+                "override": overrides.get("llm_cost_alert_usd"),
+                "source": cost_alert_source(),
+            },
+            "llm_price_table": {
+                "effective": effective_price_table(),
+                "override": overrides.get("llm_price_table"),
+                "source": price_table_source(),
+            },
+            "tuning_eval_enforcement": {
+                "effective": resolve_enforcement_mode(),
+                "override": overrides.get("tuning_eval_enforcement"),
+                "source": enforcement_mode_source(),
+            },
+        },
+        "editable_keys": sorted(_RUNTIME_SETTING_KEYS),
+    }
+
+
+@router.patch("/runtime-settings")
+def patch_runtime_settings(body: RuntimeSettingRequest, request: Request):
+    actor = get_current_user()
+    approval = require_high_impact_approval(request=request, actor=actor, action="runtime_settings.update")
+    if body.key not in _RUNTIME_SETTING_KEYS:
+        raise HTTPException(status_code=422, detail={"error": "not_editable", "message": f"'{body.key}' is not a runtime-editable setting."})
+    from app.db.repo_runtime_settings import delete_setting, set_setting
+
+    try:
+        before = get_runtime_settings()["settings"][body.key]
+        if body.value is None or (body.key == "tuning_eval_enforcement" and str(body.value).strip() == ""):
+            delete_setting(body.key)
+        else:
+            set_setting(body.key, body.value, actor=actor)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    response = get_runtime_settings()
+    insert_admin_audit_event(
+        event_type="config",
+        action="runtime_settings.update",
+        resource_type="runtime_setting",
+        resource_id=body.key,
+        resource_name=body.key,
+        before_json=before,
+        after_json=response["settings"][body.key],
+        event_json={"key": body.key, **approval},
+        actor=actor,
+    )
+    return response
 
 
 @router.get("/profiles/metadata")
@@ -1046,9 +1181,9 @@ def get_tuning_configurations():
         for row in list_profiles("retrieval")
     ]
     return {
-        "live_configuration": live_configuration,
-        "candidate_drafts": list_candidate_drafts(),
-        "approved_options": approved_options,
+        "live_configuration": _redact_secrets(live_configuration),
+        "candidate_drafts": _redact_secrets(list_candidate_drafts()),
+        "approved_options": _redact_secrets(approved_options),
         "profile_types": list(PROFILE_TYPES_FOR_TUNING),
     }
 
@@ -1078,11 +1213,11 @@ def create_tuning_draft(body: CandidateDraftRequest):
         resource_id=str(draft["id"]),
         resource_name=draft["name"],
         before_json={},
-        after_json=draft,
+        after_json=_redact_secrets(draft),
         event_json={"version_label": draft["version_label"], "status": draft["status"]},
         actor=actor,
     )
-    return {"draft": draft}
+    return {"draft": _redact_secrets(draft)}
 
 
 @router.patch("/tuning/drafts/{draft_id}")
@@ -1112,12 +1247,12 @@ def patch_tuning_draft(draft_id: int, body: CandidateDraftUpdateRequest):
         resource_type="tuning_config",
         resource_id=str(draft["id"]),
         resource_name=draft["name"],
-        before_json=before,
-        after_json=draft,
+        before_json=_redact_secrets(before),
+        after_json=_redact_secrets(draft),
         event_json={"version_label": draft["version_label"], "status": draft["status"]},
         actor=actor,
     )
-    return {"draft": draft}
+    return {"draft": _redact_secrets(draft)}
 
 
 @router.post("/tuning/compare")
@@ -1184,7 +1319,7 @@ def run_tuning_compare(body: TuningCompareRequest):
 
 @router.get("/tuning/history")
 def get_tuning_history():
-    return list_tuning_history(limit=100)
+    return _redact_secrets(list_tuning_history(limit=100))
 
 
 @router.post("/tuning/embedding-experiments")
@@ -1353,8 +1488,8 @@ def promote_tuning_candidate(body: TuningPromotionRequest, request: Request):
         resource_type="tuning_config",
         resource_id=str(body.draft_id),
         resource_name=draft.get("name"),
-        before_json=result.get("previous_live_configuration"),
-        after_json=result.get("live_configuration"),
+        before_json=_redact_secrets(result.get("previous_live_configuration")),
+        after_json=_redact_secrets(result.get("live_configuration")),
         event_json={
             "promotion_note": body.promotion_note,
             "embedding_experiment_id": body.embedding_experiment_id,
@@ -1364,7 +1499,7 @@ def promote_tuning_candidate(body: TuningPromotionRequest, request: Request):
         actor=actor,
     )
     result["eval_evidence"] = eval_evidence
-    return result
+    return _redact_secrets(result)
 
 
 @router.post("/tuning/rollback")
@@ -1406,13 +1541,13 @@ def rollback_tuning_candidate(body: TuningRollbackRequest, request: Request):
         resource_type="tuning_config",
         resource_id=body.version_label,
         resource_name=body.version_label,
-        before_json=result.get("previous_live_configuration"),
-        after_json=result.get("live_configuration"),
+        before_json=_redact_secrets(result.get("previous_live_configuration")),
+        after_json=_redact_secrets(result.get("live_configuration")),
         event_json={"reason": body.reason, "eval_evidence": eval_evidence, **approval},
         actor=actor,
     )
     result["eval_evidence"] = eval_evidence
-    return result
+    return _redact_secrets(result)
 
 
 def _warm_model(model_type: str, model_name: str) -> dict[str, Any]:

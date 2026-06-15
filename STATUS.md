@@ -40,7 +40,7 @@ Git tag: `audit-baseline-2026-06-11`
 
 | AR15 — Operator Visibility & System Posture | **Complete (2026-06-15)** | `app/system_posture.py` + `GET /admin/system/posture` (7 sections, each with editable_via/restart); global `admin-health-banner` on every admin page when not healthy; health `semantic_cache` tile now warns "globally OFF" when no policy; read-only System Posture table in the health page; 321/321 suite; note: `docs/milestones/AR15_operator_visibility_system_posture.md` |
 | AR16 — Embedding & Model-Swap Console | **Complete (2026-06-15)** | `/console/admin/embedding` drives the AR7 lifecycle (plan→begin→run batches with progress→verify→abort), serving-state header + keyword-only banner during reindex, swap history; web-only (no backend change); 321/321 suite; tsc clean; note: `docs/milestones/AR16_embedding_model_swap_console.md` |
-| AR17 — Provider & Cost-Governance Console | Not started | P1 — BYO-model config + "test connection"; runtime-editable cost budget/price table/enforcement (`runtime_settings`, MIG-P027) |
+| AR17 — Provider & Cost-Governance Console | **Complete (2026-06-15)** | `/console/admin/providers` creates/updates/tests/activates provider profiles; API keys are write-only and redacted from responses/audits; MIG-P027 runtime settings provide runtime→env→default budget, price-table, and eval-enforcement precedence; cost/tuning consoles edit governed values with approval-actor support; 333/333 suite; note: `docs/milestones/AR17_generation_provider_cost_governance_console.md` |
 | AR18 — UI Modularity & Least-Privilege Gating | Not started | P1 — first-class toggleable modules; gate the 3 ungated endpoint groups; runtime module override + module-manager UI (single-deployment, not multi-tenant) |
 | AR19 — Console Component & Form-System Refactor | Not started | P2 — decompose the 1.3k-line profiles mega-panel; shared `web/components/ui` primitives |
 | AR20 — UI Consistency & Alignment | Not started | P2 — fix unstyled selects, tan/olive input fills, label spacing, grid alignment; consistency checklist |
@@ -71,7 +71,9 @@ M20, M21, M22, M23, M24, M25, M26, M27, M28, M29, M30
 
 ## Current Verification Debt
 
-- **Test suite is green:** `make test` — 315/315 on the dev DB (AR14); AR1 verified 224/224 on a freshly migrated empty DB as well
+- **Test suite is green:** `make test` — 333/333 on the live vector(768) dev DB (AR17); AR1 verified 224/224 on a freshly migrated empty DB as well
+- AR17: provider API keys are no longer returned or written to audit payloads, but remain stored in profile JSON; production deployments must provide database-at-rest encryption or an external secret manager
+- AR17: OpenAI/Azure/vLLM/Anthropic provider flows are transport-mocked because no live cloud credentials are available; the console and provider-specific request contracts are tested
 - AR14: graph/temporal verdicts use deterministic reviewed isolation fixtures because the dev DB contains smoke-test residue rather than a real reviewed graph/temporal corpus; production-corpus validation remains open
 - AR13: connector scheduling remains an in-process poller under AR8's single-worker default; PostgreSQL leases prevent duplicate claims, but a dedicated external scheduler/worker is future production hardening
 - AR13: live mailbox/archive connectors remain unimplemented; email ingestion is uploaded `.eml` with attachment handling

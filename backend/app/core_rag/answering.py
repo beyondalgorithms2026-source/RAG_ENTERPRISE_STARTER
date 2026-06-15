@@ -430,10 +430,13 @@ def _attach_generation_usage(trace_payload: dict[str, Any], *, request_id, retri
     flag/raise a budget alert, and embed the figures in the trace."""
     from app.llm.usage import current_usage
 
+    from app.llm.pricing import cost_alert_usd
+
     usage = current_usage()
     if not usage.get("call_count"):
         return
-    over_budget = bool(settings.LLM_COST_ALERT_USD) and usage["cost_usd"] > float(settings.LLM_COST_ALERT_USD)
+    threshold = cost_alert_usd()  # AR17: runtime override wins over env
+    over_budget = bool(threshold) and usage["cost_usd"] > threshold
     usage["over_budget"] = over_budget
     trace_payload["generation_usage"] = usage
     try:
@@ -467,7 +470,7 @@ def _attach_generation_usage(trace_payload: dict[str, Any], *, request_id, retri
                 resource_type="generation",
                 resource_id=str(request_id),
                 resource_name=usage.get("model"),
-                event_json={"cost_usd": usage["cost_usd"], "threshold_usd": float(settings.LLM_COST_ALERT_USD), "answer_path": answer_path},
+                event_json={"cost_usd": usage["cost_usd"], "threshold_usd": threshold, "answer_path": answer_path},
                 actor=actor,
             )
     except Exception as exc:  # cost accounting must never fail an answer

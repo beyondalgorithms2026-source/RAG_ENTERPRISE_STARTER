@@ -585,6 +585,13 @@ CREATE TABLE IF NOT EXISTS connector_sync_runs (
     completed_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS runtime_settings (
+    key TEXT PRIMARY KEY,
+    value_json JSONB NOT NULL,
+    updated_by TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS connector_sync_runs_connector_idx ON connector_sync_runs(connector_id, started_at DESC);
 
 CREATE TABLE IF NOT EXISTS connector_requests (

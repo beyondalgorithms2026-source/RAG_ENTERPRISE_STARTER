@@ -20,6 +20,18 @@ def _item(label: str, value: Any, *, editable_via: str, requires_restart: bool =
     return {"label": label, "value": value, "editable_via": editable_via, "requires_restart": requires_restart}
 
 
+def _cost_alert() -> float:
+    from app.llm.pricing import cost_alert_usd
+
+    return cost_alert_usd()
+
+
+def _price_overridden() -> bool:
+    from app.db.repo_runtime_settings import get_setting
+
+    return bool(settings.LLM_PRICE_TABLE_JSON) or bool(get_setting("llm_price_table"))
+
+
 def system_posture() -> dict[str, Any]:
     from app.coherence import vector_serving_state
     from app.core.runtime_safety import configured_worker_count
@@ -32,7 +44,6 @@ def system_posture() -> dict[str, Any]:
     cache_policy = cache.get("active_policy")
     retrieval = get_effective_retrieval()
     reranker = get_effective_reranker()
-    enforcement_explicit = str(settings.TUNING_EVAL_ENFORCEMENT or "").strip().lower() in {"require", "warn"}
 
     return {
         "serving": {
@@ -63,7 +74,8 @@ def system_posture() -> dict[str, Any]:
         "eval_enforcement": {
             "mode": resolve_enforcement_mode(),
             "items": [
-                _item("Promotion eval enforcement", resolve_enforcement_mode(), editable_via="env:TUNING_EVAL_ENFORCEMENT" if enforcement_explicit else "env:TUNING_EVAL_ENFORCEMENT (derived from APP_ENV)"),
+                # AR17: runtime-editable in the console (overrides env / APP_ENV-derived default).
+                _item("Promotion eval enforcement", resolve_enforcement_mode(), editable_via="ui"),
             ],
         },
         "workers": {
@@ -84,8 +96,9 @@ def system_posture() -> dict[str, Any]:
         },
         "cost_governance": {
             "items": [
-                _item("Cost alert threshold (USD)", settings.LLM_COST_ALERT_USD, editable_via="env:LLM_COST_ALERT_USD"),
-                _item("Price table overridden", bool(settings.LLM_PRICE_TABLE_JSON), editable_via="env:LLM_PRICE_TABLE_JSON"),
+                # AR17: runtime-editable in the console (overrides env).
+                _item("Cost alert threshold (USD)", _cost_alert(), editable_via="ui"),
+                _item("Price table overridden", _price_overridden(), editable_via="ui"),
             ],
         },
     }

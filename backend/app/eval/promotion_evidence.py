@@ -33,10 +33,32 @@ ENFORCEMENT_MODES = ("require", "warn")
 
 
 def resolve_enforcement_mode() -> str:
+    # Precedence: runtime override → env TUNING_EVAL_ENFORCEMENT → derived from APP_ENV.
+    try:
+        from app.db.repo_runtime_settings import get_setting
+
+        runtime = str(get_setting("tuning_eval_enforcement") or "").strip().lower()
+        if runtime in ENFORCEMENT_MODES:
+            return runtime
+    except Exception:
+        pass
     explicit = str(settings.TUNING_EVAL_ENFORCEMENT or "").strip().lower()
     if explicit in ENFORCEMENT_MODES:
         return explicit
     return "warn" if settings.APP_ENV == "local" else "require"
+
+
+def enforcement_mode_source() -> str:
+    try:
+        from app.db.repo_runtime_settings import get_setting
+
+        if str(get_setting("tuning_eval_enforcement") or "").strip().lower() in ENFORCEMENT_MODES:
+            return "runtime"
+    except Exception:
+        pass
+    if str(settings.TUNING_EVAL_ENFORCEMENT or "").strip().lower() in ENFORCEMENT_MODES:
+        return "environment"
+    return "default"
 
 
 def config_fingerprint(resolved_config: dict[str, Any]) -> str:

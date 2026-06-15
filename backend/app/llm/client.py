@@ -24,7 +24,7 @@ def _auth_headers(api_key: str = "") -> dict:
     return {"Content-Type": "application/json", "Authorization": f"Bearer {key}"}
 
 
-def verify_llm_ready():
+def verify_llm_connection(*, update_global: bool = True) -> dict:
     global _llm_ready
     from app.profiles.resolver import get_effective_llm
     from app.llm.providers import get_provider
@@ -32,9 +32,11 @@ def verify_llm_ready():
     llm = get_effective_llm()
     httpx = _get_httpx()
     if httpx is None:
-        logger.error("httpx is not installed; LLM preflight is unavailable during M2 smoke checks.")
-        _llm_ready = False
-        return False
+        reason = "httpx is not installed; LLM preflight is unavailable."
+        logger.error(reason)
+        if update_global:
+            _llm_ready = False
+        return {"ready": False, "reason": reason}
 
     try:
         provider = get_provider(llm.provider)
@@ -42,20 +44,30 @@ def verify_llm_ready():
         with httpx.Client(timeout=10.0) as client:
             response = client.get(provider.models_url(base), headers=provider.headers(llm, _auth_headers(llm.api_key)))
             if response.status_code != 200:
-                logger.error(f"LLM preflight: model listing at {base} returned HTTP {response.status_code}")
-                _llm_ready = False
-                return False
+                reason = f"Model listing returned HTTP {response.status_code}"
+                logger.error("LLM preflight at %s: %s", base, reason)
+                if update_global:
+                    _llm_ready = False
+                return {"ready": False, "reason": reason}
             if not provider.verify_models(response.json(), llm.model):
-                logger.error(f"LLM preflight: model '{llm.model}' not found at {base} (provider {provider.name}).")
-                _llm_ready = False
-                return False
+                reason = f"Model '{llm.model}' was not found"
+                logger.error("LLM preflight at %s (%s): %s", base, provider.name, reason)
+                if update_global:
+                    _llm_ready = False
+                return {"ready": False, "reason": reason}
         logger.info(f"LLM preflight OK: {llm.model} ready via provider {provider.name}.")
-        _llm_ready = True
-        return True
+        if update_global:
+            _llm_ready = True
+        return {"ready": True, "reason": "Model is reachable and listed by the provider"}
     except Exception as exc:
         logger.error(f"LLM Preflight failed: {exc}")
-        _llm_ready = False
-        return False
+        if update_global:
+            _llm_ready = False
+        return {"ready": False, "reason": str(exc)}
+
+
+def verify_llm_ready():
+    return bool(verify_llm_connection(update_global=True)["ready"])
 
 
 def _provider_generate(llm, system_prompt: str, user_prompt: str, *, json_mode: bool, temperature: float, max_tokens, timeout_s: float) -> dict:
