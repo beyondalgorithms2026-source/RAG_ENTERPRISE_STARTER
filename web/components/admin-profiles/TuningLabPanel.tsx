@@ -12,8 +12,10 @@ import {
   useTuningWorkspace, versionModelDetail, versionProfileConfig, versionProfileName,
 } from "./tuning-workspace-context";
 
-function ToggleControl({ label, enabled, onToggle, disabled = false }: { label: string; enabled: boolean; onToggle: () => void; disabled?: boolean }) {
-  return <Toggle variant="switch" label={`${label} ${enabled ? "On" : "Off"}`} checked={enabled} disabled={disabled} onChange={onToggle} />;
+function ToggleControl({ enabled, onToggle, disabled = false }: { label?: string; enabled: boolean; onToggle: () => void; disabled?: boolean }) {
+  // AR20: the field name + tooltip are supplied by the adjacent ParameterLabel,
+  // so the switch only needs to show its On/Off state inline.
+  return <Toggle variant="switch" label={enabled ? "On" : "Off"} checked={enabled} disabled={disabled} onChange={onToggle} />;
 }
 
 export function TuningLabPanel() {

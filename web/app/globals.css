@@ -4426,10 +4426,15 @@ textarea:focus-visible {
   box-shadow: inset 0 0 0 1px rgba(211, 206, 180, 0.7);
 }
 
+/* AR20 follow-up: lay each sandbox control on a single line — label, control,
+   then value — instead of stacking the control under the label. */
 .tuning-lab-slider-wrap {
   position: relative;
   display: grid;
-  gap: 12px;
+  grid-template-columns: minmax(150px, max-content) minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 8px;
 }
 
 .tuning-lab-slider-wrap.is-disabled {
@@ -4442,10 +4447,8 @@ textarea:focus-visible {
 }
 
 .tuning-lab-slider-value {
-  position: absolute;
-  right: 4px;
-  top: -24px;
-  min-width: 56px;
+  justify-self: end;
+  min-width: 52px;
   border-radius: 10px;
   padding: 4px 10px;
   background: rgba(236, 231, 201, 0.96);
@@ -4458,8 +4461,10 @@ textarea:focus-visible {
 .tuning-lab-slider-wrap input[type="range"] {
   appearance: none;
   height: 4px;
-  margin-top: 14px;
+  min-height: 0;
+  margin: 0;
   padding: 0;
+  border: 0;
   border-radius: 999px;
   background: rgba(223, 218, 184, 0.9);
   box-shadow: none;
@@ -4486,7 +4491,7 @@ textarea:focus-visible {
 
 .tuning-lab-slider-wrap p {
   margin: 0;
-  min-height: 52px;
+  grid-column: 1 / -1;
 }
 
 .tuning-lab-selector-grid {
@@ -4790,6 +4795,7 @@ textarea:focus-visible {
 
 .tuning-lab-action-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 14px;
@@ -6006,6 +6012,10 @@ textarea:focus-visible {
   .feedback-context-grid,
   .feedback-cluster-grid {
     grid-template-columns: 1fr;
+  }
+
+  .tuning-lab-slider-wrap {
+    grid-template-columns: 1fr auto;
   }
 
   .feedback-detail-panel {
