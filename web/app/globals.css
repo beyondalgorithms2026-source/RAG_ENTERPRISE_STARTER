@@ -391,6 +391,43 @@ textarea:focus-visible {
   font-size: 22px;
 }
 
+/* Coming-soon pattern: a consistent marker for controls intentionally not wired
+   yet (preserved, not removed). A "Soon" pill on labelled controls; a small
+   accent dot on icon-only controls. See web/DESIGN.md. */
+.coming-soon-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-high);
+  color: var(--muted);
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.is-coming-soon {
+  position: relative;
+}
+
+.is-coming-soon::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  opacity: 0.55;
+}
+
+[data-coming-soon] {
+  position: relative;
+}
+
 /* ===========================================================================
    7. PUBLIC & MARKETING SURFACES
    =========================================================================== */
@@ -1908,6 +1945,36 @@ textarea:focus-visible {
   background: var(--surface-panel);
   color: var(--primary-strong);
   box-shadow: var(--ambient);
+}
+
+/* Collapsible admin nav sections (Operate / Retrieval / Data / Governance). */
+.admin-sidebar-group {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.admin-sidebar-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background: none;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.admin-sidebar-section:hover {
+  color: var(--ink);
+}
+
+.admin-sidebar-section-symbol {
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .admin-user-card {

@@ -1,14 +1,10 @@
 import { redirect } from "next/navigation";
 
 import { serverFetch } from "./api-server";
+import type { AdminNavItem } from "./admin-nav";
 
-export type AdminNavItem = {
-  module: string;
-  href: string;
-  label: string;
-  icon: string;
-  description?: string;
-};
+export type { AdminNavItem, AdminNavSection } from "./admin-nav";
+export { groupAdminNav } from "./admin-nav";
 
 export type AdminModulesPayload = {
   scenario_profile: string;

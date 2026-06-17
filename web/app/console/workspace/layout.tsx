@@ -6,9 +6,10 @@ import { requireViewer } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 const navItems = [
-  { href: "/console/workspace/chat", label: "Chat", icon: "chat" },
+  { href: "/console/workspace/chat", label: "Ask", icon: "chat" },
+  { href: "/console/workspace/search", label: "Search", icon: "search" },
+  { href: "/console/workspace/history", label: "History", icon: "history" },
   { href: "/console/workspace/requests", label: "Approvals & Access", icon: "approval" },
-  { href: "/console/workspace/history", label: "Search History", icon: "history" },
   { href: "/console/workspace/sources", label: "My Sources", icon: "database" },
   { href: "/console/workspace/uploads", label: "Upload Documents", icon: "upload_file" },
   { href: "/console/workspace/connectors", label: "Connectors", icon: "hub" },
