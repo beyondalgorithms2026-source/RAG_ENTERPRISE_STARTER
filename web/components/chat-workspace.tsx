@@ -140,6 +140,27 @@ function sourceIcon(sourceType: string) {
   return { icon: "link", tone: "is-link" };
 }
 
+type RailCitation = NonNullable<ThreadMessage["citations"]>[number];
+
+// Group citations by source so the same file is shown once even when several of
+// its passages are cited; the group keeps every citation_id for highlight matching.
+function groupCitationsBySource(citations: RailCitation[]) {
+  const groups: { key: string; rep: RailCitation; items: RailCitation[] }[] = [];
+  const seen = new Map<string, { key: string; rep: RailCitation; items: RailCitation[] }>();
+  for (const citation of citations) {
+    const key = String(citation.source_id ?? citation.file_name ?? citation.citation_id);
+    const existing = seen.get(key);
+    if (existing) {
+      existing.items.push(citation);
+    } else {
+      const group = { key, rep: citation, items: [citation] };
+      seen.set(key, group);
+      groups.push(group);
+    }
+  }
+  return groups;
+}
+
 function formatSourceTitle(fileName: string) {
   const trimmed = fileName.trim();
   return trimmed.replace(/\.(pdf|docx|doc|txt|md|pptx|xlsx|csv)$/i, "") || trimmed;
@@ -1333,17 +1354,19 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                             ) : null}
                             {message.citations?.length ? (
                               <div className="chat-citation-row">
-                                {message.citations.map((citation) => (
+                                {groupCitationsBySource(message.citations).map((group) => (
                                   <button
-                                    key={citation.citation_id}
+                                    key={group.key}
                                     type="button"
                                     className="chat-citation-pill"
-                                    onClick={() => selectCitation(message.id, citation.citation_id)}
-                                    onMouseEnter={() => setHoveredCitationId(citation.citation_id)}
+                                    title={group.rep.file_name}
+                                    onClick={() => selectCitation(message.id, group.rep.citation_id)}
+                                    onMouseEnter={() => setHoveredCitationId(group.rep.citation_id)}
                                     onMouseLeave={() => setHoveredCitationId(null)}
                                   >
-                                    <MaterialIcon name={sourceIcon(citation.source_type).icon} />
-                                    {citation.file_name}
+                                    <MaterialIcon name={sourceIcon(group.rep.source_type).icon} />
+                                    <span className="chat-citation-pill-name">{group.rep.file_name}</span>
+                                    {group.items.length > 1 ? <span className="chat-citation-pill-count">{group.items.length}</span> : null}
                                   </button>
                                 ))}
                               </div>
@@ -1514,24 +1537,28 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                   </button>
                   {!isCollapsed ? (
                     <div className="chat-evidence-group-body">
-                      {section.citations.length ? section.citations.map((citation) => {
+                      {section.citations.length ? groupCitationsBySource(section.citations).map((group) => {
+                        const citation = group.rep;
                         const iconData = sourceIcon(citation.source_type);
-                        const isSelected = isSelectedSection && selectedCitation?.citation_id === citation.citation_id;
-                        const isHovered = hoveredCitationId === citation.citation_id;
+                        const groupIds = new Set(group.items.map((item) => item.citation_id));
+                        const isSelected = isSelectedSection && selectedCitationId !== null && groupIds.has(selectedCitationId);
+                        const isHovered = hoveredCitationId !== null && groupIds.has(hoveredCitationId);
+                        const selectedInGroup = group.items.find((item) => item.citation_id === selectedCitationId);
+                        const shown = selectedInGroup ?? citation;
                         return (
                           <button
-                            key={citation.citation_id}
+                            key={group.key}
                             type="button"
                             className={`chat-evidence-card ${isSelected ? "is-selected" : ""} ${isHovered ? "is-hovered" : ""}`.trim()}
-                            onClick={() => selectCitation(section.id, citation.citation_id)}
+                            onClick={() => selectCitation(section.id, shown.citation_id)}
                           >
                             <div className="chat-evidence-card-head">
                               <div className={`chat-evidence-icon ${iconData.tone}`}>
                                 <MaterialIcon name={iconData.icon} />
                               </div>
                               <div>
-                                <strong>{citation.file_name}</strong>
-                                <span>{citation.locator || citation.heading}</span>
+                                <strong className="chat-evidence-filename" title={citation.file_name}>{citation.file_name}</strong>
+                                <span>{shown.locator || shown.heading}{group.items.length > 1 ? ` · ${group.items.length} passages` : ""}</span>
                                 {citation.freshness ? (
                                   <span className={`badge ${citation.freshness.status === "fresh" ? "is-good" : citation.freshness.status === "stale" ? "is-danger" : "is-warning"}`}>
                                     {citation.freshness.status}
@@ -1539,7 +1566,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                                 ) : null}
                               </div>
                             </div>
-                            <div className="chat-evidence-snippet">{citation.snippet}</div>
+                            <div className="chat-evidence-snippet">{shown.snippet}</div>
                           </button>
                         );
                       }) : (
