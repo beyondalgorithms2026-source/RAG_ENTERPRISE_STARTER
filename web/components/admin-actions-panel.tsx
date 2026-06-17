@@ -101,6 +101,9 @@ export function AdminActionsPanel() {
   });
   const [feedback, setFeedback] = useState("");
   const [actionsTab, setActionsTab] = useState<"approvals" | "failures" | "activity">("approvals");
+  const [approvalFilter, setApprovalFilter] = useState<"pending" | "all">("pending");
+  const [approvalSearch, setApprovalSearch] = useState("");
+  const [failedQuerySearch, setFailedQuerySearch] = useState("");
   const [selectedFailure, setSelectedFailure] = useState<NegativeFeedbackRow | null>(null);
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [toolDraft, setToolDraft] = useState({
@@ -201,6 +204,18 @@ export function AdminActionsPanel() {
     }
   }
 
+  const approvalQuery = approvalSearch.trim().toLowerCase();
+  const visibleApprovals = payload.approvals.filter((approval) => {
+    if (approvalFilter === "pending" && approval.status !== "pending") return false;
+    if (!approvalQuery) return true;
+    return [approval.approval_type, approval.reason, approval.requester_email, approval.status]
+      .some((value) => String(value ?? "").toLowerCase().includes(approvalQuery));
+  });
+  const failedQuery = failedQuerySearch.trim().toLowerCase();
+  const visibleFailedQueries = payload.top_failed_queries.filter(
+    (item) => !failedQuery || String(item.question ?? "").toLowerCase().includes(failedQuery),
+  );
+
   return (
     <div className="admin-page page-stack">
       <section className="admin-section-intro">
@@ -232,9 +247,17 @@ export function AdminActionsPanel() {
 
       <section className="admin-card page-stack">
         <h2>Approval Queue</h2>
-        {payload.approvals.length === 0 ? <p className="empty-copy">No approvals yet.</p> : null}
-        <div className="admin-list">
-          {payload.approvals.map((approval) => (
+        <div className="admin-list-controls">
+          <div className="admin-tabs admin-tabs-small" role="tablist" aria-label="Approval status filter">
+            <button type="button" role="tab" aria-selected={approvalFilter === "pending"} className={`admin-tab ${approvalFilter === "pending" ? "is-active" : ""}`} onClick={() => setApprovalFilter("pending")}>Pending</button>
+            <button type="button" role="tab" aria-selected={approvalFilter === "all"} className={`admin-tab ${approvalFilter === "all" ? "is-active" : ""}`} onClick={() => setApprovalFilter("all")}>All</button>
+          </div>
+          <TextInput value={approvalSearch} onChange={(event) => setApprovalSearch(event.target.value)} placeholder="Filter by requester, type, reason, or status" aria-label="Filter approvals" />
+          <span className="admin-list-count">Showing {visibleApprovals.length} of {payload.approvals.length}</span>
+        </div>
+        {visibleApprovals.length === 0 ? <p className="empty-copy">{payload.approvals.length ? "No approvals match the current filter." : "No approvals yet."}</p> : null}
+        <div className="admin-list admin-list-bounded">
+          {visibleApprovals.map((approval) => (
             <article key={approval.id} className="admin-list-item admin-list-item-stacked">
               <div className="admin-list-main">
                 <div>
@@ -266,9 +289,13 @@ export function AdminActionsPanel() {
           </div>
           <button type="button" className="stitch-button stitch-button-secondary" onClick={buildClusters}>Build Clusters</button>
         </div>
-        {payload.top_failed_queries.length === 0 ? <p className="empty-copy">No failed query feedback yet.</p> : null}
-        <div className="admin-list">
-          {payload.top_failed_queries.map((item) => (
+        <div className="admin-list-controls">
+          <TextInput value={failedQuerySearch} onChange={(event) => setFailedQuerySearch(event.target.value)} placeholder="Search failed questions" aria-label="Search failed queries" />
+          <span className="admin-list-count">Showing {visibleFailedQueries.length} of {payload.top_failed_queries.length}</span>
+        </div>
+        {visibleFailedQueries.length === 0 ? <p className="empty-copy">{payload.top_failed_queries.length ? "No questions match your search." : "No failed query feedback yet."}</p> : null}
+        <div className="admin-list admin-list-bounded">
+          {visibleFailedQueries.map((item) => (
             <article key={item.question} className="admin-list-item">
               <div><strong>{item.question}</strong><p>{item.count} report(s) · latest {item.latest_at || "unknown"}</p></div>
               <div className="toolbar-inline">
@@ -398,7 +425,7 @@ export function AdminActionsPanel() {
         <>
       <section className="admin-card page-stack">
         <h2>Recent Tool Invocations</h2>
-        <div className="admin-list">
+        <div className="admin-list admin-list-bounded">
           {payload.invocations.map((item) => (
             <article key={item.id} className="admin-list-item">
               <div>

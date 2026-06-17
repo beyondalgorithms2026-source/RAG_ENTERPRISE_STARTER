@@ -5899,6 +5899,41 @@ textarea:focus-visible {
   box-shadow: var(--ambient);
 }
 
+.admin-tabs-small .admin-tab {
+  padding: 6px 12px;
+  font-size: 0.78rem;
+}
+
+/* Filter row above a long list: scope filters first, then the bounded list. */
+.admin-list-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.admin-list-controls .ui-control {
+  width: auto;
+  flex: 1 1 240px;
+  min-width: 220px;
+}
+
+.admin-list-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+/* Long list scrolls within a bounded height; "see all" is the filter set to All
+   / an empty search, which simply shows the full set in the same scroll area. */
+.admin-list-bounded {
+  max-height: 56vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .section-head h2 {
   margin: 0;
   font-size: 1.2rem;
