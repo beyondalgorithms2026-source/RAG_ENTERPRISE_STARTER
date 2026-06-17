@@ -5077,6 +5077,22 @@ textarea:focus-visible {
   color: var(--ink);
 }
 
+/* 2x2 sub-toggles: label fills the cell, the switch group is pinned to the right
+   so all four switches line up regardless of label width. The On/Off text is a
+   fixed width so the switch itself sits at a constant offset from the edge. */
+.tuning-lab-transform-toggles .tuning-lab-slider-wrap {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.tuning-lab-transform-toggles .ui-toggle {
+  justify-self: end;
+}
+
+.tuning-lab-transform-toggles .ui-toggle > span:last-child {
+  min-width: 26px;
+  text-align: left;
+}
+
 .tuning-lab-slider-wrap input[type="range"]:disabled {
   cursor: not-allowed;
   background: rgba(208, 208, 208, 0.9);
