@@ -1251,9 +1251,11 @@ export function JobsAdminPanel() {
   const defaultFilters = { query: "", kind: "all", status: "all", owner: "all", stage: "all", priority: "all", sourceType: "all", sort: "active_first" };
   const [payload, setPayload] = useState<{ ingestion_jobs: GenericMap[]; enrichment_jobs: GenericMap[]; queue_summary?: GenericMap; priority_requests?: GenericMap[] }>({ ingestion_jobs: [], enrichment_jobs: [], queue_summary: {}, priority_requests: [] });
   const [selectedJobKey, setSelectedJobKey] = useState("");
+  const [jobDetailTab, setJobDetailTab] = useState<"summary" | "governance" | "technical">("summary");
   const jobDetailRef = useRef<HTMLElement>(null);
   function selectJobAndReveal(key: string) {
     setSelectedJobKey(key);
+    setJobDetailTab("summary");
     requestAnimationFrame(() => {
       jobDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
       if (jobDetailRef.current) jobDetailRef.current.scrollTop = 0;
@@ -1630,6 +1632,12 @@ export function JobsAdminPanel() {
           </div>
           {!selectedJob ? <EmptyState title={isLoading ? "Loading job detail..." : "Select a job."} copy={isLoading ? "Waiting for queue data before job detail can render." : jobs.length ? "Choose a job from the queue to inspect timing, failure context, and source relationships." : "No job detail is available yet because the queue is still empty."} icon={isLoading ? "progress_activity" : "article"} /> : (
             <div className="page-stack">
+              <div className="admin-tabs admin-tabs-small" role="tablist" aria-label="Job detail sections">
+                <button type="button" role="tab" aria-selected={jobDetailTab === "summary"} className={`admin-tab ${jobDetailTab === "summary" ? "is-active" : ""}`} onClick={() => setJobDetailTab("summary")}>Summary</button>
+                {selectedIngestionJob ? <button type="button" role="tab" aria-selected={jobDetailTab === "governance"} className={`admin-tab ${jobDetailTab === "governance" ? "is-active" : ""}`} onClick={() => setJobDetailTab("governance")}>Governance</button> : null}
+                <button type="button" role="tab" aria-selected={jobDetailTab === "technical"} className={`admin-tab ${jobDetailTab === "technical" ? "is-active" : ""}`} onClick={() => setJobDetailTab("technical")}>Technical</button>
+              </div>
+              {jobDetailTab === "summary" ? (
               <article className="table-row">
                 <div>
                   <strong>{buildJobOperatorSummary(selectedJob)}</strong>
@@ -1641,7 +1649,8 @@ export function JobsAdminPanel() {
                   <span>{isActiveJobStatus(selectedJob.status) ? formatEtaWindow(selectedJob.eta_window) : formatDuration(selectedJob.duration_seconds)}</span>
                 </div>
               </article>
-              {selectedIngestionJob ? (
+              ) : null}
+              {jobDetailTab === "governance" && selectedIngestionJob ? (
                 <section className="card">
                   <div className="section-head">
                     <div>
@@ -1706,11 +1715,14 @@ export function JobsAdminPanel() {
                   </div>
                 </section>
               ) : null}
+              {jobDetailTab === "summary" ? (
               <div className="toolbar-inline">
                 {selectedJob.source_id ? <Link href={`/console/admin/sources?sourceId=${String(selectedJob.source_id)}`} className="admin-inline-link">Open source</Link> : null}
                 {selectedJob.corpus_name ? <Link href="/console/admin/corpora" className="admin-inline-link">Open corpora</Link> : null}
                 <Link href="/console/admin/audit-log" className="admin-inline-link">Open queue audit</Link>
               </div>
+              ) : null}
+              {jobDetailTab === "technical" ? (
               <section className="card">
                 <div className="section-head">
                   <div>
@@ -1747,6 +1759,7 @@ export function JobsAdminPanel() {
                   }}
                 />
               </section>
+              ) : null}
             </div>
           )}
         </section>
