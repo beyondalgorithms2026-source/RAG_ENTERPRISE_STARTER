@@ -162,19 +162,19 @@ export function AdminCostPanel() {
                   <TextInput aria-label="Model" placeholder="model name" value={row.model} onChange={(event) => setPrices((current) => current.map((item, i) => i === index ? { ...item, model: event.target.value } : item))} />
                   <TextInput aria-label="Input USD per 1K" type="number" min={0} step="0.000001" value={row.input} onChange={(event) => setPrices((current) => current.map((item, i) => i === index ? { ...item, input: Number(event.target.value) } : item))} />
                   <TextInput aria-label="Output USD per 1K" type="number" min={0} step="0.000001" value={row.output} onChange={(event) => setPrices((current) => current.map((item, i) => i === index ? { ...item, output: Number(event.target.value) } : item))} />
-                  <button type="button" className="button button-secondary" onClick={() => setPrices((current) => current.filter((_, i) => i !== index))}>Remove</button>
+                  <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => setPrices((current) => current.filter((_, i) => i !== index))}>Remove</button>
                 </div>
               ))}
               <small>Effective price source: {runtime?.settings.llm_price_table.source || "unknown"}</small>
-              <button type="button" className="button button-secondary" style={{ width: "fit-content" }} onClick={() => setPrices((current) => [...current, { model: "", input: 0, output: 0 }])}>Add model price</button>
+              <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" style={{ width: "fit-content" }} onClick={() => setPrices((current) => [...current, { model: "", input: 0, output: 0 }])}>Add model price</button>
             </div>
             <label style={{ display: "grid", gap: 4, maxWidth: 320 }}>
               <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>Approval actor (required in governed production)</span>
               <TextInput value={approvalActor} onChange={(event) => setApprovalActor(event.target.value)} placeholder="Separate approver user ID" />
             </label>
             <div style={{ display: "flex", gap: 8 }}>
-              <button type="button" className="button button-primary" disabled={saving} onClick={saveGovernance}>{saving ? "Saving…" : "Save governance"}</button>
-              <button type="button" className="button button-secondary" disabled={saving} onClick={resetGovernance}>Reset runtime overrides</button>
+              <button type="button" className="stitch-button stitch-button-primary stitch-button-small" disabled={saving} onClick={saveGovernance}>{saving ? "Saving…" : "Save governance"}</button>
+              <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={saving} onClick={resetGovernance}>Reset runtime overrides</button>
             </div>
           </div>
 

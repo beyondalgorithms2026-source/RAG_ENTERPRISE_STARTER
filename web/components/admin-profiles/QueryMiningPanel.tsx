@@ -34,7 +34,7 @@ export function QueryMiningPanel() {
                   <span>Query Mining</span>
                   <strong>{tuningOps.queryMining.clusters.length} failure clusters</strong>
                   <p>{tuningOps.queryMining.events.length} recent events and {tuningOps.queryMining.eval_packs.length} derived eval packs are available for release gating.</p>
-                  <button type="button" className="button button-secondary" disabled={isOpsBusy !== ""} onClick={() => runOpsAction("build-clusters")}>
+                  <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={isOpsBusy !== ""} onClick={() => runOpsAction("build-clusters")}>
                     {isOpsBusy === "build-clusters" ? "Building..." : "Build Clusters"}
                   </button>
                 </article>

@@ -1,5 +1,6 @@
 "use client";
 
+import { MaterialIcon } from "@/components/icons";
 import Link from "next/link";
 import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -327,7 +328,7 @@ function SavedViewsToolbar({
     <div className="admin-saved-view-stack">
       <div className="admin-saved-view-form">
         <TextInput value={draftName} onChange={(event) => onDraftNameChange(event.target.value)} placeholder={`Save ${viewLabel} view`} />
-        <button type="button" className="button button-secondary" onClick={onSave} disabled={!draftName.trim()}>
+        <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={onSave} disabled={!draftName.trim()}>
           Save view
         </button>
       </div>
@@ -339,7 +340,7 @@ function SavedViewsToolbar({
                 {entry.name}
               </button>
               <button type="button" className="admin-delete-chip" aria-label={`Delete saved view ${entry.name}`} onClick={() => onDelete(entry)}>
-                <span className="material-symbols-outlined">close</span>
+                <MaterialIcon name="close" />
               </button>
             </div>
           ))}
@@ -478,7 +479,7 @@ function EmptyState({
 }) {
   return (
     <div className="admin-empty-state">
-      <span className="material-symbols-outlined">{icon}</span>
+      <MaterialIcon name={icon} />
       <strong>{title}</strong>
       <p>{copy}</p>
       {actions ? <div className="admin-empty-state-actions">{actions}</div> : null}
@@ -694,7 +695,7 @@ export function CorporaAdminPanel() {
         <form className="admin-form-grid" onSubmit={createCorpus}>
           <TextInput value={name} onChange={(event) => setName(event.target.value)} placeholder="Corpus name" />
           <TextInput value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description" />
-          <button className="button button-primary" type="submit" disabled={isSubmitting || !name.trim()}>
+          <button className="stitch-button stitch-button-primary stitch-button-small" type="submit" disabled={isSubmitting || !name.trim()}>
             {isSubmitting ? "Saving..." : "Create corpus"}
           </button>
         </form>
@@ -719,7 +720,7 @@ export function CorporaAdminPanel() {
                 <div className="table-metrics">
                   <span>{formatCount(corpus.source_count, "source")}</span>
                   <span>{formatTimestamp(corpus.updated_at)}</span>
-                  <button type="button" className="button button-secondary" onClick={() => setSelectedCorpusName(String(corpus.name))}>
+                  <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => setSelectedCorpusName(String(corpus.name))}>
                     Inspect
                   </button>
                 </div>
@@ -755,7 +756,7 @@ export function CorporaAdminPanel() {
                   <h2>Assign unplaced sources</h2>
                   <p>Place unassigned sources into the selected corpus.</p>
                 </div>
-                <button type="button" className="button button-primary" disabled={isSubmitting || assignSourceIds.length === 0} onClick={assignSelectedSources}>
+                <button type="button" className="stitch-button stitch-button-primary stitch-button-small" disabled={isSubmitting || assignSourceIds.length === 0} onClick={assignSelectedSources}>
                   {isSubmitting ? "Saving..." : "Assign selected"}
                 </button>
               </div>
@@ -1085,12 +1086,12 @@ export function SourcesAdminPanel() {
         </div>
         <div className="toolbar-inline">
           <span className={`badge ${hasPendingFilterChanges ? "is-warning" : ""}`}>{hasPendingFilterChanges ? "Unapplied filter changes" : `Showing ${filteredCount} of ${payload.sources.length} sources`}</span>
-          <button type="button" className="button button-primary" disabled={!hasPendingFilterChanges} onClick={() => setFilters({ ...draftFilters })}>
+          <button type="button" className="stitch-button stitch-button-primary stitch-button-small" disabled={!hasPendingFilterChanges} onClick={() => setFilters({ ...draftFilters })}>
             Apply filters
           </button>
           <button
             type="button"
-            className="button button-secondary"
+            className="stitch-button stitch-button-secondary stitch-button-small"
             onClick={() => {
               setDraftFilters({ ...defaultFilters });
               setFilters({ ...defaultFilters });
@@ -1131,21 +1132,21 @@ export function SourcesAdminPanel() {
             <option value="internal">internal</option>
             <option value="confidential">confidential</option>
           </Select>
-          <button type="button" className="button button-secondary" disabled={!visibleSources.length} onClick={() => toggleAllVisibleSources(true)}>
+          <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={!visibleSources.length} onClick={() => toggleAllVisibleSources(true)}>
             Select filtered
           </button>
-          <button type="button" className="button button-secondary" disabled={!selectionCount} onClick={() => setSelectedSourceIds([])}>
+          <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={!selectionCount} onClick={() => setSelectedSourceIds([])}>
             Clear selection
           </button>
         </div>
         <div className="toolbar-inline">
-          <button type="button" className="button button-primary" disabled={busy !== "" || !selectionCount || (bulkCorpusName === "__keep__" && bulkSensitivityLabel === "__keep__")} onClick={applyBulkSourceSettings}>
+          <button type="button" className="stitch-button stitch-button-primary stitch-button-small" disabled={busy !== "" || !selectionCount || (bulkCorpusName === "__keep__" && bulkSensitivityLabel === "__keep__")} onClick={applyBulkSourceSettings}>
             {busy === "bulk-save" ? "Saving..." : "Apply bulk settings"}
           </button>
-          <button type="button" className="button button-secondary" disabled={busy !== "" || !selectionCount} onClick={() => runBulkSourceAction("reindex")}>
+          <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={busy !== "" || !selectionCount} onClick={() => runBulkSourceAction("reindex")}>
             {busy === "bulk-reindex" ? "Queueing..." : "Bulk reindex"}
           </button>
-          <button type="button" className="button button-secondary" disabled={busy !== "" || !selectionCount} onClick={() => runBulkSourceAction("enrich")}>
+          <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={busy !== "" || !selectionCount} onClick={() => runBulkSourceAction("enrich")}>
             {busy === "bulk-enrich" ? "Queueing..." : "Bulk enrich"}
           </button>
         </div>
@@ -1175,10 +1176,10 @@ export function SourcesAdminPanel() {
                     {String((source.freshness as GenericMap | undefined)?.status || "unknown freshness")}
                   </span>
                   <span>{formatFileSize(source.file_size_bytes)}</span>
-                  <button type="button" className="button button-secondary" onClick={() => downloadSourceFile(source)}>
+                  <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => downloadSourceFile(source)}>
                     Download
                   </button>
-                  <button type="button" className="button button-secondary" onClick={() => selectSourceAndReveal(String(source.id))}>
+                  <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => selectSourceAndReveal(String(source.id))}>
                     Inspect
                   </button>
                 </div>
@@ -1211,13 +1212,13 @@ export function SourcesAdminPanel() {
                 <TextInput value={draft.aclGroups} onChange={(event) => setDraft((current) => ({ ...current, aclGroups: event.target.value }))} placeholder="ACL groups, comma separated" />
               </div>
               <div className="toolbar-inline">
-                <button type="button" className="button button-primary" onClick={saveSource} disabled={busy !== ""}>
+                <button type="button" className="stitch-button stitch-button-primary stitch-button-small" onClick={saveSource} disabled={busy !== ""}>
                   {busy === "save" ? "Saving..." : "Save source settings"}
                 </button>
-                <button type="button" className="button button-secondary" onClick={() => runSourceAction("reindex")} disabled={busy !== ""}>
+                <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => runSourceAction("reindex")} disabled={busy !== ""}>
                   {busy === "reindex" ? "Queueing..." : "Reindex source"}
                 </button>
-                <button type="button" className="button button-secondary" onClick={() => runSourceAction("enrich")} disabled={busy !== ""}>
+                <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => runSourceAction("enrich")} disabled={busy !== ""}>
                   {busy === "enrich" ? "Queueing..." : "Re-run enrichment"}
                 </button>
               </div>
@@ -1562,12 +1563,12 @@ export function JobsAdminPanel() {
         </div>
         <div className="toolbar-inline">
           <span className={`badge ${hasPendingFilterChanges ? "is-warning" : ""}`}>{hasPendingFilterChanges ? "Unapplied filter changes" : `Showing ${visibleJobs.length} of ${jobs.length} jobs`}</span>
-          <button type="button" className="button button-primary" disabled={!hasPendingFilterChanges} onClick={() => setFilters({ ...draftFilters })}>
+          <button type="button" className="stitch-button stitch-button-primary stitch-button-small" disabled={!hasPendingFilterChanges} onClick={() => setFilters({ ...draftFilters })}>
             Apply filters
           </button>
           <button
             type="button"
-            className="button button-secondary"
+            className="stitch-button stitch-button-secondary stitch-button-small"
             onClick={() => {
               setDraftFilters({ ...defaultFilters });
               setFilters({ ...defaultFilters });
@@ -1605,7 +1606,7 @@ export function JobsAdminPanel() {
                   <span className={`badge ${statusTone(job.status)}`}>{titleCaseWords(job.status || "unknown")}</span>
                   <span>{formatPriorityLabel(job.priority)}</span>
                   <span>{formatJobTimingLabel(job)}</span>
-                  <button type="button" className="button button-secondary" onClick={() => selectJobAndReveal(`${String(job.job_kind)}:${String(job.id)}`)}>
+                  <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => selectJobAndReveal(`${String(job.job_kind)}:${String(job.id)}`)}>
                     Open detail
                   </button>
                 </div>
@@ -1659,21 +1660,21 @@ export function JobsAdminPanel() {
                       </Select>
                       <TextInput value={priorityReason} onChange={(event) => setPriorityReason(event.target.value)} placeholder="Reason for reprioritization or queue action" />
                       <div className="toolbar-inline">
-                        <button type="button" className="button button-secondary" disabled={!selectedIngestionJob || busyAction !== ""} onClick={previewPriorityChange}>
+                        <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={!selectedIngestionJob || busyAction !== ""} onClick={previewPriorityChange}>
                           {busyAction === "priority-preview" ? "Previewing..." : "Preview impact"}
                         </button>
-                        <button type="button" className="button button-primary" disabled={!selectedIngestionJob || busyAction !== ""} onClick={applyPriorityChange}>
+                        <button type="button" className="stitch-button stitch-button-primary stitch-button-small" disabled={!selectedIngestionJob || busyAction !== ""} onClick={applyPriorityChange}>
                           {busyAction === "priority-apply" ? "Saving..." : "Update priority"}
                         </button>
                       </div>
                     </div>
                     {priorityPreview ? <JsonPanel value={priorityPreview} /> : null}
                     <div className="toolbar-inline">
-                      <button type="button" className="button button-secondary" disabled={!selectedIngestionJob || busyAction !== ""} onClick={() => runQueueControl("pause")}>Pause</button>
-                      <button type="button" className="button button-secondary" disabled={!selectedIngestionJob || busyAction !== ""} onClick={() => runQueueControl("resume")}>Resume</button>
-                      <button type="button" className="button button-secondary" disabled={!selectedIngestionJob || busyAction !== ""} onClick={() => runQueueControl("cancel")}>Cancel</button>
-                      <button type="button" className="button button-secondary" disabled={!selectedIngestionJob || busyAction !== ""} onClick={() => runQueueControl("requeue")}>Requeue</button>
-                      <button type="button" className="button button-secondary" disabled={!selectedIngestionJob || busyAction !== ""} onClick={() => runQueueControl("retry")}>Retry</button>
+                      <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={!selectedIngestionJob || busyAction !== ""} onClick={() => runQueueControl("pause")}>Pause</button>
+                      <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={!selectedIngestionJob || busyAction !== ""} onClick={() => runQueueControl("resume")}>Resume</button>
+                      <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={!selectedIngestionJob || busyAction !== ""} onClick={() => runQueueControl("cancel")}>Cancel</button>
+                      <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={!selectedIngestionJob || busyAction !== ""} onClick={() => runQueueControl("requeue")}>Requeue</button>
+                      <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={!selectedIngestionJob || busyAction !== ""} onClick={() => runQueueControl("retry")}>Retry</button>
                     </div>
                     {selectedPriorityRequest ? (
                       <div className="page-stack">
@@ -1688,10 +1689,10 @@ export function JobsAdminPanel() {
                         </article>
                         <div className="admin-filter-grid admin-filter-grid-3">
                           <TextInput value={reviewReason} onChange={(event) => setReviewReason(event.target.value)} placeholder="Review note for the requester and audit trail" />
-                          <button type="button" className="button button-secondary" disabled={busyAction !== ""} onClick={() => reviewPriorityRequest("under_review")}>Mark under review</button>
+                          <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={busyAction !== ""} onClick={() => reviewPriorityRequest("under_review")}>Mark under review</button>
                           <div className="toolbar-inline">
-                            <button type="button" className="button button-primary" disabled={busyAction !== ""} onClick={() => reviewPriorityRequest("approved")}>Approve request</button>
-                            <button type="button" className="button button-secondary" disabled={busyAction !== ""} onClick={() => reviewPriorityRequest("denied")}>Deny request</button>
+                            <button type="button" className="stitch-button stitch-button-primary stitch-button-small" disabled={busyAction !== ""} onClick={() => reviewPriorityRequest("approved")}>Approve request</button>
+                            <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={busyAction !== ""} onClick={() => reviewPriorityRequest("denied")}>Deny request</button>
                           </div>
                         </div>
                       </div>
@@ -1823,10 +1824,10 @@ export function EvalsAdminPanel() {
             <p>Trigger live retrieval and benchmark evaluations from the control plane.</p>
           </div>
           <div className="toolbar-inline">
-            <button className="button button-secondary" type="button" onClick={() => run("retrieval")} disabled={running !== ""}>
+            <button className="stitch-button stitch-button-secondary stitch-button-small" type="button" onClick={() => run("retrieval")} disabled={running !== ""}>
               {running === "retrieval" ? "Running..." : "Run Retrieval Eval"}
             </button>
-            <button className="button button-primary" type="button" onClick={() => run("benchmark")} disabled={running !== ""}>
+            <button className="stitch-button stitch-button-primary stitch-button-small" type="button" onClick={() => run("benchmark")} disabled={running !== ""}>
               {running === "benchmark" ? "Running..." : "Run Benchmark"}
             </button>
           </div>
@@ -2155,7 +2156,7 @@ export function TracesAdminPanel() {
           <TextInput value={debugK} onChange={(event) => setDebugK(event.target.value)} placeholder="Top K" />
         </div>
         <div className="toolbar-inline">
-          <button type="button" className="button button-primary" disabled={busy || !debugQuestion.trim()} onClick={runQueryDebug}>
+          <button type="button" className="stitch-button stitch-button-primary stitch-button-small" disabled={busy || !debugQuestion.trim()} onClick={runQueryDebug}>
             {busy ? "Running..." : "Run query debug"}
           </button>
         </div>
@@ -2192,12 +2193,12 @@ export function TracesAdminPanel() {
         </div>
         <div className="toolbar-inline">
           <span className={`badge ${hasPendingFilterChanges ? "is-warning" : ""}`}>{hasPendingFilterChanges ? "Unapplied filter changes" : `Showing ${visibleTraces.length} of ${payload.traces.length} traces`}</span>
-          <button type="button" className="button button-primary" disabled={!hasPendingFilterChanges} onClick={() => setFilters({ ...draftFilters })}>
+          <button type="button" className="stitch-button stitch-button-primary stitch-button-small" disabled={!hasPendingFilterChanges} onClick={() => setFilters({ ...draftFilters })}>
             Apply filters
           </button>
           <button
             type="button"
-            className="button button-secondary"
+            className="stitch-button stitch-button-secondary stitch-button-small"
             onClick={() => {
               setDraftFilters({ ...defaultFilters });
               setFilters({ ...defaultFilters });
@@ -2238,7 +2239,7 @@ export function TracesAdminPanel() {
                 <div className="table-metrics">
                   <span className={`badge ${statusTone(group.traces.some((trace) => trace.has_fallback) ? "warning" : "available")}`}>{group.traces.some((trace) => trace.has_fallback) ? "Fallback" : "Direct"}</span>
                   <span>{String(group.selected.total_latency_ms || group.selected.search_latency_ms || "-")} ms</span>
-                  <button type="button" className="button button-secondary" onClick={() => setSelectedTraceId(String(group.selected.id))}>
+                  <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => setSelectedTraceId(String(group.selected.id))}>
                     Inspect
                   </button>
                 </div>
@@ -2515,15 +2516,15 @@ export function AuditLogAdminPanel() {
         </div>
         <div className="toolbar-inline">
           <span className={`badge ${hasPendingFilterChanges ? "is-warning" : ""}`}>{hasPendingFilterChanges ? "Unapplied filter changes" : `Showing ${visibleEvents.length} of ${payload.events.length} events`}</span>
-          <button type="button" className="button button-primary" disabled={!hasPendingFilterChanges} onClick={() => setFilters({ ...draftFilters })}>
+          <button type="button" className="stitch-button stitch-button-primary stitch-button-small" disabled={!hasPendingFilterChanges} onClick={() => setFilters({ ...draftFilters })}>
             Apply filters
           </button>
-          <button type="button" className="button button-secondary" onClick={exportAuditLog}>
+          <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={exportAuditLog}>
             Export JSONL
           </button>
           <button
             type="button"
-            className="button button-secondary"
+            className="stitch-button stitch-button-secondary stitch-button-small"
             onClick={() => {
               setDraftFilters({ ...defaultFilters });
               setFilters({ ...defaultFilters });
@@ -2560,7 +2561,7 @@ export function AuditLogAdminPanel() {
                 <div className="table-metrics">
                   <span className={`badge ${statusTone(event.outcome)}`}>{String(event.outcome || "completed")}</span>
                   <span>{formatTimestamp(event.created_at)}</span>
-                  <button type="button" className="button button-secondary" onClick={() => selectEventAndReveal(String(event.id))}>
+                  <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => selectEventAndReveal(String(event.id))}>
                     Inspect
                   </button>
                 </div>

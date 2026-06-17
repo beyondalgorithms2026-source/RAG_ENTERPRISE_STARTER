@@ -85,14 +85,14 @@ export function AdminFlywheelPanel() {
 
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
         <TextInput style={{ width: 140 }} placeholder="Cluster id" value={clusterId} onChange={(e) => setClusterId(e.target.value)} />
-        <button type="button" className="button button-secondary" onClick={propose} disabled={busy === "propose" || !clusterId}>
+        <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={propose} disabled={busy === "propose" || !clusterId}>
           {busy === "propose" ? "Proposing…" : "Propose cases"}
         </button>
         <TextInput style={{ width: 160 }} placeholder="Pack name" value={packName} onChange={(e) => setPackName(e.target.value)} />
-        <button type="button" className="button button-primary" onClick={append} disabled={busy === "append" || proposed.length === 0}>
+        <button type="button" className="stitch-button stitch-button-primary stitch-button-small" onClick={append} disabled={busy === "append" || proposed.length === 0}>
           {busy === "append" ? "Appending…" : `Append ${proposed.length} (quarantined)`}
         </button>
-        <button type="button" className="button button-secondary" onClick={loadQuarantine}>
+        <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={loadQuarantine}>
           Load quarantine
         </button>
       </div>

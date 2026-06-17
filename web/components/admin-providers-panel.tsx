@@ -192,8 +192,8 @@ export function AdminProvidersPanel() {
       </div>
 
       <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-        <button type="button" className="button button-secondary" onClick={testConnection} disabled={busy === "verify"}>{busy === "verify" ? "Testing…" : "Test connection"}</button>
-        <button type="button" className="button button-primary" onClick={saveAndActivate} disabled={busy === "save"}>{busy === "save" ? "Saving…" : "Save & activate"}</button>
+        <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={testConnection} disabled={busy === "verify"}>{busy === "verify" ? "Testing…" : "Test connection"}</button>
+        <button type="button" className="stitch-button stitch-button-primary stitch-button-small" onClick={saveAndActivate} disabled={busy === "save"}>{busy === "save" ? "Saving…" : "Save & activate"}</button>
         {verify ? (
           <span style={{ fontSize: 13, color: verify.ready ? "var(--color-text-success)" : "var(--color-text-danger)" }}>
             {verify.ready ? "Ready" : "Not ready"} ({String(verify.provider)} · {String(verify.model)}): {String(verify.reason || "")}

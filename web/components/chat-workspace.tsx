@@ -1,5 +1,6 @@
 "use client";
 
+import { MaterialIcon } from "@/components/icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -1074,7 +1075,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
       {hasConversation ? (
         <div className="chat-metadata-bar">
           <div className="chat-mode-pill">
-            <span className="material-symbols-outlined icon-fill">bolt</span>
+            <MaterialIcon name="bolt" className="icon-fill" />
             {mode === "hybrid" ? "Hybrid Search" : mode}
           </div>
           <div>Latency: <strong>{lastLatencyMs ? `${lastLatencyMs}ms` : "Captured"}</strong></div>
@@ -1107,7 +1108,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
           <div className="chat-scroll">
             <div className="chat-utility-row">
               <button type="button" className="chat-new-thread" onClick={startFreshThread}>
-                <span className="material-symbols-outlined icon-fill">auto_awesome</span>
+                <MaterialIcon name="auto_awesome" className="icon-fill" />
               </button>
               {error ? <div className="chat-error-banner">{error}</div> : null}
             </div>
@@ -1121,7 +1122,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                 ) : (
                   <div key={message.id} id={`message-${message.id}`} className="chat-answer-row">
                     <div className="chat-answer-avatar">
-                      <span className="material-symbols-outlined icon-fill">auto_awesome</span>
+                      <MaterialIcon name="auto_awesome" className="icon-fill" />
                     </div>
                     <div className="chat-answer-column">
                       <article className={`chat-answer-card ${message.status === "pending" ? "is-pending" : ""} ${message.status === "failed" ? "is-failed" : ""}`}>
@@ -1275,9 +1276,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                                       }, 0);
                                     }}
                                   >
-                                    <span className="material-symbols-outlined">
-                                      {sourceIcon(citation.source_type).icon}
-                                    </span>
+                                    <MaterialIcon name={sourceIcon(citation.source_type).icon} />
                                     {citation.file_name}
                                   </button>
                                 ))}
@@ -1293,7 +1292,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                           className={`chat-feedback-button ${feedbackByMessageId[message.id] === "up" ? "is-active" : ""}`}
                           onClick={() => setFeedback(message, "up")}
                         >
-                          <span className="material-symbols-outlined">thumb_up</span>
+                          <MaterialIcon name="thumb_up" />
                         </button>
                         <button
                           type="button"
@@ -1301,11 +1300,11 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                           className={`chat-feedback-button ${feedbackByMessageId[message.id] === "down" ? "is-active" : ""}`}
                           onClick={() => setFeedback(message, "down")}
                         >
-                          <span className="material-symbols-outlined">thumb_down</span>
+                          <MaterialIcon name="thumb_down" />
                         </button>
                         <div className="chat-feedback-divider" />
                         <button type="button" className="chat-copy-button" onClick={() => copyAnswer(message)} disabled={!message.content}>
-                          <span className="material-symbols-outlined">content_copy</span>
+                          <MaterialIcon name="content_copy" />
                           Copy Answer
                         </button>
                         {actionFlashByMessageId[message.id] ? <span className="chat-action-flash">{actionFlashByMessageId[message.id]}</span> : null}
@@ -1362,7 +1361,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
               <div className="chat-empty-state">
                 <div className="chat-empty-card">
                   <span className="chat-empty-kicker">Grounded Workspace</span>
-                  <h2>Ask your first question to start a stitched thread.</h2>
+                  <h2>Ask your first question to start a thread.</h2>
                   <p>Threads persist in this browser, and grounded evidence appears on the right as soon as retrieval returns usable citations.</p>
                   <div className="chat-empty-list">
                     <span>1. Upload a file or confirm one is already visible in My Sources.</span>
@@ -1393,18 +1392,18 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
               <div className="chat-composer-footer">
                 <div className="chat-composer-tools">
                   <button type="button" aria-label="Attach" disabled title="File attach from chat is not live yet. Use Upload Documents.">
-                    <span className="material-symbols-outlined">attach_file</span>
+                    <MaterialIcon name="attach_file" />
                   </button>
                   <button type="button" aria-label="Image" disabled title="Image query input is not live yet.">
-                    <span className="material-symbols-outlined">image</span>
+                    <MaterialIcon name="image" />
                   </button>
                   <button type="button" aria-label="Microphone" disabled title="Voice capture is not live yet.">
-                    <span className="material-symbols-outlined">mic</span>
+                    <MaterialIcon name="mic" />
                   </button>
                 </div>
                 <button type="button" className="stitch-button stitch-button-primary stitch-button-small" onClick={submitQuestion} disabled={isStreaming}>
                   {isStreaming ? "Working..." : "Ask"}
-                  <span className="material-symbols-outlined">send</span>
+                  <MaterialIcon name="send" />
                 </button>
               </div>
             </div>
@@ -1461,7 +1460,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                           >
                             <div className="chat-evidence-card-head">
                               <div className={`chat-evidence-icon ${iconData.tone}`}>
-                                <span className="material-symbols-outlined">{iconData.icon}</span>
+                                <MaterialIcon name={iconData.icon} />
                               </div>
                               <div>
                                 <strong>{citation.file_name}</strong>
@@ -1487,7 +1486,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
               );
             }) : (
               <div className="chat-evidence-empty">
-                <span className="material-symbols-outlined">database</span>
+                <MaterialIcon name="database" />
                 <strong>{isNoContextMessage(latestAssistantMessage) ? "No matching evidence found." : "No retrieved sources yet."}</strong>
                 <p>
                   {isNoContextMessage(latestAssistantMessage)
@@ -1541,7 +1540,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
           </div>
           <div className="chat-evidence-footer">
             <button type="button" className="stitch-button stitch-button-secondary stitch-button-block" disabled title="Export lands in a later milestone.">
-              <span className="material-symbols-outlined">open_in_new</span>
+              <MaterialIcon name="open_in_new" />
               Export Findings
             </button>
           </div>

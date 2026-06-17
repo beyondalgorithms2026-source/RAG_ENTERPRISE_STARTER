@@ -76,7 +76,7 @@ export function AdminHealthPanel() {
           <h2>System Health &amp; Coherence</h2>
           <p>One answer to &ldquo;is this system coherent right now?&rdquo; — AR2 invariants plus warm-up, cache, and the eval gate.</p>
         </div>
-        <button type="button" className="button button-secondary" onClick={refresh} disabled={loading}>
+        <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={refresh} disabled={loading}>
           {loading ? "Refreshing..." : "Refresh"}
         </button>
       </div>

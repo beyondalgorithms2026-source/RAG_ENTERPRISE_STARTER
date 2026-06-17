@@ -1,5 +1,6 @@
 "use client";
 
+import { MaterialIcon } from "@/components/icons";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -447,7 +448,7 @@ export function SourcesPage({ view = "sources", canManageConnectors = false }: {
           </p>
         </div>
         <button type="button" className="stitch-button stitch-button-primary" onClick={() => chooseConnectorRequest("Postgres")}>
-          <span className="material-symbols-outlined">add_link</span>
+          <MaterialIcon name="add_link" />
           Request New Connector
         </button>
       </div>
@@ -456,7 +457,7 @@ export function SourcesPage({ view = "sources", canManageConnectors = false }: {
         <label className={`sources-upload-card ${uploading ? "is-uploading" : ""}`}>
           <input type="file" multiple hidden onChange={(event) => onFilesSelected(event.target.files)} />
           <div className="sources-upload-icon">
-            <span className="material-symbols-outlined">upload_file</span>
+            <MaterialIcon name="upload_file" />
           </div>
           <h3>Upload Documents</h3>
           <p>Use this page for direct file onboarding. One or many files can be queued together, and each becomes searchable only after indexing finishes.</p>
@@ -485,7 +486,7 @@ export function SourcesPage({ view = "sources", canManageConnectors = false }: {
                 className="sources-connector-button"
                 onClick={() => chooseConnectorRequest(label)}
               >
-                <span className="material-symbols-outlined">{icon}</span>
+                <MaterialIcon name={icon} />
                 <span>{label}</span>
                 <small>Select</small>
               </button>
@@ -591,7 +592,7 @@ export function SourcesPage({ view = "sources", canManageConnectors = false }: {
                     <tr key={source.id}>
                       <td>
                         <div className="sources-file-cell">
-                          <span className="material-symbols-outlined">{iconForSource(source)}</span>
+                          <MaterialIcon name={iconForSource(source)} />
                           <span>{source.file_name}</span>
                           <span className={`badge ${source.freshness.status === "fresh" ? "is-good" : source.freshness.status === "stale" ? "is-danger" : "is-warning"}`}>
                             {source.freshness.status}
@@ -640,7 +641,7 @@ export function SourcesPage({ view = "sources", canManageConnectors = false }: {
           {showUploadFirst && uploadJob ? (
             <div className="sources-connected-item">
               <div className="sources-connected-head">
-                <span className="material-symbols-outlined">sync</span>
+                <MaterialIcon name="sync" />
                 <div>
                   <strong>{uploadFileName}</strong>
                   <span>{titleCaseWords(uploadJob.status)}</span>
@@ -680,13 +681,13 @@ export function SourcesPage({ view = "sources", canManageConnectors = false }: {
             </div>
           ) : showUploadFirst ? (
             <div className="sources-connected-empty">
-              <span className="material-symbols-outlined">upload_file</span>
+              <MaterialIcon name="upload_file" />
               <strong>No upload started yet.</strong>
               <p>On a clean workspace, start with one file upload above. This panel will switch from upload accepted to indexing progress and finally to ready for retrieval.</p>
             </div>
           ) : dbConnectors.length === 0 && connectedData.length === 0 && (!showConnectorsFirst || connectorRequests.length === 0) ? (
             <div className="sources-connected-empty">
-              <span className="material-symbols-outlined">hub</span>
+              <MaterialIcon name="hub" />
               <strong>No connected systems yet.</strong>
               <p>Approved and synced connector data appears here with corpus and readiness status.</p>
             </div>
@@ -695,7 +696,7 @@ export function SourcesPage({ view = "sources", canManageConnectors = false }: {
               {showConnectorsFirst && connectorRequests.map((request) => (
                 <article key={`request-${request.id}`} className="sources-connected-item">
                   <div className="sources-connected-head">
-                    <span className="material-symbols-outlined">fact_check</span>
+                    <MaterialIcon name="fact_check" />
                     <div>
                       <strong>{request.requested_system}</strong>
                       <span>{titleCaseWords(request.status)} · {request.created_at || "submitted"}</span>
@@ -708,7 +709,7 @@ export function SourcesPage({ view = "sources", canManageConnectors = false }: {
               {dbConnectors.map((connector) => (
                 <article key={`db-connector-${connector.id}`} className="sources-connected-item">
                   <div className="sources-connected-head">
-                    <span className="material-symbols-outlined">database</span>
+                    <MaterialIcon name="database" />
                     <div>
                       <strong>{connector.name}</strong>
                       <span>{connector.connector_type} · {connector.table_name}</span>
@@ -724,7 +725,7 @@ export function SourcesPage({ view = "sources", canManageConnectors = false }: {
               {connectedData.map((source) => (
                 <article key={`connected-${source.id}`} className="sources-connected-item">
                   <div className="sources-connected-head">
-                    <span className="material-symbols-outlined">database</span>
+                    <MaterialIcon name="database" />
                     <div>
                       <strong>{source.file_name}</strong>
                       <span>{source.source_type}</span>

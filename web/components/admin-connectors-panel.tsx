@@ -1,5 +1,6 @@
 "use client";
 
+import { MaterialIcon } from "@/components/icons";
 import { useEffect, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
@@ -394,7 +395,7 @@ export function AdminConnectorsPanel() {
           {connectors.map((connector) => (
             <article key={connector.id} className="sources-connected-item">
               <div className="sources-connected-head">
-                <span className="material-symbols-outlined">database</span>
+                <MaterialIcon name="database" />
                 <div>
                   <strong>{connector.name}</strong>
                   <span>{connector.connector_type} · {connector.table_name} · {titleCase(connector.health_status)}</span>

@@ -112,10 +112,10 @@ export function AdminModulesPanel() {
           </label>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" className="button button-primary" disabled={busy} onClick={() => persist(selected)}>
+            <button type="button" className="stitch-button stitch-button-primary stitch-button-small" disabled={busy} onClick={() => persist(selected)}>
               {busy ? "Saving..." : "Save runtime subset"}
             </button>
-            <button type="button" className="button button-secondary" disabled={busy} onClick={() => persist(null)}>
+            <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={busy} onClick={() => persist(null)}>
               Reset to environment or preset
             </button>
           </div>

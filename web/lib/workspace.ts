@@ -1,4 +1,4 @@
-export const THREAD_STORAGE_KEY = "rag_console_threads_stitch_v1";
+export const THREAD_STORAGE_KEY = "rag_console_threads_v1";
 export const THREADS_UPDATED_EVENT = "rag:threads-updated";
 
 export type ThreadMessage = {

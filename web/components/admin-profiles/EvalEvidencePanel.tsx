@@ -1,5 +1,6 @@
 "use client";
 
+import { MaterialIcon } from "@/components/icons";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { TextInput } from "@/components/ui/TextInput";
@@ -24,13 +25,13 @@ export function EvalEvidencePanel() {
       
               <div className="tuning-lab-compare-input">
                 <TextInput value={sampleQuery} onChange={(event) => setSampleQuery(event.target.value)} placeholder="e.g. How does the Q4 liability clause affect subcontracting?" />
-                <button type="button" className="button button-primary" onClick={runCompare} disabled={isComparing || isLoading}>
+                <button type="button" className="stitch-button stitch-button-primary stitch-button-small" onClick={runCompare} disabled={isComparing || isLoading}>
                   {isComparing ? "Running Compare..." : "Run Compare"}
                 </button>
               </div>
       
               <div className="tuning-lab-shell-note">
-                <span className="material-symbols-outlined">info</span>
+                <MaterialIcon name="info" />
                 <p>
                   {!preparedCandidate
                     ? "Workflow: choose the candidate settings, prepare the candidate snapshot, then ask a question with Run Compare."
@@ -111,7 +112,7 @@ export function EvalEvidencePanel() {
             </section>
       
             <footer className="tuning-lab-action-footer">
-              <button type="button" className="button button-secondary" onClick={resetDraftForm}>
+              <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={resetDraftForm}>
                 Discard Candidate
               </button>
               <TextInput className="tuning-lab-promotion-note" value={promotionNote} onChange={(event) => setPromotionNote(event.target.value)} aria-label="Promotion note" />
@@ -129,10 +130,10 @@ export function EvalEvidencePanel() {
               <span className="tuning-lab-draft-state">
                 {editingDraftId ? (hasUnsavedDraftChanges ? "Draft has unsaved changes" : "Draft saved") : "Save draft before promotion"}
               </span>
-              <button type="button" className="button button-secondary" onClick={saveDraft} disabled={savingDraft || (Boolean(editingDraftId) && !hasUnsavedDraftChanges)}>
+              <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={saveDraft} disabled={savingDraft || (Boolean(editingDraftId) && !hasUnsavedDraftChanges)}>
                 {savingDraft ? "Saving Draft..." : editingDraftId ? "Update Draft" : "Save as Draft"}
               </button>
-              <button type="button" className="button button-secondary" onClick={runEvalPack} disabled={isEvaluating || savingDraft || !editingDraftId}>
+              <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={runEvalPack} disabled={isEvaluating || savingDraft || !editingDraftId}>
                 {isEvaluating ? "Running Eval Pack..." : "Run Eval Pack"}
               </button>
               <span className="tuning-lab-draft-state">
@@ -142,7 +143,7 @@ export function EvalEvidencePanel() {
               </span>
               <button
                 type="button"
-                className="button button-primary"
+                className="stitch-button stitch-button-primary stitch-button-small"
                 onClick={promoteCandidate}
                 disabled={isPromoting || savingDraft || (String(evalEnforcement.effective) === "require" && (evalRun ? evalRun.gate_status !== "pass" : true))}
               >

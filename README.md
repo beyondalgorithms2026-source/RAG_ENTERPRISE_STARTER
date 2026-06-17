@@ -12,7 +12,9 @@ If you are new to this repo, read in this order:
 4. [docs/scenario_profiles_and_reuse_blueprint.md](docs/scenario_profiles_and_reuse_blueprint.md)
 5. [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md)
 6. [docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md](docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md) — independent audit baseline (2026-06-11), not a marketing document
-7. [docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md](docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md) — AR0–AR14 audit remediation plan (active work track)
+7. [docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md](docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md) — AR0–AR20 audit remediation plan (complete)
+8. [docs/05_Enterprise_RAG_UIUX_Audit_Remediation_Milestones.md](docs/05_Enterprise_RAG_UIUX_Audit_Remediation_Milestones.md) — UX0–UX10 UI/UX remediation plan (active work track)
+9. [web/DESIGN.md](web/DESIGN.md) — console design language (canonical UI source of truth; read before any frontend change)
 
 Those documents answer the core onboarding questions:
 
@@ -45,7 +47,8 @@ Use `docs/01_quickstart.md` for env setup, Ollama, local accounts, and troublesh
 ## Current Status
 
 - Last completed M-series milestone: M33 governed semantic cache policies
-- Active work track: AR-series audit remediation ([docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md](docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md))
+- Active work track: UX-series UI/UX remediation ([docs/05_Enterprise_RAG_UIUX_Audit_Remediation_Milestones.md](docs/05_Enterprise_RAG_UIUX_Audit_Remediation_Milestones.md)); AR-series ([docs/04_…](docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md)) complete through AR20
+- UI design language (read before any frontend change): [web/DESIGN.md](web/DESIGN.md)
 - Strongest implemented runtime scenario: enterprise-style OIDC/dev identity plus SQL-level access trimming and admin governance
 - Regression suite: green as of AR1 (2026-06-12) — `make test` passes 224/224 on a fresh DB and on the tuned dev DB (the 2026-06-11 audit had measured 158/7/57 of 222)
 
@@ -69,7 +72,7 @@ Read preserved historical detail in [docs/project_state/milestone_history_archiv
 
 ## Reader Paths By Persona
 
-- Engineer extending the product: start with [docs/04_repo_navigation_blueprint.md](docs/04_repo_navigation_blueprint.md) and [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md)
+- Engineer extending the product: start with [docs/04_repo_navigation_blueprint.md](docs/04_repo_navigation_blueprint.md) and [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md); for any UI change, read [web/DESIGN.md](web/DESIGN.md) first
 - Operator/admin running the product: start with [docs/01_quickstart.md](docs/01_quickstart.md) and [docs/runbooks/LOCALHOST_DEV_RUNBOOK.md](docs/runbooks/LOCALHOST_DEV_RUNBOOK.md)
 - Reviewer/auditor: start with [docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md](docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md), [STATUS.md](STATUS.md), [docs/project_state/milestone_history_archive.md](docs/project_state/milestone_history_archive.md), and `docs/milestones/`
 - Team reusing the starter for a subset scenario: start with [docs/scenario_profiles_and_reuse_blueprint.md](docs/scenario_profiles_and_reuse_blueprint.md) and `scenarios/`

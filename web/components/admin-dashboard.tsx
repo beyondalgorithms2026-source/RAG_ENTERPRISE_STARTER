@@ -1,5 +1,6 @@
 "use client";
 
+import { MaterialIcon } from "@/components/icons";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -82,7 +83,7 @@ export function AdminDashboard() {
       <section className="admin-stat-grid">
         <article className="admin-stat-card">
           <div className="admin-stat-head">
-            <span className="material-symbols-outlined">folder_zip</span>
+            <MaterialIcon name="folder_zip" />
             <span>Live</span>
           </div>
           <h3>{formatMetric(summary.corpora_count)}</h3>
@@ -90,7 +91,7 @@ export function AdminDashboard() {
         </article>
         <article className="admin-stat-card">
           <div className="admin-stat-head">
-            <span className="material-symbols-outlined">database</span>
+            <MaterialIcon name="database" />
             <span>Inventory</span>
           </div>
           <h3>{formatMetric(summary.source_count)}</h3>
@@ -98,7 +99,7 @@ export function AdminDashboard() {
         </article>
         <article className="admin-stat-card">
           <div className="admin-stat-head">
-            <span className="material-symbols-outlined">work_history</span>
+            <MaterialIcon name="work_history" />
             <span>Queue</span>
           </div>
           <h3>{formatMetric(summary.active_job_count)}</h3>
@@ -106,7 +107,7 @@ export function AdminDashboard() {
         </article>
         <article className="admin-stat-card">
           <div className="admin-stat-head">
-            <span className="material-symbols-outlined">verified</span>
+            <MaterialIcon name="verified" />
             <span>{String(summary.latest_eval_kind || "No eval")}</span>
           </div>
           <h3>{summary.latest_eval_pass_rate === null || summary.latest_eval_pass_rate === undefined ? "Unavailable" : `${String(summary.latest_eval_pass_rate)}%`}</h3>
@@ -117,7 +118,7 @@ export function AdminDashboard() {
       <section className="admin-stat-grid">
         <article className="admin-stat-card">
           <div className="admin-stat-head">
-            <span className="material-symbols-outlined">schedule</span>
+            <MaterialIcon name="schedule" />
             <span>Queue</span>
           </div>
           <h3>{formatMetric(queueSummary.backlog_count)}</h3>
@@ -125,7 +126,7 @@ export function AdminDashboard() {
         </article>
         <article className="admin-stat-card">
           <div className="admin-stat-head">
-            <span className="material-symbols-outlined">group_work</span>
+            <MaterialIcon name="group_work" />
             <span>Workers</span>
           </div>
           <h3>{formatMetric(queueSummary.active_workers)}</h3>
@@ -133,7 +134,7 @@ export function AdminDashboard() {
         </article>
         <article className="admin-stat-card">
           <div className="admin-stat-head">
-            <span className="material-symbols-outlined">priority_high</span>
+            <MaterialIcon name="priority_high" />
             <span>Requests</span>
           </div>
           <h3>{formatMetric(summary.pending_priority_request_count)}</h3>
@@ -141,7 +142,7 @@ export function AdminDashboard() {
         </article>
         <article className="admin-stat-card">
           <div className="admin-stat-head">
-            <span className="material-symbols-outlined">tune</span>
+            <MaterialIcon name="tune" />
             <span>Throughput</span>
           </div>
           <h3>{formatMetric(queueSummary.average_chunks_per_minute)}</h3>
@@ -195,7 +196,7 @@ export function AdminDashboard() {
               </table>
             ) : (
               <div className="admin-empty-state">
-                <span className="material-symbols-outlined">timeline</span>
+                <MaterialIcon name="timeline" />
                 <strong>No traces recorded yet.</strong>
                 <p>{isFirstRun ? "This is normal on a clean install. Retrieval traces will appear after the first search, chat question, or query-debug run." : "Retrieval traces will appear here after search or ask traffic flows through the system."}</p>
               </div>
@@ -238,7 +239,7 @@ export function AdminDashboard() {
                 </Link>
               )) : (
                 <div className="admin-empty-state">
-                  <span className="material-symbols-outlined">verified</span>
+                  <MaterialIcon name="verified" />
                   <strong>No active alerts.</strong>
                   <p>{isFirstRun ? "This is normal on a clean install. Alerts will appear once there are failed jobs, missing eval baselines, or source-placement gaps to surface." : "The current overview contract does not see failed jobs, missing evals, or corpus-placement gaps right now."}</p>
                 </div>
@@ -256,7 +257,7 @@ export function AdminDashboard() {
                 </Link>
               )) : (
                 <div className="admin-empty-state">
-                  <span className="material-symbols-outlined">receipt_long</span>
+                  <MaterialIcon name="receipt_long" />
                   <strong>No audit events yet.</strong>
                   <p>{isFirstRun ? "This is normal before the first admin action. Profile, corpus, source, job, and eval changes will start building the audit trail once operators begin working." : "Admin-originated profile, corpus, source, job, and eval actions will appear here once they happen."}</p>
                 </div>
@@ -286,7 +287,7 @@ export function AdminDashboard() {
             <h3>Approval Inbox</h3>
             <div className="admin-notification-list">
               <div className="admin-empty-state">
-                <span className="material-symbols-outlined">approval</span>
+                <MaterialIcon name="approval" />
                 <strong>No approval queue wired yet.</strong>
                 <p>This milestone keeps approvals as a truthful summary/stub only. Full approval workflows land in M15; for now, operators review jobs, access posture, and audit evidence directly.</p>
               </div>

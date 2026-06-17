@@ -1,5 +1,6 @@
 "use client";
 
+import { MaterialIcon } from "@/components/icons";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -40,14 +41,14 @@ export function HistoryPage() {
       <div className="history-header">
         <div>
           <h1>Search History</h1>
-          <p>Your first question becomes the saved thread title. This history persists in the current browser so reloads reopen the same stitched threads.</p>
+          <p>Your first question becomes the saved thread title. This history persists in the current browser so reloads reopen the same threads.</p>
         </div>
       </div>
 
       <section className="history-list">
         {threads.length === 0 ? (
           <div className="history-empty-card">
-            <span className="material-symbols-outlined">history</span>
+            <MaterialIcon name="history" />
             <strong>No chat history yet.</strong>
             <p>This is normal on a clean browser. Ask your first grounded question in Chat and it will appear here after the first answer is saved.</p>
             <div className="history-empty-actions">
@@ -59,7 +60,7 @@ export function HistoryPage() {
           threads.map((thread) => (
             <Link key={thread.id} href={`/console/workspace/chat/${thread.id}`} className="history-thread-card">
               <div className="history-thread-head">
-                <span className="material-symbols-outlined">forum</span>
+                <MaterialIcon name="forum" />
                 <div>
                   <strong>{thread.title}</strong>
                   <span>Updated {lastUpdated(thread)}</span>

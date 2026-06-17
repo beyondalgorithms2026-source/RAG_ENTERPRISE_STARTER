@@ -1,3 +1,4 @@
+import { MaterialIcon, Monogram } from "@/components/icons";
 import Link from "next/link";
 
 export function PublicHeader({ activeProduct = false }: { activeProduct?: boolean }) {
@@ -68,19 +69,14 @@ export function DemoPage() {
           <div className="demo-quote-card">
             <div className="demo-stars">
               {Array.from({ length: 5 }).map((_, index) => (
-                <span key={index} className="material-symbols-outlined icon-fill">
-                  star
-                </span>
+                <MaterialIcon key={index} name="star" className="icon-fill" />
               ))}
             </div>
             <blockquote>
               "RAG Enterprise has transformed how our retrieval teams access cross-functional data, cutting our hallucination rates by nearly 40%."
             </blockquote>
             <div className="demo-quote-author">
-              <img
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCfeat5KrjH9euP2bwb6M7b9vdkM4G3VuGQZ0yJXX8DKrTNS0rJuDDW35MgRnL17eP6MPejOMSST29ySfGdc46QNPrjYnapGsRxGKP4_JZ4oM0z_m2rvpMoauW9sX7RTKJgmWPltfVGFfi_a6YhA6ErOUXSCR7BBROknxPp_nongwWCmIO-WYoeAkbIe_dVWUw2g7Ac3ntfQZOHlBdsbCti-WaS-pTVqiKIFd7x29z3AEZ5rw06D11bS32GXQepLbi5vISJ5JDSJbE"
-                alt="Chief Data Officer portrait"
-              />
+              <Monogram seed="Chief Data Officer" />
               <div>
                 <strong>Chief Data Officer</strong>
                 <span>Booking.com</span>
@@ -160,7 +156,7 @@ export function VideoTourPage() {
       <main className="video-page">
         <section className="video-hero">
           <span className="video-announcement">
-            <span className="material-symbols-outlined icon-fill">bolt</span>
+            <MaterialIcon name="bolt" className="icon-fill" />
             New Feature: Universal Semantic Search
           </span>
           <h1>
@@ -177,30 +173,27 @@ export function VideoTourPage() {
                 <span />
               </div>
               <div className="video-browser-address">
-                <span className="material-symbols-outlined">lock</span>
+                <MaterialIcon name="lock" />
                 rag-enterprise.ai/walkthrough
               </div>
             </div>
             <div className="video-player-stage">
-              <img
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDuE0xXq0Ra72GXBBm4WEAO0ZDMbKw_-N75lyPiojP3Jub933ARZ5WffhfhfN-ZA-HqOZxShJzjnXb5cDQDEWqgMn-A4USTEJ5YXxFDeKR560kzi3YSSCCjDG71Xe3kWGQjC3Dksq0yMWkb4AzG24G8OVw7ZvcOcM0DzZS_DCFl3xwGaPReNgrn7uobkDGwMt1iNcjI-z40iz5IZI1sEIRxFryl_WQlfL-33Om4hMHBmIh1ewbDCidMsJql6XrEKHEreqnOo1apeE0"
-                alt="Dashboard display"
-              />
+              <div className="media-placeholder" aria-hidden="true" />
               <button type="button" className="video-play-button" disabled title="Embedded video playback is not wired in this repo yet. Use the walkthrough page content or request a live demo.">
-                <span className="material-symbols-outlined icon-fill">play_arrow</span>
+                <MaterialIcon name="play_arrow" className="icon-fill" />
               </button>
               <div className="video-progress">
                 <span>02:45 / 04:20</span>
                 <div className="video-progress-bar">
                   <div />
                 </div>
-                <span className="material-symbols-outlined">fullscreen</span>
+                <MaterialIcon name="fullscreen" />
               </div>
             </div>
             <div className="video-floating-chip video-floating-left">
               <div className="video-floating-head">
                 <div className="video-floating-icon">
-                  <span className="material-symbols-outlined">chat</span>
+                  <MaterialIcon name="chat" />
                 </div>
                 <div>
                   <strong>Slack Integration</strong>
@@ -212,7 +205,7 @@ export function VideoTourPage() {
               </div>
             </div>
             <div className="video-floating-chip video-floating-right">
-              <span className="material-symbols-outlined icon-fill">verified_user</span>
+              <MaterialIcon name="verified_user" className="icon-fill" />
               <p>"The accuracy of the retrieval is unmatched by anything else we've tried."</p>
               <span>— CTO, Cloudscale</span>
             </div>
@@ -227,7 +220,7 @@ export function VideoTourPage() {
             </div>
             <Link href="/get-a-demo" className="video-inline-link">
               Request integration walkthrough
-              <span className="material-symbols-outlined">arrow_forward</span>
+              <MaterialIcon name="arrow_forward" />
             </Link>
           </div>
           <div className="video-connector-grid">
@@ -240,7 +233,7 @@ export function VideoTourPage() {
               ["terminal", "GitHub"],
             ].map(([icon, label]) => (
               <article key={label} className="video-connector-card">
-                <span className="material-symbols-outlined">{icon}</span>
+                <MaterialIcon name={icon} />
                 <p>{label}</p>
               </article>
             ))}
@@ -250,7 +243,7 @@ export function VideoTourPage() {
         <section className="video-feature-grid">
           <article className="video-feature-card video-feature-card-wide">
             <div className="video-feature-icon">
-              <span className="material-symbols-outlined">search_insights</span>
+              <MaterialIcon name="search_insights" />
             </div>
             <h3>Semantic Context Discovery</h3>
             <p>
@@ -258,29 +251,20 @@ export function VideoTourPage() {
             </p>
             <div className="video-avatar-row">
               <div className="video-avatar-stack">
-                <img
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuBq3cRxRyQKuzdvjZzDNu7lLM5EZZPsVv_Nk6hXtBX5rk3p-zez8_H9_aQrDhkjiWWIJFydUoiFwKWBNmVbCiQNHsbqZq6Kevw2KErmDrwV3WcFqnQzfS_7-gMcS8RKlu9gd5g3zMpcmPqQNh3ujKVaAhkbEmIDWpbH0N_sDb_Qf4l51nx1rcCNQHr70-xRlad7CE_AHla5Wi2-IcrxlHYmW2XeHAHf5EiLIqBrL-qUG0OSlsNzoBZc_Qp7J5Vpr0ZoOHx4RvGuGys"
-                  alt="Trusted team member"
-                />
-                <img
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuBgqEen8MQEpr1bv5oOh-3UKuqBllrb9QKwcGzpU_kiSHUEqZJO3I_71_i1ew5R342Xehx2edX6L3dPO8YyUy9c59uAxKuqQgDuFh8Kdueat6LG652b6o__v5zu_z_MWx7a3esXlGUlJ31LFJe4-U1fGHyMyiNpZOz7zIjJ-_8bti4VqOtAlR-QL0slUcMh6RdJBUv0lSdx-esARDhfGFk3r_xWhPPihFAmY42zOj-wsHfzxiYzkVhLzlRgjVQ2ccTqCF86eBHPMdY"
-                  alt="Trusted team member"
-                />
-                <img
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuD03NNZJ9dUcaubLVHxeahjPyN_nxpYHDLgVhusHGzkwPcBesPUpECIsFW-oAIx60ASWmU7-fcOXvw50eFt5VFBDalnuCVlJ2KTxYA0WbdBbMJ1jUzZbk9GOJW1PLe5QABREkzmFZa22XEXke1-irO3XY3xAwaXrS5YpM1m0_DePJ_-fBIaIjWuILVAA7HUhVObAESlOfjf3_1muUYVYg7v5-LKoieUhUgMHeQs-GJ_DOLRyxqk18E96XUX8l_iTDqnGm3b1ZqyA_4"
-                  alt="Trusted team member"
-                />
+                <Monogram seed="Ava Mensah" />
+                <Monogram seed="Liam Park" />
+                <Monogram seed="Noah Reed" />
               </div>
               <span>Trusted by 500+ Engineering Teams</span>
             </div>
           </article>
           <article className="video-feature-card video-feature-card-lime">
-            <span className="material-symbols-outlined icon-fill">security</span>
+            <MaterialIcon name="security" className="icon-fill" />
             <h3>Enterprise Security</h3>
             <p>SOC2 Type II compliant. Your data is encrypted at rest and never used for training foundation models.</p>
           </article>
           <article className="video-feature-card video-feature-card-primary">
-            <span className="material-symbols-outlined icon-fill">bolt</span>
+            <MaterialIcon name="bolt" className="icon-fill" />
             <h3>Sub-second Latency</h3>
             <p>Global vector indexing ensures search results are delivered in under 200ms anywhere in the world.</p>
           </article>
@@ -294,7 +278,7 @@ export function VideoTourPage() {
               <div className="video-citation-line" />
               <div className="video-citation-line accent" />
               <div className="video-citation-chip">
-                <span className="material-symbols-outlined">link</span>
+                <MaterialIcon name="link" />
                 policy_v2.pdf
               </div>
             </div>

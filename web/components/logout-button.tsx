@@ -1,5 +1,6 @@
 "use client";
 
+import { MaterialIcon } from "@/components/icons";
 import { useState } from "react";
 
 import { browserApiUrl } from "@/lib/api-browser";
@@ -14,7 +15,7 @@ export function LogoutButton() {
 
   return (
     <button className="stitch-button stitch-button-secondary stitch-button-block" type="button" onClick={handleLogout} disabled={loading}>
-      <span className="material-symbols-outlined">logout</span>
+      <MaterialIcon name="logout" />
       {loading ? "Logging Out..." : "Log Out"}
     </button>
   );
