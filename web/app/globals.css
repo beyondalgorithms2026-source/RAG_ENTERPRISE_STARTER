@@ -264,6 +264,22 @@ textarea {
   top: 1rem;
   align-self: start;
   scroll-margin-top: 1.25rem;
+  /* Bound the detail pane to the viewport and scroll its body internally, so the
+     surrounding page doesn't have to scroll to reveal it. */
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+
+/* Keep the detail pane's heading pinned at the top while its body scrolls. The
+   negative margins extend the sticky bar to the card edges (card padding is 24px). */
+.admin-sticky-detail > .section-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: -24px -24px 16px;
+  padding: 24px 24px 14px;
+  background: var(--surface-panel);
+  border-bottom: 1px solid var(--outline-strong);
 }
 
 button {
@@ -4472,6 +4488,19 @@ textarea:focus-visible {
   padding: 16px;
   background: rgba(255, 255, 250, 0.78);
   box-shadow: inset 0 0 0 1px rgba(198, 197, 217, 0.34);
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
+}
+
+/* Pin the Actions detail header while its body scrolls. */
+.feedback-detail-panel > .feedback-detail-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: -16px -16px 0;
+  padding: 16px 16px 12px;
+  background: #fffefa;
+  border-bottom: 1px solid var(--outline-strong);
 }
 
 .feedback-detail-head {
