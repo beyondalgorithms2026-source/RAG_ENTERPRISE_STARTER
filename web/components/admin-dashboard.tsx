@@ -11,7 +11,7 @@ type GenericMap = Record<string, unknown>;
 
 function formatMetric(value: unknown, suffix = "") {
   if (value === null || value === undefined || value === "") {
-    return "Unavailable";
+    return "—";
   }
   if (typeof value === "number") {
     return `${value}${suffix}`;
@@ -21,7 +21,7 @@ function formatMetric(value: unknown, suffix = "") {
 
 function formatTimestamp(value: unknown) {
   if (!value) {
-    return "Unavailable";
+    return "—";
   }
   const parsed = new Date(String(value));
   if (Number.isNaN(parsed.getTime())) {
@@ -110,7 +110,7 @@ export function AdminDashboard() {
             <MaterialIcon name="verified" />
             <span>{String(summary.latest_eval_kind || "No eval")}</span>
           </div>
-          <h3>{summary.latest_eval_pass_rate === null || summary.latest_eval_pass_rate === undefined ? "Unavailable" : `${String(summary.latest_eval_pass_rate)}%`}</h3>
+          <h3>{summary.latest_eval_pass_rate === null || summary.latest_eval_pass_rate === undefined ? "—" : `${String(summary.latest_eval_pass_rate)}%`}</h3>
           <p>Last Eval Pass Rate</p>
         </article>
       </section>

@@ -264,7 +264,7 @@ export function SearchWorkspace() {
       {loading ? (
         <div className="workspace-empty-state" role="status">
           <div className="workspace-empty-card">
-            <MaterialIcon name="progress_activity" className="workspace-empty-icon" />
+            <MaterialIcon name="progress_activity" className="workspace-empty-icon spin" />
             <h2>Searching indexed content...</h2>
             <p>Retrieval is running across the sources your account can currently access. Results appear here before you jump into chat.</p>
           </div>

@@ -116,6 +116,24 @@ Form controls in chat/search currently use bespoke markup; new/edited forms shou
 
 ---
 
+## 5b. Glossary (standard product vocabulary)
+
+Use these terms consistently in UI copy, labels, and nav (set in UX10):
+
+- **Ask** — the grounded chat surface (`/console/workspace/chat`). Not "Chat".
+- **Search** — keyword/semantic/hybrid retrieval over the corpus (`/console/workspace/search`).
+- **History** — saved Ask threads in this browser. Not "Search History".
+- **Thread** — one saved Ask conversation. Not "stitched thread".
+- **Source** — an ingested document/record. **My Sources** is the user's visible set.
+- **Citation** — a cited source backing an answer; rendered inline as a numbered chip and in the evidence rail.
+- **Evidence** — the retrieved citations + chunk context shown in the right rail.
+- **Corpus** — a named grouping of sources; unassigned sources read "Unassigned".
+- **Freshness** — fresh / stale / unknown recency state of a source.
+- **Route** — how an answer was retrieved (user-facing label for the internal "retrieval path").
+- **Relevance** — a result's retrieval score; shown as a bar relative to the top result (not an absolute confidence).
+- **Coming soon** — an intentionally-not-wired control, preserved and marked per the Coming-soon pattern.
+- Placeholders for missing values use an em dash (`—`), never prose like "Unavailable"/"Captured".
+
 ## 6. Where things live
 
 - Tokens + all CSS: `web/app/globals.css` (kept sectioned with a TOC header from UX2 onward).

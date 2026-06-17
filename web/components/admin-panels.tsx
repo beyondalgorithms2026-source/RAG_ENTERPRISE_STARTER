@@ -361,7 +361,7 @@ function SummaryMetricCard({ label, value, tone }: { label: string; value: strin
 
 function formatTimestamp(value: unknown) {
   if (!value) {
-    return "Unavailable";
+    return "—";
   }
   const parsed = new Date(String(value));
   if (Number.isNaN(parsed.getTime())) {
