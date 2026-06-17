@@ -6,6 +6,7 @@ import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 import { LogoutButton } from "@/components/logout-button";
+import { groupAdminNav, type AdminNavItem } from "@/lib/admin-nav";
 import { hasAdminRole, type Viewer } from "@/lib/viewer";
 import { readThreads, THREADS_UPDATED_EVENT } from "@/lib/workspace";
 import { useEffect, useState } from "react";
@@ -14,7 +15,16 @@ type NavItem = {
   href: string;
   label: string;
   icon: string;
+  module?: string;
 };
+
+// Consistent "coming soon" treatment for controls that are intentionally not
+// wired yet — preserved (not removed) so they can be implemented in a later
+// release. See web/DESIGN.md (Coming-soon pattern).
+const COMING_SOON_TITLE = "Coming in a later release.";
+function comingSoonProps(name: string) {
+  return { disabled: true, "aria-label": `${name} (coming soon)`, title: COMING_SOON_TITLE, "data-coming-soon": "true" } as const;
+}
 
 export function ConsoleShell({
   viewer,
@@ -29,6 +39,8 @@ export function ConsoleShell({
 }) {
   const pathname = usePathname();
   const [recentThreads, setRecentThreads] = useState<{ id: string; title: string }[]>([]);
+  const [collapsedNavSections, setCollapsedNavSections] = useState<Record<string, boolean>>({});
+  const adminNav = variant === "admin" ? groupAdminNav(navItems as AdminNavItem[]) : null;
 
   useEffect(() => {
     function refreshThreads() {
@@ -67,18 +79,44 @@ export function ConsoleShell({
               <p>Admin Console</p>
             </div>
             <nav className="admin-sidebar-nav">
-              {navItems.map((item) => (
+              {adminNav?.pinned.map((item) => (
                 <Link
-                  key={item.label}
+                  key={item.href}
                   href={item.href}
-                  className={`admin-sidebar-link ${
-                    pathname.startsWith(item.href) ? "is-active" : ""
-                  }`}
+                  className={`admin-sidebar-link ${pathname === item.href ? "is-active" : ""}`}
                 >
                   <MaterialIcon name={item.icon} />
                   <span>{item.label}</span>
                 </Link>
               ))}
+              {adminNav?.sections.map((section) => {
+                const collapsed = collapsedNavSections[section.key] ?? false;
+                return (
+                  <div key={section.key} className="admin-sidebar-group">
+                    <button
+                      type="button"
+                      className="admin-sidebar-section"
+                      aria-expanded={!collapsed}
+                      onClick={() => setCollapsedNavSections((current) => ({ ...current, [section.key]: !collapsed }))}
+                    >
+                      <span>{section.label}</span>
+                      <span className="admin-sidebar-section-symbol" aria-hidden="true">{collapsed ? "+" : "−"}</span>
+                    </button>
+                    {!collapsed
+                      ? section.items.map((item) => (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className={`admin-sidebar-link ${pathname.startsWith(item.href) ? "is-active" : ""}`}
+                          >
+                            <MaterialIcon name={item.icon} />
+                            <span>{item.label}</span>
+                          </Link>
+                        ))
+                      : null}
+                  </div>
+                );
+              })}
             </nav>
           </div>
           <div className="admin-sidebar-footer">
@@ -96,9 +134,10 @@ export function ConsoleShell({
 
         <main className="admin-main">
           <header className="admin-topbar">
-            <div className="admin-command">
+            <div className="admin-command" data-coming-soon="true" title={COMING_SOON_TITLE}>
               <MaterialIcon name="search" />
-              <input readOnly value="Search traces, corpora, or jobs (⌘K)" aria-label="Admin command search" />
+              <input readOnly value="Search traces, corpora, or jobs (⌘K)" aria-label="Admin command search (coming soon)" tabIndex={-1} />
+              <span className="coming-soon-badge">Soon</span>
             </div>
             <div className="admin-topbar-actions">
               <div className="console-viewer-chip" title={viewerSecondary}>
@@ -110,7 +149,7 @@ export function ConsoleShell({
               <Link href="/console/admin/access" className="admin-icon-button" aria-label="Notifications" title="Open access requests and notifications.">
                 <MaterialIcon name="notifications" />
               </Link>
-              <button type="button" className="admin-icon-button" aria-label="Settings" disabled title="Settings are not wired yet in this milestone.">
+              <button type="button" className="admin-icon-button is-coming-soon" {...comingSoonProps("Settings")}>
                 <MaterialIcon name="settings" />
               </button>
               <Link href="/console/admin/corpora" className="stitch-button stitch-button-primary stitch-button-small">
@@ -142,9 +181,10 @@ export function ConsoleShell({
             RAG Enterprise
           </Link>
           {isSourcesSurface ? (
-            <div className="workspace-search-input">
+            <div className="workspace-search-input" data-coming-soon="true" title={COMING_SOON_TITLE}>
               <MaterialIcon name="search" />
-              <input readOnly value="Search workspace..." aria-label="Workspace search" />
+              <input readOnly value="Search workspace..." aria-label="Workspace search (coming soon)" tabIndex={-1} />
+              <span className="coming-soon-badge">Soon</span>
             </div>
           ) : (
             <div className="workspace-toggle">
@@ -167,7 +207,7 @@ export function ConsoleShell({
           <Link href="/console/workspace/requests" className="workspace-icon-button" aria-label="Notifications" title="Open access requests and notifications.">
             <MaterialIcon name="notifications" />
           </Link>
-          <button type="button" className="workspace-icon-button" aria-label="Settings" disabled title="Settings are not wired yet in this milestone.">
+          <button type="button" className="workspace-icon-button is-coming-soon" {...comingSoonProps("Settings")}>
             <MaterialIcon name="settings" />
           </button>
           <div className="workspace-avatar">
@@ -200,10 +240,10 @@ export function ConsoleShell({
                 <span>First Run</span>
                 <div>
                   <strong>Start with one upload.</strong>
-                  <p className="workspace-guide-copy">Use Upload Documents, wait for the file to show as indexed, then return to Chat or Search for the first grounded run.</p>
+                  <p className="workspace-guide-copy">Use Upload Documents, wait for the file to show as indexed, then return to Ask or Search for the first grounded run.</p>
                   <div className="workspace-guide-links">
                     <Link href="/console/workspace/uploads">Open uploads</Link>
-                    <Link href="/console/workspace/chat">Open chat</Link>
+                    <Link href="/console/workspace/chat">Open Ask</Link>
                   </div>
                 </div>
               </div>

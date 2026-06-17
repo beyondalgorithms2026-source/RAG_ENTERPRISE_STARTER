@@ -99,6 +99,7 @@ Form controls in chat/search currently use bespoke markup; new/edited forms shou
 - **Answer + citation pattern:** answer body (Markdown, UX4) → inline citation markers (UX5) → evidence rail cards (`chat-evidence-*`) → chunk-context card with neighbors + freshness + open-source link. Keep these four layers visually distinct.
 - **Form pattern:** `Field` (label + help/error) wrapping a `ui/*` control; actions in `FormActions`. Validation errors via `.ui-field-error` / `is-invalid`.
 - **Empty / loading / error states:** every data surface needs all three; reuse the existing empty-card pattern; loading uses an explicit CSS spinner (not a glyph).
+- **Coming-soon pattern:** controls that are intentionally not wired yet are **preserved, not removed**, and marked consistently: keep them `disabled` (or `readOnly`/`tabIndex={-1}` for inputs), set `title="Coming in a later release."`, give an accessible name suffixed `(coming soon)`, and show a `.coming-soon-badge` ("Soon") pill on labelled controls or the `.is-coming-soon` accent dot on icon-only controls. Do not invent per-control wording.
 
 ---
 

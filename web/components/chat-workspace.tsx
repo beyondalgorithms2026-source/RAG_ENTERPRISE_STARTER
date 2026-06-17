@@ -97,6 +97,8 @@ type ApprovalResolution = {
 };
 
 const EVIDENCE_RAIL_STORAGE_KEY = "rag_console_evidence_rail_v1";
+// Consistent "coming soon" label for controls intentionally not wired yet (see web/DESIGN.md).
+const COMING_SOON_TITLE = "Coming in a later release.";
 const NEGATIVE_FEEDBACK_REASONS: { value: NegativeFeedbackReason; label: string }[] = [
   { value: "too_vague", label: "Too vague" },
   { value: "wrong_document", label: "Wrong document" },
@@ -1402,13 +1404,13 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
               />
               <div className="chat-composer-footer">
                 <div className="chat-composer-tools">
-                  <button type="button" aria-label="Attach" disabled title="File attach from chat is not live yet. Use Upload Documents.">
+                  <button type="button" className="is-coming-soon" aria-label="Attach file (coming soon)" disabled title={COMING_SOON_TITLE}>
                     <MaterialIcon name="attach_file" />
                   </button>
-                  <button type="button" aria-label="Image" disabled title="Image query input is not live yet.">
+                  <button type="button" className="is-coming-soon" aria-label="Image query (coming soon)" disabled title={COMING_SOON_TITLE}>
                     <MaterialIcon name="image" />
                   </button>
-                  <button type="button" aria-label="Microphone" disabled title="Voice capture is not live yet.">
+                  <button type="button" className="is-coming-soon" aria-label="Voice capture (coming soon)" disabled title={COMING_SOON_TITLE}>
                     <MaterialIcon name="mic" />
                   </button>
                 </div>
@@ -1544,9 +1546,10 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
             ) : null}
           </div>
           <div className="chat-evidence-footer">
-            <button type="button" className="stitch-button stitch-button-secondary stitch-button-block" disabled title="Export lands in a later milestone.">
+            <button type="button" className="stitch-button stitch-button-secondary stitch-button-block is-coming-soon" disabled aria-label="Export findings (coming soon)" title={COMING_SOON_TITLE}>
               <MaterialIcon name="open_in_new" />
               Export Findings
+              <span className="coming-soon-badge">Soon</span>
             </button>
           </div>
         </aside>
