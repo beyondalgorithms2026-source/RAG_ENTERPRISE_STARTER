@@ -1,6 +1,7 @@
 "use client";
 
 import { MaterialIcon } from "@/components/icons";
+import { AnswerMarkdown } from "@/components/markdown";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -1155,9 +1156,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                                 </button>
                               </div>
                             ) : null}
-                            {message.content.split(/\n+/).filter(Boolean).map((paragraph, index) => (
-                              <p key={`${message.id}-${index}`}>{paragraph}</p>
-                            ))}
+                            <AnswerMarkdown content={message.content} />
                             {isNoContextMessage(message) ? (
                               <div className="chat-no-context-card">
                                 <strong>No grounded evidence was retrieved for this question.</strong>
