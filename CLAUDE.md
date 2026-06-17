@@ -18,13 +18,19 @@
 - Always update STATUS.md after every milestone.
 - Add a short milestone/change note in `docs/milestones/` describing the change (create the folder if needed).
 
-## 3. Two milestone tracks
+## 3. Three milestone tracks
 - **M-series (M0–M33+):** Original project plan in `docs/02_Enterprise_RAG_Project_Plan_Milestones.md`. M0–M33 are complete or pending DB-backed reruns.
-- **AR-series (AR0–AR14):** Audit remediation plan in `docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md`. Driven by the independent product audit (`docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md`). AR numbering is deliberately disjoint from M-series.
-- **Current active track:** AR-series. Follow the exact AR milestone order (AR0 → AR1 → …).
-- AR milestones must not modify `docs/02_Enterprise_RAG_Project_Plan_Milestones.md`.
-- No new product surface before AR1–AR3 close.
-- Every AR milestone must leave the full suite green.
+- **AR-series (AR0–AR20):** Audit remediation plan in `docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md`. Driven by the independent product audit (`docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md`). Complete through AR20. AR numbering is disjoint from M-series.
+- **UX-series (UX0–UX10):** UI/UX audit remediation plan in `docs/05_Enterprise_RAG_UIUX_Audit_Remediation_Milestones.md`. Driven by the 2026-06-17 UI/UX audit. UX numbering is disjoint from M- and AR-series.
+- **Current active track:** UX-series. Follow the exact UX milestone order (UX0 → UX1 → …); UX0 (design language) gates everything after it.
+- UX/AR milestones must not modify `docs/02_Enterprise_RAG_Project_Plan_Milestones.md`.
+- Every milestone must leave the full suite green and `tsc --noEmit` clean.
+
+## 3a. UI/UX execution rules (binding on ALL frontend work, not just the UX plan)
+- **Design-language-first.** Before building or changing any UI, read `web/DESIGN.md` (and the `design-language` skill if present) and obey it. Do not introduce a new token, component, or CSS class that is not defined there — reuse the canonical primitive or extend the design language deliberately. One button system only.
+- **No external UI dependencies, ever.** No Google Fonts, no CDN icon font (Material Symbols), no third-party image hosts (`googleusercontent`, etc.). Fonts and icons are self-hosted/bundled; images are local or generated initials. The UI MUST render fully with the network blocked — a missing external asset must never degrade the UI.
+- **No "Stitch" wording in code.** Keep the word *Stitch*/"stitched" out of comments and user-facing copy, and add no Stitch placeholder assets or origin-narrating comments. Existing `stitch-*` class identifiers may stay (renaming them is out of scope); don't introduce new ones. (`web/stitch-reference/` is an out-of-build reference only.)
+- **`globals.css` stays sectioned & clean.** Keep the table-of-contents header and banner-delimited sections; add new rules to the right section. No orphaned/unused selectors. No `AR##`/historical-narration comments — comments explain current non-obvious intent only.
 
 ## 4. How to work with me
 - I will work milestone-by-milestone.

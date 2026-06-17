@@ -44,7 +44,7 @@ export function GovernanceOpsPanel() {
                         <span>{versionProfileName(version, "reranker")}</span>
                         <span>{transformSummaryText(versionProfileConfig(version, "retrieval"))}</span>
                       </div>
-                      <button type="button" className="button button-secondary" onClick={(event) => { event.stopPropagation(); rollbackVersion(String(version.version_label)); }} disabled={isRollingBack || matchesCurrentProduction}>
+                      <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={(event) => { event.stopPropagation(); rollbackVersion(String(version.version_label)); }} disabled={isRollingBack || matchesCurrentProduction}>
                         {matchesCurrentProduction ? "Already Live" : "Roll Back"}
                       </button>
                     </article>
@@ -101,8 +101,8 @@ export function GovernanceOpsPanel() {
                 <article><span>Validation Health</span><strong>{Number(cacheMetrics.reauthorization_miss_count || 0) === 0 ? "Healthy" : `${String(cacheMetrics.reauthorization_miss_count)} blocked stale reuses`}</strong></article>
               </div>
               <div className="toolbar-inline">
-                <Link className="button button-primary" href="/console/admin/profiles/cache-policy">Manage Cache Policy</Link>
-                <button type="button" className="button button-secondary" disabled={isOpsBusy !== "" || !activeCachePolicy} onClick={() => runOpsAction("clear-cache")}>
+                <Link className="stitch-button stitch-button-primary stitch-button-small" href="/console/admin/profiles/cache-policy">Manage Cache Policy</Link>
+                <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" disabled={isOpsBusy !== "" || !activeCachePolicy} onClick={() => runOpsAction("clear-cache")}>
                   {isOpsBusy === "clear-cache" ? "Clearing..." : "Clear Active Entries"}
                 </button>
               </div>

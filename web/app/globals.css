@@ -1,3 +1,24 @@
+/* ===========================================================================
+   RAG Enterprise Console — global stylesheet
+   Canonical design language: web/DESIGN.md
+
+   TABLE OF CONTENTS
+     1. Design tokens (:root)
+     2. Base, reset & typography
+     3. Form controls (.ui-control, .ui-field, .ui-toggle)
+     4. Data tables & master/detail (.admin-data-table, .admin-sticky-detail)
+     5. Icons & avatars (.app-icon, .monogram, .media-placeholder)
+     6. Buttons (canonical .stitch-button system)
+     7. Public & marketing surfaces (home, login, demo, video)
+     8. Admin console (shell, topbar, panels, dashboard)
+     9. Workspace (shell, chat, search, sources, history, feedback)
+    10. Tuning lab (admin)
+    11. Responsive overrides (colocated above; wide → narrow blocks at the tail)
+   =========================================================================== */
+
+/* ===========================================================================
+   1. DESIGN TOKENS
+   =========================================================================== */
 :root {
   --surface: #fbfbe6;
   --surface-low: #f5f5e0;
@@ -23,34 +44,12 @@
   --ambient-lg: 0 24px 56px rgba(30, 41, 55, 0.12);
   --hero-gradient: linear-gradient(135deg, #0e11d8 0%, #343ced 100%);
 
-  /* AR20 fix: the AR10–AR19 console panels (health, cost, embedding, providers,
-     flywheel, modules, banner) were authored against widget-style --color-* and
-     --border-radius-* tokens that were never defined in this app, so their cards
-     rendered with no background, border, or status colour. Alias them to the app
-     palette so those panels read as the design system. */
-  --color-background-primary: var(--surface-panel);
-  --color-background-secondary: var(--surface-low);
-  --color-background-tertiary: var(--surface-high);
-  --color-background-success: var(--success-bg);
-  --color-background-warning: #f7e6bf;
-  --color-background-danger: var(--danger-soft);
-  --color-background-info: var(--primary-soft);
-  --color-text-primary: var(--ink);
-  --color-text-secondary: var(--muted);
-  --color-text-tertiary: var(--muted);
-  --color-text-success: var(--success-ink);
-  --color-text-warning: #7a5200;
-  --color-text-danger: var(--danger);
-  --color-text-info: var(--primary);
-  --color-border-tertiary: var(--outline-strong);
-  --color-border-secondary: var(--outline-strong);
-  --color-border-primary: var(--outline-strong);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --border-radius-md: 10px;
-  --border-radius-lg: 14px;
-  --border-radius-xl: 16px;
 }
 
+/* ===========================================================================
+   2. BASE, RESET & TYPOGRAPHY
+   =========================================================================== */
 * {
   box-sizing: border-box;
 }
@@ -65,7 +64,7 @@ body {
 body {
   background: var(--surface);
   color: var(--ink);
-  font-family: "Inter", sans-serif;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -93,6 +92,9 @@ textarea {
   font: inherit;
 }
 
+/* ===========================================================================
+   3. FORM CONTROLS
+   =========================================================================== */
 .ui-control {
   min-height: 38px;
   border: 1px solid var(--outline-strong);
@@ -181,11 +183,12 @@ textarea {
   gap: 10px;
 }
 
-/* AR20: one consistent data-table look (zebra rows, sticky header, padding) so
-   dense admin tables read as the design system instead of a bare HTML table. */
-/* AR20 follow-up: don't trap long lists in a short inner scrollbox — let the
-   table grow with the page; the sticky header keeps columns labelled while the
-   page scrolls. Horizontal overflow only. */
+/* ===========================================================================
+   4. DATA TABLES & MASTER/DETAIL
+   =========================================================================== */
+/* Canonical data table: zebra rows, sticky header, padding. Horizontal overflow
+   only so the table grows with the page and the sticky header keeps columns
+   labelled while scrolling. */
 .admin-table-scroll {
   overflow-x: auto;
   border: 1px solid var(--outline-strong);
@@ -230,9 +233,8 @@ textarea {
   border-bottom: 0;
 }
 
-/* AR20: keep a master/detail pane in view while a long list scrolls. Natural
-   height (no inner max-height/overflow) so the pane's own heading is never
-   clipped when it sticks. */
+/* Master/detail pane that stays in view while a long list scrolls. Natural
+   height (no inner max-height/overflow) so its heading is never clipped. */
 .admin-sticky-detail {
   position: sticky;
   top: 1rem;
@@ -244,10 +246,8 @@ button {
   cursor: pointer;
 }
 
-/* AR20: one consistent, boxed control surface. Native input/select/textarea
-   were borderless and filled with the tan --surface-highest, so selects rendered
-   as bare text and inputs as olive pills. Box them on the white panel surface
-   with a visible border, a custom chevron for selects, and a shared focus ring. */
+/* One boxed control surface for native input/select/textarea: white panel
+   background, visible border, custom chevron for selects, shared focus ring. */
 input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
 select,
 textarea {
@@ -282,26 +282,55 @@ textarea:focus-visible {
   box-shadow: 0 0 0 2px var(--primary-soft);
 }
 
-.material-symbols-outlined {
-  font-family: "Material Symbols Outlined";
-  font-style: normal;
-  font-weight: 400;
+/* ===========================================================================
+   5. ICONS & AVATARS
+   =========================================================================== */
+/* Inline-SVG icons (self-hosted, no icon font). Sized in em so the existing
+   per-context font-size rules below keep controlling icon size. */
+.app-icon {
+  width: 1em;
+  height: 1em;
   font-size: 24px;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-flex;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  flex: 0 0 auto;
+  display: inline-block;
   vertical-align: middle;
 }
 
+/* Emphasis variant: heavier stroke instead of the old filled glyph. */
 .icon-fill {
-  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+  stroke-width: 2.25;
 }
 
+/* Deterministic initials avatar (replaces external avatar images). */
+.monogram {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: hsl(var(--monogram-hue, 240) 45% 30%);
+  background: hsl(var(--monogram-hue, 240) 55% 90%);
+  box-shadow: inset 0 0 0 1px hsl(var(--monogram-hue, 240) 40% 80%);
+  user-select: none;
+}
+
+/* Local decorative media block (replaces external marketing imagery). */
+.media-placeholder {
+  width: 100%;
+  height: 100%;
+  min-height: 180px;
+  border-radius: inherit;
+  background: radial-gradient(circle at 30% 25%, rgba(205, 241, 61, 0.28), transparent 45%),
+    var(--hero-gradient);
+}
+
+/* ===========================================================================
+   6. BUTTONS (canonical system)
+   =========================================================================== */
 .stitch-button {
   display: inline-flex;
   align-items: center;
@@ -358,10 +387,13 @@ textarea:focus-visible {
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.25);
 }
 
-.stitch-button-with-icon .material-symbols-outlined {
+.stitch-button-with-icon .app-icon {
   font-size: 22px;
 }
 
+/* ===========================================================================
+   7. PUBLIC & MARKETING SURFACES
+   =========================================================================== */
 .public-shell {
   min-height: 100vh;
   background: radial-gradient(circle at top left, rgba(14, 17, 216, 0.05), transparent 36%),
@@ -1489,7 +1521,7 @@ textarea:focus-visible {
   cursor: not-allowed;
 }
 
-.video-play-button .material-symbols-outlined {
+.video-play-button .app-icon {
   font-size: 3rem;
 }
 
@@ -1641,7 +1673,7 @@ textarea:focus-visible {
   box-shadow: inset 0 0 0 1px rgba(198, 197, 217, 0.08);
 }
 
-.video-connector-card .material-symbols-outlined {
+.video-connector-card .app-icon {
   font-size: 2.2rem;
   margin-bottom: 12px;
 }
@@ -1796,6 +1828,9 @@ textarea:focus-visible {
   text-align: center;
 }
 
+/* ===========================================================================
+   8. ADMIN CONSOLE (shell, topbar, panels, dashboard)
+   =========================================================================== */
 .admin-shell {
   min-height: 100vh;
   display: flex;
@@ -1959,8 +1994,8 @@ textarea:focus-visible {
   width: min(520px, 100%);
 }
 
-.admin-command .material-symbols-outlined,
-.workspace-search-input .material-symbols-outlined {
+.admin-command .app-icon,
+.workspace-search-input .app-icon {
   position: absolute;
   top: 50%;
   left: 14px;
@@ -2046,6 +2081,9 @@ textarea:focus-visible {
   padding: 30px 0 40px;
 }
 
+/* ===========================================================================
+   9. WORKSPACE (shell, chat, search, sources, history, feedback)
+   =========================================================================== */
 .workspace-shell {
   min-height: 100vh;
   background: var(--surface);
@@ -3007,7 +3045,7 @@ textarea:focus-visible {
   padding: 28px 20px;
 }
 
-.chat-evidence-empty .material-symbols-outlined {
+.chat-evidence-empty .app-icon {
   font-size: 2rem;
   color: var(--primary-strong);
 }
@@ -3457,7 +3495,7 @@ textarea:focus-visible {
   font-weight: 700;
 }
 
-.sources-file-cell .material-symbols-outlined {
+.sources-file-cell .app-icon {
   color: var(--primary-strong);
 }
 
@@ -3582,7 +3620,7 @@ textarea:focus-visible {
   color: rgba(88, 99, 115, 0.9);
 }
 
-.sources-connected-empty .material-symbols-outlined {
+.sources-connected-empty .app-icon {
   font-size: 2rem;
   color: var(--primary-strong);
 }
@@ -3629,7 +3667,7 @@ textarea:focus-visible {
   gap: 12px;
 }
 
-.sources-connected-head .material-symbols-outlined {
+.sources-connected-head .app-icon {
   color: var(--primary-strong);
 }
 
@@ -3692,7 +3730,7 @@ textarea:focus-visible {
   color: rgba(88, 99, 115, 0.9);
 }
 
-.history-empty-card .material-symbols-outlined {
+.history-empty-card .app-icon {
   font-size: 2rem;
   color: var(--primary-strong);
 }
@@ -3727,7 +3765,7 @@ textarea:focus-visible {
   gap: 14px;
 }
 
-.history-thread-head .material-symbols-outlined {
+.history-thread-head .app-icon {
   color: var(--primary-strong);
 }
 
@@ -4120,6 +4158,9 @@ textarea:focus-visible {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
+/* ===========================================================================
+   10. TUNING LAB (admin)
+   =========================================================================== */
 .tuning-lab-model-card {
   min-width: 0;
 }
@@ -4304,7 +4345,7 @@ textarea:focus-visible {
   background: linear-gradient(135deg, rgba(14, 17, 216, 0.08), rgba(224, 224, 255, 0.46));
 }
 
-.tuning-lab-shell-note .material-symbols-outlined {
+.tuning-lab-shell-note .app-icon {
   color: var(--primary-strong);
   font-size: 1.35rem;
 }
@@ -4426,8 +4467,7 @@ textarea:focus-visible {
   box-shadow: inset 0 0 0 1px rgba(211, 206, 180, 0.7);
 }
 
-/* AR20 follow-up: lay each sandbox control on a single line — label, control,
-   then value — instead of stacking the control under the label. */
+/* Each sandbox control on a single line: label, control, then value. */
 .tuning-lab-slider-wrap {
   position: relative;
   display: grid;
@@ -4534,7 +4574,7 @@ textarea:focus-visible {
   color: var(--ink);
 }
 
-.tuning-lab-candidate-header .material-symbols-outlined {
+.tuning-lab-candidate-header .app-icon {
   color: var(--primary-strong);
 }
 
@@ -4868,7 +4908,7 @@ textarea:focus-visible {
   top: 20px;
 }
 
-.cache-policy-list > button:not(.button) {
+.cache-policy-list > button:not(.stitch-button) {
   display: grid;
   gap: 4px;
   padding: 14px;
@@ -5279,8 +5319,7 @@ textarea:focus-visible {
   margin-top: 18px;
 }
 
-/* AR20: action-button rows that follow a form/filter grid get consistent
-   breathing room instead of hugging the inputs above them. */
+/* Action-button rows that follow a form/filter grid get breathing room. */
 .admin-filter-grid + .toolbar-inline,
 .admin-form-grid + .toolbar-inline,
 .admin-filter-grid + .ui-form-actions,
@@ -5339,31 +5378,6 @@ textarea:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-}
-
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-  padding: 12px 16px;
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.button.button-primary {
-  background: var(--primary-strong);
-  color: #fff;
-}
-
-.button.button-secondary {
-  background: rgba(255, 255, 255, 0.82);
-  color: var(--ink);
-  box-shadow: inset 0 0 0 1px rgba(198, 197, 217, 0.7);
-}
-
-.button:disabled {
-  opacity: 0.58;
 }
 
 .admin-mini-card {
@@ -5598,7 +5612,7 @@ textarea:focus-visible {
   padding: 22px;
 }
 
-.admin-empty-state .material-symbols-outlined {
+.admin-empty-state .app-icon {
   color: var(--primary-strong);
   font-size: 2rem;
 }
@@ -5659,7 +5673,7 @@ textarea:focus-visible {
   color: rgba(88, 99, 115, 0.94);
 }
 
-.admin-delete-chip .material-symbols-outlined {
+.admin-delete-chip .app-icon {
   font-size: 0.95rem;
 }
 
@@ -5931,6 +5945,9 @@ textarea:focus-visible {
   font-size: 1rem;
 }
 
+/* ===========================================================================
+   11. RESPONSIVE OVERRIDES (wide → narrow)
+   =========================================================================== */
 @media (max-width: 1100px) {
   .marketing-hero,
   .demo-layout,

@@ -1,5 +1,6 @@
 "use client";
 
+import { MaterialIcon } from "@/components/icons";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { TextInput } from "@/components/ui/TextInput";
@@ -74,7 +75,7 @@ export function TuningLabPanel() {
                                 : "No retrieval or sandbox action can enable caching."}
                             </small>
                           </div>
-                          <button type="button" className="button button-secondary" onClick={scrollToVersionHistory}>
+                          <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={scrollToVersionHistory}>
                             View Version History
                           </button>
                         </div>
@@ -98,7 +99,7 @@ export function TuningLabPanel() {
                   </div>
       
                   <div className="tuning-lab-shell-note">
-                    <span className="material-symbols-outlined">experiment</span>
+                    <MaterialIcon name="experiment" />
                     <p>LLM, reranker, retrieval depth, and answer-time context shaping are safe sandbox dimensions here. Embedding swaps remain visible for planning but are not executed in compare yet.</p>
                   </div>
       
@@ -313,7 +314,7 @@ export function TuningLabPanel() {
       
                     <aside className="tuning-lab-candidate-rail">
                       <div className="tuning-lab-candidate-header">
-                        <span className="material-symbols-outlined">science</span>
+                        <MaterialIcon name="science" />
                         <strong>{draftName || "Candidate Draft"}</strong>
                       </div>
       
@@ -351,11 +352,11 @@ export function TuningLabPanel() {
                       </article>
       
                       <div className="tuning-lab-candidate-actions">
-                        <button type="button" className="button button-primary tuning-lab-run-button" onClick={prepareSandboxCandidate} disabled={isComparing || isLoading}>
+                        <button type="button" className="stitch-button stitch-button-primary stitch-button-small tuning-lab-run-button" onClick={prepareSandboxCandidate} disabled={isComparing || isLoading}>
                           Prepare Candidate
                         </button>
                         {editingDraftId ? (
-                          <button type="button" className="button button-secondary" onClick={resetDraftForm}>
+                          <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={resetDraftForm}>
                             Cancel Edit
                           </button>
                         ) : null}

@@ -1,5 +1,6 @@
 "use client";
 
+import { MaterialIcon, Monogram } from "@/components/icons";
 import Link from "next/link";
 import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
@@ -52,9 +53,6 @@ export function ConsoleShell({
     pathname.startsWith("/console/workspace/sources") ||
     pathname.startsWith("/console/workspace/uploads") ||
     pathname.startsWith("/console/workspace/connectors");
-  const brandAvatar = variant === "admin"
-    ? "https://lh3.googleusercontent.com/aida-public/AB6AXuDDzrfI0fplKu_x0sR5zlA8iGmugYhn3F22d-IqQgfODwZm1RJyD-UzdaxUzvE52YtoSYoL3C8tPAvcx2Qx7LIACk57feFQJ7Cw1BpAoMHWSFgXl1G4R2rdhmVPg9f-aVViy3MBJPPSTc96lWhLkXmI-SlNTZXgmL8XVvvn85wqod38m2ebrX62rGP6SgmLGqz0UTLeauV_0rEwSnNS8TzucqerLolx81wW-QRAmapfiGTTbgVJTJMcllvsec7fvP3C7EM3czcwIRg"
-    : "https://lh3.googleusercontent.com/aida-public/AB6AXuACPUt-vFdpDEFkTykPrDK7qWDXayI-mTENz12neiecYsTFwJcauq2SyXQIlPs1icim8vWLYPo-1eATxYkQeXUrE1bxqk93oQwngnIvnhKlzQxk8QRI97HUkzaGZjV43CgcmygoyRZLwtmXmqHStwx_LK5ISY31JrhpkesypNorp8pIGSBHx65TQ9Sa2PShgRk2KhhRNaLjKKb_hrddPTJZhA5qk17WxUp4Mjjf3ENB2PbD4fnxXXRYKiwow_MZXjn4J7Qw-dz5kw8";
   const viewerPrimary = viewer.name || viewer.email || viewer.user_id;
   const viewerSecondary = viewer.email || viewer.user_id;
   const viewerRoleLabel = viewer.roles.length ? viewer.roles.join(", ").toUpperCase() : "USER";
@@ -77,7 +75,7 @@ export function ConsoleShell({
                     pathname.startsWith(item.href) ? "is-active" : ""
                   }`}
                 >
-                  <span className="material-symbols-outlined">{item.icon}</span>
+                  <MaterialIcon name={item.icon} />
                   <span>{item.label}</span>
                 </Link>
               ))}
@@ -85,7 +83,7 @@ export function ConsoleShell({
           </div>
           <div className="admin-sidebar-footer">
             <div className="admin-user-card">
-              <img src={brandAvatar} alt={viewerPrimary} />
+              <Monogram seed={viewerPrimary} />
               <div>
                 <strong>{viewerPrimary}</strong>
                 <span>{hasAdminRole(viewer) ? "SYSTEM ADMIN" : viewerRoleLabel}</span>
@@ -99,7 +97,7 @@ export function ConsoleShell({
         <main className="admin-main">
           <header className="admin-topbar">
             <div className="admin-command">
-              <span className="material-symbols-outlined">search</span>
+              <MaterialIcon name="search" />
               <input readOnly value="Search traces, corpora, or jobs (⌘K)" aria-label="Admin command search" />
             </div>
             <div className="admin-topbar-actions">
@@ -110,13 +108,13 @@ export function ConsoleShell({
                 </div>
               </div>
               <Link href="/console/admin/access" className="admin-icon-button" aria-label="Notifications" title="Open access requests and notifications.">
-                <span className="material-symbols-outlined">notifications</span>
+                <MaterialIcon name="notifications" />
               </Link>
               <button type="button" className="admin-icon-button" aria-label="Settings" disabled title="Settings are not wired yet in this milestone.">
-                <span className="material-symbols-outlined">settings</span>
+                <MaterialIcon name="settings" />
               </button>
               <Link href="/console/admin/corpora" className="stitch-button stitch-button-primary stitch-button-small">
-                <span className="material-symbols-outlined">add</span>
+                <MaterialIcon name="add" />
                 New Corpus
               </Link>
             </div>
@@ -145,7 +143,7 @@ export function ConsoleShell({
           </Link>
           {isSourcesSurface ? (
             <div className="workspace-search-input">
-              <span className="material-symbols-outlined">search</span>
+              <MaterialIcon name="search" />
               <input readOnly value="Search workspace..." aria-label="Workspace search" />
             </div>
           ) : (
@@ -167,13 +165,13 @@ export function ConsoleShell({
             </div>
           </div>
           <Link href="/console/workspace/requests" className="workspace-icon-button" aria-label="Notifications" title="Open access requests and notifications.">
-            <span className="material-symbols-outlined">notifications</span>
+            <MaterialIcon name="notifications" />
           </Link>
           <button type="button" className="workspace-icon-button" aria-label="Settings" disabled title="Settings are not wired yet in this milestone.">
-            <span className="material-symbols-outlined">settings</span>
+            <MaterialIcon name="settings" />
           </button>
           <div className="workspace-avatar">
-            <img src={brandAvatar} alt={viewer.name || viewer.email || viewer.user_id} />
+            <Monogram seed={viewerPrimary} />
           </div>
         </div>
       </header>
@@ -192,7 +190,7 @@ export function ConsoleShell({
                   href={item.href}
                   className={`workspace-sidebar-link ${pathname.startsWith(item.href) ? "is-active" : ""}`}
                 >
-                  <span className="material-symbols-outlined">{item.icon}</span>
+                  <MaterialIcon name={item.icon} />
                   <span>{item.label}</span>
                 </Link>
               ))}

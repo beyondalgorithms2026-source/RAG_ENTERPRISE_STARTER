@@ -177,7 +177,7 @@ export function AdminEmbeddingPanel() {
             ))}
           </Select>
         </label>
-        <button type="button" className="button button-secondary" onClick={doPlan} disabled={busy === "plan" || !target}>
+        <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={doPlan} disabled={busy === "plan" || !target}>
           {busy === "plan" ? "Planning…" : "Plan swap"}
         </button>
       </div>
@@ -192,7 +192,7 @@ export function AdminEmbeddingPanel() {
               <span style={{ color: "var(--color-text-secondary)" }}>Approval actor (prod only)</span>
               <TextInput value={approvalActor} onChange={(e) => setApprovalActor(e.target.value)} placeholder="approver user id" />
             </label>
-            <button type="button" className="button button-primary" onClick={doBegin} disabled={busy === "begin" || !!runActive}>
+            <button type="button" className="stitch-button stitch-button-primary stitch-button-small" onClick={doBegin} disabled={busy === "begin" || !!runActive}>
               {busy === "begin" ? "Beginning…" : "Begin swap"}
             </button>
           </div>
@@ -221,13 +221,13 @@ export function AdminEmbeddingPanel() {
               <span style={{ color: "var(--color-text-secondary)" }}>Batch limit</span>
               <NumberInput min={1} value={batchLimit} onChange={(e) => setBatchLimit(Number(e.target.value))} style={{ width: 120 }} />
             </label>
-            <button type="button" className="button button-secondary" onClick={doRun} disabled={busy === "run" || run.status === "verifying" || TERMINAL.has(run.status)}>
+            <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={doRun} disabled={busy === "run" || run.status === "verifying" || TERMINAL.has(run.status)}>
               {busy === "run" ? "Running…" : "Run batch"}
             </button>
-            <button type="button" className="button button-secondary" onClick={doVerify} disabled={busy === "verify" || run.status !== "verifying"}>
+            <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={doVerify} disabled={busy === "verify" || run.status !== "verifying"}>
               {busy === "verify" ? "Verifying…" : "Verify"}
             </button>
-            <button type="button" className="button button-secondary" onClick={doAbort} disabled={busy === "abort" || TERMINAL.has(run.status)}>
+            <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={doAbort} disabled={busy === "abort" || TERMINAL.has(run.status)}>
               Abort
             </button>
           </div>

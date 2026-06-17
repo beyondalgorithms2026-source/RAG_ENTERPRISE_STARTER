@@ -1,3 +1,4 @@
+import { MaterialIcon } from "@/components/icons";
 import Link from "next/link";
 import { PublicFooter, PublicHeader } from "@/components/public-pages";
 
@@ -10,7 +11,7 @@ export function MarketingHome() {
         <section className="marketing-hero" id="product">
           <div className="marketing-copy">
             <div className="marketing-kicker">
-              <span className="material-symbols-outlined">search_spark</span>
+              <MaterialIcon name="search_spark" />
               AI search
             </div>
             <h1>AI-powered Enterprise search</h1>
@@ -22,7 +23,7 @@ export function MarketingHome() {
                 Get a Demo
               </Link>
               <Link href="/watch-video-tour" className="stitch-button stitch-button-secondary stitch-button-with-icon">
-                <span className="material-symbols-outlined">play_circle</span>
+                <MaterialIcon name="play_circle" />
                 Watch Video
               </Link>
             </div>
@@ -43,20 +44,20 @@ export function MarketingHome() {
                   <span />
                 </div>
                 <div className="marketing-browser-security">
-                  <span className="material-symbols-outlined">security</span>
+                  <MaterialIcon name="security" />
                   Encrypted Workspace
                 </div>
               </div>
               <div className="marketing-preview-thread">
                 <div className="marketing-preview-question">
                   <div className="marketing-preview-avatar">
-                    <span className="material-symbols-outlined">person</span>
+                    <MaterialIcon name="person" />
                   </div>
                   <div className="marketing-preview-bubble">What changed in the vendor policy and who approved it?</div>
                 </div>
                 <div className="marketing-preview-answer">
                   <div className="marketing-ai-avatar">
-                    <span className="material-symbols-outlined icon-fill">auto_awesome</span>
+                    <MaterialIcon name="auto_awesome" className="icon-fill" />
                   </div>
                   <div className="marketing-answer-card">
                     <div className="marketing-answer-eyebrow">AI Answer</div>
@@ -125,7 +126,7 @@ export function MarketingHome() {
                 <p>Search is for everyone; management is for you. Switch between employee search views and powerful administrative corpus controls in one interface.</p>
                 <Link href="/login" className="marketing-inline-link">
                   Explore Admin View
-                  <span className="material-symbols-outlined">arrow_forward</span>
+                  <MaterialIcon name="arrow_forward" />
                 </Link>
               </div>
               <div className="marketing-health-card">

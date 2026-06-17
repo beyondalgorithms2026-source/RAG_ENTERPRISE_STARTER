@@ -1,8 +1,9 @@
 # STATUS.md — Operational Snapshot
 
 **Last completed M-series milestone:** M33 — Governed Semantic Cache Policies, Scoped Enablement, And User Refresh  
-**Active work track:** M20–M30 manual verification closure
+**Active work track:** UX-series UI/UX audit remediation (`docs/05_Enterprise_RAG_UIUX_Audit_Remediation_Milestones.md`); M20–M30 manual verification closure also open
 **Current AR milestone:** AR0–AR20 complete (audit remediation + post-audit console/UI). No open AR milestones.
+**Current UX milestone:** UX2 complete (2026-06-17) — one button system, no Stitch wording, sectioned stylesheet. Migrated 76 `.button*` usages onto the canonical `.stitch-button*` (small) and deleted the `.button*` CSS; scrubbed the word *Stitch*/"stitched" from copy + the thread storage key (`stitch-*` class identifiers intentionally kept); deleted the dead `--color-*`/`--border-radius-*` alias block; stripped all `AR##` narration comments; added a TOC header + 11 banner-delimited sections to `globals.css`. DoD greps clean; `next build` + `tsc --noEmit` green. UI source of truth: `web/DESIGN.md`. Next: UX3 (repair the Search surface). Earlier: UX1 (no external UI deps, 2026-06-17), UX0 (design language, 2026-06-17).
 
 ## Independent Product Audit (2026-06-11)
 

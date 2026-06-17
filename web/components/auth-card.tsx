@@ -1,3 +1,4 @@
+import { MaterialIcon } from "@/components/icons";
 import Link from "next/link";
 
 import { buildLoginHref } from "@/lib/auth";
@@ -39,7 +40,7 @@ export function AuthCard({
           <span className="login-brand-kicker">Enterprise Console</span>
           <div className="login-brand-row">
             <div className="login-brand-mark">
-              <span className="material-symbols-outlined icon-fill">dataset</span>
+              <MaterialIcon name="dataset" className="icon-fill" />
             </div>
             <span className="login-brand-name">RAG Enterprise</span>
           </div>
@@ -52,7 +53,7 @@ export function AuthCard({
           </div>
           <div className="login-card-actions">
             <a className="stitch-button stitch-button-primary stitch-button-block" href={primaryHref}>
-              <span className="material-symbols-outlined">identity_platform</span>
+              <MaterialIcon name="identity_platform" />
               {primaryLabel}
             </a>
             <Link className="stitch-button stitch-button-secondary stitch-button-block" href={secondaryHref}>
@@ -63,7 +64,7 @@ export function AuthCard({
             </Link>
           </div>
           <div className="login-note-card">
-            <span className="material-symbols-outlined">info</span>
+            <MaterialIcon name="info" />
             <p>{infoMessage}</p>
           </div>
         </section>
@@ -72,7 +73,7 @@ export function AuthCard({
           <section className="login-dev-card" id="local-dev-login">
             <details open={devLoginPreferred}>
               <summary>
-                <span className="material-symbols-outlined">code</span>
+                <MaterialIcon name="code" />
                 {devSummaryLabel}
               </summary>
               <DevLoginForm nextPath={nextPath} />
@@ -89,10 +90,7 @@ export function AuthCard({
         </footer>
 
         <div className="login-floating-art">
-          <img
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuBINW2shwyEhwAcYx6_wuIZrTpXygdCpi2vfjfrY-NafvBD4g_5VjeYBchTQHSAew7boAsfXU1mjdHyZ1NO_V3LRTdnI7Yg5pdXZANEIhqKVSWiRqOodXJ08UdrV0fbQ5nVuRLy3TVqAdVGAgr3g9Py2YSBFuIWIv7ndTZFakURJrzqwvHu66xm86KcKral_X5Yb9WnT8H1LVsfYdDzn8Z-IRXOkN_4_y6v34Z3zwa6W9KKKp9X3HhSsbd7Phe7L6q_yUb0lPS4OwU"
-            alt="Abstract generative AI nodes"
-          />
+          <div className="media-placeholder" aria-hidden="true" />
         </div>
       </div>
     </main>

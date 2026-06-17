@@ -1,5 +1,6 @@
 "use client";
 
+import { MaterialIcon } from "@/components/icons";
 import { useEffect, useMemo, useState } from "react";
 
 import { browserFetch } from "@/lib/api-browser";
@@ -151,13 +152,13 @@ export function AccessRequestsPage() {
 
       <section className="history-list">
         <div className="history-empty-card">
-          <span className="material-symbols-outlined">approval</span>
+          <MaterialIcon name="approval" />
           <strong>My Access Requests</strong>
           <p>Requests are created from access-limited answer states in Chat and stay here until routed, denied, or granted.</p>
         </div>
         {requests.length === 0 ? (
           <div className="history-empty-card">
-            <span className="material-symbols-outlined">lock</span>
+            <MaterialIcon name="lock" />
             <strong>No access requests yet.</strong>
             <p>When a question needs more visibility than your current access allows, the request flow will appear directly in Chat.</p>
           </div>
@@ -165,7 +166,7 @@ export function AccessRequestsPage() {
           requests.map((request) => (
             <article key={request.id} className="history-thread-card">
               <div className="history-thread-head">
-                <span className="material-symbols-outlined">shield_lock</span>
+                <MaterialIcon name="shield_lock" />
                 <div>
                   <strong>Request #{request.id} · {titleCase(request.status)}</strong>
                   <span>{formatTime(request.created_at)}</span>
@@ -192,13 +193,13 @@ export function AccessRequestsPage() {
 
       <section className="history-list">
         <div className="history-empty-card">
-          <span className="material-symbols-outlined">move_to_inbox</span>
+          <MaterialIcon name="move_to_inbox" />
           <strong>My Routed Approvals</strong>
           <p>If you are the designated business approver for a protected source, review the request here and choose a temporary duration.</p>
         </div>
         {approvals.length === 0 ? (
           <div className="history-empty-card">
-            <span className="material-symbols-outlined">inbox</span>
+            <MaterialIcon name="inbox" />
             <strong>No approval tasks assigned.</strong>
             <p>Routed business approvals will appear here without needing the admin console.</p>
           </div>
@@ -206,7 +207,7 @@ export function AccessRequestsPage() {
           approvals.map((approval) => (
             <article key={approval.id} className="history-thread-card">
               <div className="history-thread-head">
-                <span className="material-symbols-outlined">assignment</span>
+                <MaterialIcon name="assignment" />
                 <div>
                   <strong>Approval #{approval.id} · Request #{approval.access_request_id}</strong>
                   <span>{titleCase(approval.status)} · {formatTime(approval.created_at)}</span>
@@ -252,13 +253,13 @@ export function AccessRequestsPage() {
 
       <section className="history-list">
         <div className="history-empty-card">
-          <span className="material-symbols-outlined">notifications</span>
+          <MaterialIcon name="notifications" />
           <strong>Notifications</strong>
           <p>In-app notifications are the source of truth in M16.1. Email-ready payloads are stored on the backend for later delivery wiring.</p>
         </div>
         {notifications.length === 0 ? (
           <div className="history-empty-card">
-            <span className="material-symbols-outlined">notifications_off</span>
+            <MaterialIcon name="notifications_off" />
             <strong>No notifications yet.</strong>
             <p>Request routing, approvals, grants, and expiries will appear here.</p>
           </div>
@@ -266,7 +267,7 @@ export function AccessRequestsPage() {
           notifications.map((item) => (
             <article key={item.id} className="history-thread-card">
               <div className="history-thread-head">
-                <span className="material-symbols-outlined">{item.status === "read" ? "draft" : "mark_email_unread"}</span>
+                <MaterialIcon name={item.status === "read" ? "draft" : "mark_email_unread"} />
                 <div>
                   <strong>{item.title}</strong>
                   <span>{formatTime(item.created_at)}</span>

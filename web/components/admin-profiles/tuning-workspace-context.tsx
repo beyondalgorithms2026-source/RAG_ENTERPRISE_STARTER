@@ -1,5 +1,6 @@
 "use client";
 
+import { MaterialIcon } from "@/components/icons";
 import { createContext, ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { browserFetch } from "@/lib/api-browser";
 import { tuningEndpoints } from "./endpoints";
@@ -219,7 +220,7 @@ export function selectedProfilesSignature(value: unknown) {
 export function EmptyState({ title, copy }: { title: string; copy: string }) {
   return (
     <div className="admin-empty-state">
-      <span className="material-symbols-outlined">inbox</span>
+      <MaterialIcon name="inbox" />
       <strong>{title}</strong>
       <p>{copy}</p>
     </div>

@@ -197,7 +197,7 @@ export function AdminCachePolicyPanel() {
           <h1>Semantic Cache Policy</h1>
           <p>Global default is Off. No answer is reused unless it matches an activated scoped policy.</p>
         </div>
-        <Link className="button button-secondary" href="/console/admin/profiles">Back to Profiles</Link>
+        <Link className="stitch-button stitch-button-secondary stitch-button-small" href="/console/admin/profiles">Back to Profiles</Link>
       </div>
       {error ? <div className="error-banner">{error}</div> : null}
 
@@ -208,7 +208,7 @@ export function AdminCachePolicyPanel() {
 
       <div className="cache-policy-layout">
         <aside className="card cache-policy-list">
-          <button className="button button-primary" type="button" onClick={() => setSelectedId(null)}>Create Scoped Policy</button>
+          <button className="stitch-button stitch-button-primary stitch-button-small" type="button" onClick={() => setSelectedId(null)}>Create Scoped Policy</button>
           {policies.map((policy) => (
             <button key={policy.id} type="button" className={policy.id === selectedId ? "is-selected" : ""} onClick={() => setSelectedId(policy.id)}>
               <strong>{policy.name}</strong><span>{policy.status}</span>
@@ -269,7 +269,7 @@ export function AdminCachePolicyPanel() {
             <p><strong>{positiveScopeCount}</strong> positive scopes. Deny rules override allows. This changes response reuse, not retrieval quality.</p>
             <p><strong>{estimatedEligibleQueries}</strong> recent exact-query events are currently eligible. Corpus and group scope traffic remains an estimate until a scoped policy check is run.</p>
             <div className="toolbar-inline">
-              <button className="button button-primary" type="button" disabled={busy !== "" || positiveScopeCount === 0} onClick={save}>{busy === "save" ? "Saving..." : "Save Policy Draft"}</button>
+              <button className="stitch-button stitch-button-primary stitch-button-small" type="button" disabled={busy !== "" || positiveScopeCount === 0} onClick={save}>{busy === "save" ? "Saving..." : "Save Policy Draft"}</button>
             </div>
           </section>
 
@@ -282,14 +282,14 @@ export function AdminCachePolicyPanel() {
                 <label><span>Type policy name to activate</span><TextInput value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label>
               </div>
               <div className="toolbar-inline">
-                <button className="button button-secondary" type="button" disabled={!checkQuestion || busy !== "" || !selected.draft_version} onClick={() => action("check")}>Run Scoped Policy Check</button>
-                <button className="button button-primary" type="button" disabled={confirmation !== selected.name || busy !== "" || !selected.draft_version} onClick={() => action("activate")}>Activate Scoped Policy</button>
-                <button className="button button-secondary" type="button" disabled={selected.status !== "active" || busy !== ""} onClick={() => action("disable")}>Disable Policy</button>
+                <button className="stitch-button stitch-button-secondary stitch-button-small" type="button" disabled={!checkQuestion || busy !== "" || !selected.draft_version} onClick={() => action("check")}>Run Scoped Policy Check</button>
+                <button className="stitch-button stitch-button-primary stitch-button-small" type="button" disabled={confirmation !== selected.name || busy !== "" || !selected.draft_version} onClick={() => action("activate")}>Activate Scoped Policy</button>
+                <button className="stitch-button stitch-button-secondary stitch-button-small" type="button" disabled={selected.status !== "active" || busy !== ""} onClick={() => action("disable")}>Disable Policy</button>
               </div>
               {selected.versions?.filter((version) => version.status !== "draft").map((version) => (
                 <div key={version.id} className="cache-policy-version">
                   <span>Version {version.version_number} · {version.status}</span>
-                  <button className="button button-secondary" type="button" disabled={busy !== "" || version.status === "active"} onClick={() => action("rollback", version.id)}>Rollback to this version</button>
+                  <button className="stitch-button stitch-button-secondary stitch-button-small" type="button" disabled={busy !== "" || version.status === "active"} onClick={() => action("rollback", version.id)}>Rollback to this version</button>
                 </div>
               ))}
               {result ? <pre className="cache-policy-result">{JSON.stringify(result, null, 2)}</pre> : null}

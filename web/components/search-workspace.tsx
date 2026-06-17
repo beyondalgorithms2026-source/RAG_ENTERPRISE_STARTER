@@ -1,5 +1,6 @@
 "use client";
 
+import { MaterialIcon } from "@/components/icons";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -45,7 +46,7 @@ export function SearchWorkspace() {
             <option value="vector">Semantic</option>
             <option value="keyword">Keyword</option>
           </select>
-          <button className="button button-primary" type="button" onClick={runSearch} disabled={loading}>
+          <button className="stitch-button stitch-button-primary stitch-button-small" type="button" onClick={runSearch} disabled={loading}>
             {loading ? "Searching..." : "Search"}
           </button>
         </div>
@@ -55,7 +56,7 @@ export function SearchWorkspace() {
         {loading ? (
           <div className="workspace-empty-state">
             <div className="workspace-empty-card">
-              <span className="material-symbols-outlined workspace-empty-icon">progress_activity</span>
+              <MaterialIcon name="progress_activity" className="workspace-empty-icon" />
               <h2>Searching indexed content...</h2>
               <p>Retrieval is running across the sources your account can currently access. Results appear here before you jump into chat.</p>
             </div>
@@ -64,7 +65,7 @@ export function SearchWorkspace() {
         {!loading && !hasSearched ? (
           <div className="workspace-empty-state">
             <div className="workspace-empty-card">
-              <span className="material-symbols-outlined workspace-empty-icon">manage_search</span>
+              <MaterialIcon name="manage_search" className="workspace-empty-icon" />
               <h2>Search is ready for the first indexed source.</h2>
               <p>On a clean setup, upload one file first, wait for it to finish indexing, then search here to confirm retrieval before asking longer questions in chat.</p>
               <div className="workspace-empty-actions">
@@ -89,7 +90,7 @@ export function SearchWorkspace() {
         {!loading && result && result.results.length === 0 ? (
           <div className="workspace-empty-state">
             <div className="workspace-empty-card">
-              <span className="material-symbols-outlined workspace-empty-icon">travel_explore</span>
+              <MaterialIcon name="travel_explore" className="workspace-empty-icon" />
               <h2>No matching evidence found.</h2>
               <p>The system finished retrieval but found no indexed match for this query in the sources visible to your account. If a file was uploaded recently, it may still be indexing or outside your current visibility scope.</p>
               <div className="workspace-empty-actions">
