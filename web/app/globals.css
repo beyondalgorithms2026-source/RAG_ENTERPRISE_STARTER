@@ -6056,6 +6056,24 @@ textarea:focus-visible {
   min-width: 0;
 }
 
+/* Form fields inside a grid: the <label> wraps its caption span + control, so
+   give it the canonical field rhythm (styled caption, 6px gap to the control). */
+.admin-form-grid label,
+.admin-filter-grid label,
+.form-inline label {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.admin-form-grid label > span,
+.admin-filter-grid label > span,
+.form-inline label > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .toolbar-inline {
   display: flex;
   flex-wrap: wrap;
