@@ -180,7 +180,7 @@ function formatStage(job: IngestionJob | null | undefined) {
 
 function formatDurationSeconds(seconds: number | null | undefined) {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) {
-    return "Unavailable";
+    return "—";
   }
   if (seconds < 60) {
     return `${Math.max(Math.round(seconds), 1)} sec`;

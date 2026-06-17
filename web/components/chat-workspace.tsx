@@ -287,6 +287,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   const [actionFlashByMessageId, setActionFlashByMessageId] = useState<Record<string, string>>({});
   const [missingSourceByMessageId, setMissingSourceByMessageId] = useState<Record<string, string>>({});
   const [accessRequestDraftByMessageId, setAccessRequestDraftByMessageId] = useState<Record<string, AccessRequestDraft>>({});
+  const [accessModalMessageId, setAccessModalMessageId] = useState<string | null>(null);
   const [accessRequestErrorsByMessageId, setAccessRequestErrorsByMessageId] = useState<Record<string, AccessRequestErrors>>({});
   const [accessRequestNoticeByMessageId, setAccessRequestNoticeByMessageId] = useState<Record<string, AccessRequestNotice>>({});
   const [submittingAccessRequestByMessageId, setSubmittingAccessRequestByMessageId] = useState<Record<string, boolean>>({});
@@ -1074,6 +1075,17 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   const contextTitle = citationContext?.source_file_name || selectedCitation?.file_name || "Retrieved source";
   const contextTitleLabel = formatSourceTitle(contextTitle);
 
+  useEffect(() => {
+    if (!accessModalMessageId) {
+      return;
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setAccessModalMessageId(null);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [accessModalMessageId]);
+
   // Select a citation from a pill, an inline answer chip, or an evidence card:
   // mark it active (loads chunk context via effect), expand its section, scroll it in.
   function selectCitation(evidenceId: string, citationId: string) {
@@ -1093,9 +1105,9 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
             <MaterialIcon name="bolt" className="icon-fill" />
             {mode === "hybrid" ? "Hybrid Search" : mode}
           </div>
-          <div>Latency: <strong>{lastLatencyMs ? `${lastLatencyMs}ms` : "Captured"}</strong></div>
+          <div>Latency: <strong>{lastLatencyMs ? `${lastLatencyMs}ms` : "—"}</strong></div>
           <div>Sources: <strong>{activeEvidenceSection?.citations.length || 0}</strong></div>
-          <div>Path: <strong>{activeRetrievalPath}</strong></div>
+          <div title="How this answer was retrieved.">Route: <strong>{(activeRetrievalPath || "—").replace(/_/g, " ")}</strong></div>
           <div className="chat-speed-toggle">
             <button
               type="button"
@@ -1185,6 +1197,19 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                                 <p>{String(accessClarification(message)?.access_message || "Try exact wording from the source, confirm the file finished indexing, or tell admins where this information should exist.")}</p>
                                 <p>If you know the likely owner, team, project, or manager, add that context before requesting access. Without it, routing can become a needle-in-a-haystack exercise for admins.</p>
                                 {accessClarification(message)?.request_access_supported ? (
+                                  <>
+                                    <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={() => setAccessModalMessageId(message.id)}>
+                                      Request access to a source
+                                    </button>
+                                    {accessModalMessageId === message.id ? (
+                                      <div className="chat-modal-backdrop" role="dialog" aria-modal="true" aria-label="Request source access" onClick={() => setAccessModalMessageId(null)}>
+                                        <div className="chat-modal" onClick={(event) => event.stopPropagation()}>
+                                          <div className="chat-modal-head">
+                                            <strong>Request access to a source</strong>
+                                            <button type="button" className="chat-modal-close" aria-label="Close dialog" onClick={() => setAccessModalMessageId(null)}>
+                                              <MaterialIcon name="close" />
+                                            </button>
+                                          </div>
                                   <div className="chat-access-request-form">
                                     <div className="chat-access-request-field">
                                       <label htmlFor={`source-hint-${message.id}`}>File, link, connector, or source hint</label>
@@ -1278,6 +1303,10 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                                       </button>
                                     </div>
                                   </div>
+                                        </div>
+                                      </div>
+                                    ) : null}
+                                  </>
                                 ) : null}
                               </div>
                             ) : null}
@@ -1402,7 +1431,14 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
               <textarea
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                    event.preventDefault();
+                    if (!isStreaming) submitQuestion();
+                  }
+                }}
                 placeholder="Ask follow up questions or upload new sources..."
+                aria-label="Ask a question"
                 rows={3}
               />
               <div className="chat-composer-footer">
