@@ -276,6 +276,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   const [error, setError] = useState("");
   const [selectedEvidenceMessageId, setSelectedEvidenceMessageId] = useState<string | null>(null);
   const [selectedCitationId, setSelectedCitationId] = useState<string | null>(null);
+  const [hoveredCitationId, setHoveredCitationId] = useState<string | null>(null);
   const [citationContext, setCitationContext] = useState<CitationContextResponse | null>(null);
   const [citationContextError, setCitationContextError] = useState("");
   const [collapsedEvidenceSections, setCollapsedEvidenceSections] = useState<Record<string, boolean>>({});
@@ -1071,6 +1072,17 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   const contextTitle = citationContext?.source_file_name || selectedCitation?.file_name || "Retrieved source";
   const contextTitleLabel = formatSourceTitle(contextTitle);
 
+  // Select a citation from a pill, an inline answer chip, or an evidence card:
+  // mark it active (loads chunk context via effect), expand its section, scroll it in.
+  function selectCitation(evidenceId: string, citationId: string) {
+    setSelectedEvidenceMessageId(evidenceId);
+    setSelectedCitationId(citationId);
+    setCollapsedEvidenceSections((current) => ({ ...current, [evidenceId]: false }));
+    window.setTimeout(() => {
+      evidenceSectionRefs.current[evidenceId]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }, 0);
+  }
+
   return (
     <div className="chat-page">
       {hasConversation ? (
@@ -1156,7 +1168,12 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                                 </button>
                               </div>
                             ) : null}
-                            <AnswerMarkdown content={message.content} />
+                            <AnswerMarkdown
+                              content={message.content}
+                              citations={message.citations ?? []}
+                              onSelectCitation={(citationId) => selectCitation(message.id, citationId)}
+                              onHoverCitation={setHoveredCitationId}
+                            />
                             {isNoContextMessage(message) ? (
                               <div className="chat-no-context-card">
                                 <strong>No grounded evidence was retrieved for this question.</strong>
@@ -1266,14 +1283,9 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                                     key={citation.citation_id}
                                     type="button"
                                     className="chat-citation-pill"
-                                    onClick={() => {
-                                      setSelectedEvidenceMessageId(message.id);
-                                      setSelectedCitationId(citation.citation_id);
-                                      setCollapsedEvidenceSections((current) => ({ ...current, [message.id]: false }));
-                                      window.setTimeout(() => {
-                                        evidenceSectionRefs.current[message.id]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-                                      }, 0);
-                                    }}
+                                    onClick={() => selectCitation(message.id, citation.citation_id)}
+                                    onMouseEnter={() => setHoveredCitationId(citation.citation_id)}
+                                    onMouseLeave={() => setHoveredCitationId(null)}
                                   >
                                     <MaterialIcon name={sourceIcon(citation.source_type).icon} />
                                     {citation.file_name}
@@ -1443,19 +1455,13 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                       {section.citations.length ? section.citations.map((citation) => {
                         const iconData = sourceIcon(citation.source_type);
                         const isSelected = isSelectedSection && selectedCitation?.citation_id === citation.citation_id;
+                        const isHovered = hoveredCitationId === citation.citation_id;
                         return (
                           <button
                             key={citation.citation_id}
                             type="button"
-                            className={`chat-evidence-card ${isSelected ? "is-selected" : ""}`}
-                            onClick={() => {
-                              setSelectedEvidenceMessageId(section.id);
-                              setSelectedCitationId(citation.citation_id);
-                              setCollapsedEvidenceSections((current) => ({ ...current, [section.id]: false }));
-                              window.setTimeout(() => {
-                                evidenceSectionRefs.current[section.id]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-                              }, 0);
-                            }}
+                            className={`chat-evidence-card ${isSelected ? "is-selected" : ""} ${isHovered ? "is-hovered" : ""}`.trim()}
+                            onClick={() => selectCitation(section.id, citation.citation_id)}
                           >
                             <div className="chat-evidence-card-head">
                               <div className={`chat-evidence-icon ${iconData.tone}`}>
