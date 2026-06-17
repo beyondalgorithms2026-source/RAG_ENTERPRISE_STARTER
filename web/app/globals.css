@@ -2102,7 +2102,18 @@ textarea:focus-visible {
 .admin-command input,
 .workspace-search-input input {
   padding-left: 42px;
+  padding-right: 58px;
   border-radius: 16px;
+}
+
+/* Keep the "Soon" badge inside the search box (it sits in a position:relative
+   container); the inline badge form is used on labelled controls elsewhere. */
+.admin-command .coming-soon-badge,
+.workspace-search-input .coming-soon-badge {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
 }
 
 .admin-topbar-actions,
@@ -4399,6 +4410,24 @@ textarea:focus-visible {
   align-items: start;
 }
 
+/* Long review queue scrolls inside the workbench so the sticky detail stays in
+   view and the surrounding page doesn't grow unmanageably tall. */
+.feedback-workbench-grid > .admin-list {
+  max-height: 66vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Same for master/detail list pages (Jobs, Traces): the row list scrolls inside
+   its column while the sticky detail stays beside it. A max-height only kicks in
+   for genuinely long lists. (Adjusted per operator feedback that long pages were
+   hard to work with.) */
+.results-grid .table-list {
+  max-height: 68vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .feedback-review-item {
   cursor: pointer;
   box-shadow: inset 0 0 0 1px rgba(198, 197, 217, 0.22);
@@ -4977,6 +5006,9 @@ textarea:focus-visible {
 
 .tuning-lab-slider-wrap input[type="range"] {
   appearance: none;
+  order: 2;
+  width: 100%;
+  min-width: 0;
   height: 4px;
   min-height: 0;
   margin: 0;
@@ -4985,6 +5017,12 @@ textarea:focus-visible {
   border-radius: 999px;
   background: rgba(223, 218, 184, 0.9);
   box-shadow: none;
+}
+
+/* Value badge sits after the slider (the slider takes the flexible column), so
+   it never squeezes the track into the narrow auto column in half-width cells. */
+.tuning-lab-slider-wrap .tuning-lab-slider-value {
+  order: 3;
 }
 
 .tuning-lab-slider-wrap input[type="range"]:disabled {
