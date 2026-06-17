@@ -45,6 +45,30 @@
   --hero-gradient: linear-gradient(135deg, #0e11d8 0%, #343ced 100%);
 
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Semantic + radius aliases consumed via inline styles in the admin panels
+     (health, cost, embedding, providers, flywheel, modules, banner). Mapped onto
+     the app palette so those panels read as the design system. */
+  --color-background-primary: var(--surface-panel);
+  --color-background-secondary: var(--surface-low);
+  --color-background-tertiary: var(--surface-high);
+  --color-background-success: var(--success-bg);
+  --color-background-warning: #f7e6bf;
+  --color-background-danger: var(--danger-soft);
+  --color-background-info: var(--primary-soft);
+  --color-text-primary: var(--ink);
+  --color-text-secondary: var(--muted);
+  --color-text-tertiary: var(--muted);
+  --color-text-success: var(--success-ink);
+  --color-text-warning: #7a5200;
+  --color-text-danger: var(--danger);
+  --color-text-info: var(--primary);
+  --color-border-primary: var(--outline-strong);
+  --color-border-secondary: var(--outline-strong);
+  --color-border-tertiary: var(--outline-strong);
+  --border-radius-md: 10px;
+  --border-radius-lg: 14px;
+  --border-radius-xl: 16px;
 }
 
 /* ===========================================================================
@@ -239,6 +263,7 @@ textarea {
   position: sticky;
   top: 1rem;
   align-self: start;
+  scroll-margin-top: 1.25rem;
 }
 
 button {
