@@ -1122,10 +1122,10 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
         <main className="chat-main">
           <div className="chat-scroll">
             <div className="chat-utility-row">
-              <button type="button" className="chat-new-thread" onClick={startFreshThread}>
+              <button type="button" className="chat-new-thread" onClick={startFreshThread} aria-label="New thread" title="Start a new thread">
                 <MaterialIcon name="auto_awesome" className="icon-fill" />
               </button>
-              {error ? <div className="chat-error-banner">{error}</div> : null}
+              {error ? <div className="chat-error-banner" role="alert">{error}</div> : null}
             </div>
 
             {activeThread?.messages.length ? (
@@ -1140,12 +1140,15 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                       <MaterialIcon name="auto_awesome" className="icon-fill" />
                     </div>
                     <div className="chat-answer-column">
-                      <article className={`chat-answer-card ${message.status === "pending" ? "is-pending" : ""} ${message.status === "failed" ? "is-failed" : ""}`}>
+                      <article
+                        className={`chat-answer-card ${message.status === "pending" ? "is-pending" : ""} ${message.status === "failed" ? "is-failed" : ""}`}
+                        aria-live="polite"
+                      >
                         {message.status === "pending" ? (
-                          <div className="chat-progress-card">
+                          <div className="chat-progress-card" role="status">
                             <div className="chat-progress-head">
                               <strong>{message.progressLabel || "Working on your answer"}</strong>
-                              <span>{message.progress || 0}%</span>
+                              <span aria-hidden="true">{message.progress || 0}%</span>
                             </div>
                             <div className="chat-progress-bar">
                               <div style={{ width: `${message.progress || 0}%` }} />

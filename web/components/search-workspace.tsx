@@ -177,7 +177,7 @@ export function SearchWorkspace() {
             {loading ? "Searching..." : "Search"}
           </button>
         </div>
-        {error ? <div className="error-banner">{error}</div> : null}
+        {error ? <div className="error-banner" role="alert">{error}</div> : null}
         {!loading && hasSearched && allResults.length > 0 ? (
           <div className="search-result-summary">
             <strong>{visibleResults.length}</strong>
@@ -262,7 +262,7 @@ export function SearchWorkspace() {
       ) : null}
 
       {loading ? (
-        <div className="workspace-empty-state">
+        <div className="workspace-empty-state" role="status">
           <div className="workspace-empty-card">
             <MaterialIcon name="progress_activity" className="workspace-empty-icon" />
             <h2>Searching indexed content...</h2>

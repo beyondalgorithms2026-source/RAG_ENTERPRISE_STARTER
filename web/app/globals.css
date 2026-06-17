@@ -246,6 +246,23 @@ button {
   cursor: pointer;
 }
 
+/* Global keyboard focus ring — every interactive element shows a visible focus
+   indicator for keyboard users (a11y, UX8). Components may override with their
+   own ring; this is the baseline so nothing is ever focus-invisible. */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+a:focus-visible,
+button:focus-visible,
+[role="tab"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
 /* One boxed control surface for native input/select/textarea: white panel
    background, visible border, custom chevron for selects, shared focus ring. */
 input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
