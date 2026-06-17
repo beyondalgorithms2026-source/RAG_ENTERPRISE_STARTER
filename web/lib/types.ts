@@ -7,6 +7,7 @@ export type SearchResult = {
   heading: string;
   locator?: string | null;
   snippet: string;
+  corpus_name?: string | null;
   score: number;
   rerank_score?: number | null;
   vector_score?: number | null;

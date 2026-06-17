@@ -2,18 +2,27 @@
 
 import { MaterialIcon } from "@/components/icons";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Select } from "@/components/ui/Select";
 import { TextInput } from "@/components/ui/TextInput";
+import { Toggle } from "@/components/ui/Toggle";
 import { browserFetch } from "@/lib/api-browser";
-import type { SearchResponse } from "@/lib/types";
+import type { SearchResponse, SearchResult } from "@/lib/types";
 
 const MODE_LABELS: Record<string, string> = {
   hybrid: "Hybrid",
   vector: "Semantic",
   keyword: "Keyword",
 };
+
+const DATE_WINDOWS: Record<string, number> = {
+  "24h": 24 * 60 * 60 * 1000,
+  "7d": 7 * 24 * 60 * 60 * 1000,
+  "30d": 30 * 24 * 60 * 60 * 1000,
+};
+
+const UNASSIGNED_CORPUS = "Unassigned";
 
 function sourceGlyph(sourceType: string) {
   const value = sourceType.toLowerCase();
@@ -22,16 +31,99 @@ function sourceGlyph(sourceType: string) {
   return "link";
 }
 
+function corpusOf(item: SearchResult) {
+  return item.corpus_name?.trim() || UNASSIGNED_CORPUS;
+}
+
+function indexedAtMs(item: SearchResult): number | null {
+  const f = item.freshness;
+  const ts = f?.last_ingested_at || f?.observed_at || f?.last_synced_at;
+  if (!ts) return null;
+  const parsed = Date.parse(ts);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+const FRESHNESS_ORDER: Record<string, number> = { fresh: 0, unknown: 1, stale: 2 };
+
 export function SearchWorkspace() {
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState("hybrid");
   const [result, setResult] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const [facetSourceTypes, setFacetSourceTypes] = useState<Set<string>>(new Set());
+  const [facetCorpora, setFacetCorpora] = useState<Set<string>>(new Set());
+  const [facetFreshness, setFacetFreshness] = useState<Set<string>>(new Set());
+  const [indexedWithin, setIndexedWithin] = useState("all");
+  const [sortBy, setSortBy] = useState("relevance");
+
   const hasSearched = result !== null;
-  const results = result?.results ?? [];
-  const maxScore = results.reduce((max, item) => Math.max(max, item.score), 0) || 1;
+  const allResults = useMemo(() => result?.results ?? [], [result]);
   const modeLabel = MODE_LABELS[result?.mode ?? mode] ?? (result?.mode ?? mode);
+
+  const sourceTypeOptions = useMemo(
+    () => Array.from(new Set(allResults.map((item) => item.source_type).filter(Boolean))).sort(),
+    [allResults],
+  );
+  const corpusOptions = useMemo(
+    () => Array.from(new Set(allResults.map(corpusOf))).sort(),
+    [allResults],
+  );
+  const freshnessOptions = useMemo(
+    () => Array.from(new Set(allResults.map((item) => item.freshness?.status).filter(Boolean) as string[])).sort(),
+    [allResults],
+  );
+
+  const visibleResults = useMemo(() => {
+    const now = Date.now();
+    const windowMs = DATE_WINDOWS[indexedWithin];
+    const filtered = allResults.filter((item) => {
+      if (facetSourceTypes.size && !facetSourceTypes.has(item.source_type)) return false;
+      if (facetCorpora.size && !facetCorpora.has(corpusOf(item))) return false;
+      if (facetFreshness.size && !facetFreshness.has(item.freshness?.status ?? "")) return false;
+      if (windowMs) {
+        const at = indexedAtMs(item);
+        if (at === null || now - at > windowMs) return false;
+      }
+      return true;
+    });
+    const sorted = [...filtered];
+    if (sortBy === "file_asc") {
+      sorted.sort((a, b) => a.file_name.localeCompare(b.file_name) || b.score - a.score);
+    } else if (sortBy === "source_type") {
+      sorted.sort((a, b) => a.source_type.localeCompare(b.source_type) || b.score - a.score);
+    } else if (sortBy === "freshness") {
+      sorted.sort(
+        (a, b) =>
+          (FRESHNESS_ORDER[a.freshness?.status ?? "unknown"] ?? 1) -
+            (FRESHNESS_ORDER[b.freshness?.status ?? "unknown"] ?? 1) || b.score - a.score,
+      );
+    } else {
+      sorted.sort((a, b) => b.score - a.score);
+    }
+    return sorted;
+  }, [allResults, facetSourceTypes, facetCorpora, facetFreshness, indexedWithin, sortBy]);
+
+  const visibleMaxScore = visibleResults.reduce((max, item) => Math.max(max, item.score), 0) || 1;
+  const activeFacetCount =
+    facetSourceTypes.size + facetCorpora.size + facetFreshness.size + (indexedWithin !== "all" ? 1 : 0);
+
+  function toggleIn(setter: (updater: (prev: Set<string>) => Set<string>) => void, value: string) {
+    setter((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  }
+
+  function clearFilters() {
+    setFacetSourceTypes(new Set());
+    setFacetCorpora(new Set());
+    setFacetFreshness(new Set());
+    setIndexedWithin("all");
+  }
 
   async function runSearch() {
     if (!query.trim()) {
@@ -39,6 +131,7 @@ export function SearchWorkspace() {
     }
     setLoading(true);
     setError("");
+    clearFilters();
     try {
       const payload = await browserFetch<SearchResponse>("/search", {
         method: "POST",
@@ -85,13 +178,88 @@ export function SearchWorkspace() {
           </button>
         </div>
         {error ? <div className="error-banner">{error}</div> : null}
-        {!loading && hasSearched && results.length > 0 ? (
+        {!loading && hasSearched && allResults.length > 0 ? (
           <div className="search-result-summary">
-            <strong>{results.length}</strong> result{results.length === 1 ? "" : "s"} · {modeLabel} retrieval
+            <strong>{visibleResults.length}</strong>
+            {visibleResults.length === allResults.length ? "" : ` of ${allResults.length}`} result
+            {allResults.length === 1 ? "" : "s"} · {modeLabel} retrieval
             {typeof result?.latency_ms === "number" ? <span> · {Math.round(result.latency_ms)}ms</span> : null}
           </div>
         ) : null}
       </section>
+
+      {!loading && hasSearched && allResults.length > 0 ? (
+        <section className="search-facets" aria-label="Filter and sort results">
+          {sourceTypeOptions.length > 0 ? (
+            <div className="search-facet-group">
+              <span className="search-facet-label">Source type</span>
+              <div className="search-facet-options">
+                {sourceTypeOptions.map((value) => (
+                  <Toggle
+                    key={value}
+                    label={value}
+                    checked={facetSourceTypes.has(value)}
+                    onChange={() => toggleIn(setFacetSourceTypes, value)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {corpusOptions.length > 1 ? (
+            <div className="search-facet-group">
+              <span className="search-facet-label">Corpus</span>
+              <div className="search-facet-options">
+                {corpusOptions.map((value) => (
+                  <Toggle
+                    key={value}
+                    label={value}
+                    checked={facetCorpora.has(value)}
+                    onChange={() => toggleIn(setFacetCorpora, value)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {freshnessOptions.length > 1 ? (
+            <div className="search-facet-group">
+              <span className="search-facet-label">Freshness</span>
+              <div className="search-facet-options">
+                {freshnessOptions.map((value) => (
+                  <Toggle
+                    key={value}
+                    label={value}
+                    checked={facetFreshness.has(value)}
+                    onChange={() => toggleIn(setFacetFreshness, value)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="search-facet-group">
+            <span className="search-facet-label">Indexed</span>
+            <Select className="search-facet-select" value={indexedWithin} onChange={(event) => setIndexedWithin(event.target.value)} aria-label="Indexed within">
+              <option value="all">Any time</option>
+              <option value="24h">Last 24 hours</option>
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+            </Select>
+          </div>
+          <div className="search-facet-group">
+            <span className="search-facet-label">Sort by</span>
+            <Select className="search-facet-select" value={sortBy} onChange={(event) => setSortBy(event.target.value)} aria-label="Sort results">
+              <option value="relevance">Relevance</option>
+              <option value="file_asc">File name (A–Z)</option>
+              <option value="freshness">Freshness</option>
+              <option value="source_type">Source type</option>
+            </Select>
+          </div>
+          {activeFacetCount > 0 ? (
+            <button type="button" className="stitch-button stitch-button-secondary stitch-button-small" onClick={clearFilters}>
+              Clear filters ({activeFacetCount})
+            </button>
+          ) : null}
+        </section>
+      ) : null}
 
       {loading ? (
         <div className="workspace-empty-state">
@@ -117,7 +285,7 @@ export function SearchWorkspace() {
         </div>
       ) : null}
 
-      {!loading && results.length > 0 ? (
+      {!loading && allResults.length > 0 && visibleResults.length > 0 ? (
         <div className="admin-table-scroll">
           <table className="admin-data-table">
             <thead>
@@ -130,8 +298,8 @@ export function SearchWorkspace() {
               </tr>
             </thead>
             <tbody>
-              {results.map((item) => {
-                const pct = Math.min(100, Math.max(6, Math.round((item.score / maxScore) * 100)));
+              {visibleResults.map((item) => {
+                const pct = Math.min(100, Math.max(6, Math.round((item.score / visibleMaxScore) * 100)));
                 return (
                   <tr key={`${item.chunk_id}-${item.source_id}`}>
                     <td>
@@ -139,7 +307,7 @@ export function SearchWorkspace() {
                         <MaterialIcon name={sourceGlyph(item.source_type)} className="search-source-icon" />
                         <div>
                           <strong>{item.heading || item.file_name}</strong>
-                          <span className="search-source-file">{item.file_name}</span>
+                          <span className="search-source-file">{item.file_name}{item.corpus_name ? ` · ${item.corpus_name}` : ""}</span>
                         </div>
                         {item.freshness ? (
                           <span className={`badge ${item.freshness.status === "fresh" ? "is-good" : item.freshness.status === "stale" ? "is-danger" : "is-warning"}`}>
@@ -153,7 +321,7 @@ export function SearchWorkspace() {
                     <td>
                       <div
                         className="search-relevance"
-                        title={`Retrieval score (${modeLabel} mode): ${item.score.toFixed(3)}. The bar is relative to the top result in this set.`}
+                        title={`Retrieval score (${modeLabel} mode): ${item.score.toFixed(3)}. The bar is relative to the top visible result.`}
                       >
                         <span className="search-relevance-bar">
                           <span style={{ width: `${pct}%` }} />
@@ -172,7 +340,20 @@ export function SearchWorkspace() {
         </div>
       ) : null}
 
-      {!loading && hasSearched && results.length === 0 ? (
+      {!loading && hasSearched && allResults.length > 0 && visibleResults.length === 0 ? (
+        <div className="workspace-empty-state">
+          <div className="workspace-empty-card">
+            <MaterialIcon name="travel_explore" className="workspace-empty-icon" />
+            <h2>No results match the current filters.</h2>
+            <p>{allResults.length} result{allResults.length === 1 ? "" : "s"} were retrieved, but none match the selected facets. Clear the filters to see them.</p>
+            <div className="workspace-empty-actions">
+              <button type="button" className="stitch-button stitch-button-primary stitch-button-small" onClick={clearFilters}>Clear filters</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {!loading && hasSearched && allResults.length === 0 ? (
         <div className="workspace-empty-state">
           <div className="workspace-empty-card">
             <MaterialIcon name="travel_explore" className="workspace-empty-icon" />
