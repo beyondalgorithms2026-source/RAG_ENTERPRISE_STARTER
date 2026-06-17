@@ -124,6 +124,30 @@ const ALIASES: Record<string, string> = {
   logout: "logout",
 };
 
+/**
+ * Brand mark: a document with a magnifying glass (retrieval over documents).
+ * Inline SVG (self-hosted, no external/raster asset), themed via currentColor.
+ */
+export function BrandLogo({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={`brand-logo ${className ?? ""}`.trim()}
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.9}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4" />
+      <path d="M13 3l5 5v3" />
+      <circle cx="15" cy="15" r="4" />
+      <path d="m18.1 18.1 3 3" />
+    </svg>
+  );
+}
+
 export function MaterialIcon({
   name,
   className,
