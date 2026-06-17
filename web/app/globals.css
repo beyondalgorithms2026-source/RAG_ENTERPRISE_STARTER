@@ -6597,3 +6597,81 @@ textarea:focus-visible {
     padding: 40px 20px;
   }
 }
+
+/* UX9: intermediate breakpoints (1280 / 1024 / 768). Placed last so they win on
+   ties; ordered broad → narrow so the narrowest match applies. */
+@media (max-width: 1280px) {
+  .chat-layout {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+
+  .chat-metadata-bar {
+    gap: 16px;
+    padding: 14px 20px;
+  }
+}
+
+@media (max-width: 1024px) {
+  /* Evidence rail drops below the conversation as a full-width sheet. */
+  .chat-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-evidence-panel {
+    position: static;
+    top: auto;
+    min-height: 0;
+    max-height: none;
+    border-top: 1px solid var(--outline-strong);
+  }
+
+  .chat-metadata-bar {
+    flex-wrap: wrap;
+    gap: 12px 18px;
+    padding: 12px 16px;
+  }
+
+  .admin-filter-grid-5,
+  .admin-filter-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .search-toolbar .search-query {
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-filter-grid,
+  .admin-filter-grid-4,
+  .admin-filter-grid-5 {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-answer-card {
+    padding: 20px;
+    border-radius: 20px;
+  }
+
+  .chat-metadata-bar {
+    gap: 10px 14px;
+    letter-spacing: 0.06em;
+  }
+
+  .search-page {
+    padding: 18px 14px 32px;
+  }
+
+  .search-facets {
+    gap: 12px 14px;
+  }
+
+  .search-facet-group,
+  .search-facets .search-facet-select {
+    width: 100%;
+  }
+
+  .search-snippet {
+    max-width: none;
+  }
+}
