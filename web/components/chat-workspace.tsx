@@ -3,7 +3,8 @@
 import { MaterialIcon } from "@/components/icons";
 import { AnswerMarkdown } from "@/components/markdown";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { browserApiUrl, browserFetch } from "@/lib/api-browser";
 import type { AskResponse } from "@/lib/types";
@@ -268,6 +269,7 @@ function writeStoredEvidenceRailState(threadId: string, state: StoredEvidenceRai
 
 export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initialThreadId?: string; freshOnLoad?: boolean }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [threads, setThreads] = useState<ThreadRecord[]>([]);
   const [currentThreadId, setCurrentThreadId] = useState(initialThreadId || "");
   const [question, setQuestion] = useState("");
@@ -1075,6 +1077,15 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   const contextTitle = citationContext?.source_file_name || selectedCitation?.file_name || "Retrieved source";
   const contextTitleLabel = formatSourceTitle(contextTitle);
 
+  // Bridge from Search: arrive at /chat?q=… → prefill the composer (not auto-sent;
+  // asking runs the LLM, so the user confirms by pressing Ask).
+  useEffect(() => {
+    const incoming = searchParams.get("q");
+    if (incoming) {
+      setQuestion(incoming);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     if (!accessModalMessageId) {
       return;
@@ -1127,6 +1138,16 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
             </button>
             <span className="chat-speed-caption">{deepResearch ? "Deeper retrieval" : "Lower latency"}</span>
           </div>
+          {activeEvidenceSection?.question ? (
+            <Link
+              href={`/console/workspace/search?q=${encodeURIComponent(activeEvidenceSection.question)}`}
+              className="chat-search-bridge"
+              title="See the raw retrieved sources for this question in Search"
+            >
+              <MaterialIcon name="manage_search" />
+              Search sources
+            </Link>
+          ) : null}
         </div>
       ) : null}
 
