@@ -100,6 +100,7 @@ export function AdminActionsPanel() {
     eval_packs: [],
   });
   const [feedback, setFeedback] = useState("");
+  const [actionsTab, setActionsTab] = useState<"approvals" | "failures" | "activity">("approvals");
   const [selectedFailure, setSelectedFailure] = useState<NegativeFeedbackRow | null>(null);
   const [reviewReasons, setReviewReasons] = useState<Record<number, string>>({});
   const [toolDraft, setToolDraft] = useState({
@@ -208,6 +209,14 @@ export function AdminActionsPanel() {
         <p>Run governed tool actions, review sensitive outputs, and inspect missing-evidence feedback loops.</p>
       </section>
 
+      <div className="admin-tabs" role="tablist" aria-label="Actions sections">
+        <button type="button" role="tab" aria-selected={actionsTab === "approvals"} className={`admin-tab ${actionsTab === "approvals" ? "is-active" : ""}`} onClick={() => setActionsTab("approvals")}>Approvals</button>
+        <button type="button" role="tab" aria-selected={actionsTab === "failures"} className={`admin-tab ${actionsTab === "failures" ? "is-active" : ""}`} onClick={() => setActionsTab("failures")}>Failures</button>
+        <button type="button" role="tab" aria-selected={actionsTab === "activity"} className={`admin-tab ${actionsTab === "activity" ? "is-active" : ""}`} onClick={() => setActionsTab("activity")}>Activity</button>
+      </div>
+
+      {actionsTab === "approvals" ? (
+        <>
       <section className="admin-card page-stack">
         <h2>Tool Invocation</h2>
         <div className="admin-form-grid" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>
@@ -244,6 +253,11 @@ export function AdminActionsPanel() {
         </div>
       </section>
 
+        </>
+      ) : null}
+
+      {actionsTab === "failures" ? (
+        <>
       <section className="admin-card page-stack">
         <div className="section-head">
           <div>
@@ -377,6 +391,11 @@ export function AdminActionsPanel() {
         </div>
       </section>
 
+        </>
+      ) : null}
+
+      {actionsTab === "activity" ? (
+        <>
       <section className="admin-card page-stack">
         <h2>Recent Tool Invocations</h2>
         <div className="admin-list">
@@ -391,6 +410,8 @@ export function AdminActionsPanel() {
           ))}
         </div>
       </section>
+        </>
+      ) : null}
     </div>
   );
 }
