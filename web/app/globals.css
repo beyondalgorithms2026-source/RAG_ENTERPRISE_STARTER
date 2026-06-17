@@ -2854,6 +2854,9 @@ textarea:focus-visible {
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
+  /* Explicit row height so grid items get a definite height (Safari collapses the
+     inner flex:1 scroll areas to 0 without this — Chrome tolerates the implicit row). */
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .chat-main {
@@ -2868,6 +2871,8 @@ textarea:focus-visible {
   min-height: 0;
   overflow-y: auto;
   padding-right: 12px;
+  display: flex;
+  flex-direction: column;
 }
 
 .chat-utility-row {
@@ -2884,10 +2889,12 @@ textarea:focus-visible {
 }
 
 .chat-empty-state {
+  flex: 1;
+  min-height: 0;
   display: grid;
   place-items: center;
-  min-height: 100%;
-  padding: 16px 0;
+  /* Asymmetric padding nudges the card up and keeps a gap before the composer. */
+  padding: 8px 0 36px;
 }
 
 .chat-empty-card {
@@ -7000,14 +7007,25 @@ textarea:focus-visible {
 }
 
 @media (max-width: 1024px) {
-  /* Evidence rail drops below the conversation as a full-width sheet. */
+  /* Evidence rail drops below the conversation as a full-width sheet; the page
+     scrolls naturally (no fixed viewport height / single row). */
+  .chat-page {
+    height: auto;
+  }
+
   .chat-layout {
     grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+
+  .chat-scroll {
+    overflow-y: visible;
   }
 
   .chat-evidence-panel {
     position: static;
     top: auto;
+    height: auto;
     min-height: 0;
     max-height: none;
     border-top: 1px solid var(--outline-strong);
