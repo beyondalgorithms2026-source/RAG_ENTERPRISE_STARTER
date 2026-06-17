@@ -2847,6 +2847,10 @@ textarea:focus-visible {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 60px);
+  /* Safari flex-shrinks a flex item with an explicit height when its parent isn't
+     stretched; pin it so the chat actually fills the viewport. */
+  min-height: calc(100vh - 60px);
+  flex-shrink: 0;
 }
 
 /* Flexbox (not grid) for the two columns — Safari reliably stretches flex items to
