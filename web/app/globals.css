@@ -6000,6 +6000,24 @@ textarea:focus-visible {
   grid-column: 1 / -1;
 }
 
+/* Bare form fields stacked directly in a card (label + control, no Field wrapper)
+   get the canonical field rhythm: a styled label, a 6px gap to the control, and
+   consistent spacing before the next field/button. Scoped to unclassed labels so
+   toggles and other classed labels are untouched. */
+.card > label:not([class]),
+.admin-card > label:not([class]) {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.card > label:not([class]) > span,
+.admin-card > label:not([class]) > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .form-inline {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
