@@ -1982,6 +1982,7 @@ export function TracesAdminPanel() {
   const [payload, setPayload] = useState<{ traces: GenericMap[]; active_profiles?: GenericMap; retrieval_settings?: GenericMap }>({ traces: [] });
   const [selectedTraceId, setSelectedTraceId] = useState("");
   const [traceDetail, setTraceDetail] = useState<GenericMap | null>(null);
+  const [tracesTab, setTracesTab] = useState<"explore" | "debug">("explore");
   const [debugQuestion, setDebugQuestion] = useState("");
   const [debugMode, setDebugMode] = useState("hybrid");
   const [debugK, setDebugK] = useState("5");
@@ -2157,6 +2158,11 @@ export function TracesAdminPanel() {
         <SummaryMetricCard label="Fallbacks" value={formatCount(fallbackCount, "trace")} tone={fallbackCount ? "is-warning" : ""} />
         <SummaryMetricCard label="Average Latency" value={visibleTraces.length ? `${avgLatency} ms` : "n/a"} />
       </section>
+      <div className="admin-tabs" role="tablist" aria-label="Traces sections">
+        <button type="button" role="tab" aria-selected={tracesTab === "explore"} className={`admin-tab ${tracesTab === "explore" ? "is-active" : ""}`} onClick={() => setTracesTab("explore")}>Trace Explorer</button>
+        <button type="button" role="tab" aria-selected={tracesTab === "debug"} className={`admin-tab ${tracesTab === "debug" ? "is-active" : ""}`} onClick={() => setTracesTab("debug")}>Query Debug</button>
+      </div>
+      {tracesTab === "debug" ? (
       <section className="card">
         <div className="section-head">
           <div>
@@ -2181,6 +2187,9 @@ export function TracesAdminPanel() {
         </div>
         {debugResult ? <JsonPanel value={debugResult} /> : null}
       </section>
+      ) : null}
+      {tracesTab === "explore" ? (
+      <>
       <section className="card">
         <div className="section-head">
           <div>
@@ -2283,6 +2292,8 @@ export function TracesAdminPanel() {
           {!traceDetail ? <EmptyState title={isLoading ? "Loading trace detail..." : "Select a trace."} copy={isLoading ? "Waiting for the trace inventory before detail can render." : payload.traces.length ? "Choose a trace from the list to inspect the full stored retrieval payload." : "No trace detail is available yet because no retrieval traffic has been recorded."} icon={isLoading ? "progress_activity" : "article"} /> : <JsonPanel value={traceDetail} />}
         </section>
       </div>
+      </>
+      ) : null}
     </div>
   );
 }
