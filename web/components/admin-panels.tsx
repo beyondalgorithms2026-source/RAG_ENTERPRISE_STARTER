@@ -805,7 +805,7 @@ export function SourcesAdminPanel() {
   // into view so the operator never loses the selected record.
   function selectSourceAndReveal(id: string) {
     setSelectedSourceId(id);
-    requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
   }
   const [draft, setDraft] = useState<SourceDraft>(sourceDraftFromItem(null));
   const [error, setError] = useState("");
@@ -1251,7 +1251,7 @@ export function JobsAdminPanel() {
   const jobDetailRef = useRef<HTMLElement>(null);
   function selectJobAndReveal(key: string) {
     setSelectedJobKey(key);
-    requestAnimationFrame(() => jobDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    requestAnimationFrame(() => jobDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
   }
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -2334,7 +2334,7 @@ export function AuditLogAdminPanel() {
   const eventDetailRef = useRef<HTMLElement>(null);
   function selectEventAndReveal(id: string) {
     setSelectedEventId(id);
-    requestAnimationFrame(() => eventDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    requestAnimationFrame(() => eventDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
   }
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);

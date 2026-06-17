@@ -57,7 +57,7 @@ The CSS custom properties in `app/globals.css :root` are the **only** token sour
 Use a **4-based scale: 4 / 8 / 12 / 16 / 24 / 32 / 48**. Existing components cluster on `6/8/10/12/18` — when editing, migrate toward the scale; do not add new arbitrary values.
 
 ### 2.5 Radii
-`10px` (controls, tables, cards), `14px` (panels), `16px` (buttons; small button `12px`); pills/badges `999px`. Use these values directly — the earlier unused `--border-radius-*` token aliases were removed in UX2.
+`10px` (controls, tables, cards), `14px` (panels), `16px` (buttons; small button `12px`); pills/badges `999px`. The admin panels reference these via the `--border-radius-md/lg/xl` aliases in `:root` (consumed by inline styles); CSS rules use the raw values.
 
 ### 2.6 Typography
 - **Font:** Inter (self-hosted as of UX1) with a system fallback stack. `--font-mono` for code/JSON.
