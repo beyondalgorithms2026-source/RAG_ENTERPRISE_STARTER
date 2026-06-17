@@ -805,7 +805,10 @@ export function SourcesAdminPanel() {
   // into view so the operator never loses the selected record.
   function selectSourceAndReveal(id: string) {
     setSelectedSourceId(id);
-    requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+    requestAnimationFrame(() => {
+      detailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      if (detailRef.current) detailRef.current.scrollTop = 0;
+    });
   }
   const [draft, setDraft] = useState<SourceDraft>(sourceDraftFromItem(null));
   const [error, setError] = useState("");
@@ -1251,7 +1254,10 @@ export function JobsAdminPanel() {
   const jobDetailRef = useRef<HTMLElement>(null);
   function selectJobAndReveal(key: string) {
     setSelectedJobKey(key);
-    requestAnimationFrame(() => jobDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+    requestAnimationFrame(() => {
+      jobDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      if (jobDetailRef.current) jobDetailRef.current.scrollTop = 0;
+    });
   }
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -2334,7 +2340,10 @@ export function AuditLogAdminPanel() {
   const eventDetailRef = useRef<HTMLElement>(null);
   function selectEventAndReveal(id: string) {
     setSelectedEventId(id);
-    requestAnimationFrame(() => eventDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+    requestAnimationFrame(() => {
+      eventDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      if (eventDetailRef.current) eventDetailRef.current.scrollTop = 0;
+    });
   }
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
