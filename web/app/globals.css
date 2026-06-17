@@ -2020,11 +2020,20 @@ textarea:focus-visible {
 }
 
 .admin-sidebar-scroll {
+  flex: 1;
   min-height: 0;
   overflow-y: auto;
   display: grid;
+  align-content: start;
   gap: 14px;
   padding-right: 2px;
+}
+
+/* Brand stays fixed at the top of the sidebar (outside the scroll area). */
+.admin-sidebar-head {
+  flex: 0 0 auto;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--outline-strong);
 }
 
 .admin-sidebar-link,
@@ -2768,6 +2777,23 @@ textarea:focus-visible {
 
 .chat-metadata-bar strong {
   color: var(--ink);
+}
+
+/* Ask → Search bridge link in the chat metadata bar. */
+.chat-search-bridge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: var(--primary);
+}
+
+.chat-search-bridge:hover {
+  color: var(--primary-strong);
+}
+
+.chat-search-bridge .app-icon {
+  font-size: 1rem;
 }
 
 .chat-mode-pill {

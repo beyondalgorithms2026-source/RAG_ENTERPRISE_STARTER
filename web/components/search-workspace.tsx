@@ -2,7 +2,8 @@
 
 import { MaterialIcon } from "@/components/icons";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Select } from "@/components/ui/Select";
 import { TextInput } from "@/components/ui/TextInput";
@@ -46,6 +47,7 @@ function indexedAtMs(item: SearchResult): number | null {
 const FRESHNESS_ORDER: Record<string, number> = { fresh: 0, unknown: 1, stale: 2 };
 
 export function SearchWorkspace() {
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState("hybrid");
   const [result, setResult] = useState<SearchResponse | null>(null);
@@ -125,8 +127,8 @@ export function SearchWorkspace() {
     setIndexedWithin("all");
   }
 
-  async function runSearch() {
-    if (!query.trim()) {
+  async function runSearchValue(value: string) {
+    if (!value.trim()) {
       return;
     }
     setLoading(true);
@@ -135,7 +137,7 @@ export function SearchWorkspace() {
     try {
       const payload = await browserFetch<SearchResponse>("/search", {
         method: "POST",
-        json: { question: query, k: 8, mode, debug: true },
+        json: { question: value, k: 8, mode, debug: true },
       });
       setResult(payload);
     } catch (err) {
@@ -144,6 +146,22 @@ export function SearchWorkspace() {
       setLoading(false);
     }
   }
+
+  function runSearch() {
+    void runSearchValue(query);
+  }
+
+  // Bridge from Ask: arrive at /search?q=… → prefill and run once.
+  const bridgedRef = useRef(false);
+  useEffect(() => {
+    const incoming = searchParams.get("q");
+    if (incoming && !bridgedRef.current) {
+      bridgedRef.current = true;
+      setQuery(incoming);
+      void runSearchValue(incoming);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   return (
     <div className="search-page">
@@ -176,6 +194,16 @@ export function SearchWorkspace() {
           <button className="stitch-button stitch-button-primary stitch-button-small" type="button" onClick={runSearch} disabled={loading}>
             {loading ? "Searching..." : "Search"}
           </button>
+          {query.trim() ? (
+            <Link
+              href={`/console/workspace/chat?q=${encodeURIComponent(query.trim())}`}
+              className="stitch-button stitch-button-secondary stitch-button-small"
+              title="Ask this question and get a grounded answer with citations"
+            >
+              <MaterialIcon name="forum" />
+              Ask in chat
+            </Link>
+          ) : null}
         </div>
         {error ? <div className="error-banner" role="alert">{error}</div> : null}
         {!loading && hasSearched && allResults.length > 0 ? (

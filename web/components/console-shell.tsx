@@ -59,8 +59,6 @@ export function ConsoleShell({
     };
   }, []);
 
-  const isChatSurface = pathname.startsWith("/console/workspace/chat");
-  const isSearchSurface = pathname.startsWith("/console/workspace/search");
   const isSourcesSurface =
     pathname.startsWith("/console/workspace/sources") ||
     pathname.startsWith("/console/workspace/uploads") ||
@@ -73,14 +71,14 @@ export function ConsoleShell({
     return (
       <div className="admin-shell">
         <aside className="admin-sidebar">
-          <div className="admin-sidebar-scroll">
-            <div className="admin-sidebar-head">
-              <div className="brand-lockup">
-                <BrandLogo />
-                <h2>RAG Enterprise</h2>
-              </div>
-              <p>Admin Console</p>
+          <div className="admin-sidebar-head">
+            <div className="brand-lockup">
+              <BrandLogo />
+              <h2>RAG Enterprise</h2>
             </div>
+            <p>Admin Console</p>
+          </div>
+          <div className="admin-sidebar-scroll">
             <nav className="admin-sidebar-nav">
               {adminNav?.pinned.map((item) => (
                 <Link
@@ -190,16 +188,7 @@ export function ConsoleShell({
               <input readOnly value="Search workspace..." aria-label="Workspace search (coming soon)" tabIndex={-1} />
               <span className="coming-soon-badge">Soon</span>
             </div>
-          ) : (
-            <div className="workspace-toggle">
-              <Link href="/console/workspace/chat" className={!isSearchSurface ? "is-active" : ""}>
-                Ask
-              </Link>
-              <Link href="/console/workspace/search" className={isSearchSurface ? "is-active" : ""}>
-                Search
-              </Link>
-            </div>
-          )}
+          ) : null}
         </div>
         <div className="workspace-topbar-actions">
           <div className="console-viewer-chip" title={viewerSecondary}>
