@@ -212,91 +212,93 @@ export function TuningLabPanel() {
                           <p className="tuning-lab-selector-note-strong">Base Retrieval Profile</p>
                           <p>The current live retrieval profile supplies the governed defaults. Use the controls below to test sandbox-only query transformation behavior before promoting.</p>
                         </div>
-                        <div className="tuning-lab-slider-grid">
-                          <Field label="">
-                            <div className="tuning-lab-slider-wrap">
-                              <ParameterLabel label="Query Transformation" tooltip="Master switch for rewrite, expansion, and HyDE. If off, all child transforms are ignored." />
-                              <ToggleControl
-                                label="Query Transformation"
-                                enabled={queryTransformEnabled}
-                                onToggle={() => updateRetrievalToggle("query_transform_enabled", !queryTransformEnabled)}
-                              />
-                            </div>
-                          </Field>
-                          <Field label="">
-                            <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
-                              <ParameterLabel label="Rewrite" tooltip="Runs the rewrite strategy when query transformation is enabled." />
-                              <ToggleControl
-                                label="Rewrite"
-                                enabled={Boolean(candidateRetrievalConfig.rewrite_enabled)}
-                                disabled={!queryTransformEnabled}
-                                onToggle={() => updateRetrievalToggle("rewrite_enabled", !Boolean(candidateRetrievalConfig.rewrite_enabled))}
-                              />
-                            </div>
-                          </Field>
-                          <Field label="">
-                            <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
-                              <ParameterLabel label="Expansion" tooltip="Adds expansion variants when query transformation is enabled." />
-                              <ToggleControl
-                                label="Expansion"
-                                enabled={Boolean(candidateRetrievalConfig.expansion_enabled)}
-                                disabled={!queryTransformEnabled}
-                                onToggle={() => updateRetrievalToggle("expansion_enabled", !Boolean(candidateRetrievalConfig.expansion_enabled))}
-                              />
-                            </div>
-                          </Field>
-                          <Field label="">
-                            <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
-                              <ParameterLabel label="HyDE" tooltip="Adds a hypothetical-document style query when query transformation is enabled." />
-                              <ToggleControl
-                                label="HyDE"
-                                enabled={Boolean(candidateRetrievalConfig.hyde_enabled)}
-                                disabled={!queryTransformEnabled}
-                                onToggle={() => updateRetrievalToggle("hyde_enabled", !Boolean(candidateRetrievalConfig.hyde_enabled))}
-                              />
-                            </div>
-                          </Field>
-                          <Field label="">
-                            <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
-                              <ParameterLabel label="Multi-query fan-out" tooltip="Retrieve each generated variant separately and RRF-fuse, instead of concatenating variants into one query." />
-                              <ToggleControl
-                                label="Multi-query fan-out"
-                                enabled={Boolean(candidateRetrievalConfig.multi_query_enabled)}
-                                disabled={!queryTransformEnabled}
-                                onToggle={() => updateRetrievalToggle("multi_query_enabled", !Boolean(candidateRetrievalConfig.multi_query_enabled))}
-                              />
-                            </div>
-                          </Field>
-                          <Field label="">
-                            <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
-                              <ParameterLabel label="Transform Max Variants" tooltip="Caps how many generated query variants can be used in the candidate retrieval profile." />
-                              <div className="tuning-lab-slider-value">{String(candidateRetrievalConfig.transform_max_variants ?? 3)}</div>
-                              <TextInput
-                                type="range"
-                                min="1"
-                                max="8"
-                                step="1"
-                                value={Number(candidateRetrievalConfig.transform_max_variants ?? 3)}
-                                disabled={!queryTransformEnabled}
-                                onChange={(event) => updateRetrievalNumber("transform_max_variants", Number(event.target.value))}
-                              />
-                            </div>
-                          </Field>
-                          <Field label="">
-                            <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
-                              <ParameterLabel label="Transform Timeout (ms)" tooltip="Latency budget for transform execution in the sandbox candidate." />
-                              <div className="tuning-lab-slider-value">{String(candidateRetrievalConfig.transform_timeout_ms ?? 750)}</div>
-                              <TextInput
-                                type="range"
-                                min="100"
-                                max="2000"
-                                step="50"
-                                value={Number(candidateRetrievalConfig.transform_timeout_ms ?? 750)}
-                                disabled={!queryTransformEnabled}
-                                onChange={(event) => updateRetrievalNumber("transform_timeout_ms", Number(event.target.value))}
-                              />
-                            </div>
-                          </Field>
+                        <div className="tuning-lab-transform">
+                          <div className="tuning-lab-transform-master">
+                            <ParameterLabel label="Query Transformation" tooltip="Master switch for rewrite, expansion, and HyDE. If off, all child transforms are ignored." />
+                            <ToggleControl
+                              label="Query Transformation"
+                              enabled={queryTransformEnabled}
+                              onToggle={() => updateRetrievalToggle("query_transform_enabled", !queryTransformEnabled)}
+                            />
+                          </div>
+                          <div className="tuning-lab-slider-grid tuning-lab-transform-toggles">
+                            <Field label="">
+                              <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
+                                <ParameterLabel label="Rewrite" tooltip="Runs the rewrite strategy when query transformation is enabled." />
+                                <ToggleControl
+                                  label="Rewrite"
+                                  enabled={Boolean(candidateRetrievalConfig.rewrite_enabled)}
+                                  disabled={!queryTransformEnabled}
+                                  onToggle={() => updateRetrievalToggle("rewrite_enabled", !Boolean(candidateRetrievalConfig.rewrite_enabled))}
+                                />
+                              </div>
+                            </Field>
+                            <Field label="">
+                              <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
+                                <ParameterLabel label="Expansion" tooltip="Adds expansion variants when query transformation is enabled." />
+                                <ToggleControl
+                                  label="Expansion"
+                                  enabled={Boolean(candidateRetrievalConfig.expansion_enabled)}
+                                  disabled={!queryTransformEnabled}
+                                  onToggle={() => updateRetrievalToggle("expansion_enabled", !Boolean(candidateRetrievalConfig.expansion_enabled))}
+                                />
+                              </div>
+                            </Field>
+                            <Field label="">
+                              <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
+                                <ParameterLabel label="HyDE" tooltip="Adds a hypothetical-document style query when query transformation is enabled." />
+                                <ToggleControl
+                                  label="HyDE"
+                                  enabled={Boolean(candidateRetrievalConfig.hyde_enabled)}
+                                  disabled={!queryTransformEnabled}
+                                  onToggle={() => updateRetrievalToggle("hyde_enabled", !Boolean(candidateRetrievalConfig.hyde_enabled))}
+                                />
+                              </div>
+                            </Field>
+                            <Field label="">
+                              <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
+                                <ParameterLabel label="Multi-query fan-out" tooltip="Retrieve each generated variant separately and RRF-fuse, instead of concatenating variants into one query." />
+                                <ToggleControl
+                                  label="Multi-query fan-out"
+                                  enabled={Boolean(candidateRetrievalConfig.multi_query_enabled)}
+                                  disabled={!queryTransformEnabled}
+                                  onToggle={() => updateRetrievalToggle("multi_query_enabled", !Boolean(candidateRetrievalConfig.multi_query_enabled))}
+                                />
+                              </div>
+                            </Field>
+                          </div>
+                          <div className="tuning-lab-slider-grid tuning-lab-transform-sliders">
+                            <Field label="">
+                              <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
+                                <ParameterLabel label="Transform Timeout (ms)" tooltip="Latency budget for transform execution in the sandbox candidate." />
+                                <div className="tuning-lab-slider-value">{String(candidateRetrievalConfig.transform_timeout_ms ?? 750)}</div>
+                                <TextInput
+                                  type="range"
+                                  min="100"
+                                  max="2000"
+                                  step="50"
+                                  value={Number(candidateRetrievalConfig.transform_timeout_ms ?? 750)}
+                                  disabled={!queryTransformEnabled}
+                                  onChange={(event) => updateRetrievalNumber("transform_timeout_ms", Number(event.target.value))}
+                                />
+                              </div>
+                            </Field>
+                            <Field label="">
+                              <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
+                                <ParameterLabel label="Transform Max Variants" tooltip="Caps how many generated query variants can be used in the candidate retrieval profile." />
+                                <div className="tuning-lab-slider-value">{String(candidateRetrievalConfig.transform_max_variants ?? 3)}</div>
+                                <TextInput
+                                  type="range"
+                                  min="1"
+                                  max="8"
+                                  step="1"
+                                  value={Number(candidateRetrievalConfig.transform_max_variants ?? 3)}
+                                  disabled={!queryTransformEnabled}
+                                  onChange={(event) => updateRetrievalNumber("transform_max_variants", Number(event.target.value))}
+                                />
+                              </div>
+                            </Field>
+                          </div>
                         </div>
                         <div className="tuning-lab-selector-note">
                           <p className="tuning-lab-selector-note-strong">
