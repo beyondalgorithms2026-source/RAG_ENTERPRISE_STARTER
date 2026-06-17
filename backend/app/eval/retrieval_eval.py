@@ -6,13 +6,15 @@ from typing import Any, Dict, List, Optional
 
 from app.core.logging import logger
 from app.core_rag.retrieval import DeepLookupRequest, SearchRequest, perform_deep_lookup, perform_search
+from app.profiles.resolver import get_active_profile_snapshot, get_effective_retrieval
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+REPORTS_DIR = PROJECT_ROOT / "data" / "reports"
 DEMO_FILE = PROJECT_ROOT / "demo_questions.md"
 EVAL_FIXTURE_DIR = PROJECT_ROOT / "backend" / "tests" / "fixtures" / "eval"
 RETRIEVAL_CASES_FILE = EVAL_FIXTURE_DIR / "retrieval_cases.json"
-DEFAULT_REPORT_FILE = PROJECT_ROOT / "eval_report_retrieval.json"
+DEFAULT_REPORT_FILE = REPORTS_DIR / "eval_report_retrieval.json"
 
 
 def parse_demo_questions() -> List[Dict[str, Any]]:
@@ -170,6 +172,7 @@ def evaluate_search_case(case: Dict[str, Any], debug: bool = False) -> Dict[str,
     mode_ok = True if not expected_mode else response.mode == expected_mode
     fallback_ok = True if not expected_fallback else response.mode == expected_fallback
     passed = bool(match_info["passed"] and mode_ok and fallback_ok)
+    response_trace = getattr(response, "debug_info", None) or {}
 
     return {
         "id": case.get("id", "unknown"),
@@ -186,6 +189,20 @@ def evaluate_search_case(case: Dict[str, Any], debug: bool = False) -> Dict[str,
         "observed": {
             "top_headings": [item.get("heading") for item in raw_results[:3]],
             "top_source_types": [item.get("source_type") for item in raw_results[:3]],
+        },
+        "trace": {
+            "request_id": response_trace.get("request_id"),
+            "retrieval_path_used": response_trace.get("retrieval_path_used"),
+            "route_reason": response_trace.get("route_reason"),
+            "route_class": response_trace.get("route_class"),
+            "route_details": response_trace.get("route_details", {}),
+            "rerank_policy": response_trace.get("rerank_policy"),
+            "corpus_policy": response_trace.get("corpus_policy"),
+            "structured_filters": response_trace.get("structured_filters", {}),
+            "candidate_counts": response_trace.get("candidate_counts", {}),
+            "latency_ms": response_trace.get("latency_ms", {}),
+            "fallback_reason": response_trace.get("fallback_reason"),
+            "score_diagnostics": response_trace.get("score_diagnostics", []),
         },
     }
 
@@ -241,6 +258,11 @@ def run_retrieval_eval(
             "pass_rate_percent": round((passed / total) * 100.0, 2) if total else 0.0,
             "evaluated_modes": evaluated_modes,
         },
+        "report_metadata": {
+            "active_profiles": get_active_profile_snapshot(),
+            "retrieval_settings": get_effective_retrieval().model_dump(),
+        },
+        "active_profiles": get_active_profile_snapshot(),
         "results": results,
         "failures": failures,
     }

@@ -1,0 +1,10 @@
+name,description
+public_users,Open enterprise readers
+legal,Legal documents
+finance,Finance documents
+hr,HR documents
+executive_access,Cross-functional executive access
+contract_reviewers,Contract review team
+compliance_observers,Governance observers
+dev-users,Existing local-dev user group
+dev-admins,Existing local-dev admin group

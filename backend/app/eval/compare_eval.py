@@ -1,6 +1,7 @@
 import argparse
 import json
 from contextlib import contextmanager
+import sys
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
@@ -10,12 +11,15 @@ from app.core.logging import logger
 from app.core_rag.answering import AskRequest
 from app.core_rag.retrieval import DeepLookupRequest, SearchFilters, SearchRequest, perform_deep_lookup, perform_search
 from app.eval.retrieval_eval import PROJECT_ROOT, write_eval_report
+from app.profiles.models import RerankerProfileConfig, RetrievalProfileConfig
+from app.profiles.resolver import get_active_profile_snapshot, get_effective_reranker, get_effective_retrieval
 
 
 EVAL_FIXTURE_DIR = PROJECT_ROOT / "backend" / "tests" / "fixtures" / "eval"
 BENCHMARK_CASES_FILE = EVAL_FIXTURE_DIR / "benchmark_cases.json"
-DEFAULT_REPORT_FILE = PROJECT_ROOT / "eval_report_mode_benchmark.json"
+DEFAULT_REPORT_FILE = PROJECT_ROOT / "data" / "reports" / "eval_report_mode_benchmark.json"
 SUPPORTED_BENCHMARK_MODES = ("vector", "keyword", "hybrid", "graph_hybrid", "full", "deep_lookup")
+SUPPORTED_FUSION_METHODS = ("linear", "rrf")
 
 
 def load_benchmark_cases(path: Optional[Path] = None) -> List[Dict[str, Any]]:
@@ -67,6 +71,42 @@ def _build_filters(filters_payload: Optional[Dict[str, Any]]) -> Optional[Search
     if not filters_payload:
         return None
     return SearchFilters(**filters_payload)
+
+
+@contextmanager
+def _temporary_retrieval_profile(overrides: Optional[Dict[str, Any]]) -> Iterator[None]:
+    if not overrides:
+        yield
+        return
+
+    import app.core_rag.retrieval as retrieval_module
+
+    base_config = get_effective_retrieval().model_dump()
+    base_config.update(overrides)
+    patched_config = RetrievalProfileConfig(**base_config)
+    current_module = sys.modules[__name__]
+    with _temporary_value(retrieval_module, "get_effective_retrieval", lambda: patched_config):
+        with _temporary_value(current_module, "get_effective_retrieval", lambda: patched_config):
+            yield
+
+
+@contextmanager
+def _temporary_reranker_profile(overrides: Optional[Dict[str, Any]]) -> Iterator[None]:
+    if not overrides:
+        yield
+        return
+
+    import app.core_rag.retrieval as retrieval_module
+    import app.profiles.resolver as resolver_module
+
+    base_config = get_effective_reranker().model_dump()
+    base_config.update(overrides)
+    patched_config = RerankerProfileConfig(**base_config)
+    current_module = sys.modules[__name__]
+    with _temporary_value(resolver_module, "get_effective_reranker", lambda: patched_config):
+        with _temporary_value(retrieval_module, "get_effective_reranker", lambda: patched_config):
+            with _temporary_value(current_module, "get_effective_reranker", lambda: patched_config):
+                yield
 
 
 def _mock_llm_content(case: Dict[str, Any], mode: str) -> Optional[str]:
@@ -195,7 +235,14 @@ def _mode_failure_note(*, search_error: Optional[str], ask_error: Optional[str],
     return "none"
 
 
-def _run_mode(case: Dict[str, Any], *, mode: str) -> Dict[str, Any]:
+def _run_mode(
+    case: Dict[str, Any],
+    *,
+    mode: str,
+    retrieval_profile_overrides: Optional[Dict[str, Any]] = None,
+    reranker_profile_overrides: Optional[Dict[str, Any]] = None,
+    rerank_variant: str = "profile_default",
+) -> Dict[str, Any]:
     import app.api.ask as ask_api_module
     import app.core_rag.answering as answering_module
 
@@ -210,40 +257,52 @@ def _run_mode(case: Dict[str, Any], *, mode: str) -> Dict[str, Any]:
     raw_results: list[dict[str, Any]] = []
     search_latency_ms = None
     search_mode = mode
+    search_trace: dict[str, Any] = {}
+    ask_trace: dict[str, Any] = {}
 
     try:
-        if mode == "deep_lookup":
-            source_ids = list(
-                request_payload.get("source_ids")
-                or ([] if not filters or filters.source_id is None else [filters.source_id])
-            )
-            search_response = perform_deep_lookup(DeepLookupRequest(question=question, k=k, source_ids=source_ids))
-        else:
-            search_response = perform_search(SearchRequest(question=question, k=k, filters=filters, mode=mode))
-        raw_results = [item.model_dump() for item in search_response.results]
-        search_latency_ms = search_response.latency_ms
-        search_mode = search_response.mode
+        with _temporary_retrieval_profile(retrieval_profile_overrides):
+            with _temporary_reranker_profile(reranker_profile_overrides):
+                if mode == "deep_lookup":
+                    source_ids = list(
+                        request_payload.get("source_ids")
+                        or ([] if not filters or filters.source_id is None else [filters.source_id])
+                    )
+                    search_response = perform_deep_lookup(DeepLookupRequest(question=question, k=k, source_ids=source_ids))
+                else:
+                    search_response = perform_search(SearchRequest(question=question, k=k, filters=filters, mode=mode))
+                raw_results = [item.model_dump() for item in search_response.results]
+                search_latency_ms = search_response.latency_ms
+                search_mode = search_response.mode
+                search_trace = getattr(search_response, "debug_info", None) or {}
     except Exception as exc:
         search_error = str(exc)
 
     answer_payload = None
     ask_latency_ms = None
+    ask_debug_info: dict[str, Any] = {}
     llm_content = _mock_llm_content(case, mode)
-    ask_request = AskRequest(question=question, k_chunks=k_chunks, filters=filters, mode=mode, dry_run=False)
+    ask_request = None
+    if mode != "deep_lookup":
+        ask_request = AskRequest(question=question, k_chunks=k_chunks, filters=filters, mode=mode, dry_run=False)
     if search_error is None and mode != "deep_lookup":
         try:
-            with _temporary_value(ask_api_module, "verify_llm_ready", lambda: True):
-                if llm_content is None:
-                    ask_response = ask_endpoint(ask_request)
-                else:
-                    with _temporary_value(
-                        answering_module,
-                        "generate_answer",
-                        lambda system_prompt, user_prompt: {"success": True, "content": llm_content},
-                    ):
-                        ask_response = ask_endpoint(ask_request)
+            with _temporary_retrieval_profile(retrieval_profile_overrides):
+                with _temporary_reranker_profile(reranker_profile_overrides):
+                    with _temporary_value(ask_api_module, "verify_llm_ready", lambda: True):
+                        if llm_content is None:
+                            ask_response = ask_endpoint(ask_request)
+                        else:
+                            with _temporary_value(
+                                answering_module,
+                                "generate_answer",
+                                lambda system_prompt, user_prompt: {"success": True, "content": llm_content},
+                            ):
+                                ask_response = ask_endpoint(ask_request)
             answer_payload = ask_response.model_dump()
             ask_latency_ms = ask_response.latency_ms
+            ask_debug_info = ask_response.debug_info or {}
+            ask_trace = (ask_response.debug_info or {}).get("retrieval_trace", {})
         except Exception as exc:
             ask_error = str(exc)
 
@@ -272,6 +331,9 @@ def _run_mode(case: Dict[str, Any], *, mode: str) -> Dict[str, Any]:
 
     return {
         "mode": mode,
+        "rerank_variant": rerank_variant,
+        "rerank_enabled": bool(((ask_trace or search_trace).get("rerank_policy") or {}).get("enabled")),
+        "fusion_method": ((ask_trace or search_trace).get("fusion") or {}).get("method") or (retrieval_profile_overrides or {}).get("fusion_method") or "linear",
         "status": "PASS" if passed else "FAIL",
         "resolved_search_mode": search_mode,
         "latency_ms": {
@@ -295,7 +357,88 @@ def _run_mode(case: Dict[str, Any], *, mode: str) -> Dict[str, Any]:
             "search": search_error,
             "ask": ask_error,
         },
+        "trace": {
+            "search_request_id": search_trace.get("request_id"),
+            "ask_request_id": ask_trace.get("request_id"),
+            "retrieval_path_used": (ask_trace or search_trace).get("retrieval_path_used"),
+            "candidate_counts": (ask_trace or search_trace).get("candidate_counts", {}),
+            "latency_ms": (ask_trace or search_trace).get("latency_ms", {}),
+            "fallback_reason": (ask_trace or search_trace).get("fallback_reason"),
+            "fusion": (ask_trace or search_trace).get("fusion"),
+            "rerank_policy": (ask_trace or search_trace).get("rerank_policy"),
+            "corpus_policy": (ask_trace or search_trace).get("corpus_policy"),
+            "structured_filters": (ask_trace or search_trace).get("structured_filters", {}),
+            "answer_generation_path": ask_debug_info.get("answer_generation_path"),
+            "score_diagnostics": (ask_trace or search_trace).get("score_diagnostics", []),
+        },
     }
+
+
+def _build_rerank_latency_report(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    grouped: dict[str, dict[str, Any]] = {}
+    for case in results:
+        for mode_result in case.get("modes", []):
+            variant = mode_result.get("rerank_variant", "profile_default")
+            entry = grouped.setdefault(
+                variant,
+                {
+                    "rerank_variant": variant,
+                    "runs": 0,
+                    "passed": 0,
+                    "rerank_enabled": False,
+                    "rerank_applied_runs": 0,
+                    "search_total_ms": 0,
+                    "ask_total_ms": 0,
+                    "total_ms": 0,
+                    "rerank_total_ms": 0,
+                },
+            )
+            entry["runs"] += 1
+            entry["passed"] += 1 if mode_result.get("status") == "PASS" else 0
+            entry["rerank_enabled"] = entry["rerank_enabled"] or bool(mode_result.get("rerank_enabled"))
+            rerank_policy = (mode_result.get("trace") or {}).get("rerank_policy") or {}
+            entry["rerank_applied_runs"] += 1 if rerank_policy.get("applied") else 0
+            latency_ms = mode_result.get("latency_ms") or {}
+            trace_latency_ms = (mode_result.get("trace") or {}).get("latency_ms") or {}
+            entry["search_total_ms"] += int(latency_ms.get("search") or 0)
+            entry["ask_total_ms"] += int(latency_ms.get("ask") or 0)
+            entry["total_ms"] += int(latency_ms.get("total") or 0)
+            entry["rerank_total_ms"] += int(trace_latency_ms.get("rerank") or 0)
+
+    variants = []
+    for entry in sorted(grouped.values(), key=lambda item: item["rerank_variant"]):
+        runs = entry["runs"] or 1
+        variants.append(
+            {
+                "rerank_variant": entry["rerank_variant"],
+                "rerank_enabled": entry["rerank_enabled"],
+                "runs": entry["runs"],
+                "pass_rate_percent": round((entry["passed"] / runs) * 100.0, 2),
+                "avg_search_latency_ms": round(entry["search_total_ms"] / runs, 2),
+                "avg_ask_latency_ms": round(entry["ask_total_ms"] / runs, 2),
+                "avg_total_latency_ms": round(entry["total_ms"] / runs, 2),
+                "avg_rerank_latency_ms": round(entry["rerank_total_ms"] / runs, 2),
+                "rerank_applied_runs": entry["rerank_applied_runs"],
+            }
+        )
+
+    baseline = next((item for item in variants if not item["rerank_enabled"]), None)
+    deltas = []
+    if baseline is not None:
+        for item in variants:
+            if item["rerank_variant"] == baseline["rerank_variant"]:
+                continue
+            deltas.append(
+                {
+                    "baseline_variant": baseline["rerank_variant"],
+                    "target_variant": item["rerank_variant"],
+                    "delta_avg_total_latency_ms": round(item["avg_total_latency_ms"] - baseline["avg_total_latency_ms"], 2),
+                    "delta_avg_rerank_latency_ms": round(item["avg_rerank_latency_ms"] - baseline["avg_rerank_latency_ms"], 2),
+                    "delta_pass_rate_percent": round(item["pass_rate_percent"] - baseline["pass_rate_percent"], 2),
+                }
+            )
+
+    return {"variants": variants, "deltas": deltas}
 
 
 def evaluate_benchmark_case(case: Dict[str, Any], *, bindings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -309,9 +452,31 @@ def evaluate_benchmark_case(case: Dict[str, Any], *, bindings: Optional[Dict[str
 
     resolved_case["request"] = request_payload
     modes = [mode for mode in resolved_case.get("modes", list(SUPPORTED_BENCHMARK_MODES)) if mode in SUPPORTED_BENCHMARK_MODES]
+    fusion_methods = [
+        fusion_method
+        for fusion_method in resolved_case.get("fusion_methods", ["linear"])
+        if fusion_method in SUPPORTED_FUSION_METHODS
+    ] or ["linear"]
+    rerank_variants = resolved_case.get("rerank_variants") or [{"label": "profile_default", "overrides": {}}]
 
     with _temporary_settings(resolved_case.get("settings_overrides")):
-        mode_results = [_run_mode(resolved_case, mode=mode) for mode in modes]
+        mode_results = []
+        for fusion_method in fusion_methods:
+            for rerank_variant in rerank_variants:
+                retrieval_profile_overrides = dict(resolved_case.get("retrieval_profile_overrides") or {})
+                retrieval_profile_overrides["fusion_method"] = fusion_method
+                reranker_profile_overrides = dict((rerank_variant or {}).get("overrides") or {})
+                rerank_label = (rerank_variant or {}).get("label") or "profile_default"
+                for mode in modes:
+                    mode_results.append(
+                        _run_mode(
+                            resolved_case,
+                            mode=mode,
+                            retrieval_profile_overrides=retrieval_profile_overrides,
+                            reranker_profile_overrides=reranker_profile_overrides,
+                            rerank_variant=rerank_label,
+                        )
+                    )
 
     failures = [item["mode"] for item in mode_results if item["status"] == "FAIL"]
     return {
@@ -336,6 +501,8 @@ def run_mode_benchmark(
     total = len(results)
     passed = total - len(failures)
     evaluated_modes = sorted({mode_result["mode"] for case in results for mode_result in case.get("modes", [])})
+    evaluated_fusion_methods = sorted({mode_result.get("fusion_method", "linear") for case in results for mode_result in case.get("modes", [])})
+    evaluated_rerank_variants = sorted({mode_result.get("rerank_variant", "profile_default") for case in results for mode_result in case.get("modes", [])})
     report = {
         "summary": {
             "kind": "mode_benchmark",
@@ -344,6 +511,14 @@ def run_mode_benchmark(
             "failed": len(failures),
             "pass_rate_percent": round((passed / total) * 100.0, 2) if total else 0.0,
             "evaluated_modes": evaluated_modes,
+            "evaluated_fusion_methods": evaluated_fusion_methods,
+            "evaluated_rerank_variants": evaluated_rerank_variants,
+            "rerank_latency_report": _build_rerank_latency_report(results),
+        },
+        "report_metadata": {
+            "active_profiles": get_active_profile_snapshot(),
+            "retrieval_settings": get_effective_retrieval().model_dump(),
+            "reranker_settings": get_effective_reranker().model_dump(),
         },
         "results": results,
         "failures": failures,

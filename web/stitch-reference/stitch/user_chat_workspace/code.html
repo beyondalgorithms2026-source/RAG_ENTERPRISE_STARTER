@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Chat Console | RAG Enterprise</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-primary-container": "#cbcdff",
+                        "tertiary-fixed": "#cdf13d",
+                        "error": "#ba1a1a",
+                        "surface-container-low": "#f5f5e0",
+                        "surface-container": "#efefda",
+                        "on-error": "#ffffff",
+                        "primary-fixed": "#e0e0ff",
+                        "secondary": "#545f6f",
+                        "on-secondary-container": "#586373",
+                        "outline": "#767588",
+                        "inverse-on-surface": "#f2f2dd",
+                        "tertiary": "#3a4700",
+                        "on-secondary-fixed-variant": "#3d4857",
+                        "primary-container": "#343ced",
+                        "on-tertiary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "primary": "#0e11d8",
+                        "on-primary-fixed": "#00006e",
+                        "on-background": "#1b1d10",
+                        "surface-container-highest": "#e4e4cf",
+                        "surface-bright": "#fbfbe6",
+                        "surface-dim": "#dbdbc7",
+                        "surface-container-high": "#eae9d5",
+                        "on-secondary": "#ffffff",
+                        "inverse-primary": "#bfc2ff",
+                        "on-tertiary-container": "#bbdf2a",
+                        "on-surface": "#1b1d10",
+                        "background": "#fbfbe6",
+                        "inverse-surface": "#303124",
+                        "secondary-fixed": "#d8e3f6",
+                        "secondary-container": "#d5e0f3",
+                        "on-primary-fixed-variant": "#181ddc",
+                        "surface": "#fbfbe6",
+                        "on-primary": "#ffffff",
+                        "primary-fixed-dim": "#bfc2ff",
+                        "on-secondary-fixed": "#111c2a",
+                        "surface-variant": "#e4e4cf",
+                        "surface-container-lowest": "#ffffff",
+                        "outline-variant": "#c6c5d9",
+                        "tertiary-container": "#4f6000",
+                        "tertiary-fixed-dim": "#b1d41c",
+                        "on-surface-variant": "#454556",
+                        "on-tertiary-fixed-variant": "#3e4c00",
+                        "secondary-fixed-dim": "#bcc7da",
+                        "on-tertiary-fixed": "#171e00",
+                        "surface-tint": "#3a42f2",
+                        "on-error-container": "#93000a"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #fbfbe6; color: #1b1d10; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
+        .glass-header { backdrop-filter: blur(24px); background-color: rgba(251, 251, 230, 0.8); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+<!-- TopNavBar Execution -->
+<header class="flex justify-between items-center w-full px-6 py-2 z-50 sticky top-0 bg-[#fbfbe6]/80 backdrop-blur-md dark:bg-slate-900/80 shadow-sm dark:shadow-none">
+<div class="flex items-center gap-8">
+<span class="text-lg font-black text-[#1b1d10] font-headline tracking-tight">RAG Enterprise</span>
+<!-- Search/Ask Toggle -->
+<div class="flex bg-surface-container-high rounded-full p-1">
+<button class="px-4 py-1.5 text-sm font-bold text-[#343CED] bg-surface-container-lowest rounded-full shadow-sm transition-all duration-200">Ask</button>
+<button class="px-4 py-1.5 text-sm font-medium text-slate-600 hover:bg-[#f5f5e0] rounded-full transition-all duration-200">Search</button>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-slate-600 hover:bg-[#f5f5e0] rounded-lg transition-all duration-200">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-slate-600 hover:bg-[#f5f5e0] rounded-lg transition-all duration-200">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<div class="h-8 w-8 rounded-full overflow-hidden ring-2 ring-primary/10">
+<img alt="User Avatar" data-alt="close-up portrait of a professional male executive with a clean modern aesthetic and neutral studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuACPUt-vFdpDEFkTykPrDK7qWDXayI-mTENz12neiecYsTFwJcauq2SyXQIlPs1icim8vWLYPo-1eATxYkQeXUrE1bxqk93oQwngnIvnhKlzQxk8QRI97HUkzaGZjV43CgcmygoyRZLwtmXmqHStwx_LK5ISY31JrhpkesypNorp8pIGSBHx65TQ9Sa2PShgRk2KhhRNaLjKKb_hrddPTJZhA5qk17WxUp4Mjjf3ENB2PbD4fnxXXRYKiwow_MZXjn4J7Qw-dz5kw8"/>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<!-- SideNavBar Execution (Workspace Console) -->
+<aside class="flex flex-col h-full w-64 p-4 space-y-2 bg-[#f5f5e0] dark:bg-slate-900 tonal-transition">
+<div class="px-3 mb-6">
+<h2 class="text-sm font-bold text-on-surface">Workspace</h2>
+<p class="text-[10px] uppercase tracking-wider text-slate-500">User Console</p>
+</div>
+<nav class="flex-1 space-y-1">
+<!-- Active Tab: Chat -->
+<a class="flex items-center gap-3 px-3 py-2.5 bg-[#ffffff] dark:bg-slate-800 text-[#343CED] rounded-lg shadow-sm font-medium text-sm transition-all duration-200 scale-98 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="chat" style="font-variation-settings: 'FILL' 1;">chat</span>
+<span>Chat</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-[#eae9d5] dark:hover:bg-slate-800 rounded-lg text-sm transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+<span>Search History</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-[#eae9d5] dark:hover:bg-slate-800 rounded-lg text-sm transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="database">database</span>
+<span>My Sources</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-[#eae9d5] dark:hover:bg-slate-800 rounded-lg text-sm transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="upload_file">upload_file</span>
+<span>Upload Documents</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-[#eae9d5] dark:hover:bg-slate-800 rounded-lg text-sm transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="hub">hub</span>
+<span>Connectors</span>
+</a>
+</nav>
+<div class="pt-4 mt-4 border-t border-slate-200/50">
+<span class="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Recent Threads</span>
+<div class="mt-2 space-y-1">
+<a class="block px-3 py-2 text-xs text-slate-600 truncate hover:bg-[#eae9d5] rounded-md" href="#">Q3 Financial Projections</a>
+<a class="block px-3 py-2 text-xs text-slate-600 truncate hover:bg-[#eae9d5] rounded-md" href="#">Onboarding Workflow v2</a>
+<a class="block px-3 py-2 text-xs text-slate-600 truncate hover:bg-[#eae9d5] rounded-md" href="#">Legal Compliance Review</a>
+</div>
+</div>
+</aside>
+<!-- Main Chat Canvas -->
+<main class="flex-1 flex flex-col bg-surface relative overflow-hidden">
+<!-- Metadata Bar -->
+<div class="px-8 py-3 flex items-center gap-4 bg-surface-container-low/30 backdrop-blur-sm border-b border-surface-container-high/20">
+<div class="flex items-center gap-2 px-3 py-1 bg-tertiary-fixed text-on-tertiary-fixed rounded-full text-[10px] font-bold uppercase tracking-wider">
+<span class="material-symbols-outlined text-xs" data-icon="bolt" style="font-variation-settings: 'FILL' 1;">bolt</span>
+                    Hybrid Search
+                </div>
+<div class="text-[10px] font-medium text-slate-500 uppercase tracking-widest">Latency: <span class="text-on-surface">1.2s</span></div>
+<div class="text-[10px] font-medium text-slate-500 uppercase tracking-widest">Corpus: <span class="text-on-surface font-bold">HR Policies</span></div>
+<div class="ml-auto flex items-center gap-2 bg-surface-container-high rounded-lg p-0.5">
+<button class="px-3 py-1 text-[10px] font-bold text-[#343CED] bg-surface-container-lowest rounded-md shadow-sm">FAST</button>
+<button class="px-3 py-1 text-[10px] font-bold text-slate-500 hover:text-slate-700">STRICT</button>
+</div>
+</div>
+<!-- Chat Scroll Area -->
+<div class="flex-1 overflow-y-auto p-8 space-y-12 no-scrollbar">
+<!-- User Message -->
+<div class="flex justify-end ml-24">
+<div class="bg-surface-container-high px-6 py-4 rounded-2xl rounded-tr-none max-w-2xl text-on-surface body-lg leading-relaxed shadow-sm">
+                        What are our current policies on remote work for engineers?
+                    </div>
+</div>
+<!-- AI Response Shell -->
+<div class="flex mr-24 gap-6">
+<div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-white text-xl" data-icon="auto_awesome" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<div class="flex-1 space-y-6">
+<div class="bg-surface-container-lowest p-8 rounded-3xl shadow-[0px_12px_32px_rgba(30,41,55,0.04)] border border-outline-variant/10">
+<article class="prose prose-slate max-w-none">
+<h3 class="headline-md font-bold mb-4 text-on-surface">Remote Work Guidelines for Engineering</h3>
+<p class="body-lg leading-relaxed text-on-surface-variant mb-6">
+                                    Based on the 2024 Employee Handbook and the recent Engineering Charter update, remote work is classified under a <span class="bg-tertiary-fixed/30 px-1 font-medium">Hybrid-First Model</span>. 
+                                    Engineers are required to be in-office at least 2 days per week, typically Tuesday and Wednesday, for core synchronization meetings <sup class="text-primary font-bold px-1 hover:underline cursor-pointer">[1]</sup>.
+                                </p>
+<p class="body-lg leading-relaxed text-on-surface-variant mb-6">
+                                    For senior-level engineers (L5+), fully remote exceptions can be granted by the VP of Engineering, provided there is a documented history of high performance and a 4-hour timezone overlap with the headquarters' primary zone <sup class="text-primary font-bold px-1 hover:underline cursor-pointer">[2]</sup>. 
+                                    Stipends for home office setups are capped at $1,500 annually for all full-time engineering staff <sup class="text-primary font-bold px-1 hover:underline cursor-pointer">[3]</sup>.
+                                </p>
+<div class="mt-8 flex flex-wrap gap-2">
+<span class="px-3 py-1.5 bg-surface-container-high rounded-full text-xs font-medium text-slate-600 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="description">description</span>
+                                        HR_Policy_2024.pdf
+                                    </span>
+<span class="px-3 py-1.5 bg-surface-container-high rounded-full text-xs font-medium text-slate-600 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="article">article</span>
+                                        Eng_Charter_v3.docx
+                                    </span>
+</div>
+</article>
+</div>
+<!-- Feedback and Actions -->
+<div class="flex items-center gap-4 px-2">
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="thumb_up">thumb_up</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-error transition-colors">
+<span class="material-symbols-outlined" data-icon="thumb_down">thumb_down</span>
+</button>
+<div class="h-4 w-px bg-slate-200 mx-2"></div>
+<button class="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest hover:opacity-80">
+<span class="material-symbols-outlined text-sm" data-icon="content_copy">content_copy</span>
+                                Copy Answer
+                            </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Composer Area -->
+<div class="px-8 pb-8">
+<div class="max-w-4xl mx-auto relative">
+<div class="bg-surface-container-lowest rounded-2xl shadow-xl shadow-on-surface/5 p-2 flex flex-col border border-outline-variant/20">
+<textarea class="w-full border-none focus:ring-0 bg-transparent resize-none body-lg py-4 px-4 min-h-[100px]" placeholder="Ask follow up questions or upload new sources..." rows="3"></textarea>
+<div class="flex items-center justify-between p-2 pt-0">
+<div class="flex items-center gap-1">
+<button class="p-2 text-slate-500 hover:bg-surface-container-low rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="attach_file">attach_file</span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-surface-container-low rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="image">image</span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-surface-container-low rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="mic">mic</span>
+</button>
+</div>
+<button class="bg-primary hover:bg-primary-container text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-md shadow-primary/20">
+                                Ask
+                                <span class="material-symbols-outlined text-sm" data-icon="send">send</span>
+</button>
+</div>
+</div>
+<p class="text-center text-[10px] text-slate-400 mt-3 font-medium uppercase tracking-widest">AI can make mistakes. Verify critical HR data with your department head.</p>
+</div>
+</div>
+</main>
+<!-- Right Evidence Panel -->
+<aside class="w-80 bg-surface-container-low border-l border-surface-container-high/50 flex flex-col">
+<div class="p-6">
+<h3 class="text-sm font-black text-on-surface flex items-center justify-between">
+                    Retrieved Sources
+                    <span class="bg-primary/10 text-primary px-2 py-0.5 rounded text-[10px]">3 Citations</span>
+</h3>
+</div>
+<div class="flex-1 overflow-y-auto px-4 space-y-4 pb-8 no-scrollbar">
+<!-- Source Card 1 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
+<div class="flex items-start gap-3 mb-3">
+<div class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0 text-red-500">
+<span class="material-symbols-outlined text-xl" data-icon="picture_as_pdf">picture_as_pdf</span>
+</div>
+<div class="overflow-hidden">
+<div class="text-xs font-bold text-on-surface truncate">HR_Policy_2024.pdf</div>
+<div class="text-[10px] text-slate-400">Page 12 • Section 4.2</div>
+</div>
+</div>
+<div class="text-[11px] leading-relaxed text-slate-600 bg-surface-container-high/50 p-2 rounded border-l-2 border-primary">
+                        "...employees in technical roles are expected to adhere to <span class="bg-primary/10 font-bold">hybrid scheduling</span> unless otherwise authorized by department leads..."
+                    </div>
+</div>
+<!-- Source Card 2 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+<div class="flex items-start gap-3 mb-3">
+<div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0 text-blue-500">
+<span class="material-symbols-outlined text-xl" data-icon="description">description</span>
+</div>
+<div class="overflow-hidden">
+<div class="text-xs font-bold text-on-surface truncate">Eng_Charter_v3.docx</div>
+<div class="text-[10px] text-slate-400">Section: Team Logistics</div>
+</div>
+</div>
+<div class="text-[11px] leading-relaxed text-slate-600 bg-surface-container-high/50 p-2 rounded">
+                        "For high-performing <span class="bg-primary/10 font-bold">L5+ engineers</span>, fully remote status is an option through the standard exception workflow..."
+                    </div>
+</div>
+<!-- Source Card 3 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+<div class="flex items-start gap-3 mb-3">
+<div class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0 text-emerald-500">
+<span class="material-symbols-outlined text-xl" data-icon="link">link</span>
+</div>
+<div class="overflow-hidden">
+<div class="text-xs font-bold text-on-surface truncate">Internal Wiki: Perks</div>
+<div class="text-[10px] text-slate-400">Published June 2024</div>
+</div>
+</div>
+<div class="text-[11px] leading-relaxed text-slate-600 bg-surface-container-high/50 p-2 rounded">
+                        "Remote workers are eligible for a <span class="bg-primary/10 font-bold">$1,500 setup stipend</span> annually to ensure ergonomic excellence."
+                    </div>
+</div>
+</div>
+<div class="p-6 bg-surface-container-high/30 border-t border-surface-container-high/50">
+<button class="w-full py-2.5 bg-surface-container-lowest text-on-surface-variant font-bold text-xs uppercase tracking-widest rounded-lg hover:bg-white transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="open_in_new">open_in_new</span>
+                    Export Findings
+                </button>
+</div>
+</aside>
+</div>
+<!-- Footer Execution -->
+<footer class="w-full py-4 bg-[#fbfbe6] dark:bg-slate-950 border-t border-surface-container-high/30">
+<div class="max-w-7xl mx-auto px-8 flex justify-between items-center">
+<span class="text-slate-500 text-[10px] uppercase tracking-widest">Built for enterprise retrieval teams</span>
+<div class="flex gap-6">
+<a class="text-slate-500 text-[10px] uppercase tracking-widest hover:text-[#343CED] transition-colors" href="#">Privacy</a>
+<a class="text-slate-500 text-[10px] uppercase tracking-widest hover:text-[#343CED] transition-colors" href="#">Terms</a>
+<a class="text-slate-500 text-[10px] uppercase tracking-widest hover:text-[#343CED] transition-colors" href="#">Security</a>
+<a class="text-slate-500 text-[10px] uppercase tracking-widest hover:text-[#343CED] transition-colors" href="#">Status</a>
+</div>
+</div>
+</footer>
+</body></html>

@@ -1,0 +1,58 @@
+[
+  {
+    "id": "quote_like_exact_lookup",
+    "question": "\"keywordbanana\" final words",
+    "default_mode": "hybrid",
+    "expected": {
+      "selected_mode": "keyword",
+      "preferred_mode": "keyword",
+      "route_class": "lexical_first",
+      "reason": "quote_like_exact_lookup_signal",
+      "route_details": {
+        "quote_like": true,
+        "identifier_like": false,
+        "date_heavy_lexical": false
+      }
+    }
+  },
+  {
+    "id": "identifier_lookup_case_number",
+    "question": "Find case number AB-2024-0091",
+    "default_mode": "hybrid",
+    "expected": {
+      "selected_mode": "keyword",
+      "preferred_mode": "keyword",
+      "route_class": "lexical_first",
+      "reason": "identifier_lookup_signal",
+      "route_details": {
+        "quote_like": false,
+        "identifier_like": true
+      }
+    }
+  },
+  {
+    "id": "semantic_summary_query",
+    "question": "Summarize the benchmark policy coverage.",
+    "default_mode": "hybrid",
+    "expected": {
+      "selected_mode": "hybrid",
+      "preferred_mode": "hybrid",
+      "route_class": "semantic_first",
+      "reason": "default_hybrid_router_policy"
+    }
+  },
+  {
+    "id": "temporal_date_heavy_lexical_query",
+    "question": "What happened on January 15, 2024?",
+    "default_mode": "hybrid",
+    "expected": {
+      "selected_mode": "keyword",
+      "preferred_mode": "keyword",
+      "route_class": "lexical_first",
+      "reason": "date_heavy_lexical_signal",
+      "route_details": {
+        "date_heavy_lexical": true
+      }
+    }
+  }
+]

@@ -1,0 +1,16 @@
+external_user_id,group_name
+dev-test-user,public_users
+dev-test-user,dev-users
+dev-test-admin,dev-admins
+dev-test-admin,compliance_observers
+m161-requester,contract_reviewers
+m172-restricted,public_users
+m161-approver,legal
+m161-approver,contract_reviewers
+m172-finance-approver,finance
+m161-manager,public_users
+m172-governance,compliance_observers
+m172-ceo,executive_access
+m172-cfo,executive_access
+m172-cfo,finance
+m172-misuse,public_users

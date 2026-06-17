@@ -70,5 +70,5 @@
     }
   ],
   "failures": [],
-  "report_path": "eval_report_mode_benchmark.json"
+  "report_path": "data/reports/eval_report_mode_benchmark.json"
 }

@@ -23,9 +23,12 @@ class ParsedAttachment:
     size_bytes: int = 0
     content_disposition: Optional[str] = None
     content_id: Optional[str] = None
+    content_bytes: Optional[bytes] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        payload.pop("content_bytes", None)
+        return payload
 
 
 @dataclass

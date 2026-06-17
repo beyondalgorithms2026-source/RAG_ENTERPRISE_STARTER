@@ -22,7 +22,7 @@ Current key defaults:
 - `EMBEDDING_MODEL=BAAI/bge-small-en-v1.5`
 - `LLM_PROVIDER=ollama`
 - `LLM_BASE_URL=http://localhost:11434`
-- `LLM_MODEL=deepseek-v3.1:671b-cloud`
+- `LLM_MODEL=gpt-oss:20b-cloud`
 - `RETRIEVAL_MODE=hybrid`
 - `ALLOW_LAZY_ENRICHMENT=true`
 - `USE_QUERY_ROUTER=true`

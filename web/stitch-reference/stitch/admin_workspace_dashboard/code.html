@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-primary-container": "#cbcdff",
+                        "tertiary-fixed": "#cdf13d",
+                        "error": "#ba1a1a",
+                        "surface-container-low": "#f5f5e0",
+                        "surface-container": "#efefda",
+                        "on-error": "#ffffff",
+                        "primary-fixed": "#e0e0ff",
+                        "secondary": "#545f6f",
+                        "on-secondary-container": "#586373",
+                        "outline": "#767588",
+                        "inverse-on-surface": "#f2f2dd",
+                        "tertiary": "#3a4700",
+                        "on-secondary-fixed-variant": "#3d4857",
+                        "primary-container": "#343ced",
+                        "on-tertiary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "primary": "#0e11d8",
+                        "on-primary-fixed": "#00006e",
+                        "on-background": "#1b1d10",
+                        "surface-container-highest": "#e4e4cf",
+                        "surface-bright": "#fbfbe6",
+                        "surface-dim": "#dbdbc7",
+                        "surface-container-high": "#eae9d5",
+                        "on-secondary": "#ffffff",
+                        "inverse-primary": "#bfc2ff",
+                        "on-tertiary-container": "#bbdf2a",
+                        "on-surface": "#1b1d10",
+                        "background": "#fbfbe6",
+                        "inverse-surface": "#303124",
+                        "secondary-fixed": "#d8e3f6",
+                        "secondary-container": "#d5e0f3",
+                        "on-primary-fixed-variant": "#181ddc",
+                        "surface": "#fbfbe6",
+                        "on-primary": "#ffffff",
+                        "primary-fixed-dim": "#bfc2ff",
+                        "on-secondary-fixed": "#111c2a",
+                        "surface-variant": "#e4e4cf",
+                        "surface-container-lowest": "#ffffff",
+                        "outline-variant": "#c6c5d9",
+                        "tertiary-container": "#4f6000",
+                        "tertiary-fixed-dim": "#b1d41c",
+                        "on-surface-variant": "#454556",
+                        "on-tertiary-fixed-variant": "#3e4c00",
+                        "secondary-fixed-dim": "#bcc7da",
+                        "on-tertiary-fixed": "#171e00",
+                        "surface-tint": "#3a42f2",
+                        "on-error-container": "#93000a"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #fbfbe6; color: #1b1d10; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .glass-header { background: rgba(251, 251, 230, 0.8); backdrop-filter: blur(24px); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="flex min-h-screen overflow-hidden">
+<!-- Sidebar Navigation (Admin Context) -->
+<aside class="flex flex-col h-screen w-64 left-0 top-0 bg-[#f5f5e0] dark:bg-slate-900 flex-shrink-0 z-40 p-4 space-y-2">
+<div class="px-2 py-4 mb-4">
+<h2 class="font-['Inter'] text-sm medium text-[#1b1d10] font-bold">Admin</h2>
+<p class="text-xs text-slate-500 font-medium tracking-tight">Management</p>
+</div>
+<nav class="space-y-1">
+<a class="flex items-center space-x-3 px-3 py-2 bg-[#ffffff] dark:bg-slate-800 text-[#343CED] rounded-lg shadow-sm font-['Inter'] text-sm medium transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="folder_shared">folder_shared</span>
+<span>Corpora</span>
+</a>
+<a class="flex items-center space-x-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-[#eae9d5] dark:hover:bg-slate-800 rounded-lg font-['Inter'] text-sm medium transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="work_history">work_history</span>
+<span>Jobs</span>
+</a>
+<a class="flex items-center space-x-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-[#eae9d5] dark:hover:bg-slate-800 rounded-lg font-['Inter'] text-sm medium transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+<span>Profiles</span>
+</a>
+<a class="flex items-center space-x-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-[#eae9d5] dark:hover:bg-slate-800 rounded-lg font-['Inter'] text-sm medium transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span>Evals</span>
+</a>
+<a class="flex items-center space-x-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-[#eae9d5] dark:hover:bg-slate-800 rounded-lg font-['Inter'] text-sm medium transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="timeline">timeline</span>
+<span>Traces</span>
+</a>
+<a class="flex items-center space-x-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-[#eae9d5] dark:hover:bg-slate-800 rounded-lg font-['Inter'] text-sm medium transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="policy">policy</span>
+<span>Policies</span>
+</a>
+<a class="flex items-center space-x-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-[#eae9d5] dark:hover:bg-slate-800 rounded-lg font-['Inter'] text-sm medium transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+<span>Audit Log</span>
+</a>
+</nav>
+<div class="mt-auto pt-6 px-2">
+<div class="flex items-center space-x-3 p-2 rounded-xl bg-surface-container-high transition-all">
+<div class="w-10 h-10 rounded-lg overflow-hidden bg-primary-container flex-shrink-0">
+<img alt="User Avatar" class="w-full h-full object-cover" data-alt="professional minimalist headshot of a tech executive with clean background soft studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDDzrfI0fplKu_x0sR5zlA8iGmugYhn3F22d-IqQgfODwZm1RJyD-UzdaxUzvE52YtoSYoL3C8tPAvcx2Qx7LIACk57feFQJ7Cw1BpAoMHWSFgXl1G4R2rdhmVPg9f-aVViy3MBJPPSTc96lWhLkXmI-SlNTZXgmL8XVvvn85wqod38m2ebrX62rGP6SgmLGqz0UTLeauV_0rEwSnNS8TzucqerLolx81wW-QRAmapfiGTTbgVJTJMcllvsec7fvP3C7EM3czcwIRg"/>
+</div>
+<div class="overflow-hidden">
+<p class="text-xs font-bold truncate">Alex Chen</p>
+<p class="text-[10px] text-slate-500 uppercase tracking-tighter">System Admin</p>
+</div>
+<span class="material-symbols-outlined text-sm ml-auto" data-icon="unfold_more">unfold_more</span>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col h-screen overflow-y-auto no-scrollbar bg-surface relative">
+<!-- Top Command Bar -->
+<header class="sticky top-0 z-50 flex items-center justify-between px-8 py-3 glass-header">
+<div class="flex items-center flex-1 max-w-xl">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg" data-icon="search">search</span>
+<input class="w-full bg-surface-container-highest text-sm rounded-xl py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-primary/20 border-none" placeholder="Search traces, corpora, or jobs (⌘K)" type="text"/>
+</div>
+</div>
+<div class="flex items-center space-x-4">
+<button class="p-2 text-slate-600 hover:bg-surface-container-low rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-slate-600 hover:bg-surface-container-low rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<button class="bg-primary text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center space-x-2 shadow-sm hover:opacity-90 transition-all">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+<span>New Corpura</span>
+</button>
+</div>
+</header>
+<!-- Page Content -->
+<div class="p-8 space-y-12 max-w-screen-2xl mx-auto w-full">
+<!-- Dashboard Header -->
+<section>
+<h1 class="text-2xl font-black text-[#1b1d10] tracking-tight">System Overview</h1>
+<p class="text-slate-500 text-sm mt-1">Real-time health and retrieval metrics for the enterprise workspace.</p>
+</section>
+<!-- Overview Bento Grid -->
+<section class="grid grid-cols-1 md:grid-cols-4 gap-6">
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm space-y-4">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-primary" data-icon="folder_zip">folder_zip</span>
+<span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Health 100%</span>
+</div>
+<div>
+<h3 class="text-3xl font-black">12</h3>
+<p class="text-sm text-slate-500 font-medium">Active Corpora</p>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm space-y-4">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-tertiary-container" data-icon="hourglass_empty">hourglass_empty</span>
+<span class="text-[10px] font-bold text-tertiary-container tracking-widest uppercase">Processing</span>
+</div>
+<div>
+<h3 class="text-3xl font-black">3</h3>
+<p class="text-sm text-slate-500 font-medium">Running Jobs</p>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm space-y-4">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-tertiary" data-icon="verified">verified</span>
+<span class="text-[10px] font-bold text-tertiary tracking-widest uppercase">+2.4% Δ</span>
+</div>
+<div>
+<h3 class="text-3xl font-black">0.92</h3>
+<p class="text-sm text-slate-500 font-medium">Last Eval Score</p>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm space-y-4">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-secondary" data-icon="database">database</span>
+<span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Storage 82%</span>
+</div>
+<div>
+<h3 class="text-3xl font-black">45.2k</h3>
+<p class="text-sm text-slate-500 font-medium">Total Documents</p>
+</div>
+</div>
+</section>
+<!-- Main Content Area: Recent Traces & Visuals -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Recent Traces Table -->
+<div class="lg:col-span-2 space-y-6">
+<div class="flex items-center justify-between">
+<h2 class="text-lg font-bold tracking-tight">Recent Traces</h2>
+<button class="text-xs font-semibold text-primary hover:underline">View all</button>
+</div>
+<div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low">
+<th class="px-6 py-3 text-[10px] font-black uppercase text-slate-500 tracking-widest">Query Intent</th>
+<th class="px-6 py-3 text-[10px] font-black uppercase text-slate-500 tracking-widest">Latency</th>
+<th class="px-6 py-3 text-[10px] font-black uppercase text-slate-500 tracking-widest">Score</th>
+<th class="px-6 py-3 text-[10px] font-black uppercase text-slate-500 tracking-widest">User</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container-high">
+<tr class="hover:bg-surface-container/50 transition-colors">
+<td class="px-6 py-4">
+<p class="text-sm font-semibold truncate max-w-[200px]">"Summarize Q3 financial report..."</p>
+<p class="text-[10px] text-slate-400">Finance_Prod_v2</p>
+</td>
+<td class="px-6 py-4 text-sm font-medium">1.2s</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-tertiary-fixed text-on-tertiary-fixed">0.98</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center space-x-2">
+<div class="w-6 h-6 rounded-full bg-slate-200"></div>
+<span class="text-xs">j.doe</span>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-surface-container/50 transition-colors">
+<td class="px-6 py-4">
+<p class="text-sm font-semibold truncate max-w-[200px]">"API endpoints for webhooks"</p>
+<p class="text-[10px] text-slate-400">Docs_Master</p>
+</td>
+<td class="px-6 py-4 text-sm font-medium">840ms</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-tertiary-fixed text-on-tertiary-fixed">0.94</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center space-x-2">
+<div class="w-6 h-6 rounded-full bg-slate-200"></div>
+<span class="text-xs">m.smith</span>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-surface-container/50 transition-colors">
+<td class="px-6 py-4">
+<p class="text-sm font-semibold truncate max-w-[200px]">"HR policy regarding remote..."</p>
+<p class="text-[10px] text-slate-400">Corp_Policies</p>
+</td>
+<td class="px-6 py-4 text-sm font-medium">2.1s</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-error-container text-on-error-container">0.62</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center space-x-2">
+<div class="w-6 h-6 rounded-full bg-slate-200"></div>
+<span class="text-xs">s.vance</span>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-surface-container/50 transition-colors">
+<td class="px-6 py-4">
+<p class="text-sm font-semibold truncate max-w-[200px]">"Product roadmap for Q4"</p>
+<p class="text-[10px] text-slate-400">Strategic_Ops</p>
+</td>
+<td class="px-6 py-4 text-sm font-medium">1.1s</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-tertiary-fixed text-on-tertiary-fixed">0.91</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center space-x-2">
+<div class="w-6 h-6 rounded-full bg-slate-200"></div>
+<span class="text-xs">k.lamar</span>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Side Panel: Stats & Quick Actions -->
+<div class="space-y-8">
+<!-- Data Vis Placeholder (Latency Trend) -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm space-y-4">
+<div class="flex items-center justify-between">
+<h3 class="text-xs font-black uppercase tracking-widest text-slate-500">Latency Trend (24h)</h3>
+<span class="material-symbols-outlined text-slate-300" data-icon="more_horiz">more_horiz</span>
+</div>
+<div class="h-32 flex items-end space-x-2 overflow-hidden">
+<div class="flex-1 bg-surface-container-high h-[40%] rounded-t-sm"></div>
+<div class="flex-1 bg-surface-container-high h-[55%] rounded-t-sm"></div>
+<div class="flex-1 bg-primary h-[85%] rounded-t-sm"></div>
+<div class="flex-1 bg-surface-container-high h-[60%] rounded-t-sm"></div>
+<div class="flex-1 bg-surface-container-high h-[45%] rounded-t-sm"></div>
+<div class="flex-1 bg-surface-container-high h-[50%] rounded-t-sm"></div>
+<div class="flex-1 bg-surface-container-high h-[30%] rounded-t-sm"></div>
+</div>
+<div class="flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-tight">
+<span>00:00</span>
+<span>12:00</span>
+<span>Now</span>
+</div>
+</div>
+<!-- Quick Alerts -->
+<div class="space-y-4">
+<h3 class="text-xs font-black uppercase tracking-widest text-slate-500">System Notifications</h3>
+<div class="space-y-3">
+<div class="flex space-x-3 bg-surface-container/30 p-3 rounded-lg">
+<div class="w-2 h-2 rounded-full bg-error mt-1.5 flex-shrink-0"></div>
+<div>
+<p class="text-xs font-bold">Latency Spike detected</p>
+<p class="text-[10px] text-slate-500 mt-1">Cluster US-EAST-1 report average 4s+ retrieval time.</p>
+</div>
+</div>
+<div class="flex space-x-3 bg-surface-container/30 p-3 rounded-lg">
+<div class="w-2 h-2 rounded-full bg-tertiary-fixed mt-1.5 flex-shrink-0"></div>
+<div>
+<p class="text-xs font-bold">New Policy deployed</p>
+<p class="text-[10px] text-slate-500 mt-1">Access control updated for 4 documents in 'Legal_Archive'.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- System Info Card -->
+<div class="relative overflow-hidden rounded-xl h-40 group cursor-pointer">
+<img alt="System Art" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="abstract digital topography map in soft blue and off-white minimalist elegant data art" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAhxPaJzyf9VT-zvS81BQNEsYvxsdC4wyLL9dV2Yk-U8s-ywEl2bdInPJz8JvjdQhjt6TSRvk3HgdsSKe5mHTOtUPY1tAZ_rrLiBuqp-swVcFmprwag6fBHjmnECoBBNa6dCGda9Ha-k8YQbSzL9SotKQANULckcOrfcbaPut_B5cPSImpe7fXTjKx--ippsfPD5xLAWHBNfsKEKW_-6DEYrT1eXo8afkAjxL8SbDGUoNRsEfcw0QqgMEXEMCrc_LC7bZzIENNYO84"/>
+<div class="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent flex flex-col justify-end p-4">
+<p class="text-[10px] font-bold text-white uppercase tracking-widest">Version 4.2.1 Stable</p>
+<h4 class="text-white font-bold">Compute Efficiency: High</h4>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Footer -->
+<footer class="mt-auto bg-[#fbfbe6] dark:bg-slate-950 w-full py-12">
+<div class="max-w-7xl mx-auto px-8 flex justify-between items-center">
+<p class="font-['Inter'] text-xs uppercase tracking-widest text-slate-500">Built for enterprise retrieval teams</p>
+<div class="flex space-x-8">
+<a class="font-['Inter'] text-xs uppercase tracking-widest text-slate-500 hover:text-[#343CED] transition-colors" href="#">Privacy</a>
+<a class="font-['Inter'] text-xs uppercase tracking-widest text-slate-500 hover:text-[#343CED] transition-colors" href="#">Terms</a>
+<a class="font-['Inter'] text-xs uppercase tracking-widest text-slate-500 hover:text-[#343CED] transition-colors" href="#">Security</a>
+<a class="font-['Inter'] text-xs uppercase tracking-widest text-slate-500 hover:text-[#343CED] transition-colors" href="#">Status</a>
+</div>
+</div>
+</footer>
+</main>
+</body></html>

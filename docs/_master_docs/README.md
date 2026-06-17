@@ -1,3 +1,15 @@
+# Imported Master Docs Reference
+
+This directory is imported reference material from the baseline project. It is useful for provenance and deep comparison, but it is not the canonical documentation set for this repo.
+
+Use these as the source of truth first:
+- [README.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/README.md)
+- [STATUS.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/STATUS.md)
+- [docs/02_Enterprise_RAG_Project_Plan_Milestones.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/02_Enterprise_RAG_Project_Plan_Milestones.md)
+- [docs/runbooks/SOURCE_CONTROL_WORKFLOW.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/runbooks/SOURCE_CONTROL_WORKFLOW.md)
+
+Links and path descriptions below are preserved from the imported source and may point at older repo locations.
+
 # Docs Index
 
 This folder is organized for two audiences:

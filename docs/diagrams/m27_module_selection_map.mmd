@@ -1,0 +1,20 @@
+flowchart LR
+  Scenario["Choose scenario profile"] --> Auth["Auth layer"]
+  Scenario --> Access["Access strategy"]
+  Scenario --> Data["Data ingestion"]
+  Data --> Parse["Parsing + chunking"]
+  Parse --> Index["Embeddings + index"]
+  Index --> Retrieval["Retrieval engine"]
+  Auth --> Query["Query plane"]
+  Access --> Query
+  Retrieval --> Query
+  Query --> Chat["Chat UI + citations"]
+  Query --> Observability["Eval + traces + feedback"]
+  Scenario --> Admin["Admin console modules"]
+  Admin --> Governance["Governance + audit"]
+
+  Research["research_no_auth"] -. keep .-> Retrieval
+  Employee["employee_wide_rag"] -. replace access in M28 .-> Access
+  SmallBiz["small_enterprise_corpus_acl"] -. replace auth/access .-> Auth
+  Enterprise["enterprise_oidc_acl"] -. keep full stack .-> Governance
+

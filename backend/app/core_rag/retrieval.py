@@ -1,12 +1,16 @@
 import re
 import time
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from app.corpus_policies import get_source_corpus_policy
 from app.core.config import settings
 from app.core.logging import log_event, logger
+from app.db.repo_acl import current_acl_context
 from app.core_rag.query_router import QueryRouteDecision, route_query
+from app.core_rag.query_transform import transform_query
+from app.profiles.resolver import get_effective_reranker, get_effective_retrieval
 from app.db.repo_chunks import fetch_neighbor_chunks, get_chunks_for_enrichment
 from app.db.repo_search import fetch_chunks_by_ids, search_chunks, search_chunks_keyword
 from app.db.repo_sources import get_sources_by_ids
@@ -21,6 +25,7 @@ DEEP_LOOKUP_MODE = "deep_lookup"
 DEEP_LOOKUP_VECTOR_CANDIDATES = 24
 DEEP_LOOKUP_KEYWORD_CANDIDATES = 36
 DEEP_LOOKUP_HYBRID_ALPHA = 0.2
+SUPPORTED_FUSION_METHODS = {"linear", "rrf"}
 _ANCHOR_STOPWORDS = {
     "about",
     "after",
@@ -55,6 +60,7 @@ class SearchFilters(BaseModel):
     source_id: Optional[int] = None
     source_part_id: Optional[int] = None
     locator_filter: Optional[str] = None
+    metadata_filters: Optional[Dict[str, str]] = None
 
 
 class SearchRequest(BaseModel):
@@ -80,6 +86,7 @@ class SearchResultItem(BaseModel):
     heading: str
     locator: Optional[str] = None
     snippet: str
+    corpus_name: Optional[str] = None
     score: float
     distance: Optional[float] = None
     rerank_score: Optional[float] = None
@@ -87,6 +94,7 @@ class SearchResultItem(BaseModel):
     keyword_score: Optional[float] = None
     combined_score: Optional[float] = None
     rank_score: Optional[float] = None
+    freshness: Optional[dict[str, Any]] = None
 
 
 class SearchResponse(BaseModel):
@@ -173,6 +181,9 @@ def _combined_anchor_terms(request: SearchRequest, query_text: str) -> List[str]
 
 
 def _apply_anchor_cooccurrence_boost(*, question: str, raw_results: List[Dict]) -> List[Dict]:
+    from app.core_rag.retrieval_scoring import get_retrieval_scoring
+
+    scoring = get_retrieval_scoring()
     anchors = _extract_query_anchors(question)
     if not anchors:
         return raw_results
@@ -182,7 +193,11 @@ def _apply_anchor_cooccurrence_boost(*, question: str, raw_results: List[Dict]) 
         updated = dict(item)
         haystack = f"{item.get('heading', '')} {item.get('snippet', '')}".lower()
         matched = [anchor for anchor in anchors if anchor in haystack]
-        anchor_score = min(0.18, (len(matched) * 0.03) + (max(len(matched) - 1, 0) * 0.02))
+        anchor_score = min(
+            scoring.anchor_cooccurrence_cap,
+            (len(matched) * scoring.anchor_cooccurrence_term)
+            + (max(len(matched) - 1, 0) * scoring.anchor_cooccurrence_pair),
+        )
         updated["anchor_score"] = round(anchor_score, 4)
         updated["combined_score"] = _blend_score(updated.get("combined_score", 0.0), anchor_score, 1.0)
         adjusted.append(updated)
@@ -192,6 +207,9 @@ def _apply_anchor_cooccurrence_boost(*, question: str, raw_results: List[Dict]) 
 
 
 def _apply_anchor_boost_with_terms(*, anchors: List[str], raw_results: List[Dict]) -> List[Dict]:
+    from app.core_rag.retrieval_scoring import get_retrieval_scoring
+
+    scoring = get_retrieval_scoring()
     if not anchors:
         return raw_results
 
@@ -200,7 +218,11 @@ def _apply_anchor_boost_with_terms(*, anchors: List[str], raw_results: List[Dict
         updated = dict(item)
         haystack = f"{item.get('heading', '')} {item.get('snippet', '')}".lower()
         matched = [anchor for anchor in anchors if anchor in haystack]
-        anchor_score = min(0.24, (len(matched) * 0.035) + (max(len(matched) - 1, 0) * 0.025))
+        anchor_score = min(
+            scoring.anchor_explicit_cap,
+            (len(matched) * scoring.anchor_explicit_term)
+            + (max(len(matched) - 1, 0) * scoring.anchor_explicit_pair),
+        )
         updated["anchor_score"] = round(anchor_score, 4)
         updated["combined_score"] = _blend_score(updated.get("combined_score", 0.0), anchor_score, 1.0)
         adjusted.append(updated)
@@ -214,10 +236,13 @@ def merge_hybrid_results(
     keyword_results: List[Dict],
     k: int,
     alpha: float = 0.65,
+    fusion_method: str = "linear",
+    rrf_k: int = 60,
 ) -> List[Dict]:
+    fusion_method = _normalize_fusion_method(fusion_method)
     merged = {}
 
-    for result in vector_results:
+    for vector_rank, result in enumerate(vector_results, start=1):
         chunk_id = result["chunk_id"]
         distance = result["distance"] if result["distance"] is not None else 1.0
         vector_score = max(0.0, 1.0 - distance)
@@ -235,16 +260,21 @@ def merge_hybrid_results(
             "vector_score": vector_score,
             "keyword_score": 0.0,
             "rank_score": 0.0,
+            "vector_rank": vector_rank,
+            "keyword_rank": None,
+            "fusion_method": fusion_method,
+            "rrf_k": rrf_k,
         }
 
     max_rank = max((result["rank_score"] for result in keyword_results), default=0.0)
 
-    for result in keyword_results:
+    for keyword_rank, result in enumerate(keyword_results, start=1):
         chunk_id = result["chunk_id"]
         keyword_score = result["rank_score"] / max_rank if max_rank > 0 else 0.0
         if chunk_id in merged:
             merged[chunk_id]["keyword_score"] = keyword_score
             merged[chunk_id]["rank_score"] = result["rank_score"]
+            merged[chunk_id]["keyword_rank"] = keyword_rank
         else:
             merged[chunk_id] = {
                 "chunk_id": chunk_id,
@@ -260,11 +290,22 @@ def merge_hybrid_results(
                 "vector_score": 0.0,
                 "keyword_score": keyword_score,
                 "rank_score": result["rank_score"],
+                "vector_rank": None,
+                "keyword_rank": keyword_rank,
+                "fusion_method": fusion_method,
+                "rrf_k": rrf_k,
             }
 
     final_results = []
     for result in merged.values():
-        result["combined_score"] = alpha * result["vector_score"] + (1.0 - alpha) * result["keyword_score"]
+        linear_score = alpha * result["vector_score"] + (1.0 - alpha) * result["keyword_score"]
+        vector_rrf_score = _rrf_component_score(result.get("vector_rank"), rrf_k)
+        keyword_rrf_score = _rrf_component_score(result.get("keyword_rank"), rrf_k)
+        result["fusion_linear_score"] = linear_score
+        result["fusion_rrf_vector_score"] = vector_rrf_score
+        result["fusion_rrf_keyword_score"] = keyword_rrf_score
+        result["fusion_rrf_score"] = vector_rrf_score + keyword_rrf_score
+        result["combined_score"] = result["fusion_rrf_score"] if fusion_method == "rrf" else linear_score
         final_results.append(result)
 
     final_results.sort(
@@ -277,12 +318,64 @@ def _blend_score(base_score: float, additive_score: float, weight: float) -> flo
     return base_score + max(0.0, additive_score) * weight
 
 
+def _normalize_fusion_method(fusion_method: Optional[str]) -> str:
+    method = str(fusion_method or "linear").strip().lower()
+    if method not in SUPPORTED_FUSION_METHODS:
+        return "linear"
+    return method
+
+
+def _rrf_component_score(rank: Optional[int], rrf_k: int) -> float:
+    if rank is None:
+        return 0.0
+    return 1.0 / float(max(rrf_k, 1) + rank)
+
+
+def _fusion_trace_payload(*, fusion_method: Optional[str], alpha: float, rrf_k: int) -> dict:
+    return {
+        "method": _normalize_fusion_method(fusion_method),
+        "linear_alpha": round(alpha, 4),
+        "rrf_k": int(rrf_k),
+    }
+
+
+def _fuse_multi_query_lists(result_lists: List[List[Dict]], *, rrf_k: int) -> List[Dict]:
+    """RRF-fuse per-variant candidate lists by chunk_id (AR5 multi-query fan-out).
+
+    Each list is already sorted best-first. A chunk's fused score sums its
+    reciprocal-rank contribution across the lists it appears in, so chunks
+    surfaced by multiple query variants rise. The representative row is the
+    best-scoring occurrence, with combined_score overwritten by the fused score.
+    """
+    best_row: dict[int, Dict] = {}
+    fused_score: dict[int, float] = {}
+    for results in result_lists:
+        for rank, item in enumerate(results):
+            chunk_id = item.get("chunk_id")
+            if chunk_id is None:
+                continue
+            fused_score[chunk_id] = fused_score.get(chunk_id, 0.0) + (1.0 / float(max(rrf_k, 1) + rank))
+            if chunk_id not in best_row or (item.get("combined_score") or 0.0) > (best_row[chunk_id].get("combined_score") or 0.0):
+                best_row[chunk_id] = item
+    fused: List[Dict] = []
+    for chunk_id, row in best_row.items():
+        merged = dict(row)
+        merged["multi_query_score"] = round(fused_score[chunk_id], 6)
+        merged["combined_score"] = fused_score[chunk_id]
+        fused.append(merged)
+    fused.sort(key=_result_sort_key)
+    return fused
+
+
 def _integrate_graph_candidates(
     *,
     baseline_results: List[Dict],
     graph_candidates: List[Dict],
     k: int,
 ) -> List[Dict]:
+    from app.core_rag.retrieval_scoring import get_retrieval_scoring
+
+    scoring = get_retrieval_scoring()
     merged = {item["chunk_id"]: dict(item) for item in baseline_results}
 
     for item in merged.values():
@@ -296,7 +389,7 @@ def _integrate_graph_candidates(
             merged[chunk_id]["combined_score"] = _blend_score(
                 merged[chunk_id].get("combined_score", 0.0),
                 graph_score,
-                0.35,
+                scoring.graph_existing_weight,
             )
             continue
 
@@ -309,7 +402,7 @@ def _integrate_graph_candidates(
         supplemental.setdefault("keyword_score", 0.0)
         supplemental.setdefault("rank_score", 0.0)
         supplemental["graph_score"] = graph_score
-        supplemental["combined_score"] = graph_score * 0.2
+        supplemental["combined_score"] = graph_score * scoring.graph_supplemental_weight
         merged[chunk_id] = supplemental
 
     results = list(merged.values())
@@ -338,6 +431,9 @@ def _extract_temporal_query_signals(question: str) -> Dict[str, set[str]]:
 
 
 def _apply_temporal_signals(*, question: str, baseline_results: List[Dict], k: int) -> List[Dict]:
+    from app.core_rag.retrieval_scoring import get_retrieval_scoring
+
+    scoring = get_retrieval_scoring()
     if not (settings.ENABLE_TEMPORAL or settings.EXTRACT_TEMPORAL_METADATA or settings.TEMPORAL_RERANK_ENABLED):
         return baseline_results[:k]
 
@@ -356,7 +452,7 @@ def _apply_temporal_signals(*, question: str, baseline_results: List[Dict], k: i
             adjusted.append(updated)
             continue
 
-        temporal_score = 0.0
+        matched_signal = False
         date_bounds = temporal_metadata.get("date_bounds") or {}
         effective_window = temporal_metadata.get("effective_window") or {}
         version_refs = temporal_metadata.get("document_version_refs") or []
@@ -368,17 +464,21 @@ def _apply_temporal_signals(*, question: str, baseline_results: List[Dict], k: i
         }
         bound_years = {value[:4] for value in bound_values if len(value) >= 4}
         if query_signals["normalized_dates"] & bound_values:
-            temporal_score = max(temporal_score, 0.12)
+            matched_signal = True
         elif query_signals["years"] & bound_years:
-            temporal_score = max(temporal_score, 0.08)
+            matched_signal = True
 
         source_versions = {str(item.get("value")) for item in version_refs if item.get("value")}
         if query_signals["versions"] & source_versions:
-            temporal_score = max(temporal_score, 0.1)
+            matched_signal = True
 
-        if temporal_score > 0:
-            updated["combined_score"] = _blend_score(updated.get("combined_score", 0.0), temporal_score, 0.2)
-            updated["temporal_score"] = temporal_score
+        if matched_signal:
+            updated["combined_score"] = _blend_score(
+                updated.get("combined_score", 0.0),
+                scoring.temporal_signal_score,
+                scoring.temporal_weight,
+            )
+            updated["temporal_score"] = scoring.temporal_signal_score
         adjusted.append(updated)
 
     adjusted.sort(key=_result_sort_key)
@@ -389,20 +489,27 @@ def _default_mode() -> str:
     return getattr(settings, "RETRIEVAL_MODE", None) or "hybrid"
 
 
-def _extract_request_filters(request: SearchRequest) -> tuple[Optional[str], Optional[int], Optional[int], Optional[str]]:
+def _extract_request_filters(request: SearchRequest) -> tuple[Optional[str], Optional[int], Optional[int], Optional[str], Optional[Dict[str, str]]]:
     if not request.filters:
-        return None, None, None, None
+        return None, None, None, None, None
     return (
         request.filters.source_type,
         request.filters.source_id,
         request.filters.source_part_id,
         request.filters.locator_filter,
+        request.filters.metadata_filters,
     )
 
 
 def _resolve_mode(request: SearchRequest) -> tuple[str, QueryRouteDecision]:
     source_id = request.filters.source_id if request.filters else None
-    default_mode = _default_mode()
+    # A named corpus policy owns the default mode; sources that fall back to the
+    # generic "default" policy respect the operator's RETRIEVAL_MODE setting.
+    source_policy = get_source_corpus_policy(source_id) if source_id is not None else None
+    if source_policy is not None and source_policy.name != "default":
+        default_mode = source_policy.retrieval_default_mode
+    else:
+        default_mode = _default_mode()
     decision = route_query(
         question=request.question,
         explicit_mode=request.mode,
@@ -412,10 +519,12 @@ def _resolve_mode(request: SearchRequest) -> tuple[str, QueryRouteDecision]:
     return decision.selected_mode, decision
 
 
-def _run_vector_mode(*, request: SearchRequest, source_type: Optional[str], source_id: Optional[int], source_part_id: Optional[int], locator_filter: Optional[str]) -> List[Dict]:
+def _run_vector_mode(*, request: SearchRequest, source_type: Optional[str], source_id: Optional[int], source_part_id: Optional[int], locator_filter: Optional[str], metadata_filters: Optional[Dict[str, str]]) -> List[Dict]:
+    rp = get_effective_retrieval()
+    rr = get_effective_reranker()
     query_text = _resolve_query_text(request)
     query_vector = embed_texts([query_text])[0]
-    effective_k = settings.TOP_K_INITIAL if settings.RERANK_ENABLED else max(request.k, settings.VECTOR_CANDIDATES)
+    effective_k = rp.top_k_initial if rr.enabled else max(request.k, rp.vector_candidates)
     raw_results = search_chunks(
         query_vector=query_vector,
         k=effective_k,
@@ -423,6 +532,7 @@ def _run_vector_mode(*, request: SearchRequest, source_type: Optional[str], sour
         source_id=source_id,
         source_part_id=source_part_id,
         locator_filter=locator_filter,
+        metadata_filters=metadata_filters,
     )
     for result in raw_results:
         result["vector_score"] = max(0.0, 1.0 - (result["distance"] or 1.0))
@@ -433,8 +543,10 @@ def _run_vector_mode(*, request: SearchRequest, source_type: Optional[str], sour
     return _apply_anchor_boost_with_terms(anchors=anchors, raw_results=raw_results)
 
 
-def _run_keyword_mode(*, request: SearchRequest, source_type: Optional[str], source_id: Optional[int], source_part_id: Optional[int], locator_filter: Optional[str]) -> List[Dict]:
-    effective_k = settings.TOP_K_INITIAL if settings.RERANK_ENABLED else max(request.k, settings.KEYWORD_CANDIDATES)
+def _run_keyword_mode(*, request: SearchRequest, source_type: Optional[str], source_id: Optional[int], source_part_id: Optional[int], locator_filter: Optional[str], metadata_filters: Optional[Dict[str, str]]) -> List[Dict]:
+    rp = get_effective_retrieval()
+    rr = get_effective_reranker()
+    effective_k = rp.top_k_initial if rr.enabled else max(request.k, rp.keyword_candidates)
     query_text = _resolve_query_text(request)
     raw_results = search_chunks_keyword(
         query_text=query_text,
@@ -443,6 +555,7 @@ def _run_keyword_mode(*, request: SearchRequest, source_type: Optional[str], sou
         source_id=source_id,
         source_part_id=source_part_id,
         locator_filter=locator_filter,
+        metadata_filters=metadata_filters,
     )
     max_rank = max((result["rank_score"] for result in raw_results), default=0.0)
     for result in raw_results:
@@ -453,32 +566,38 @@ def _run_keyword_mode(*, request: SearchRequest, source_type: Optional[str], sou
     return _apply_anchor_boost_with_terms(anchors=anchors, raw_results=raw_results)
 
 
-def _run_hybrid_baseline(*, request: SearchRequest, source_type: Optional[str], source_id: Optional[int], source_part_id: Optional[int], locator_filter: Optional[str]) -> tuple[List[Dict], int]:
+def _run_hybrid_baseline(*, request: SearchRequest, source_type: Optional[str], source_id: Optional[int], source_part_id: Optional[int], locator_filter: Optional[str], metadata_filters: Optional[Dict[str, str]]) -> tuple[List[Dict], int]:
+    rp = get_effective_retrieval()
+    rr = get_effective_reranker()
     query_text = _resolve_query_text(request)
     query_vector = embed_texts([query_text])[0]
-    effective_k = settings.TOP_K_INITIAL if settings.RERANK_ENABLED else request.k
-    merge_k = max(effective_k, settings.VECTOR_CANDIDATES, settings.KEYWORD_CANDIDATES)
+    effective_k = rp.top_k_initial if rr.enabled else request.k
+    merge_k = max(effective_k, rp.vector_candidates, rp.keyword_candidates)
     vector_results = search_chunks(
         query_vector=query_vector,
-        k=settings.VECTOR_CANDIDATES,
+        k=rp.vector_candidates,
         source_type=source_type,
         source_id=source_id,
         source_part_id=source_part_id,
         locator_filter=locator_filter,
+        metadata_filters=metadata_filters,
     )
     keyword_results = search_chunks_keyword(
         query_text=query_text,
-        k=settings.KEYWORD_CANDIDATES,
+        k=rp.keyword_candidates,
         source_type=source_type,
         source_id=source_id,
         source_part_id=source_part_id,
         locator_filter=locator_filter,
+        metadata_filters=metadata_filters,
     )
     raw_results = merge_hybrid_results(
         vector_results=vector_results,
         keyword_results=keyword_results,
         k=merge_k,
-        alpha=settings.HYBRID_ALPHA,
+        alpha=rp.hybrid_alpha,
+        fusion_method=rp.fusion_method,
+        rrf_k=rp.rrf_k,
     )
     anchors = _combined_anchor_terms(request, query_text)
     raw_results = _apply_anchor_boost_with_terms(anchors=anchors, raw_results=raw_results)
@@ -486,6 +605,9 @@ def _run_hybrid_baseline(*, request: SearchRequest, source_type: Optional[str], 
 
 
 def _expand_neighbor_context(*, raw_results: List[Dict], request: SearchRequest, k: int) -> List[Dict]:
+    from app.core_rag.retrieval_scoring import get_retrieval_scoring
+
+    scoring = get_retrieval_scoring()
     if not request.expand_neighbors or not raw_results:
         return raw_results
 
@@ -503,7 +625,7 @@ def _expand_neighbor_context(*, raw_results: List[Dict], request: SearchRequest,
         snippet = neighbor["chunk_text"]
         haystack = f"{neighbor.get('heading', '')} {snippet}".lower()
         matched_count = sum(1 for anchor in anchors if anchor in haystack)
-        bonus = 0.03 + (matched_count * 0.025)
+        bonus = scoring.neighbor_base + (matched_count * scoring.neighbor_anchor_term)
         expanded.append(
             {
                 "chunk_id": neighbor["id"],
@@ -587,7 +709,9 @@ def _build_anchor_window_candidates(
     chunk_count = len(source_chunks)
     anchor_frequency: Dict[str, int] = {}
     tokenized_query_terms = set(_tokenize_text(query_text))
-    causal_terms = {"because", "challenging", "dominated", "making", "hard", "difficult", "saturated", "rank"}
+    from app.core_rag.retrieval_scoring import get_retrieval_scoring
+
+    scoring = get_retrieval_scoring()
 
     for anchor in anchors:
         anchor_frequency[anchor] = sum(1 for chunk in source_chunks if anchor in str(chunk.get("chunk_text", "")).lower())
@@ -616,20 +740,30 @@ def _build_anchor_window_candidates(
             continue
 
         lexical_overlap = len(tokenized_query_terms & set(_tokenize_text(haystack)))
-        causal_bonus = 0.05 if any(term in haystack for term in causal_terms) else 0.0
-        base_score = min(0.36, 0.12 + (len(matched_anchors) * 0.04) + min(0.08, lexical_overlap * 0.01) + causal_bonus)
+        base_score = min(
+            scoring.anchor_window_cap,
+            scoring.anchor_window_base
+            + (len(matched_anchors) * scoring.anchor_window_term)
+            + min(scoring.anchor_window_overlap_cap, lexical_overlap * scoring.anchor_window_overlap_term),
+        )
         chunk_id = int(chunk["id"])
         candidate_scores[chunk_id] = max(candidate_scores.get(chunk_id, 0.0), base_score)
 
         chunk_index = int(chunk["chunk_index"])
         neighbors_added = []
         if request.expand_neighbors:
-            for offset, bonus in [(-1, 0.08), (1, 0.08)]:
+            for offset, bonus in [
+                (-1, scoring.anchor_window_offset_bonus),
+                (1, scoring.anchor_window_offset_bonus),
+            ]:
                 neighbor = chunk_by_index.get(chunk_index + offset)
                 if neighbor is None:
                     continue
                 neighbor_id = int(neighbor["id"])
-                neighbor_score = min(0.24, base_score * 0.7 + bonus)
+                neighbor_score = min(
+                    scoring.anchor_window_neighbor_cap,
+                    base_score * scoring.anchor_window_neighbor_weight + scoring.anchor_window_neighbor_bonus,
+                )
                 candidate_scores[neighbor_id] = max(candidate_scores.get(neighbor_id, 0.0), neighbor_score)
                 neighbors_added.append(neighbor_id)
 
@@ -668,12 +802,13 @@ def _build_anchor_window_candidates(
     return supplemental_results, trace
 
 
-def _run_deep_research_mode(*, request: SearchRequest, source_type: Optional[str], source_id: Optional[int], source_part_id: Optional[int], locator_filter: Optional[str]) -> tuple[List[Dict], dict]:
+def _run_deep_research_mode(*, request: SearchRequest, source_type: Optional[str], source_id: Optional[int], source_part_id: Optional[int], locator_filter: Optional[str], metadata_filters: Optional[Dict[str, str]]) -> tuple[List[Dict], dict]:
+    rp = get_effective_retrieval()
     query_text = _resolve_query_text(request)
     anchors = _combined_anchor_terms(request, query_text)
     vector_query = embed_texts([query_text])[0]
-    vector_k = max(request.k * 4, settings.VECTOR_CANDIDATES, DEEP_LOOKUP_VECTOR_CANDIDATES)
-    keyword_k = max(request.k * 5, settings.KEYWORD_CANDIDATES, DEEP_LOOKUP_KEYWORD_CANDIDATES)
+    vector_k = max(request.k * 4, rp.vector_candidates, rp.deep_research_vector_candidates)
+    keyword_k = max(request.k * 5, rp.keyword_candidates, rp.deep_research_keyword_candidates)
 
     vector_results = search_chunks(
         query_vector=vector_query,
@@ -682,6 +817,7 @@ def _run_deep_research_mode(*, request: SearchRequest, source_type: Optional[str
         source_id=source_id,
         source_part_id=source_part_id,
         locator_filter=locator_filter,
+        metadata_filters=metadata_filters,
     )
     keyword_results = search_chunks_keyword(
         query_text=query_text,
@@ -690,6 +826,7 @@ def _run_deep_research_mode(*, request: SearchRequest, source_type: Optional[str
         source_id=source_id,
         source_part_id=source_part_id,
         locator_filter=locator_filter,
+        metadata_filters=metadata_filters,
     )
 
     supplemental_keyword_results: List[Dict] = []
@@ -702,6 +839,7 @@ def _run_deep_research_mode(*, request: SearchRequest, source_type: Optional[str
             source_id=source_id,
             source_part_id=source_part_id,
             locator_filter=locator_filter,
+            metadata_filters=metadata_filters,
         )
 
     merged_keyword_results = keyword_results
@@ -716,12 +854,15 @@ def _run_deep_research_mode(*, request: SearchRequest, source_type: Optional[str
         merged_keyword_results = list(ranked.values())
         merged_keyword_results.sort(key=lambda item: (-float(item.get("rank_score") or 0.0), item.get("chunk_index", 0)))
 
-    effective_k = max(request.k * 4, settings.TOP_K_INITIAL if settings.RERANK_ENABLED else request.k)
+    rr = get_effective_reranker()
+    effective_k = max(request.k * 4, rp.top_k_initial if rr.enabled else request.k)
     merged = merge_hybrid_results(
         vector_results=vector_results,
         keyword_results=merged_keyword_results,
         k=effective_k,
-        alpha=DEEP_LOOKUP_HYBRID_ALPHA,
+        alpha=rp.deep_research_alpha,
+        fusion_method=rp.fusion_method,
+        rrf_k=rp.rrf_k,
     )
     merged = _apply_anchor_boost_with_terms(anchors=anchors, raw_results=merged)
     anchor_window_results, anchor_window_trace = _build_anchor_window_candidates(
@@ -811,8 +952,15 @@ def _apply_graph_and_temporal_layers(*, request: SearchRequest, resolved_mode: s
 
 
 def _materialize_search_results(*, raw_results: List[Dict], resolved_mode: str, debug: bool) -> List[SearchResultItem]:
+    from app.freshness import freshness_by_source_ids
+
+    source_ids = sorted({int(result["source_id"]) for result in raw_results if result.get("source_id") is not None})
+    freshness_map = freshness_by_source_ids(source_ids)
+    source_meta = get_sources_by_ids(source_ids)
     results = []
     for result in raw_results:
+        source_row = source_meta.get(int(result["source_id"])) if result.get("source_id") is not None else None
+        corpus_name = (source_row.source_metadata_json or {}).get("corpus") if source_row else None
         if resolved_mode == "vector":
             score = max(0.0, 1.0 - (result["distance"] or 1.0))
         elif resolved_mode == "keyword":
@@ -829,6 +977,8 @@ def _materialize_search_results(*, raw_results: List[Dict], resolved_mode: str, 
             heading=result["heading"],
             locator=result.get("locator"),
             snippet=result["snippet"],
+            corpus_name=corpus_name or None,
+            freshness=freshness_map.get(int(result["source_id"])),
             score=round(score, 4),
             distance=round(result["distance"], 4) if result.get("distance") is not None else None,
             rerank_score=round(result["rerank_score"], 4) if "rerank_score" in result else None,
@@ -842,11 +992,186 @@ def _materialize_search_results(*, raw_results: List[Dict], resolved_mode: str, 
     return results
 
 
+def _build_score_diagnostics(raw_results: List[Dict], top_n: int = 10) -> list[dict]:
+    diags = []
+    for item in raw_results[:top_n]:
+        diags.append({
+            "chunk_id": item.get("chunk_id"),
+            "fusion_method": item.get("fusion_method"),
+            "vector_score": round(item["vector_score"], 4) if item.get("vector_score") is not None else None,
+            "keyword_score": round(item["keyword_score"], 4) if item.get("keyword_score") is not None else None,
+            "combined_score": round(item["combined_score"], 4) if item.get("combined_score") is not None else None,
+            "fusion_linear_score": round(item["fusion_linear_score"], 4) if item.get("fusion_linear_score") is not None else None,
+            "fusion_rrf_score": round(item["fusion_rrf_score"], 4) if item.get("fusion_rrf_score") is not None else None,
+            "fusion_rrf_vector_score": round(item["fusion_rrf_vector_score"], 4) if item.get("fusion_rrf_vector_score") is not None else None,
+            "fusion_rrf_keyword_score": round(item["fusion_rrf_keyword_score"], 4) if item.get("fusion_rrf_keyword_score") is not None else None,
+            "vector_rank": item.get("vector_rank"),
+            "keyword_rank": item.get("keyword_rank"),
+            "rerank_score": round(item["rerank_score"], 4) if item.get("rerank_score") is not None else None,
+            "anchor_score": round(item.get("anchor_score", 0.0), 4),
+        })
+    return diags
+
+
+def _candidate_corpora(raw_results: List[Dict]) -> list[str]:
+    if not raw_results:
+        return []
+    source_rows = get_sources_by_ids(sorted({int(item["source_id"]) for item in raw_results if item.get("source_id")}))
+    corpora = {
+        str((source_rows[item["source_id"]].source_metadata_json or {}).get("corpus") or item.get("source_type") or "unknown")
+        for item in raw_results
+        if item.get("source_id") in source_rows
+    }
+    return sorted(corpora)
+
+
+def _persist_trace(*, retrieval_trace: dict, question: str, score_diagnostics: list, answer_path: str | None = None) -> None:
+    import uuid
+    try:
+        from app.db.repo_traces import insert_trace
+        from app.profiles.resolver import get_active_profile_snapshot
+        request_id = retrieval_trace.get("request_id") or str(uuid.uuid4())
+        insert_trace(
+            request_id=request_id,
+            question=question,
+            requested_mode=retrieval_trace.get("requested_mode"),
+            resolved_mode=retrieval_trace.get("resolved_mode", "unknown"),
+            retrieval_path=retrieval_trace.get("retrieval_path_used", "unknown"),
+            candidate_counts=retrieval_trace.get("candidate_counts", {}),
+            fallback_reason=retrieval_trace.get("fallback_reason"),
+            answer_path=answer_path,
+            latency_ms=retrieval_trace.get("latency_ms", {}),
+            score_diagnostics=score_diagnostics,
+            trace_json=retrieval_trace,
+            active_profiles=get_active_profile_snapshot(),
+        )
+    except Exception as exc:
+        logger.debug("Failed to persist retrieval trace: %s", exc)
+
+
+def _variant_candidates(*, query: str, resolved_mode: str, request: SearchRequest, source_type, source_id, source_part_id, locator_filter, metadata_filters) -> List[Dict]:
+    variant_request = request.model_copy(update={"custom_query": query})
+    kwargs = dict(
+        request=variant_request,
+        source_type=source_type,
+        source_id=source_id,
+        source_part_id=source_part_id,
+        locator_filter=locator_filter,
+        metadata_filters=metadata_filters,
+    )
+    if resolved_mode == "vector":
+        return _run_vector_mode(**kwargs)
+    if resolved_mode == "keyword":
+        return _run_keyword_mode(**kwargs)
+    results, _ = _run_hybrid_baseline(**kwargs)
+    return results
+
+
+def _maybe_fan_out_multi_query(
+    *,
+    retrieval_profile,
+    request: SearchRequest,
+    resolved_mode: str,
+    transform_result,
+    base_results: List[Dict],
+    source_type,
+    source_id,
+    source_part_id,
+    locator_filter,
+    metadata_filters,
+) -> dict:
+    """AR5: retrieve each generated variant separately and RRF-fuse with the base
+    pool, instead of concatenating variants into one query string. Behind the
+    `multi_query_enabled` flag; standard modes only (deep research owns its own
+    recall). Trace carries per-variant candidate counts."""
+    variants = list(getattr(transform_result, "generated_queries", []) or [])
+    trace = {"applied": False, "reason": "disabled", "variant_count": 0, "fused_results": base_results}
+    if not getattr(retrieval_profile, "multi_query_enabled", False):
+        return trace
+    if request.deep_research:
+        trace["reason"] = "skipped_deep_research"
+        return trace
+    if resolved_mode not in {"vector", "keyword", "hybrid"}:
+        trace["reason"] = "skipped_unsupported_mode"
+        return trace
+    if not variants:
+        trace["reason"] = "no_variants"
+        return trace
+
+    result_lists = [base_results]
+    per_variant_counts = []
+    for variant in variants:
+        try:
+            candidates = _variant_candidates(
+                query=variant,
+                resolved_mode=resolved_mode,
+                request=request,
+                source_type=source_type,
+                source_id=source_id,
+                source_part_id=source_part_id,
+                locator_filter=locator_filter,
+                metadata_filters=metadata_filters,
+            )
+        except Exception as exc:  # one bad variant must not fail the search
+            logger.warning("Multi-query variant retrieval failed: %s", exc)
+            per_variant_counts.append({"query": variant, "count": 0, "error": str(exc)})
+            continue
+        result_lists.append(candidates)
+        per_variant_counts.append({"query": variant, "count": len(candidates)})
+
+    fused = _fuse_multi_query_lists(result_lists, rrf_k=int(retrieval_profile.rrf_k))
+    trace.update(
+        {
+            "applied": True,
+            "reason": "fused",
+            "variant_count": len(variants),
+            "base_candidate_count": len(base_results),
+            "fused_candidate_count": len(fused),
+            "per_variant": per_variant_counts,
+            "fused_results": fused,
+        }
+    )
+    return trace
+
+
 def perform_search(request: SearchRequest) -> SearchResponse:
+    import uuid
     start_time = time.time()
+    request_id = str(uuid.uuid4())
     resolved_mode, route_decision = _resolve_mode(request)
 
-    source_type, source_id, source_part_id, locator_filter = _extract_request_filters(request)
+    source_type, source_id, source_part_id, locator_filter, metadata_filters = _extract_request_filters(request)
+    source_policy = get_source_corpus_policy(source_id)
+    retrieval_profile = get_effective_retrieval()
+    # Transform the operative query text: a caller-supplied custom_query is the
+    # retrieval query and must not be clobbered by a transform of the question.
+    base_query = _resolve_query_text(request)
+    transform_result = transform_query(base_query, retrieval_profile)
+    retrieval_request = request
+    # Multi-query fan-out retrieves the original and each variant separately and
+    # fuses (below); single-query mode concatenates variants into one query.
+    multi_query_mode = bool(getattr(retrieval_profile, "multi_query_enabled", False)) and bool(transform_result.generated_queries)
+    if not multi_query_mode and transform_result.effective_query and transform_result.effective_query != base_query:
+        retrieval_request = request.model_copy(update={"custom_query": transform_result.effective_query})
+
+    # AR7 hard block: if the active embedding dimension diverges from the index
+    # (mid model-swap or unmanaged activation), vector search would error or
+    # return corrupt neighbours. Degrade to keyword-only with an operator banner.
+    degraded_vector = None
+    _vector_modes = {"vector", "hybrid", "graph_hybrid", "full"}
+    if resolved_mode in _vector_modes or request.deep_research:
+        from app.coherence import vector_serving_state
+
+        serving = vector_serving_state()
+        if not serving["serviceable"]:
+            degraded_vector = {
+                "reason": serving["reason"],
+                "profile_dimension": serving.get("profile_dimension"),
+                "index_dimension": serving.get("index_dimension"),
+                "original_mode": resolved_mode,
+                "deep_research_suppressed": bool(request.deep_research),
+            }
+            resolved_mode = "keyword"
 
     log_event(
         "search.started",
@@ -858,20 +1183,35 @@ def perform_search(request: SearchRequest) -> SearchResponse:
         reason=route_decision.reason,
     )
 
-    retrieval_trace = {
+    retrieval_trace: dict = {
+        "request_id": request_id,
         "requested_mode": request.mode,
         "resolved_mode": resolved_mode,
         "retrieval_path_used": resolved_mode,
         "route_reason": route_decision.reason,
+        "route_class": route_decision.route_class,
+        "route_details": route_decision.reason_details or {},
+        "preferred_mode": route_decision.preferred_mode,
+        "router_applied": route_decision.router_applied,
+        "manual_mode": route_decision.manual_mode,
         "deep_research_requested": request.deep_research,
         "deep_research_used": False,
-        "effective_query": _resolve_query_text(request),
+        "degraded_vector": degraded_vector,
+        "effective_query": _resolve_query_text(retrieval_request),
+        "query_transform": transform_result.trace,
         "anchor_terms_requested": _normalize_anchor_terms(request.anchor_terms),
         "fallback_reason": None,
         "graph_used": False,
         "temporal_used": False,
         "graph_reason": "not_requested",
         "temporal_reason": "not_requested",
+        "candidate_counts": {},
+        "latency_ms": {},
+        "acl": current_acl_context(),
+        "fusion": None,
+        "rerank_policy": None,
+        "corpus_policy": source_policy.to_dict() if source_id is not None else None,
+        "structured_filters": metadata_filters or {},
     }
 
     lazy_result = None
@@ -888,19 +1228,28 @@ def perform_search(request: SearchRequest) -> SearchResponse:
 
     try:
         effective_k = request.k
-        if request.deep_research:
+        search_start = time.time()
+        if request.deep_research and not degraded_vector:
             raw_results, deep_trace = _run_deep_research_mode(
-                request=request,
+                request=retrieval_request,
                 source_type=source_type,
                 source_id=source_id,
                 source_part_id=source_part_id,
                 locator_filter=locator_filter,
+                metadata_filters=metadata_filters,
             )
-            effective_k = max(request.k, settings.TOP_K_INITIAL if settings.RERANK_ENABLED else request.k)
+            rp = get_effective_retrieval()
+            rr = get_effective_reranker()
+            effective_k = max(request.k, rp.top_k_initial if rr.enabled else request.k)
             retrieval_trace.update(deep_trace)
+            retrieval_trace["fusion"] = _fusion_trace_payload(
+                fusion_method=rp.fusion_method,
+                alpha=rp.deep_research_alpha,
+                rrf_k=rp.rrf_k,
+            )
             if resolved_mode in {"graph_hybrid", "full"}:
                 raw_results, resolved_mode, graph_trace = _apply_graph_and_temporal_layers(
-                    request=request,
+                    request=retrieval_request,
                     resolved_mode=resolved_mode,
                     source_id=source_id,
                     raw_results=raw_results,
@@ -910,30 +1259,34 @@ def perform_search(request: SearchRequest) -> SearchResponse:
                 retrieval_trace["retrieval_path_used"] = resolved_mode
         elif resolved_mode == "vector":
             raw_results = _run_vector_mode(
-                request=request,
+                request=retrieval_request,
                 source_type=source_type,
                 source_id=source_id,
                 source_part_id=source_part_id,
                 locator_filter=locator_filter,
+                metadata_filters=metadata_filters,
             )
         elif resolved_mode == "keyword":
             raw_results = _run_keyword_mode(
-                request=request,
+                request=retrieval_request,
                 source_type=source_type,
                 source_id=source_id,
                 source_part_id=source_part_id,
                 locator_filter=locator_filter,
+                metadata_filters=metadata_filters,
             )
         else:
+            rp = get_effective_retrieval()
             raw_results, effective_k = _run_hybrid_baseline(
-                request=request,
+                request=retrieval_request,
                 source_type=source_type,
                 source_id=source_id,
                 source_part_id=source_part_id,
                 locator_filter=locator_filter,
+                metadata_filters=metadata_filters,
             )
             raw_results, resolved_mode, graph_trace = _apply_graph_and_temporal_layers(
-                request=request,
+                request=retrieval_request,
                 resolved_mode=resolved_mode,
                 source_id=source_id,
                 raw_results=raw_results,
@@ -941,8 +1294,34 @@ def perform_search(request: SearchRequest) -> SearchResponse:
             )
             retrieval_trace.update(graph_trace)
             retrieval_trace["retrieval_path_used"] = resolved_mode
+            retrieval_trace["fusion"] = _fusion_trace_payload(
+                fusion_method=rp.fusion_method,
+                alpha=rp.hybrid_alpha,
+                rrf_k=rp.rrf_k,
+            )
+        multi_query_trace = _maybe_fan_out_multi_query(
+            retrieval_profile=retrieval_profile,
+            request=retrieval_request,
+            resolved_mode=resolved_mode,
+            transform_result=transform_result,
+            base_results=raw_results,
+            source_type=source_type,
+            source_id=source_id,
+            source_part_id=source_part_id,
+            locator_filter=locator_filter,
+            metadata_filters=metadata_filters,
+        )
+        if multi_query_trace.get("applied"):
+            raw_results = multi_query_trace.pop("fused_results")
+        else:
+            multi_query_trace.pop("fused_results", None)
+        retrieval_trace["multi_query"] = multi_query_trace
+        search_ms = int((time.time() - search_start) * 1000)
+        retrieval_trace["latency_ms"]["search"] = search_ms
+        retrieval_trace["candidate_counts"]["pre_rerank"] = len(raw_results)
     except Exception as exc:
         retrieval_trace["fallback_reason"] = str(exc)
+        retrieval_trace["latency_ms"]["search"] = int((time.time() - start_time) * 1000)
         log_event(
             "search.failed",
             level=40,
@@ -953,17 +1332,47 @@ def perform_search(request: SearchRequest) -> SearchResponse:
             resolved_mode=resolved_mode,
             reason=str(exc),
         )
-        return SearchResponse(results=[], latency_ms=int((time.time() - start_time) * 1000), mode=resolved_mode, debug_info=retrieval_trace)
+        total_ms = int((time.time() - start_time) * 1000)
+        retrieval_trace["latency_ms"]["total"] = total_ms
+        _persist_trace(retrieval_trace=retrieval_trace, question=request.question, score_diagnostics=[])
+        return SearchResponse(results=[], latency_ms=total_ms, mode=resolved_mode, debug_info=retrieval_trace)
 
-    if settings.RERANK_ENABLED and raw_results:
-        from app.core_rag.reranker import rerank
+    from app.core_rag.reranker import apply_mmr, evaluate_rerank_policy, rerank
 
+    rerank_ms = 0
+    rerank_policy = evaluate_rerank_policy(
+        resolved_mode=resolved_mode,
+        chunks=raw_results,
+        candidate_corpora=_candidate_corpora(raw_results),
+        search_latency_ms=retrieval_trace["latency_ms"].get("search", 0),
+    )
+    if rerank_policy["eligible"]:
         logger.info(f"Reranking {len(raw_results)} candidates down to {request.k}")
-        raw_results = rerank(request.question, raw_results, request.k)
+        rerank_start = time.time()
+        raw_results = rerank(request.question, raw_results)
+        reranker_top = get_effective_reranker().top_n or request.k
+        raw_results = apply_mmr(raw_results, rerank_policy, top_k=min(request.k, reranker_top))
+        rerank_ms = int((time.time() - rerank_start) * 1000)
+        rerank_policy["applied"] = True
+        retrieval_trace["latency_ms"]["rerank"] = rerank_ms
     elif len(raw_results) > request.k:
         raw_results = raw_results[: request.k]
+        retrieval_trace["latency_ms"]["rerank"] = 0
+    else:
+        retrieval_trace["latency_ms"]["rerank"] = 0
+
+    retrieval_trace["candidate_counts"]["post_rerank"] = len(raw_results)
+    rerank_policy["output_candidate_count"] = len(raw_results)
+    retrieval_trace["rerank_policy"] = rerank_policy
+
+    score_diagnostics = _build_score_diagnostics(raw_results)
+    retrieval_trace["score_diagnostics"] = score_diagnostics
 
     results = _materialize_search_results(raw_results=raw_results, resolved_mode=resolved_mode, debug=request.debug)
+
+    total_ms = int((time.time() - start_time) * 1000)
+    retrieval_trace["latency_ms"]["total"] = total_ms
+
     log_event(
         "search.completed",
         source_id=source_id,
@@ -973,19 +1382,48 @@ def perform_search(request: SearchRequest) -> SearchResponse:
         resolved_mode=resolved_mode,
         reason=f"results={len(results)}",
     )
+    if results:
+        doc_ids = sorted({item.source_id for item in results})
+        source_rows = get_sources_by_ids(doc_ids)
+        corpora = sorted(
+            {
+                str((source_rows[item.source_id].source_metadata_json or {}).get("corpus") or item.source_type)
+                for item in results
+            }
+        )
+        sensitivity_by_doc = {
+            str(row.id): row.sensitivity_label
+            for row in source_rows.values()
+        }
+        retrieval_trace["acl"]["accessed_doc_ids"] = doc_ids
+        retrieval_trace["acl"]["sensitivity_by_doc"] = sensitivity_by_doc
+        log_event(
+            "search.audit_access",
+            stage="search",
+            status="completed",
+            requested_mode=request.mode,
+            resolved_mode=resolved_mode,
+            doc_ids=doc_ids,
+            corpora=corpora,
+            sensitivity_by_doc=sensitivity_by_doc,
+            groups=current_acl_context().get("groups", []),
+        )
+
+    _persist_trace(retrieval_trace=retrieval_trace, question=request.question, score_diagnostics=score_diagnostics)
 
     return SearchResponse(
         results=results,
-        latency_ms=int((time.time() - start_time) * 1000),
+        latency_ms=total_ms,
         mode=resolved_mode,
         debug_info=retrieval_trace,
     )
 
 
 def perform_deep_lookup(request: DeepLookupRequest) -> DeepLookupResponse:
+    rp = get_effective_retrieval()
     start_time = time.time()
     scoped_source_ids = list(request.source_ids)
-    effective_k = max(request.k * 3, DEEP_LOOKUP_VECTOR_CANDIDATES)
+    effective_k = max(request.k * 3, rp.deep_research_vector_candidates)
     log_event(
         "deep_lookup.started",
         stage="deep_lookup",
@@ -997,19 +1435,21 @@ def perform_deep_lookup(request: DeepLookupRequest) -> DeepLookupResponse:
         query_vector = embed_texts([request.question])[0]
         vector_results = search_chunks(
             query_vector=query_vector,
-            k=max(request.k * 2, DEEP_LOOKUP_VECTOR_CANDIDATES),
+            k=max(request.k * 2, rp.deep_research_vector_candidates),
             source_ids=scoped_source_ids,
         )
         keyword_results = search_chunks_keyword(
             query_text=request.question,
-            k=max(request.k * 3, DEEP_LOOKUP_KEYWORD_CANDIDATES),
+            k=max(request.k * 3, rp.deep_research_keyword_candidates),
             source_ids=scoped_source_ids,
         )
         raw_results = merge_hybrid_results(
             vector_results=vector_results,
             keyword_results=keyword_results,
             k=effective_k,
-            alpha=DEEP_LOOKUP_HYBRID_ALPHA,
+            alpha=rp.deep_research_alpha,
+            fusion_method=rp.fusion_method,
+            rrf_k=rp.rrf_k,
         )
         raw_results = _apply_anchor_cooccurrence_boost(question=request.question, raw_results=raw_results)
         results = _materialize_search_results(

@@ -1,0 +1,16 @@
+export const tuningEndpoints = {
+  configurations: "/admin/tuning/configurations",
+  history: "/admin/tuning/history",
+  semanticCache: "/admin/semantic-cache",
+  semanticCacheClear: "/admin/semantic-cache/clear",
+  queryMining: "/admin/query-mining",
+  queryMiningBuild: "/admin/query-mining/clusters/build",
+  governance: "/admin/governance",
+  retrievalEvidence: "/admin/retrieval/evidence",
+  runtimeSettings: "/admin/runtime-settings",
+  drafts: "/admin/tuning/drafts",
+  compare: "/admin/tuning/compare",
+  evalRuns: "/admin/tuning/eval-runs",
+  promote: "/admin/tuning/promote",
+  rollback: "/admin/tuning/rollback",
+} as const;

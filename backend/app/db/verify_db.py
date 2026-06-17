@@ -26,6 +26,11 @@ def collect_db_checks() -> dict[str, bool]:
         "ingestion_jobs table exists": False,
         "enrichment_jobs table exists": False,
         "attachments table exists": False,
+        "db_connectors table exists": False,
+        "connector_requests table exists": False,
+        "tool_invocations table exists": False,
+        "approval_requests table exists": False,
+        "query_feedback table exists": False,
         "enrichment_jobs.artifact_version column exists": False,
         "chunks.embedding column exists": False,
         "chunks.search_tsv column exists": False,
@@ -41,7 +46,11 @@ def collect_db_checks() -> dict[str, bool]:
             if conn.execute(text("SELECT extname FROM pg_extension WHERE extname = 'vector';")).first():
                 checks["pgvector extension exists"] = True
 
-            for table_name in ("sources", "source_parts", "chunks", "ingestion_jobs", "enrichment_jobs", "attachments"):
+            for table_name in (
+                "sources", "source_parts", "chunks", "ingestion_jobs", "enrichment_jobs",
+                "attachments", "db_connectors", "connector_requests", "tool_invocations",
+                "approval_requests", "query_feedback",
+            ):
                 exists = conn.execute(
                     text("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = :table_name;"),
                     {"table_name": table_name},

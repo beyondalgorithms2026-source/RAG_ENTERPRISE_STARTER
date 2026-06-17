@@ -1,0 +1,25 @@
+# M10.1 — Polished UI With Local Test Users
+
+- Rebuilt the exposed frontend routes as Stitch-faithful ports instead of a custom approximation:
+  - `/`
+  - `/login`
+  - `/get-a-demo`
+  - `/watch-video-tour`
+  - `/console/workspace/chat`
+  - `/console/workspace/sources`
+  - `/console/admin`
+- Kept the Stitch reference package in `web/stitch-reference/` as the visual source of truth for layout, spacing, CTA hierarchy, and tonal surface treatment.
+- Preserved the guarded local dev auth path with the existing test accounts:
+  - `test-user@ragenterprise.local` / `password123`
+  - `test-admin@ragenterprise.local` / `password123`
+- Kept `POST /auth/local-dev-login` for `AUTH_MODE=dev` and left the existing OIDC flow untouched for non-dev usage.
+- Moved the local-dev login into a secondary disclosure below the Stitch-faithful login card so the primary SSO layout remains visually intact.
+- Redirected non-reference routes back to Stitch-backed surfaces:
+  - `/register` -> `/get-a-demo`
+  - `/console/workspace/search` -> `/console/workspace/chat`
+  - `/console/workspace/uploads` -> `/console/workspace/sources`
+  - `/console/workspace/connectors` -> `/console/workspace/sources`
+  - secondary admin routes -> `/console/admin`
+- Re-run checks completed:
+  - `npm run build` in `web/`
+  - `.venv/bin/python -m unittest tests.test_auth_local_dev` in `backend/`

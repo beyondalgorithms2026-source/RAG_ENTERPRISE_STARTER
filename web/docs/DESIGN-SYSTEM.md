@@ -1,0 +1,22 @@
+# M10.1 Stitch Design System
+
+- Source of truth: `web/stitch-reference/stitch/lumina_enterprise/DESIGN.md`
+- Creative north star: Intelligent Curator
+- Surface model:
+  - base `#fbfbe6`
+  - low `#f5f5e0`
+  - elevated `#ffffff`
+  - nested `#eae9d5`
+- Strict rule:
+  - avoid hard 1px section borders
+  - prefer tonal separation, glass panels, and ambient shadows
+- Primary gradient:
+  - `#0e11d8` -> `#343ced`
+- AI highlight:
+  - lime `#cdf13d`
+- Typography:
+  - Inter-first with editorial spacing and generous whitespace
+- Product direction:
+  - premium Glean-inspired marketing
+  - calm workspace shell
+  - dense but polished admin control plane

@@ -1,6 +1,17 @@
 # Master Guide
 
-This is the single best deep guide for understanding, operating, and reusing `RAG_MM_MASTER_POC`.
+This is a deep reference guide, not the canonical first stop for a new reader.
+
+Start with:
+
+1. [README.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/README.md)
+2. [docs/01_quickstart.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/01_quickstart.md)
+3. [STATUS.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/STATUS.md)
+4. [docs/04_repo_navigation_blueprint.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/04_repo_navigation_blueprint.md)
+
+This file preserves a large amount of inherited deep-guide material, including some baseline-era naming. Treat it as a secondary reference after the canonical path above.
+
+This is the single best deep guide for understanding, operating, and reusing Enterprise RAG Starter once you already know the repo layout.
 
 It is written for:
 - first-time readers who need a fast orientation
@@ -38,10 +49,11 @@ This guide is intentionally self-contained. Other docs are still useful, but you
 
 ### Current maturity
 
-- implemented through M20
+- implemented through M27
 - first hardening pass complete
 - docs/package-up pass complete
 - second hardening pass complete
+- scenario reuse blueprint complete
 
 Best current description:
 - strong reusable PoC base
@@ -84,6 +96,7 @@ If you are actively forking the repo:
 
 See also:
 - [README.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/README.md)
+- [scenario_profiles_and_reuse_blueprint.md](scenario_profiles_and_reuse_blueprint.md)
 - [configuration.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
 - [maintainer_runbook.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
 

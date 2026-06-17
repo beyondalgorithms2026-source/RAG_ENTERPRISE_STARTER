@@ -2,13 +2,232 @@ from tests.smoke_test_base import *
 
 
 class SmokeTestRouterCompareEval(SmokeTestBase):
+    def test_m8_rerank_policy_can_gate_by_mode_corpus_depth_and_latency(self):
+        import app.core_rag.reranker as reranker_module
+        import app.profiles.resolver as resolver_module
+        from app.profiles.models import RerankerProfileConfig
+
+        original_get_effective_reranker = resolver_module.get_effective_reranker
+        resolver_module.get_effective_reranker = lambda: RerankerProfileConfig(
+            enabled=True,
+            enabled_modes=["hybrid"],
+            enabled_corpora=["finance"],
+            min_candidate_count=3,
+            latency_budget_ms=40,
+            mmr_enabled=True,
+        )
+        try:
+            eligible = reranker_module.evaluate_rerank_policy(
+                resolved_mode="hybrid",
+                chunks=[{"chunk_id": 1}, {"chunk_id": 2}, {"chunk_id": 3}],
+                candidate_corpora=["finance"],
+                search_latency_ms=18,
+            )
+            wrong_mode = reranker_module.evaluate_rerank_policy(
+                resolved_mode="keyword",
+                chunks=[{"chunk_id": 1}, {"chunk_id": 2}, {"chunk_id": 3}],
+                candidate_corpora=["finance"],
+                search_latency_ms=18,
+            )
+            too_slow = reranker_module.evaluate_rerank_policy(
+                resolved_mode="hybrid",
+                chunks=[{"chunk_id": 1}, {"chunk_id": 2}, {"chunk_id": 3}],
+                candidate_corpora=["finance"],
+                search_latency_ms=61,
+            )
+        finally:
+            resolver_module.get_effective_reranker = original_get_effective_reranker
+
+        self.assertTrue(eligible["eligible"])
+        self.assertEqual(eligible["reason"], "eligible_policy_match")
+        self.assertEqual(eligible["observed_corpora"], ["finance"])
+        self.assertTrue(eligible["mmr"]["enabled"])
+        self.assertEqual(eligible["mmr"]["reason"], "eligible")
+        self.assertFalse(wrong_mode["eligible"])
+        self.assertEqual(wrong_mode["reason"], "mode_not_enabled")
+        self.assertFalse(too_slow["eligible"])
+        self.assertEqual(too_slow["reason"], "latency_budget_exceeded")
+
+    def test_m8_search_trace_exposes_applied_mmr(self):
+        from types import SimpleNamespace
+
+        import app.core_rag.reranker as reranker_module
+        import app.core_rag.retrieval as retrieval_module
+        import app.profiles.resolver as resolver_module
+        from app.profiles.models import RerankerProfileConfig
+
+        original_get_effective_reranker = retrieval_module.get_effective_reranker
+        original_resolver_get_effective_reranker = resolver_module.get_effective_reranker
+        original_run_hybrid_baseline = retrieval_module._run_hybrid_baseline
+        original_apply_graph_and_temporal_layers = retrieval_module._apply_graph_and_temporal_layers
+        original_get_sources_by_ids = retrieval_module.get_sources_by_ids
+        original_rerank = reranker_module.rerank
+        original_fetch_embeddings = None
+        try:
+            patched_reranker_profile = lambda: RerankerProfileConfig(
+                enabled=True,
+                enabled_modes=["hybrid"],
+                enabled_corpora=["ops"],
+                min_candidate_count=2,
+                latency_budget_ms=100,
+                mmr_enabled=True,
+            )
+            retrieval_module.get_effective_reranker = patched_reranker_profile
+            resolver_module.get_effective_reranker = patched_reranker_profile
+            retrieval_module._run_hybrid_baseline = lambda **kwargs: (
+                [
+                    {
+                        "chunk_id": 11,
+                        "source_id": 101,
+                        "source_part_id": None,
+                        "file_name": "ops-a.pdf",
+                        "source_type": "pdf",
+                        "heading": "Ops A",
+                        "locator": "page=1",
+                        "snippet": "ops evidence A",
+                        "distance": 0.1,
+                        "chunk_index": 0,
+                        "vector_score": 0.9,
+                        "keyword_score": 0.5,
+                        "rank_score": 1.0,
+                        "combined_score": 0.8,
+                    },
+                    {
+                        "chunk_id": 12,
+                        "source_id": 102,
+                        "source_part_id": None,
+                        "file_name": "ops-b.pdf",
+                        "source_type": "pdf",
+                        "heading": "Ops B",
+                        "locator": "page=2",
+                        "snippet": "ops evidence B",
+                        "distance": 0.2,
+                        "chunk_index": 1,
+                        "vector_score": 0.8,
+                        "keyword_score": 0.4,
+                        "rank_score": 0.8,
+                        "combined_score": 0.7,
+                    },
+                ],
+                4,
+            )
+            retrieval_module._apply_graph_and_temporal_layers = lambda **kwargs: (
+                kwargs["raw_results"],
+                kwargs["resolved_mode"],
+                {"graph_used": False, "graph_reason": "not_requested", "temporal_used": False, "temporal_reason": "not_requested"},
+            )
+            retrieval_module.get_sources_by_ids = lambda ids: {
+                101: SimpleNamespace(id=101, sensitivity_label="public", source_metadata_json={"corpus": "ops"}),
+                102: SimpleNamespace(id=102, sensitivity_label="public", source_metadata_json={"corpus": "ops"}),
+            }
+            reranker_module.rerank = lambda question, chunks: [
+                {**chunk, "rerank_score": 0.95 - (index * 0.1)}
+                for index, chunk in enumerate(chunks)
+            ]
+            from app.db import repo_chunks
+
+            original_fetch_embeddings = repo_chunks.fetch_chunk_embeddings
+            repo_chunks.fetch_chunk_embeddings = lambda ids: {11: [1.0, 0.0], 12: [0.0, 1.0]}
+
+            response = perform_search(SearchRequest(question="ops policy", k=2, mode="hybrid", debug=True))
+        finally:
+            retrieval_module.get_effective_reranker = original_get_effective_reranker
+            resolver_module.get_effective_reranker = original_resolver_get_effective_reranker
+            retrieval_module._run_hybrid_baseline = original_run_hybrid_baseline
+            retrieval_module._apply_graph_and_temporal_layers = original_apply_graph_and_temporal_layers
+            retrieval_module.get_sources_by_ids = original_get_sources_by_ids
+            reranker_module.rerank = original_rerank
+            if original_fetch_embeddings is not None:
+                from app.db import repo_chunks
+
+                repo_chunks.fetch_chunk_embeddings = original_fetch_embeddings
+
+        self.assertEqual(response.mode, "hybrid")
+        self.assertEqual(response.debug_info["rerank_policy"]["reason"], "eligible_policy_match")
+        self.assertTrue(response.debug_info["rerank_policy"]["applied"])
+        self.assertEqual(response.debug_info["rerank_policy"]["observed_corpora"], ["ops"])
+        self.assertTrue(response.debug_info["rerank_policy"]["mmr"]["enabled"])
+        self.assertTrue(response.debug_info["rerank_policy"]["mmr"]["applied"])
+        self.assertEqual(response.debug_info["rerank_policy"]["mmr"]["reason"], "eval_proven_diversity")
+        self.assertEqual(response.debug_info["latency_ms"]["rerank"], 0)
+
+    def test_m7_router_selects_keyword_for_quote_like_lookup(self):
+        original_use_router = settings.USE_QUERY_ROUTER
+        try:
+            settings.USE_QUERY_ROUTER = True
+            decision = route_query(
+                question='"keywordbanana" final words',
+                explicit_mode=None,
+                default_mode="hybrid",
+            )
+        finally:
+            settings.USE_QUERY_ROUTER = original_use_router
+
+        self.assertEqual(decision.selected_mode, "keyword")
+        self.assertEqual(decision.route_class, "lexical_first")
+        self.assertEqual(decision.reason, "quote_like_exact_lookup_signal")
+        self.assertTrue(decision.reason_details["quote_like"])
+
+    def test_m7_router_selects_keyword_for_identifier_lookup(self):
+        original_use_router = settings.USE_QUERY_ROUTER
+        try:
+            settings.USE_QUERY_ROUTER = True
+            decision = route_query(
+                question="Find case number AB-2024-0091",
+                explicit_mode=None,
+                default_mode="hybrid",
+            )
+        finally:
+            settings.USE_QUERY_ROUTER = original_use_router
+
+        self.assertEqual(decision.selected_mode, "keyword")
+        self.assertEqual(decision.route_class, "lexical_first")
+        self.assertEqual(decision.reason, "identifier_lookup_signal")
+        self.assertTrue(decision.reason_details["identifier_like"])
+
+    def test_m7_router_routes_date_heavy_lexical_queries_keyword_first_without_temporal_artifacts(self):
+        original_use_router = settings.USE_QUERY_ROUTER
+        try:
+            settings.USE_QUERY_ROUTER = True
+            decision = route_query(
+                question="What happened on January 15, 2024?",
+                explicit_mode=None,
+                default_mode="hybrid",
+            )
+        finally:
+            settings.USE_QUERY_ROUTER = original_use_router
+
+        self.assertEqual(decision.selected_mode, "keyword")
+        self.assertEqual(decision.preferred_mode, "keyword")
+        self.assertEqual(decision.route_class, "lexical_first")
+        self.assertEqual(decision.reason, "date_heavy_lexical_signal")
+        self.assertTrue(decision.reason_details["date_heavy_lexical"])
+
+    def test_m7_semantic_queries_remain_hybrid_with_route_details(self):
+        original_use_router = settings.USE_QUERY_ROUTER
+        try:
+            settings.USE_QUERY_ROUTER = True
+            decision = route_query(
+                question="Summarize the benchmark policy coverage.",
+                explicit_mode=None,
+                default_mode="hybrid",
+            )
+        finally:
+            settings.USE_QUERY_ROUTER = original_use_router
+
+        self.assertEqual(decision.selected_mode, "hybrid")
+        self.assertEqual(decision.route_class, "semantic_first")
+        self.assertEqual(decision.reason, "default_hybrid_router_policy")
+        self.assertFalse(decision.reason_details["quote_like"])
+        self.assertFalse(decision.reason_details["identifier_like"])
+
     def test_m17_manual_mode_selection_remains_intact_with_router_enabled(self):
         seeded = self._seed_retrieval_records()
         import app.core_rag.retrieval as retrieval_module
 
         original_use_router = settings.USE_QUERY_ROUTER
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             settings.USE_QUERY_ROUTER = True
             response = perform_search(SearchRequest(question="Who reports to IBM?", k=5, mode="vector", debug=True))
@@ -45,6 +264,53 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         self.assertEqual(response.mode, "keyword")
         self.assertEqual(response.results[0].source_id, seeded["docx_source_id"])
 
+    def test_m7_search_debug_trace_exposes_route_reason_details(self):
+        seeded = self._seed_retrieval_records()
+
+        original_use_router = settings.USE_QUERY_ROUTER
+        try:
+            settings.USE_QUERY_ROUTER = True
+            response = perform_search(
+                SearchRequest(
+                    question='"keywordbanana" final words',
+                    k=5,
+                    debug=True,
+                    filters=SearchFilters(source_id=seeded["docx_source_id"]),
+                )
+            )
+        finally:
+            settings.USE_QUERY_ROUTER = original_use_router
+            self._delete_retrieval_records(seeded.values())
+
+        self.assertEqual(response.mode, "keyword")
+        self.assertEqual(response.debug_info["route_reason"], "quote_like_exact_lookup_signal")
+        self.assertEqual(response.debug_info["route_class"], "lexical_first")
+        self.assertEqual(response.debug_info["preferred_mode"], "keyword")
+        self.assertTrue(response.debug_info["route_details"]["quote_like"])
+
+    def test_m7_router_benchmark_cases_cover_quote_code_semantic_temporal_sets(self):
+        cases = json.loads((EVAL_FIXTURE_DIR / "router_cases.json").read_text(encoding="utf-8"))
+
+        original_use_router = settings.USE_QUERY_ROUTER
+        try:
+            settings.USE_QUERY_ROUTER = True
+            for case in cases:
+                decision = route_query(
+                    question=case["question"],
+                    explicit_mode=None,
+                    default_mode=case.get("default_mode", "hybrid"),
+                    source_id=case.get("source_id"),
+                )
+                expected = case["expected"]
+                self.assertEqual(decision.selected_mode, expected["selected_mode"], case["id"])
+                self.assertEqual(decision.preferred_mode, expected["preferred_mode"], case["id"])
+                self.assertEqual(decision.route_class, expected["route_class"], case["id"])
+                self.assertEqual(decision.reason, expected["reason"], case["id"])
+                for key, value in expected.get("route_details", {}).items():
+                    self.assertEqual(decision.reason_details[key], value, case["id"])
+        finally:
+            settings.USE_QUERY_ROUTER = original_use_router
+
     def test_m17_router_selects_keyword_for_exact_lookup_when_mode_omitted(self):
         seeded = self._seed_retrieval_records()
 
@@ -74,7 +340,7 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         original_use_router = settings.USE_QUERY_ROUTER
         original_enable_graph = settings.ENABLE_GRAPH
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             settings.USE_QUERY_ROUTER = True
             settings.ENABLE_GRAPH = False
@@ -217,8 +483,8 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
             )
         update_chunk_embeddings(
             [
-                (chunk_id_by_index[0], [-1.0] + [0.0] * 383),
-                (chunk_id_by_index[1], [0.0, 1.0] + [0.0] * 382),
+                (chunk_id_by_index[0], basis_vector(-1.0)),
+                (chunk_id_by_index[1], basis_vector(0.0, 1.0)),
             ]
         )
 
@@ -227,7 +493,7 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         original_use_router = settings.USE_QUERY_ROUTER
         original_enable_graph = settings.ENABLE_GRAPH
         original_embed_texts = retrieval_module.embed_texts
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             settings.USE_QUERY_ROUTER = True
             settings.ENABLE_GRAPH = True
@@ -300,7 +566,7 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
                 }
             ],
         )
-        update_chunk_embeddings([(self._chunk_id_for_source(source_id), [1.0] + [0.0] * 383)])
+        update_chunk_embeddings([(self._chunk_id_for_source(source_id), basis_vector(1.0))])
 
         original_use_router = settings.USE_QUERY_ROUTER
         original_enable_temporal = settings.ENABLE_TEMPORAL
@@ -693,7 +959,7 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         original_build_graph = settings.BUILD_GRAPH_ON_INGEST
         original_enable_temporal = settings.ENABLE_TEMPORAL
         original_extract_temporal = settings.EXTRACT_TEMPORAL_METADATA
-        retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+        retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         settings.ENABLE_GRAPH = True
         settings.BUILD_GRAPH_ON_INGEST = True
         settings.ENABLE_TEMPORAL = True
@@ -731,6 +997,10 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         self.assertEqual(report["summary"]["kind"], "retrieval")
         self.assertEqual(report["summary"]["failed"], 0)
         self.assertEqual(set(report["summary"]["evaluated_modes"]), {"vector", "keyword", "hybrid", "graph_hybrid", "full", "deep_lookup"})
+        self.assertIn("report_metadata", report)
+        self.assertIn("active_profiles", report["report_metadata"])
+        self.assertIn("retrieval_settings", report["report_metadata"])
+        self.assertTrue(all("trace" in item for item in report["results"]))
         self.assertTrue(report_path_exists)
 
     def test_m26_deep_lookup_bypasses_router_and_stays_source_scoped(self):
@@ -948,7 +1218,7 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
                     "edge_refs": json.dumps([{"chunk_id": chunk_id, "chunk_index": 0, "locator": {"page": 1}}]),
                 },
             )
-        update_chunk_embeddings([(chunk_id, [1.0] + [0.0] * 383)])
+        update_chunk_embeddings([(chunk_id, basis_vector(1.0))])
 
         import app.core_rag.retrieval as retrieval_module
 
@@ -984,7 +1254,7 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
             "settings_overrides": {"ENABLE_GRAPH": True, "ENABLE_TEMPORAL": True},
         }
         try:
-            retrieval_module.embed_texts = lambda texts: [[1.0] + [0.0] * 383 for _ in texts]
+            retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
             settings.ENABLE_GRAPH = True
             settings.ENABLE_TEMPORAL = True
             report = run_mode_benchmark(
@@ -1001,6 +1271,9 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         self.assertEqual(report["summary"]["kind"], "mode_benchmark")
         self.assertEqual(report["summary"]["total"], 1)
         self.assertEqual(report["summary"]["failed"], 0)
+        self.assertIn("report_metadata", report)
+        self.assertIn("active_profiles", report["report_metadata"])
+        self.assertIn("retrieval_settings", report["report_metadata"])
         mode_names = [item["mode"] for item in report["results"][0]["modes"]]
         self.assertEqual(mode_names, ["vector", "keyword", "hybrid", "graph_hybrid", "full", "deep_lookup"])
         for item in report["results"][0]["modes"]:
@@ -1009,3 +1282,114 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
             self.assertIn("answer_clarity", item)
             self.assertIn("latency_ms", item)
             self.assertIn("failure_mode", item)
+            self.assertIn("trace", item)
+            self.assertIn("latency_ms", item["trace"])
+            self.assertIn("candidate_counts", item["trace"])
+
+    def test_m8_mode_benchmark_reports_rerank_ab_latency_deltas(self):
+        import app.eval.compare_eval as compare_eval_module
+
+        original_perform_search = compare_eval_module.perform_search
+        original_ask_endpoint = compare_eval_module.ask_endpoint
+        try:
+            compare_eval_module.perform_search = lambda request: SearchResponse(
+                results=[
+                    SearchResultItem(
+                        chunk_id=1,
+                        source_id=10,
+                        source_part_id=None,
+                        file_name="ops.pdf",
+                        source_type="pdf",
+                        heading="Ops Benchmark",
+                        locator="page=1",
+                        snippet="rerank benchmark chunk",
+                        score=0.9,
+                    )
+                ],
+                latency_ms=12,
+                mode=request.mode or "hybrid",
+                debug_info={
+                    "request_id": "search-rerank",
+                    "retrieval_path_used": request.mode or "hybrid",
+                    "candidate_counts": {"pre_rerank": 3, "post_rerank": 1},
+                    "latency_ms": {
+                        "search": 12,
+                        "rerank": 14 if compare_eval_module.get_effective_reranker().enabled else 0,
+                        "total": 26 if compare_eval_module.get_effective_reranker().enabled else 12,
+                    },
+                    "rerank_policy": {
+                        "enabled": compare_eval_module.get_effective_reranker().enabled,
+                        "eligible": True,
+                        "applied": compare_eval_module.get_effective_reranker().enabled,
+                        "reason": "eligible_policy_match" if compare_eval_module.get_effective_reranker().enabled else "reranker_disabled",
+                    },
+                },
+            )
+            compare_eval_module.ask_endpoint = lambda request: AskResponse(
+                answer="Supported answer [S1]",
+                citations=[
+                    CitationItem(
+                        citation_id="S1",
+                        source_id=10,
+                        source_part_id=None,
+                        chunk_id=1,
+                        file_name="ops.pdf",
+                        source_type="pdf",
+                        heading="Ops Benchmark",
+                        locator="page=1",
+                        snippet="rerank benchmark chunk",
+                    )
+                ],
+                used_chunks_count=1,
+                latency_ms=8,
+                mode=request.mode or "hybrid",
+                debug_info={
+                    "answer_generation_path": "grounded_answer",
+                    "retrieval_trace": {
+                        "request_id": "ask-rerank",
+                        "retrieval_path_used": request.mode or "hybrid",
+                        "candidate_counts": {"pre_rerank": 3, "post_rerank": 1},
+                        "latency_ms": {
+                            "search": 12,
+                            "rerank": 14 if compare_eval_module.get_effective_reranker().enabled else 0,
+                            "total": 26 if compare_eval_module.get_effective_reranker().enabled else 12,
+                        },
+                        "rerank_policy": {
+                            "enabled": compare_eval_module.get_effective_reranker().enabled,
+                            "eligible": True,
+                            "applied": compare_eval_module.get_effective_reranker().enabled,
+                            "reason": "eligible_policy_match" if compare_eval_module.get_effective_reranker().enabled else "reranker_disabled",
+                        },
+                    },
+                },
+            )
+
+            report = compare_eval_module.run_mode_benchmark(
+                cases=[
+                    {
+                        "id": "m8_rerank_ab",
+                        "category": "rerank_ab",
+                        "question": "What is the rerank benchmark result?",
+                        "request": {"question": "What is the rerank benchmark result?", "k": 3, "k_chunks": 2},
+                        "modes": ["hybrid"],
+                        "rerank_variants": [
+                            {"label": "rerank_off", "overrides": {"enabled": False}},
+                            {"label": "rerank_on", "overrides": {"enabled": True, "enabled_modes": ["hybrid"], "min_candidate_count": 1}},
+                        ],
+                        "expected": {
+                            "retrieval": {"headings_any": ["Ops Benchmark"], "source_types_any": ["pdf"]},
+                            "citations": {"min_citations": 1, "source_ids": [10]},
+                            "answer": {"contains_any": ["Supported"], "not_found_allowed": False},
+                        },
+                    }
+                ]
+            )
+        finally:
+            compare_eval_module.perform_search = original_perform_search
+            compare_eval_module.ask_endpoint = original_ask_endpoint
+
+        self.assertEqual(report["summary"]["evaluated_rerank_variants"], ["rerank_off", "rerank_on"])
+        self.assertIn("rerank_latency_report", report["summary"])
+        self.assertEqual(len(report["summary"]["rerank_latency_report"]["variants"]), 2)
+        self.assertEqual(report["summary"]["rerank_latency_report"]["deltas"][0]["target_variant"], "rerank_on")
+        self.assertEqual(report["summary"]["rerank_latency_report"]["deltas"][0]["delta_avg_rerank_latency_ms"], 14.0)

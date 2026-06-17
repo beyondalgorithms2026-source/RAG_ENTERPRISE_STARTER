@@ -61,12 +61,142 @@ from sqlalchemy import text
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
 EVAL_FIXTURE_DIR = FIXTURE_DIR / "eval"
 
+_VECTOR_DIM_CACHE: int | None = None
+
+
+def expected_vector_dim() -> int:
+    """Dimension of the live chunks.embedding column.
+
+    AR1: synthetic test vectors must match whatever embedding profile is
+    validly promoted; the suite must never hardcode a model's dimension.
+    """
+    global _VECTOR_DIM_CACHE
+    if _VECTOR_DIM_CACHE is None:
+        with engine.connect() as conn:
+            typmod = conn.execute(
+                text(
+                    "SELECT atttypmod FROM pg_attribute "
+                    "WHERE attrelid = 'chunks'::regclass AND attname = 'embedding'"
+                )
+            ).scalar_one()
+        if typmod is None or int(typmod) <= 0:
+            typmod = get_expected_dim()
+        _VECTOR_DIM_CACHE = int(typmod)
+    return _VECTOR_DIM_CACHE
+
+
+def basis_vector(*head: float) -> list[float]:
+    """Synthetic vector with the given leading components, zero-padded to the live dimension."""
+    values = list(head)
+    return values + [0.0] * (expected_vector_dim() - len(values))
+
 
 class SmokeTestBase(unittest.TestCase):
     def setUp(self):
         self._temp_cleanup_paths: list[Path] = []
+        # AR1: pin the runtime posture the smoke tests are written against so
+        # results do not depend on the developer's .env (access strategy,
+        # auth mode, or app env). ACL-specific tests override these locally.
+        self._orig_posture = (settings.APP_ENV, settings.AUTH_MODE, settings.ACCESS_STRATEGY, settings.AUTH_ENABLED)
+        settings.APP_ENV = "local"
+        settings.AUTH_MODE = "dev"
+        settings.ACCESS_STRATEGY = "document_acl_with_time_bound_grants"
+        # Config default; tests that exercise auth enable it explicitly.
+        settings.AUTH_ENABLED = False
+        from app.auth.context import AuthenticatedUser, set_current_user
+
+        self._auth_context_token = set_current_user(
+            AuthenticatedUser(
+                user_id="dev-test-admin",
+                email=settings.DEV_TEST_ADMIN_EMAIL,
+                roles=["admin"],
+                groups=[],
+            )
+        )
+        self._snapshot_active_profiles()
+        self._pin_test_profiles()
+
+    def _snapshot_active_profiles(self):
+        """AR1: tests that activate/promote profiles must not leave the dev DB's
+        live configuration mutated (the audit found unpromoted draft profiles
+        active as live — a state these smoke tests themselves used to create)."""
+        with engine.connect() as conn:
+            self._active_profiles_snapshot = {
+                row[0]: row[1]
+                for row in conn.execute(text("SELECT profile_type, profile_name FROM active_profiles")).fetchall()
+            }
+
+    def _restore_active_profiles(self):
+        from app.db.repo_profiles import set_active_profile
+        from app.profiles.resolver import invalidate_cache
+
+        with engine.connect() as conn:
+            current = {
+                row[0]: row[1]
+                for row in conn.execute(text("SELECT profile_type, profile_name FROM active_profiles")).fetchall()
+            }
+        changed = False
+        for profile_type, profile_name in self._active_profiles_snapshot.items():
+            if current.get(profile_type) != profile_name:
+                set_active_profile(profile_type, profile_name)
+                changed = True
+        if changed:
+            invalidate_cache()
+            from app.db.repo_tuning_configs import sync_live_configuration_record
+
+            sync_live_configuration_record()
+
+    def _pin_test_profiles(self):
+        """AR1: pin retrieval/reranker/LLM resolution to deterministic code-default
+        profiles so suite results do not depend on whatever the dev DB has tuned
+        live (the audit found an unpromoted draft active as the live profile).
+        The embedding profile stays live: synthetic vectors must match the real
+        chunks.embedding column dimension."""
+        import app.core_rag.retrieval as retrieval_module
+        import app.eval.compare_eval as compare_eval_module
+        import app.eval.retrieval_eval as retrieval_eval_module
+        import app.profiles.resolver as resolver_module
+        from app.profiles.models import LLMProfileConfig, RerankerProfileConfig, RetrievalProfileConfig
+
+        test_retrieval = RetrievalProfileConfig()
+        test_reranker = RerankerProfileConfig()
+        test_llm = LLMProfileConfig()
+        self._profile_patches: list[tuple[object, str, object]] = []
+
+        def _patch(target, attr_name, value):
+            self._profile_patches.append((target, attr_name, getattr(target, attr_name)))
+            setattr(target, attr_name, value)
+
+        # AR8: pins still honor request-scoped overrides (profile_overrides),
+        # so sandbox/candidate-eval bundles apply during tests while the live
+        # default stays deterministic (AR1).
+        def _eff(kind, default):
+            return lambda: resolver_module.current_profile_overrides().get(kind) or default
+
+        _patch(resolver_module, "get_effective_retrieval", _eff("retrieval", test_retrieval))
+        _patch(retrieval_module, "get_effective_retrieval", _eff("retrieval", test_retrieval))
+        _patch(retrieval_eval_module, "get_effective_retrieval", _eff("retrieval", test_retrieval))
+        _patch(compare_eval_module, "get_effective_retrieval", _eff("retrieval", test_retrieval))
+        _patch(resolver_module, "get_effective_reranker", _eff("reranker", test_reranker))
+        _patch(retrieval_module, "get_effective_reranker", _eff("reranker", test_reranker))
+        _patch(compare_eval_module, "get_effective_reranker", _eff("reranker", test_reranker))
+        _patch(resolver_module, "get_effective_llm", _eff("llm", test_llm))
+
+    def _unpin_test_profiles(self):
+        """Opt-out for tests that intentionally exercise DB-backed profile
+        activation: restores the real resolver functions for this test."""
+        for target, attr_name, original in reversed(getattr(self, "_profile_patches", [])):
+            setattr(target, attr_name, original)
+        self._profile_patches = []
 
     def tearDown(self):
+        from app.auth.context import reset_current_user
+
+        for target, attr_name, original in reversed(getattr(self, "_profile_patches", [])):
+            setattr(target, attr_name, original)
+        self._restore_active_profiles()
+        reset_current_user(self._auth_context_token)
+        settings.APP_ENV, settings.AUTH_MODE, settings.ACCESS_STRATEGY, settings.AUTH_ENABLED = self._orig_posture
         for path in self._temp_cleanup_paths:
             if path.exists():
                 path.unlink()
@@ -224,9 +354,9 @@ class SmokeTestBase(unittest.TestCase):
         vectors = []
         for row in rows:
             if row[1] == pdf_source_id:
-                vectors.append((row[0], [1.0] + [0.0] * 383))
+                vectors.append((row[0], basis_vector(1.0)))
             else:
-                vectors.append((row[0], [0.0, 1.0] + [0.0] * 382))
+                vectors.append((row[0], basis_vector(0.0, 1.0)))
         update_chunk_embeddings(vectors)
         return {"pdf_source_id": pdf_source_id, "docx_source_id": docx_source_id}
 
@@ -345,7 +475,7 @@ class SmokeTestBase(unittest.TestCase):
             name = provenance["name"]
             chunk_ids[name] = row[0]
             similarity = similarity_by_name[name]
-            embeddings.append((row[0], [similarity, (1 - (similarity ** 2)) ** 0.5] + [0.0] * 382))
+            embeddings.append((row[0], basis_vector(similarity, (1 - (similarity ** 2)) ** 0.5)))
 
         update_chunk_embeddings(embeddings)
         return {"source_id": source_id, "chunk_ids": chunk_ids}

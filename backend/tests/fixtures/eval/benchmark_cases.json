@@ -34,6 +34,7 @@
     "id": "exact_term_modes",
     "category": "exact_term_lookup",
     "question": "\"Version 2.1\"",
+    "fusion_methods": ["linear", "rrf"],
     "request": {
       "k": 5,
       "k_chunks": 3,
@@ -64,6 +65,7 @@
     "id": "cross_file_summary_modes",
     "category": "cross_file_summary",
     "question": "Summarize the benchmark policy coverage.",
+    "fusion_methods": ["linear", "rrf"],
     "request": {
       "k": 5,
       "k_chunks": 3

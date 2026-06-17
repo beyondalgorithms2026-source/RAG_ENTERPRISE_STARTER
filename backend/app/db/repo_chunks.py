@@ -4,6 +4,7 @@ from typing import Dict, List, Optional
 
 from sqlalchemy import text
 
+from app.auth.access_strategy import source_access_sql
 from app.db.db import engine
 
 
@@ -40,7 +41,9 @@ def insert_chunks(source_id: int, chunks: List[Dict], source_part_id: Optional[i
             :source_id, :source_part_id, :chunk_index, :heading, :section_path, :chunk_text,
             :token_count, CAST(:locator_json AS jsonb), CAST(:entities_json AS jsonb),
             CAST(:relations_json AS jsonb), CAST(:temporal_json AS jsonb),
-            CAST(:provenance_json AS jsonb), to_tsvector('english', :chunk_text)
+            CAST(:provenance_json AS jsonb),
+            setweight(to_tsvector('english', COALESCE(:heading, '')), 'A')
+            || setweight(to_tsvector('english', COALESCE(:chunk_text, '')), 'B')
         )
         """
     )
@@ -176,12 +179,32 @@ def update_chunk_embeddings(chunk_embeddings: List[tuple[int, List[float]]]) -> 
             conn.execute(sql, {"chunk_id": chunk_id, "embedding": _pgvector_literal(embedding_vector)})
 
 
+def fetch_chunk_embeddings(chunk_ids: List[int]) -> Dict[int, List[float]]:
+    if not chunk_ids:
+        return {}
+    params = {"chunk_ids": list(chunk_ids)}
+    sql = text(
+        f"""
+        SELECT c.id, c.embedding::text
+        FROM chunks c
+        JOIN sources s ON s.id = c.source_id
+        WHERE c.id = ANY(:chunk_ids)
+          AND c.embedding IS NOT NULL
+          AND {source_access_sql(params=params, source_alias="s")}
+        """
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return {int(row[0]): [float(value) for value in json.loads(row[1])] for row in rows}
+
+
 def fetch_neighbor_chunks(chunk_ids: List[int], radius: int = 1) -> List[Dict]:
     if not chunk_ids or radius < 1:
         return []
 
+    params = {"chunk_ids": list(chunk_ids), "radius": radius}
     sql = text(
-        """
+        f"""
         WITH base AS (
             SELECT DISTINCT source_id, chunk_index
             FROM chunks
@@ -196,15 +219,17 @@ def fetch_neighbor_chunks(chunk_ids: List[int], radius: int = 1) -> List[Dict]:
             c.chunk_text,
             c.locator_json
         FROM chunks c
+        JOIN sources s ON s.id = c.source_id
         JOIN base b
             ON c.source_id = b.source_id
            AND c.chunk_index BETWEEN b.chunk_index - :radius AND b.chunk_index + :radius
         WHERE c.id <> ALL(:chunk_ids)
+          AND {source_access_sql(params=params, source_alias="s")}
         ORDER BY c.source_id ASC, c.chunk_index ASC, c.id ASC
         """
     )
     with engine.connect() as conn:
-        rows = conn.execute(sql, {"chunk_ids": list(chunk_ids), "radius": radius}).fetchall()
+        rows = conn.execute(sql, params).fetchall()
 
     return [
         {
@@ -221,8 +246,9 @@ def fetch_neighbor_chunks(chunk_ids: List[int], radius: int = 1) -> List[Dict]:
 
 
 def fetch_chunk_context(source_id: int, chunk_id: int, radius: int = 1) -> Dict:
+    params = {"source_id": source_id, "chunk_id": chunk_id, "radius": max(1, int(radius or 1))}
     sql = text(
-        """
+        f"""
         WITH target AS (
             SELECT id, source_id, source_part_id, chunk_index, heading, chunk_text, locator_json
             FROM chunks
@@ -238,17 +264,16 @@ def fetch_chunk_context(source_id: int, chunk_id: int, radius: int = 1) -> Dict:
             c.locator_json,
             CASE WHEN c.id = t.id THEN true ELSE false END AS is_target
         FROM chunks c
+        JOIN sources s ON s.id = c.source_id
         JOIN target t
           ON c.source_id = t.source_id
          AND c.chunk_index BETWEEN t.chunk_index - :radius AND t.chunk_index + :radius
+        WHERE {source_access_sql(params=params, source_alias="s")}
         ORDER BY c.chunk_index ASC, c.id ASC
         """
     )
     with engine.connect() as conn:
-        rows = conn.execute(
-            sql,
-            {"source_id": source_id, "chunk_id": chunk_id, "radius": max(1, int(radius or 1))},
-        ).fetchall()
+        rows = conn.execute(sql, params).fetchall()
 
     if not rows:
         return {}

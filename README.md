@@ -1,13 +1,101 @@
-This project is an enterprise-grade Retrieval-Augmented Generation (RAG) platform designed to enable users to upload documents in multiple formats, including PDF, DOCX, Excel, email, TXT, and others. The system can retrieve relevant information from within these documents and automate downstream actions based on content-driven rules and predefined parameters.
+# Enterprise RAG Starter
 
-The platform provides administrators with extensive control over core components of the RAG pipeline, including the choice of embedding models, reranking methods, indexing strategies (such as vector, graph, keyword, or hybrid), LLM models, connected applications for automated actions, asynchronous ingestion options, and the ability to add new documents to an existing knowledge base even at the query stage.
+Enterprise RAG Starter is a reusable internal-assistant foundation built around grounded retrieval, citations, access control, admin operations, and scenario-based reuse. It is strongest today as a PoC-grade but security-aware hybrid retrieval system that teams can extend into employee-wide, corpus-level, trusted no-auth, or enterprise OIDC + ACL deployments.
 
-It also supports enterprise access controls, including user-level access management, login and OAuth-based authentication, SSO, ACLs, and function-level filtering both before and after database retrieval. For sensitive documents or workflows, the system can incorporate human review checkpoints.
+## Start Here
 
-The solution includes an evaluation and continuous improvement framework based on sample Q&A benchmarking, along with a user feedback mechanism to improve retrieval quality and overall performance over time.
+If you are new to this repo, read in this order:
 
-In addition, it is designed to integrate with existing cloud and database infrastructure, including AWS, Azure, Google Cloud, and on-premise environments, while supporting both open-source and widely used database technologies. It can also assess and incorporate the readiness of existing databases for RAG use cases, including factors such as indexing, chunking strategy, and current database/provider architecture.
+1. [docs/01_quickstart.md](docs/01_quickstart.md)
+2. [STATUS.md](STATUS.md)
+3. [docs/04_repo_navigation_blueprint.md](docs/04_repo_navigation_blueprint.md)
+4. [docs/scenario_profiles_and_reuse_blueprint.md](docs/scenario_profiles_and_reuse_blueprint.md)
+5. [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md)
+6. [docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md](docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md) — independent audit baseline (2026-06-11), not a marketing document
+7. [docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md](docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md) — AR0–AR20 audit remediation plan (complete)
+8. [docs/05_Enterprise_RAG_UIUX_Audit_Remediation_Milestones.md](docs/05_Enterprise_RAG_UIUX_Audit_Remediation_Milestones.md) — UX0–UX10 UI/UX remediation plan (active work track)
+9. [web/DESIGN.md](web/DESIGN.md) — console design language (canonical UI source of truth; read before any frontend change)
 
-Finally, the platform is built with granular customization and modularity in mind, allowing reusable building blocks across the codebase based on customer-specific requirements, while maintaining a master framework document that captures the full scope of the solution.
+Those documents answer the core onboarding questions:
 
-“This repo is forked-by-copy from `RAG_MM_MASTER_POC` as a baseline engine; enterprise features are added in milestones with explicit DoD checks.”
+- What is this repo?
+- How do I run it?
+- What is the current status?
+- Which areas are canonical?
+- Which capabilities are real, placeholder, or unverified? (audit baseline)
+
+## What This Repo Is
+
+- A backend-and-console starter for grounded RAG with citations, admin control, feedback capture, governance, and scenario reuse.
+- A modular codebase where auth, access strategy, admin packaging, and scenario setup can be changed without rewriting the full retrieval engine first.
+- A repo intended for internal assistants and controlled enterprise pilots, not a browser-only demo or turnkey SaaS product.
+
+## How To Run It
+
+Use the canonical local run path in [docs/01_quickstart.md](docs/01_quickstart.md).
+
+Short version:
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+docker compose up -d
+make dev-web
+```
+
+Use `docs/01_quickstart.md` for env setup, Ollama, local accounts, and troubleshooting.
+
+## Current Status
+
+- Last completed M-series milestone: M33 governed semantic cache policies
+- Active work track: UX-series UI/UX remediation ([docs/05_Enterprise_RAG_UIUX_Audit_Remediation_Milestones.md](docs/05_Enterprise_RAG_UIUX_Audit_Remediation_Milestones.md)); AR-series ([docs/04_…](docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md)) complete through AR20
+- UI design language (read before any frontend change): [web/DESIGN.md](web/DESIGN.md)
+- Strongest implemented runtime scenario: enterprise-style OIDC/dev identity plus SQL-level access trimming and admin governance
+- Regression suite: green as of AR1 (2026-06-12) — `make test` passes 224/224 on a fresh DB and on the tuned dev DB (the 2026-06-11 audit had measured 158/7/57 of 222)
+
+Read the operational snapshot in [STATUS.md](STATUS.md).
+Read the independent audit baseline in [docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md](docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md).
+Read preserved historical detail in [docs/project_state/milestone_history_archive.md](docs/project_state/milestone_history_archive.md).
+
+## Canonical Paths
+
+- Active backend: `backend/`
+- Active frontend: `web/`
+- Legacy fallback UI: `frontend/`
+- Generated local reports: `data/reports/`
+- Scenario packs: `scenarios/`
+- Runbooks: `docs/runbooks/`
+- Milestone notes: `docs/milestones/`
+- Historical archive: `docs/project_state/`
+- Imported/reference-only baseline docs: `docs/_master_docs/`, `docs/README_from_master.md`
+
+`web/` is the active product UI. `frontend/` remains mounted at `/frontend` only as a legacy compatibility fallback.
+
+## Reader Paths By Persona
+
+- Engineer extending the product: start with [docs/04_repo_navigation_blueprint.md](docs/04_repo_navigation_blueprint.md) and [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md); for any UI change, read [web/DESIGN.md](web/DESIGN.md) first
+- Operator/admin running the product: start with [docs/01_quickstart.md](docs/01_quickstart.md) and [docs/runbooks/LOCALHOST_DEV_RUNBOOK.md](docs/runbooks/LOCALHOST_DEV_RUNBOOK.md)
+- Reviewer/auditor: start with [docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md](docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md), [STATUS.md](STATUS.md), [docs/project_state/milestone_history_archive.md](docs/project_state/milestone_history_archive.md), and `docs/milestones/`
+- Team reusing the starter for a subset scenario: start with [docs/scenario_profiles_and_reuse_blueprint.md](docs/scenario_profiles_and_reuse_blueprint.md) and `scenarios/`
+
+## Safe Extension Guidance
+
+Do not change retrieval internals first. Replace in this order unless you have a strong reason not to:
+
+1. auth/provider setup
+2. access strategy
+3. admin module packaging
+4. scenario env/build pack
+5. connectors/storage/runtime providers
+6. retrieval internals
+
+Use [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md) for the extension path and replacement points.
+
+## Repo Workflow
+
+Canonical git workflow guidance lives in [docs/runbooks/SOURCE_CONTROL_WORKFLOW.md](docs/runbooks/SOURCE_CONTROL_WORKFLOW.md).
+
+Key rules:
+
+- Use the intended long-lived dev branch for milestone continuation.
+- Compare branches against the correct base branch before interpreting diff counts.
+- Keep sample env and curated proof artifacts only; local env/build/report noise stays out of git.
