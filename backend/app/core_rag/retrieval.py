@@ -86,6 +86,7 @@ class SearchResultItem(BaseModel):
     heading: str
     locator: Optional[str] = None
     snippet: str
+    corpus_name: Optional[str] = None
     score: float
     distance: Optional[float] = None
     rerank_score: Optional[float] = None
@@ -953,11 +954,13 @@ def _apply_graph_and_temporal_layers(*, request: SearchRequest, resolved_mode: s
 def _materialize_search_results(*, raw_results: List[Dict], resolved_mode: str, debug: bool) -> List[SearchResultItem]:
     from app.freshness import freshness_by_source_ids
 
-    freshness_map = freshness_by_source_ids(
-        sorted({int(result["source_id"]) for result in raw_results if result.get("source_id") is not None})
-    )
+    source_ids = sorted({int(result["source_id"]) for result in raw_results if result.get("source_id") is not None})
+    freshness_map = freshness_by_source_ids(source_ids)
+    source_meta = get_sources_by_ids(source_ids)
     results = []
     for result in raw_results:
+        source_row = source_meta.get(int(result["source_id"])) if result.get("source_id") is not None else None
+        corpus_name = (source_row.source_metadata_json or {}).get("corpus") if source_row else None
         if resolved_mode == "vector":
             score = max(0.0, 1.0 - (result["distance"] or 1.0))
         elif resolved_mode == "keyword":
@@ -974,6 +977,7 @@ def _materialize_search_results(*, raw_results: List[Dict], resolved_mode: str, 
             heading=result["heading"],
             locator=result.get("locator"),
             snippet=result["snippet"],
+            corpus_name=corpus_name or None,
             freshness=freshness_map.get(int(result["source_id"])),
             score=round(score, 4),
             distance=round(result["distance"], 4) if result.get("distance") is not None else None,
