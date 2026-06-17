@@ -1,6 +1,6 @@
 "use client";
 
-import { MaterialIcon, Monogram } from "@/components/icons";
+import { BrandLogo, MaterialIcon, Monogram } from "@/components/icons";
 import Link from "next/link";
 import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
@@ -75,7 +75,10 @@ export function ConsoleShell({
         <aside className="admin-sidebar">
           <div className="admin-sidebar-scroll">
             <div className="admin-sidebar-head">
-              <h2>RAG Enterprise</h2>
+              <div className="brand-lockup">
+                <BrandLogo />
+                <h2>RAG Enterprise</h2>
+              </div>
               <p>Admin Console</p>
             </div>
             <nav className="admin-sidebar-nav">
@@ -178,7 +181,8 @@ export function ConsoleShell({
       <header className="workspace-topbar">
         <div className="workspace-topbar-left">
           <Link href="/" className="workspace-brand">
-            RAG Enterprise
+            <BrandLogo />
+            <span>RAG Enterprise</span>
           </Link>
           {isSourcesSurface ? (
             <div className="workspace-search-input" data-coming-soon="true" title={COMING_SOON_TITLE}>

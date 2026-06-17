@@ -1,4 +1,4 @@
-import { MaterialIcon, Monogram } from "@/components/icons";
+import { BrandLogo, MaterialIcon, Monogram } from "@/components/icons";
 import Link from "next/link";
 
 export function PublicHeader({ activeProduct = false }: { activeProduct?: boolean }) {
@@ -7,7 +7,8 @@ export function PublicHeader({ activeProduct = false }: { activeProduct?: boolea
       <div className="public-header-inner">
         <div className="public-header-left">
           <Link href="/" className="public-brand">
-            RAG Enterprise
+            <BrandLogo />
+            <span>RAG Enterprise</span>
           </Link>
           <nav className="public-nav-links">
             <Link className={activeProduct ? "is-active" : undefined} href="/">
