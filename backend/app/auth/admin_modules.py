@@ -22,6 +22,7 @@ ADMIN_MODULES: dict[str, AdminModule] = {
     "flywheel": AdminModule("flywheel", "Flywheel", "/console/admin/flywheel", "autorenew", "Feedback-derived evaluation quarantine and review."),
     "embedding": AdminModule("embedding", "Embedding", "/console/admin/embedding", "swap_horiz", "Embedding profile and index-swap lifecycle."),
     "providers": AdminModule("providers", "Providers", "/console/admin/providers", "dns", "Generation providers, models, endpoints, and verification."),
+    "uploads": AdminModule("uploads", "Upload Documents", "/console/admin/uploads", "upload_file", "Direct file onboarding and indexing progress."),
     "sources": AdminModule("sources", "Sources", "/console/admin/sources", "description", "Source inventory and source-level controls."),
     "connectors": AdminModule("connectors", "Connectors", "/console/admin/connectors", "hub", "Database connector setup and review."),
     "actions": AdminModule("actions", "Actions", "/console/admin/actions", "approval", "Approvals, tools, and feedback review."),
@@ -38,9 +39,9 @@ ADMIN_MODULES: dict[str, AdminModule] = {
 }
 
 SCENARIO_ADMIN_MODULE_PRESETS: dict[str, set[str]] = {
-    "research_no_auth": {"overview", "health", "sources", "corpora", "jobs", "evals", "traces", "audit"},
-    "employee_wide_rag": {"overview", "health", "sources", "corpora", "jobs", "evals", "traces", "access", "audit"},
-    "small_enterprise_corpus_acl": {"overview", "health", "sources", "corpora", "jobs", "access", "evals", "traces", "audit"},
+    "research_no_auth": {"overview", "health", "uploads", "sources", "corpora", "jobs", "evals", "traces", "audit"},
+    "employee_wide_rag": {"overview", "health", "uploads", "sources", "corpora", "jobs", "evals", "traces", "access", "audit"},
+    "small_enterprise_corpus_acl": {"overview", "health", "uploads", "sources", "corpora", "jobs", "access", "evals", "traces", "audit"},
     "enterprise_oidc_acl": set(ADMIN_MODULES.keys()),
 }
 

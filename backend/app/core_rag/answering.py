@@ -11,6 +11,7 @@ from app.core.logging import log_event, logger
 from app.core.security_text import log_prompt_injection_signals
 from app.actions.policy import clarification_contract, sensitivity_requires_approval
 from app.core_rag.retrieval import SearchFilters, SearchMode, SearchRequest, perform_search
+from app.core_rag.answer_strategy import select_answer_strategy, try_structured_aggregation
 from app.auth.context import get_current_user
 from app.db.repo_actions import create_approval_request, create_query_feedback
 from app.db.repo_query_mining import record_query_event
@@ -55,6 +56,7 @@ class AskRequest(BaseModel):
     dry_run: bool = Field(default=False, description="Return the prompt without calling the LLM")
     deep_research: bool = Field(default=False, description="Use the slower high-recall retrieval path")
     custom_query: Optional[str] = Field(default=None, description="Optional retrieval-only query override")
+    search_instruction: Optional[str] = Field(default=None, description="Optional additive retrieval guidance")
     anchor_terms: List[str] = Field(default_factory=list, description="Optional manual anchor terms")
     exact_phrase_bias: Optional[str] = Field(default=None, description="Optional exact phrase to prioritize")
     expand_neighbors: bool = Field(default=False, description="Include neighboring chunks/pages when retrieval context may be split")
@@ -352,6 +354,56 @@ def _answer_fallback_reason(*, answer_text: str, question: str, safe_citations: 
     return None
 
 
+def _strong_top_context_match(*, question: str, context_blocks: list[dict[str, Any]]) -> bool:
+    if not context_blocks:
+        return False
+    question_terms = _question_terms(question)
+    if not question_terms:
+        return False
+    top_block = context_blocks[0]
+    haystack = f"{top_block.get('heading', '')} {top_block.get('snippet', '')}".lower()
+    overlap = {term for term in question_terms if term in haystack}
+    return len(overlap) >= min(2, len(question_terms))
+
+
+def _repair_context_blocks(*, question: str, context_blocks: list[dict[str, Any]], retrieval_trace: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not context_blocks:
+        return []
+    selected: list[dict[str, Any]] = []
+    seen: set[int] = set()
+
+    def add_block(block: dict[str, Any]) -> None:
+        chunk_id = int(block.get("chunk_id") or 0)
+        if not chunk_id or chunk_id in seen:
+            return
+        seen.add(chunk_id)
+        selected.append(block)
+
+    for block in context_blocks[:3]:
+        add_block(block)
+
+    boosted_ids = {
+        int(item.get("chunk_id"))
+        for item in ((retrieval_trace or {}).get("exact_numeric_boost") or {}).get("hits", [])
+        if item.get("chunk_id") is not None
+    }
+    for block in context_blocks:
+        if int(block.get("chunk_id") or 0) in boosted_ids:
+            add_block(block)
+
+    question_terms = _question_terms(question)
+    for block in context_blocks:
+        if len(selected) >= 5:
+            break
+        haystack = f"{block.get('heading', '')} {block.get('snippet', '')}".lower()
+        has_number = bool(re.search(r"\b\d+(?:\.\d+)?\s*(?:%|percent|percentage|dollars?|cents?)\b", haystack))
+        overlap = sum(1 for term in question_terms if term in haystack)
+        if has_number and overlap >= 2:
+            add_block(block)
+
+    return selected[:5]
+
+
 def _merge_debug_info(*, retrieval_trace: Optional[dict[str, Any]], answer_generation_path: str, fallback_reason: Optional[str] = None, error: Optional[str] = None, extra: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     debug_info: dict[str, Any] = {}
     if retrieval_trace:
@@ -601,6 +653,25 @@ def _group_citations_by_source(citations: list[CitationItem]) -> list[CompareSou
         bucket.citations.append(citation)
     return list(grouped.values())
 
+
+def _citation_for_source_part(part, raw_chunks, heading: str) -> CitationItem:
+    chosen = next((chunk for chunk in raw_chunks if chunk.source_part_id == part.id), None)
+    if chosen is None:
+        chosen = next((chunk for chunk in raw_chunks if chunk.source_id == part.source_id), raw_chunks[0])
+    return CitationItem(
+        citation_id="S1",
+        source_id=chosen.source_id,
+        source_part_id=part.id,
+        chunk_id=chosen.chunk_id,
+        file_name=chosen.file_name,
+        source_type=chosen.source_type,
+        heading=heading,
+        locator=part.locator_json.get("range") or part.locator_json.get("sheet") or chosen.locator,
+        snippet=f"Computed from complete sheet: {part.title or heading}",
+        freshness=chosen.freshness,
+    )
+
+
 def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Callable[[int, str], None]] = None) -> AskResponse:
     from app.llm.usage import reset_usage
 
@@ -616,6 +687,7 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
         mode=request.mode,
         deep_research=request.deep_research,
         custom_query=request.custom_query,
+        search_instruction=request.search_instruction,
         anchor_terms=request.anchor_terms,
         exact_phrase_bias=request.exact_phrase_bias,
         expand_neighbors=request.expand_neighbors,
@@ -625,6 +697,55 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
     # Enforce the documented k_chunks contract: rerank-enabled retrieval can
     # return more than k candidates (top_k_initial widening).
     raw_chunks = search_response.results[: max(0, int(request.k_chunks))]
+    strategy_decision = select_answer_strategy(request.question)
+    if strategy_decision.aggregation:
+        if progress_callback:
+            progress_callback(55, "Checking structured evidence")
+        structured = try_structured_aggregation(
+            question=request.question,
+            raw_chunks=raw_chunks,
+            make_citation=lambda part, heading: _citation_for_source_part(part, raw_chunks, heading),
+        )
+        if structured is not None:
+            answer_path = "structured_aggregation" if structured.citations else "not_found"
+            ask_latency_ms = int((time.time() - start_time) * 1000)
+            retrieval_trace = _record_answer_trace(
+                retrieval_trace=search_response.debug_info,
+                ask_latency_ms=ask_latency_ms,
+                answer_generation_path=answer_path,
+                cited_chunk_ids=[citation.chunk_id for citation in structured.citations],
+            )
+            retrieval_trace["strategy"] = strategy_decision.strategy
+            retrieval_trace["answer_safety"] = structured.debug.get("answer_safety", strategy_decision.answer_safety)
+            retrieval_trace["selected_methodology_label"] = (
+                "Auto -> Structured analysis" if request.mode is None else "Manual -> Structured analysis"
+            )
+            if not structured.citations:
+                _record_missing_evidence_feedback(question=request.question, retrieval_trace=retrieval_trace, answer_path="not_found")
+            if progress_callback:
+                progress_callback(100, "Structured answer ready" if structured.citations else "Structured evidence unavailable")
+            return AskResponse(
+                answer=structured.answer,
+                citations=structured.citations,
+                used_chunks_count=len(raw_chunks),
+                latency_ms=ask_latency_ms,
+                mode=search_response.mode,
+                debug_info=_merge_debug_info(
+                    retrieval_trace=retrieval_trace,
+                    answer_generation_path=answer_path,
+                    extra={
+                        "strategy": strategy_decision.strategy,
+                        "answer_safety": structured.debug.get("answer_safety", strategy_decision.answer_safety),
+                        "structured_aggregation": structured.debug.get("structured_aggregation", {}),
+                        "clarification": clarification_contract(
+                            request.question,
+                            answer_path=answer_path,
+                            evidence_count=len(structured.citations),
+                            source_scoped=bool(request.filters and request.filters.source_id is not None),
+                        ),
+                    },
+                ),
+            )
     context_blocks = _build_context_blocks(raw_chunks)
     if progress_callback:
         progress_callback(42, f"Retrieved {len(raw_chunks)} candidate chunks")
@@ -767,7 +888,37 @@ def _perform_ask_internal(request: AskRequest, progress_callback: Optional[Calla
         safe_citations=safe_citations,
     )
     repair_attempted = False
-    if fallback_reason and context_blocks and "not found" not in answer_text.lower():
+    repair_context_blocks = _repair_context_blocks(
+        question=request.question,
+        context_blocks=context_blocks,
+        retrieval_trace=search_response.debug_info,
+    )
+    if fallback_reason == "not_found_answer" and repair_context_blocks:
+        repair_attempted = True
+        repaired_parsed, repair_error = _generate_second_pass_answer(
+            question=request.question,
+            context_blocks=repair_context_blocks,
+            prior_answer=answer_text,
+            fallback_reason="not_found_with_retrieved_evidence",
+        )
+        if repaired_parsed:
+            repaired_safe_citations = _safe_citation_ids(parsed=repaired_parsed, context_blocks=repair_context_blocks)
+            repaired_answer_text = _strip_fake_citations(repaired_parsed.get("answer", ""), repaired_safe_citations)
+            repaired_reason = _answer_fallback_reason(
+                answer_text=repaired_answer_text,
+                question=request.question,
+                safe_citations=repaired_safe_citations,
+            )
+            if repaired_reason is None:
+                answer_text = repaired_answer_text
+                safe_citations = repaired_safe_citations
+                answer_generation_path = "evidence_repair"
+                fallback_reason = "not_found_answer; bounded_evidence_repair"
+            else:
+                fallback_reason = f"{fallback_reason}; bounded_evidence_repair_unsuitable:{repaired_reason}"
+        elif repair_error:
+            fallback_reason = f"{fallback_reason}; bounded_evidence_repair_error:{repair_error}"
+    if answer_generation_path != "evidence_repair" and fallback_reason and context_blocks and "not found" not in answer_text.lower():
         repair_attempted = True
         repaired_parsed, repair_error = _generate_second_pass_answer(
             question=request.question,

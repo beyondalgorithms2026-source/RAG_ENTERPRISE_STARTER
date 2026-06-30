@@ -12,6 +12,7 @@ import { browserFetch } from "@/lib/api-browser";
 import type { SearchResponse, SearchResult } from "@/lib/types";
 
 const MODE_LABELS: Record<string, string> = {
+  auto: "Auto",
   hybrid: "Hybrid",
   vector: "Semantic",
   keyword: "Keyword",
@@ -49,7 +50,7 @@ const FRESHNESS_ORDER: Record<string, number> = { fresh: 0, unknown: 1, stale: 2
 export function SearchWorkspace() {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
-  const [mode, setMode] = useState("hybrid");
+  const [mode, setMode] = useState("auto");
   const [result, setResult] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -63,6 +64,9 @@ export function SearchWorkspace() {
   const hasSearched = result !== null;
   const allResults = useMemo(() => result?.results ?? [], [result]);
   const modeLabel = MODE_LABELS[result?.mode ?? mode] ?? (result?.mode ?? mode);
+  const searchTrace = result?.debug_info && typeof result.debug_info === "object" ? result.debug_info : {};
+  const methodologyLabel = String(searchTrace.selected_methodology_label || (mode === "auto" ? `Auto → ${modeLabel}` : modeLabel));
+  const strategyLabel = String(searchTrace.strategy || "retrieval_answer").replace(/_/g, " ");
 
   const sourceTypeOptions = useMemo(
     () => Array.from(new Set(allResults.map((item) => item.source_type).filter(Boolean))).sort(),
@@ -137,7 +141,7 @@ export function SearchWorkspace() {
     try {
       const payload = await browserFetch<SearchResponse>("/search", {
         method: "POST",
-        json: { question: value, k: 8, mode, debug: true },
+        json: { question: value, k: 8, ...(mode === "auto" ? {} : { mode }), debug: true },
       });
       setResult(payload);
     } catch (err) {
@@ -187,6 +191,7 @@ export function SearchWorkspace() {
             onChange={(event) => setMode(event.target.value)}
             aria-label="Retrieval mode"
           >
+            <option value="auto">Auto</option>
             <option value="hybrid">Hybrid</option>
             <option value="vector">Semantic</option>
             <option value="keyword">Keyword</option>
@@ -210,7 +215,7 @@ export function SearchWorkspace() {
           <div className="search-result-summary">
             <strong>{visibleResults.length}</strong>
             {visibleResults.length === allResults.length ? "" : ` of ${allResults.length}`} result
-            {allResults.length === 1 ? "" : "s"} · {modeLabel} retrieval
+            {allResults.length === 1 ? "" : "s"} · {methodologyLabel} · {strategyLabel}
             {typeof result?.latency_ms === "number" ? <span> · {Math.round(result.latency_ms)}ms</span> : null}
           </div>
         ) : null}

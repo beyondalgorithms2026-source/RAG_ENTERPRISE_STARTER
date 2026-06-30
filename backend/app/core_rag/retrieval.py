@@ -71,6 +71,7 @@ class SearchRequest(BaseModel):
     debug: bool = False
     deep_research: bool = False
     custom_query: Optional[str] = None
+    search_instruction: Optional[str] = None
     anchor_terms: List[str] = Field(default_factory=list)
     exact_phrase_bias: Optional[str] = None
     expand_neighbors: bool = False
@@ -166,18 +167,105 @@ def _resolve_query_text(request: SearchRequest) -> str:
     exact_phrase = (request.exact_phrase_bias or "").strip()
     if exact_phrase:
         return exact_phrase
+    instruction = (request.search_instruction or "").strip()
+    if instruction:
+        return f"{request.question} {instruction}"
     return request.question
 
 
 def _combined_anchor_terms(request: SearchRequest, query_text: str) -> List[str]:
     anchors: List[str] = []
     seen: set[str] = set()
-    for token in _extract_query_anchors(request.question) + _extract_query_anchors(query_text) + _normalize_anchor_terms(request.anchor_terms):
+    for token in (
+        _extract_query_anchors(request.question)
+        + _extract_query_anchors(query_text)
+        + _extract_query_anchors(request.search_instruction or "")
+        + _normalize_anchor_terms(request.anchor_terms)
+    ):
         if token in seen:
             continue
         seen.add(token)
         anchors.append(token)
     return anchors[:12]
+
+
+def _exact_numeric_terms(question: str, instruction: Optional[str] = None) -> List[str]:
+    text = f"{question} {instruction or ''}".lower()
+    signal_words = ("percentage", "percent", "rent", "sales", "cost", "price", "how much", "total")
+    if not any(word in text for word in signal_words):
+        return []
+    terms = []
+    for token in _extract_query_anchors(text):
+        if token not in terms:
+            terms.append(token)
+    return terms
+
+
+def _apply_exact_numeric_boost(*, request: SearchRequest, raw_results: List[Dict]) -> tuple[List[Dict], dict]:
+    terms = _exact_numeric_terms(request.question, request.search_instruction)
+    trace = {"applied": False, "terms": terms, "hits": []}
+    if not terms or not raw_results:
+        return raw_results, trace
+
+    adjusted: List[Dict] = []
+    for item in raw_results:
+        updated = dict(item)
+        haystack = f"{item.get('heading', '')} {item.get('snippet', '')}".lower()
+        matched = [term for term in terms if term in haystack]
+        numeric_hit = bool(re.search(r"\b\d+(?:\.\d+)?\s*(?:%|percent|percentage|dollars?|cents?)\b", haystack))
+        phrase_hit = "percent of sales" in haystack or "sales for rent" in haystack or "rent to sales" in haystack
+        score = 0.0
+        if numeric_hit:
+            score += 1.0
+        if phrase_hit:
+            score += 1.25
+        if matched:
+            score += min(1.0, len(matched) * 0.2)
+        if score > 0:
+            updated["exact_numeric_boost_score"] = round(score, 4)
+            updated["exact_numeric_boost_terms"] = matched[:8]
+            updated["combined_score"] = _blend_score(updated.get("combined_score", 0.0), score, 1.0)
+            trace["hits"].append(
+                {
+                    "chunk_id": updated.get("chunk_id"),
+                    "score": updated["exact_numeric_boost_score"],
+                    "terms": updated["exact_numeric_boost_terms"],
+                }
+            )
+        adjusted.append(updated)
+
+    if trace["hits"]:
+        trace["applied"] = True
+        adjusted.sort(key=_result_sort_key)
+        trace["hits"] = sorted(trace["hits"], key=lambda item: float(item.get("score") or 0.0), reverse=True)[:8]
+    return adjusted, trace
+
+
+def _preserve_boosted_candidates(*, reranked_results: List[Dict], pre_rerank_results: List[Dict], k: int) -> List[Dict]:
+    boosted = [
+        item for item in pre_rerank_results
+        if float(item.get("exact_numeric_boost_score") or 0.0) > 0
+    ]
+    if not boosted:
+        return reranked_results
+    boosted.sort(key=lambda item: float(item.get("exact_numeric_boost_score") or 0.0), reverse=True)
+    by_id = {int(item["chunk_id"]): item for item in reranked_results}
+    merged = list(reranked_results)
+    for item in boosted[:2]:
+        chunk_id = int(item["chunk_id"])
+        if chunk_id in by_id:
+            by_id[chunk_id]["exact_numeric_boost_score"] = item.get("exact_numeric_boost_score")
+            by_id[chunk_id]["exact_numeric_boost_terms"] = item.get("exact_numeric_boost_terms")
+            continue
+        merged.append(item)
+    merged.sort(
+        key=lambda item: (
+            -float(item.get("exact_numeric_boost_score") or 0.0),
+            -float(item.get("rerank_score") or 0.0),
+            -float(item.get("combined_score") or 0.0),
+        )
+    )
+    return merged[:k]
 
 
 def _apply_anchor_cooccurrence_boost(*, question: str, raw_results: List[Dict]) -> List[Dict]:
@@ -517,6 +605,36 @@ def _resolve_mode(request: SearchRequest) -> tuple[str, QueryRouteDecision]:
         source_id=source_id,
     )
     return decision.selected_mode, decision
+
+
+def _mode_source(decision: QueryRouteDecision) -> str:
+    if decision.manual_mode:
+        return "manual"
+    if decision.fallback_reason or not decision.router_applied:
+        return "fallback"
+    return "auto"
+
+
+def _route_strategy(decision: QueryRouteDecision, resolved_mode: str) -> str:
+    if resolved_mode == "keyword" or decision.route_class == "lexical_first":
+        return "exact_lookup"
+    if resolved_mode == "graph_hybrid" or decision.route_class == "graph_first":
+        return "relationship_graph"
+    if resolved_mode == "full" or decision.route_class == "temporal_first":
+        return "temporal_version"
+    return "retrieval_answer"
+
+
+def _methodology_label(*, decision: QueryRouteDecision, resolved_mode: str) -> str:
+    prefix = "Manual" if decision.manual_mode else "Auto"
+    label = {
+        "vector": "Semantic",
+        "keyword": "Keyword",
+        "hybrid": "Hybrid",
+        "graph_hybrid": "Graph hybrid",
+        "full": "Full",
+    }.get(resolved_mode, resolved_mode.replace("_", " ").title())
+    return f"{prefix} -> {label}"
 
 
 def _run_vector_mode(*, request: SearchRequest, source_type: Optional[str], source_id: Optional[int], source_part_id: Optional[int], locator_filter: Optional[str], metadata_filters: Optional[Dict[str, str]]) -> List[Dict]:
@@ -1188,6 +1306,10 @@ def perform_search(request: SearchRequest) -> SearchResponse:
         "requested_mode": request.mode,
         "resolved_mode": resolved_mode,
         "retrieval_path_used": resolved_mode,
+        "mode_source": _mode_source(route_decision),
+        "strategy": _route_strategy(route_decision, resolved_mode),
+        "selected_methodology_label": _methodology_label(decision=route_decision, resolved_mode=resolved_mode),
+        "answer_safety": "grounded",
         "route_reason": route_decision.reason,
         "route_class": route_decision.route_class,
         "route_details": route_decision.reason_details or {},
@@ -1197,9 +1319,13 @@ def perform_search(request: SearchRequest) -> SearchResponse:
         "deep_research_requested": request.deep_research,
         "deep_research_used": False,
         "degraded_vector": degraded_vector,
+        "original_question": request.question,
+        "search_instruction": (request.search_instruction or "").strip() or None,
         "effective_query": _resolve_query_text(retrieval_request),
+        "instruction_anchor_terms": _extract_query_anchors(request.search_instruction or ""),
         "query_transform": transform_result.trace,
         "anchor_terms_requested": _normalize_anchor_terms(request.anchor_terms),
+        "exact_numeric_boost": {"applied": False, "terms": [], "hits": []},
         "fallback_reason": None,
         "graph_used": False,
         "temporal_used": False,
@@ -1242,6 +1368,7 @@ def perform_search(request: SearchRequest) -> SearchResponse:
             rr = get_effective_reranker()
             effective_k = max(request.k, rp.top_k_initial if rr.enabled else request.k)
             retrieval_trace.update(deep_trace)
+            retrieval_trace["retrieval_path_used"] = "deep_research"
             retrieval_trace["fusion"] = _fusion_trace_payload(
                 fusion_method=rp.fusion_method,
                 alpha=rp.deep_research_alpha,
@@ -1339,6 +1466,10 @@ def perform_search(request: SearchRequest) -> SearchResponse:
 
     from app.core_rag.reranker import apply_mmr, evaluate_rerank_policy, rerank
 
+    raw_results, exact_numeric_trace = _apply_exact_numeric_boost(request=retrieval_request, raw_results=raw_results)
+    retrieval_trace["exact_numeric_boost"] = exact_numeric_trace
+    pre_rerank_results = [dict(item) for item in raw_results]
+
     rerank_ms = 0
     rerank_policy = evaluate_rerank_policy(
         resolved_mode=resolved_mode,
@@ -1352,6 +1483,11 @@ def perform_search(request: SearchRequest) -> SearchResponse:
         raw_results = rerank(request.question, raw_results)
         reranker_top = get_effective_reranker().top_n or request.k
         raw_results = apply_mmr(raw_results, rerank_policy, top_k=min(request.k, reranker_top))
+        raw_results = _preserve_boosted_candidates(
+            reranked_results=raw_results,
+            pre_rerank_results=pre_rerank_results,
+            k=request.k,
+        )
         rerank_ms = int((time.time() - rerank_start) * 1000)
         rerank_policy["applied"] = True
         retrieval_trace["latency_ms"]["rerank"] = rerank_ms

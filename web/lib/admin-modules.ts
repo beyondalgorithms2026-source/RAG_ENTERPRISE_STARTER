@@ -30,6 +30,7 @@ const enterpriseNavigation: AdminNavItem[] = [
   { module: "health", href: "/console/admin/health", label: "Health", icon: "health_and_safety" },
   { module: "cost", href: "/console/admin/cost", label: "Cost", icon: "payments" },
   { module: "flywheel", href: "/console/admin/flywheel", label: "Flywheel", icon: "autorenew" },
+  { module: "uploads", href: "/console/admin/uploads", label: "Upload Documents", icon: "upload_file" },
   { module: "sources", href: "/console/admin/sources", label: "Sources", icon: "description" },
   { module: "connectors", href: "/console/admin/connectors", label: "Connectors", icon: "hub" },
   { module: "actions", href: "/console/admin/actions", label: "Actions", icon: "approval" },

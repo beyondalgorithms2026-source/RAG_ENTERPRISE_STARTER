@@ -1669,10 +1669,30 @@ class SmokeTestAdminOps(SmokeTestBase):
             events = [item for item in list_query_events(limit=50) if item["request_id"] == request_id]
             self.assertTrue(any(item["event_type"] == "not_helpful" and item["feedback_type"] == "not_helpful" for item in events))
 
+            redo_request_id = f"m22-redo-{uuid4().hex[:6]}"
+            retry = client.post(
+                "/feedback/retry",
+                json={
+                    "question": question,
+                    "original_request_id": request_id,
+                    "redo_request_id": redo_request_id,
+                    "selected_mode": "keyword",
+                    "depth": "strict",
+                    "include_documents": True,
+                    "include_tables": True,
+                    "include_emails": False,
+                    "note": "Retry with exact terms.",
+                },
+            )
+            self.assertEqual(retry.status_code, 200)
+            retry_events = [item for item in list_query_events(limit=50) if item["request_id"] == redo_request_id]
+            self.assertTrue(any(item["event_type"] == "retry" and item["feedback_type"] == "redo_search" for item in retry_events))
+
             admin_payload = client.get("/admin/feedback")
             self.assertEqual(admin_payload.status_code, 200)
             payload = admin_payload.json()
             self.assertTrue(any(item["id"] == negative_feedback_id for item in payload["negative_feedback"]))
+            self.assertTrue(any(item["metadata_json"]["original_request_id"] == request_id for item in payload["retry_events"]))
             self.assertTrue(any(item["negative_reason"] == "wrong_document" for item in payload["negative_feedback_reason_counts"]))
         finally:
             settings.AUTH_ENABLED = original_auth_enabled

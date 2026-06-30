@@ -21,7 +21,7 @@ from app.db.repo_actions import (
     top_failed_queries,
 )
 from app.db.repo_admin_audit import insert_admin_audit_event
-from app.db.repo_query_mining import record_query_event
+from app.db.repo_query_mining import list_query_events, record_query_event
 
 
 router = APIRouter()
@@ -73,6 +73,20 @@ class QueryFeedbackCreate(BaseModel):
     citations_json: list[dict[str, Any]] = Field(default_factory=list)
     used_chunks_count: int = 0
     active_profile_snapshot_json: dict[str, Any] = Field(default_factory=dict)
+    metadata_json: dict[str, Any] = Field(default_factory=dict)
+
+
+class QueryRetryCreate(BaseModel):
+    question: str
+    original_request_id: Optional[str] = None
+    redo_request_id: Optional[str] = None
+    selected_mode: Optional[str] = None
+    retry_variant: Literal["try_again", "add_details"] = "add_details"
+    depth: Literal["fast", "strict"] = "fast"
+    include_documents: bool = True
+    include_tables: bool = True
+    include_emails: bool = True
+    note: str = ""
     metadata_json: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -270,11 +284,42 @@ def create_feedback(body: QueryFeedbackCreate, _user=Depends(require_authenticat
     return {"status": "recorded", "feedback_id": feedback_id, "negative_feedback_id": negative_feedback_id}
 
 
+@router.post("/feedback/retry")
+def create_retry_feedback(body: QueryRetryCreate, _user=Depends(require_authenticated_user)):
+    actor = get_current_user()
+    event_id = record_query_event(
+        question=body.question.strip(),
+        event_type="retry",
+        request_id=body.redo_request_id,
+        retrieval_mode=body.selected_mode,
+        feedback_type="redo_search",
+        actor=actor,
+        metadata_json={
+            **body.metadata_json,
+            "original_request_id": body.original_request_id,
+            "redo_request_id": body.redo_request_id,
+            "selected_mode": body.selected_mode,
+            "retry_variant": body.retry_variant,
+            "depth": body.depth,
+            "include_documents": body.include_documents,
+            "include_tables": body.include_tables,
+            "include_emails": body.include_emails,
+            "note": body.note.strip(),
+        },
+    )
+    return {"status": "recorded", "event_id": event_id}
+
+
 @router.get("/admin/feedback")
 def list_admin_feedback(_admin=Depends(require_admin_user)):
+    retry_events = [
+        event for event in list_query_events(limit=200)
+        if event.get("event_type") == "retry" or event.get("feedback_type") == "redo_search"
+    ]
     return {
         "feedback": [row.__dict__ for row in list_query_feedback(limit=200)],
         "negative_feedback": [row.__dict__ for row in list_negative_feedback_events(limit=200)],
+        "retry_events": retry_events,
         "negative_feedback_reason_counts": negative_feedback_reason_counts(limit=20),
         "top_failed_queries": top_failed_queries(limit=20),
     }

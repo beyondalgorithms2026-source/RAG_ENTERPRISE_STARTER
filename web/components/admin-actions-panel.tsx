@@ -69,10 +69,21 @@ type FailureCluster = {
   updated_at?: string | null;
 };
 
+type RetryEvent = {
+  id: number;
+  question: string;
+  request_id?: string | null;
+  retrieval_mode?: string | null;
+  feedback_type?: string | null;
+  metadata_json?: Record<string, unknown>;
+  created_at?: string | null;
+};
+
 type AdminPayload = {
   approvals: Approval[];
   feedback: FeedbackRow[];
   negative_feedback: NegativeFeedbackRow[];
+  retry_events: RetryEvent[];
   negative_feedback_reason_counts: { negative_reason: string; count: number; latest_at?: string | null }[];
   top_failed_queries: { question: string; count: number; latest_at?: string | null }[];
   invocations: ToolInvocation[];
@@ -88,11 +99,19 @@ function preview(value: string, maxLength = 260) {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }
 
+function retryForFailure(retryEvents: RetryEvent[], failure: NegativeFeedbackRow | null) {
+  if (!failure?.request_id) {
+    return null;
+  }
+  return retryEvents.find((event) => event.metadata_json?.original_request_id === failure.request_id) || null;
+}
+
 export function AdminActionsPanel() {
   const [payload, setPayload] = useState<AdminPayload>({
     approvals: [],
     feedback: [],
     negative_feedback: [],
+    retry_events: [],
     negative_feedback_reason_counts: [],
     top_failed_queries: [],
     invocations: [],
@@ -119,6 +138,7 @@ export function AdminActionsPanel() {
       browserFetch<{
         feedback: FeedbackRow[];
         negative_feedback: NegativeFeedbackRow[];
+        retry_events: RetryEvent[];
         negative_feedback_reason_counts: AdminPayload["negative_feedback_reason_counts"];
         top_failed_queries: AdminPayload["top_failed_queries"];
       }>("/admin/feedback"),
@@ -129,6 +149,7 @@ export function AdminActionsPanel() {
       approvals: approvalsPayload.approvals,
       feedback: feedbackPayload.feedback,
       negative_feedback: feedbackPayload.negative_feedback || [],
+      retry_events: feedbackPayload.retry_events || [],
       negative_feedback_reason_counts: feedbackPayload.negative_feedback_reason_counts || [],
       top_failed_queries: feedbackPayload.top_failed_queries,
       invocations: toolsPayload.invocations,
@@ -215,6 +236,7 @@ export function AdminActionsPanel() {
   const visibleFailedQueries = payload.top_failed_queries.filter(
     (item) => !failedQuery || String(item.question ?? "").toLowerCase().includes(failedQuery),
   );
+  const selectedRetry = retryForFailure(payload.retry_events, selectedFailure);
 
   return (
     <div className="admin-page page-stack">
@@ -370,6 +392,16 @@ export function AdminActionsPanel() {
                   <article><span>Citations</span><strong>{selectedFailure.citations_json.length}</strong></article>
                   <article><span>Answer Path</span><strong>{selectedFailure.answer_path || "unknown"}</strong></article>
                 </div>
+                <section>
+                  <span>Advanced Redo</span>
+                  {selectedRetry ? (
+                    <p>
+                      {String(selectedRetry.metadata_json?.selected_mode || "auto")} · {String(selectedRetry.metadata_json?.depth || "fast")} · docs {String(Boolean(selectedRetry.metadata_json?.include_documents))} · sheets {String(Boolean(selectedRetry.metadata_json?.include_tables))} · emails {String(Boolean(selectedRetry.metadata_json?.include_emails))}
+                    </p>
+                  ) : (
+                    <p>No linked redo attempt captured.</p>
+                  )}
+                </section>
                 <section>
                   <span>Cited Source IDs</span>
                   <p>{selectedFailure.cited_source_ids_json.length ? selectedFailure.cited_source_ids_json.join(", ") : "None captured"}</p>

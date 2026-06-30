@@ -7,6 +7,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { browserApiUrl, browserFetch } from "@/lib/api-browser";
+import { Field } from "@/components/ui/Field";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
+import { Toggle } from "@/components/ui/Toggle";
 import type { AskResponse } from "@/lib/types";
 import { readThreads, THREADS_UPDATED_EVENT, ThreadMessage, ThreadRecord, updateThreadRecord, upsertThreadRecord, writeThreads } from "@/lib/workspace";
 
@@ -59,6 +63,18 @@ type NegativeFeedbackDraft = {
   note: string;
   isOpen: boolean;
   isSubmitting: boolean;
+};
+
+type AnswerActionDraft = {
+  menuOpen: boolean;
+  redoOpen: boolean;
+  redoSubmitting: boolean;
+  redoMode: "auto" | "hybrid" | "keyword" | "vector";
+  redoDepth: "fast" | "strict";
+  includeDocuments: boolean;
+  includeTables: boolean;
+  includeEmails: boolean;
+  redoNote: string;
 };
 
 type StoredEvidenceRailState = {
@@ -168,6 +184,10 @@ function formatSourceTitle(fileName: string) {
 
 function isNoContextMessage(message: ThreadMessage | null | undefined) {
   return (message?.content || "").trim() === "Not found in provided sources.";
+}
+
+function hasRetrievedEvidenceWithoutCitations(message: ThreadMessage | null | undefined) {
+  return Boolean(isNoContextMessage(message) && (message?.usedChunksCount || 0) > 0 && !(message?.citations || []).length);
 }
 
 function accessClarification(message: ThreadMessage | null | undefined) {
@@ -294,7 +314,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   const [threads, setThreads] = useState<ThreadRecord[]>([]);
   const [currentThreadId, setCurrentThreadId] = useState(initialThreadId || "");
   const [question, setQuestion] = useState("");
-  const [mode, setMode] = useState("hybrid");
+  const [mode, setMode] = useState<"auto" | "hybrid" | "keyword" | "vector">("auto");
   const [deepResearch, setDeepResearch] = useState(false);
   const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -307,6 +327,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   const [collapsedEvidenceSections, setCollapsedEvidenceSections] = useState<Record<string, boolean>>({});
   const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<string, FeedbackState>>({});
   const [negativeFeedbackDraftByMessageId, setNegativeFeedbackDraftByMessageId] = useState<Record<string, NegativeFeedbackDraft>>({});
+  const [answerActionDraftByMessageId, setAnswerActionDraftByMessageId] = useState<Record<string, AnswerActionDraft>>({});
   const [actionFlashByMessageId, setActionFlashByMessageId] = useState<Record<string, string>>({});
   const [missingSourceByMessageId, setMissingSourceByMessageId] = useState<Record<string, string>>({});
   const [accessRequestDraftByMessageId, setAccessRequestDraftByMessageId] = useState<Record<string, AccessRequestDraft>>({});
@@ -315,6 +336,59 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
   const [accessRequestNoticeByMessageId, setAccessRequestNoticeByMessageId] = useState<Record<string, AccessRequestNotice>>({});
   const [submittingAccessRequestByMessageId, setSubmittingAccessRequestByMessageId] = useState<Record<string, boolean>>({});
   const evidenceSectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const answerActionMenuTimerRef = useRef<number | null>(null);
+  const answerActionMenuHoldRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".chat-answer-actions")) {
+        return;
+      }
+      clearAnswerActionMenuTimer();
+      setAnswerActionDraftByMessageId((current) => {
+        let changed = false;
+        const next: Record<string, AnswerActionDraft> = {};
+        for (const [messageId, draft] of Object.entries(current)) {
+          if (draft.menuOpen) {
+            changed = true;
+            next[messageId] = { ...draft, menuOpen: false };
+          } else {
+            next[messageId] = draft;
+          }
+        }
+        return changed ? next : current;
+      });
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+      clearAnswerActionMenuTimer();
+      setAnswerActionDraftByMessageId((current) => {
+        let changed = false;
+        const next: Record<string, AnswerActionDraft> = {};
+        for (const [messageId, draft] of Object.entries(current)) {
+          if (draft.menuOpen) {
+            changed = true;
+            next[messageId] = { ...draft, menuOpen: false };
+          } else {
+            next[messageId] = draft;
+          }
+        }
+        return changed ? next : current;
+      });
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      clearAnswerActionMenuTimer();
+    };
+  }, []);
 
   useEffect(() => {
     function refresh() {
@@ -395,11 +469,16 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
     }
     return Array.from(ids);
   }, [threads]);
-  const activeRetrievalPath =
-    String(
-      (latestAssistantMessage?.debugInfo as { retrieval_path_used?: string } | undefined)?.retrieval_path_used ||
-      "hybrid",
-    );
+  const latestRetrievalTrace =
+    latestAssistantMessage?.debugInfo && typeof latestAssistantMessage.debugInfo.retrieval_trace === "object"
+      ? (latestAssistantMessage.debugInfo.retrieval_trace as Record<string, unknown>)
+      : {};
+  const activeRetrievalPath = String(latestRetrievalTrace.retrieval_path_used || latestRetrievalTrace.resolved_mode || latestAssistantMessage?.mode || "hybrid");
+  const activeMethodology = String(latestRetrievalTrace.selected_methodology_label || (mode === "auto" ? "Auto" : mode));
+  const activeStrategy = String(latestRetrievalTrace.strategy || latestAssistantMessage?.debugInfo?.strategy || "retrieval_answer");
+  const activeDepth = latestRetrievalTrace.deep_research_requested ? "Strict" : "Fast";
+  const activeRetrievedCount = activeEvidenceSection?.answer.usedChunksCount || 0;
+  const activeCitationCount = activeEvidenceSection?.citations.length || 0;
 
   useEffect(() => {
     if (!currentThreadId) {
@@ -575,6 +654,16 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
     setThreads(nextThreads);
   }
 
+  function askPayload(questionText: string, selectedMode: "auto" | "hybrid" | "keyword" | "vector", strictDepth: boolean, extra: Record<string, unknown> = {}) {
+    return {
+      question: questionText,
+      k_chunks: 6,
+      ...(selectedMode === "auto" ? {} : { mode: selectedMode }),
+      deep_research: strictDepth,
+      ...extra,
+    };
+  }
+
   async function submitQuestion() {
     const trimmed = question.trim();
     if (!trimmed || isStreaming) {
@@ -625,13 +714,7 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          question: trimmed,
-          k_chunks: 6,
-          mode,
-          deep_research: deepResearch,
-          dry_run: false,
-        }),
+        body: JSON.stringify(askPayload(trimmed, mode, deepResearch, { dry_run: false })),
       });
       if (!response.ok || !response.body) {
         throw new Error("Streaming ask failed.");
@@ -786,6 +869,20 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
     };
   }
 
+  function answerActionDraftFor(messageId: string): AnswerActionDraft {
+    return answerActionDraftByMessageId[messageId] || {
+      menuOpen: false,
+      redoOpen: false,
+      redoSubmitting: false,
+      redoMode: "auto",
+      redoDepth: "fast",
+      includeDocuments: true,
+      includeTables: true,
+      includeEmails: true,
+      redoNote: "",
+    };
+  }
+
   function patchNegativeFeedbackDraft(messageId: string, patch: Partial<NegativeFeedbackDraft>) {
     setNegativeFeedbackDraftByMessageId((current) => ({
       ...current,
@@ -794,6 +891,45 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
         ...patch,
       },
     }));
+  }
+
+  function patchAnswerActionDraft(messageId: string, patch: Partial<AnswerActionDraft>) {
+    setAnswerActionDraftByMessageId((current) => ({
+      ...current,
+      [messageId]: {
+        ...answerActionDraftFor(messageId),
+        ...patch,
+      },
+    }));
+  }
+
+  function clearAnswerActionMenuTimer() {
+    if (answerActionMenuTimerRef.current !== null) {
+      window.clearTimeout(answerActionMenuTimerRef.current);
+      answerActionMenuTimerRef.current = null;
+    }
+  }
+
+  function scheduleAnswerActionMenuClose(messageId: string) {
+    clearAnswerActionMenuTimer();
+    answerActionMenuTimerRef.current = window.setTimeout(() => {
+      if (answerActionMenuHoldRef.current === messageId) {
+        scheduleAnswerActionMenuClose(messageId);
+        return;
+      }
+      patchAnswerActionDraft(messageId, { menuOpen: false });
+      answerActionMenuTimerRef.current = null;
+    }, 4000);
+  }
+
+  function openAnswerActionMenu(messageId: string) {
+    const willOpen = !answerActionDraftFor(messageId).menuOpen;
+    patchAnswerActionDraft(messageId, { menuOpen: willOpen });
+    if (willOpen) {
+      scheduleAnswerActionMenuClose(messageId);
+    } else {
+      clearAnswerActionMenuTimer();
+    }
   }
 
   function patchAccessRequestDraft(messageId: string, patch: Partial<AccessRequestDraft>) {
@@ -912,6 +1048,117 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
     } catch (err) {
       patchNegativeFeedbackDraft(message.id, { isSubmitting: false });
       flashAction(message.id, err instanceof Error ? err.message : "Feedback failed");
+    }
+  }
+
+  function redoFiltersFor(draft: AnswerActionDraft) {
+    const enabled = [draft.includeDocuments, draft.includeTables, draft.includeEmails].filter(Boolean).length;
+    if (enabled !== 1) {
+      return undefined;
+    }
+    if (draft.includeTables) return { source_type: "xlsx" };
+    if (draft.includeEmails) return { source_type: "eml" };
+    return undefined;
+  }
+
+  async function retryAnswer(message: ThreadMessage, retryVariant: "try_again" | "add_details") {
+    const draft = answerActionDraftFor(message.id);
+    const originalQuestion = questionForAssistant(message.id);
+    const threadId = activeThread?.id;
+    if (!threadId || !originalQuestion || isStreaming) {
+      return;
+    }
+    const placeholderId = createId();
+    patchAnswerActionDraft(message.id, { redoSubmitting: true, menuOpen: false });
+    setIsStreaming(true);
+    setError("");
+    patchThread(threadId, (thread) => ({
+      ...thread,
+      messages: [
+        ...thread.messages,
+        {
+          id: placeholderId,
+          role: "assistant",
+          content: "",
+          status: "pending",
+          progress: 8,
+          progressLabel: "Retrying with selected search settings",
+          citations: [],
+        },
+      ],
+    }));
+    try {
+      const quickKeywordRetry = retryVariant === "try_again" && (!(message.citations || []).length || isNoContextMessage(message));
+      const selectedMode = retryVariant === "try_again" ? (quickKeywordRetry ? "keyword" : "auto") : draft.redoMode;
+      const selectedDepth = retryVariant === "try_again" || selectedMode === "keyword" ? "fast" : draft.redoDepth;
+      const strictDepth = selectedDepth === "strict";
+      const retryNote = retryVariant === "add_details" ? draft.redoNote.trim() : "";
+      const retryFilters = retryVariant === "add_details" ? redoFiltersFor(draft) : undefined;
+      const response = await browserFetch<AskResponse>("/ask", {
+        method: "POST",
+        json: askPayload(originalQuestion, selectedMode, strictDepth, {
+          ...(retryNote ? { search_instruction: retryNote } : {}),
+          ...(retryFilters ? { filters: retryFilters } : {}),
+          bypass_cache: true,
+        }),
+      });
+      setLastLatencyMs(response.latency_ms);
+      const retrievalTrace =
+        response.debug_info && typeof response.debug_info.retrieval_trace === "object"
+          ? (response.debug_info.retrieval_trace as Record<string, unknown>)
+          : null;
+      const redoRequestId = String(retrievalTrace?.request_id || "");
+      patchThread(threadId, (thread) => ({
+        ...thread,
+        messages: thread.messages.map((item) =>
+          item.id === placeholderId
+            ? {
+                ...item,
+                status: "completed",
+                content: response.answer || "No answer returned.",
+                requestId: redoRequestId,
+                citations: response.citations,
+                usedChunksCount: response.used_chunks_count,
+                mode: response.mode,
+                debugInfo: response.debug_info,
+                cacheInfo: response.cache_info,
+                progress: 100,
+                progressLabel: "Retry complete",
+              }
+            : item,
+        ),
+      }));
+      await browserFetch<{ status: string }>("/feedback/retry", {
+        method: "POST",
+        json: {
+          question: originalQuestion,
+          original_request_id: message.requestId || "",
+          redo_request_id: redoRequestId,
+          selected_mode: selectedMode === "auto" ? null : selectedMode,
+          retry_variant: retryVariant,
+          depth: selectedDepth,
+          include_documents: draft.includeDocuments,
+          include_tables: draft.includeTables,
+          include_emails: draft.includeEmails,
+          note: retryNote,
+          metadata_json: { original_message_id: message.id, redo_message_id: placeholderId },
+        },
+      });
+      patchAnswerActionDraft(message.id, { redoOpen: false, redoSubmitting: false });
+      flashAction(message.id, retryVariant === "try_again" ? "Retry started with fast search" : "Retried with selected settings");
+    } catch (err) {
+      patchAnswerActionDraft(message.id, { redoSubmitting: false });
+      setError(err instanceof Error ? err.message : "Retry failed.");
+      patchThread(threadId, (thread) => ({
+        ...thread,
+        messages: thread.messages.map((item) =>
+          item.id === placeholderId
+            ? { ...item, status: "failed", content: "Retry failed.", citations: [], progress: 100, progressLabel: "Retry failed" }
+            : item,
+        ),
+      }));
+    } finally {
+      setIsStreaming(false);
     }
   }
 
@@ -1043,14 +1290,10 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
     try {
       const response = await browserFetch<AskResponse>("/ask", {
         method: "POST",
-        json: {
-          question: originalQuestion,
-          k_chunks: 6,
-          mode: message.mode || mode,
-          deep_research: deepResearch,
+        json: askPayload(originalQuestion, (message.mode as "auto" | "hybrid" | "keyword" | "vector" | null) || mode, deepResearch, {
           bypass_cache: true,
           refresh_cache_entry_id: entryId,
-        },
+        }),
       });
       setLastLatencyMs(response.latency_ms);
       const retrievalTrace =
@@ -1118,6 +1361,25 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
     return () => window.removeEventListener("keydown", onKey);
   }, [accessModalMessageId]);
 
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+      setAnswerActionDraftByMessageId((current) => {
+        const next: Record<string, AnswerActionDraft> = {};
+        let changed = false;
+        for (const [messageId, draft] of Object.entries(current)) {
+          next[messageId] = draft.menuOpen ? { ...draft, menuOpen: false } : draft;
+          changed = changed || draft.menuOpen;
+        }
+        return changed ? next : current;
+      });
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   // Select a citation from a pill, an inline answer chip, or an evidence card:
   // mark it active (loads chunk context via effect), expand its section, scroll it in.
   function selectCitation(evidenceId: string, citationId: string) {
@@ -1135,10 +1397,13 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
         <div className="chat-metadata-bar">
           <div className="chat-mode-pill">
             <MaterialIcon name="bolt" className="icon-fill" />
-            {mode === "hybrid" ? "Hybrid Search" : mode}
+            Mode: {activeMethodology}
           </div>
+          <div>Depth: <strong>{activeDepth}</strong></div>
+          <div>Strategy: <strong>{activeStrategy.replace(/_/g, " ")}</strong></div>
           <div>Latency: <strong>{lastLatencyMs ? `${lastLatencyMs}ms` : "—"}</strong></div>
-          <div>Sources: <strong>{activeEvidenceSection?.citations.length || 0}</strong></div>
+          <div>Retrieved: <strong>{activeRetrievedCount}</strong></div>
+          <div>Citations: <strong>{activeCitationCount}</strong></div>
           <div title="How this answer was retrieved.">Route: <strong>{(activeRetrievalPath || "—").replace(/_/g, " ")}</strong></div>
           <div className="chat-speed-toggle">
             <button
@@ -1235,8 +1500,12 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                             />
                             {isNoContextMessage(message) ? (
                               <div className="chat-no-context-card">
-                                <strong>No grounded evidence was retrieved for this question.</strong>
-                                <p>{String(accessClarification(message)?.access_message || "Try exact wording from the source, confirm the file finished indexing, or tell admins where this information should exist.")}</p>
+                                <strong>{hasRetrievedEvidenceWithoutCitations(message) ? "Evidence was retrieved, but no cited answer could be produced." : "No grounded evidence was retrieved for this question."}</strong>
+                                <p>
+                                  {hasRetrievedEvidenceWithoutCitations(message)
+                                    ? "Use the answer actions menu to retry with exact keyword search or add a search instruction."
+                                    : String(accessClarification(message)?.access_message || "Try exact wording from the source, confirm the file finished indexing, or tell admins where this information should exist.")}
+                                </p>
                                 <p>If you know the likely owner, team, project, or manager, add that context before requesting access. Without it, routing can become a needle-in-a-haystack exercise for admins.</p>
                                 {accessClarification(message)?.request_access_supported ? (
                                   <>
@@ -1392,6 +1661,68 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                           <MaterialIcon name="thumb_down" />
                         </button>
                         <div className="chat-feedback-divider" />
+                        <div className="chat-answer-actions">
+                          <button
+                            type="button"
+                            className={`chat-feedback-button chat-answer-actions-trigger ${answerActionDraftFor(message.id).menuOpen ? "is-active" : ""}`}
+                            aria-label="Answer actions"
+                            aria-haspopup="menu"
+                            aria-expanded={answerActionDraftFor(message.id).menuOpen}
+                            onClick={() => openAnswerActionMenu(message.id)}
+                          >
+                            <MaterialIcon name="more_horiz" />
+                          </button>
+                          {answerActionDraftFor(message.id).menuOpen ? (
+                            <div
+                              className="chat-answer-actions-menu"
+                              role="menu"
+                              onMouseEnter={() => {
+                                answerActionMenuHoldRef.current = message.id;
+                                clearAnswerActionMenuTimer();
+                              }}
+                              onMouseLeave={() => {
+                                answerActionMenuHoldRef.current = null;
+                                scheduleAnswerActionMenuClose(message.id);
+                              }}
+                              onFocus={() => {
+                                answerActionMenuHoldRef.current = message.id;
+                                clearAnswerActionMenuTimer();
+                              }}
+                              onBlur={(event) => {
+                                if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                                  return;
+                                }
+                                answerActionMenuHoldRef.current = null;
+                                scheduleAnswerActionMenuClose(message.id);
+                              }}
+                            >
+                              <button
+                                type="button"
+                                role="menuitem"
+                                disabled={isStreaming || answerActionDraftFor(message.id).redoSubmitting}
+                                onClick={() => {
+                                  clearAnswerActionMenuTimer();
+                                  retryAnswer(message, "try_again");
+                                }}
+                              >
+                                <MaterialIcon name="sync" />
+                                Try again
+                              </button>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                disabled={answerActionDraftFor(message.id).redoSubmitting}
+                                onClick={() => {
+                                  clearAnswerActionMenuTimer();
+                                  patchAnswerActionDraft(message.id, { menuOpen: false, redoOpen: true });
+                                }}
+                              >
+                                <MaterialIcon name="tune" />
+                                Add details
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
                         <button type="button" className="chat-copy-button" onClick={() => copyAnswer(message)} disabled={!message.content}>
                           <MaterialIcon name="content_copy" />
                           Copy Answer
@@ -1400,9 +1731,8 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                       </div>
                       {negativeFeedbackDraftFor(message.id).isOpen ? (
                         <div className="chat-negative-feedback-form">
-                          <label>
-                            <span>What went wrong?</span>
-                            <select
+                          <Field label="What went wrong?">
+                            <Select
                               value={negativeFeedbackDraftFor(message.id).reason}
                               onChange={(event) =>
                                 patchNegativeFeedbackDraft(message.id, { reason: event.target.value as NegativeFeedbackReason })
@@ -1412,17 +1742,16 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                               {NEGATIVE_FEEDBACK_REASONS.map((reason) => (
                                 <option key={reason.value} value={reason.value}>{reason.label}</option>
                               ))}
-                            </select>
-                          </label>
-                          <label>
-                            <span>Optional note</span>
-                            <textarea
+                            </Select>
+                          </Field>
+                          <Field label="Optional note">
+                            <Textarea
                               rows={2}
                               value={negativeFeedbackDraftFor(message.id).note}
                               onChange={(event) => patchNegativeFeedbackDraft(message.id, { note: event.target.value })}
                               placeholder="Add context for the operator reviewing this answer"
                             />
-                          </label>
+                          </Field>
                           <div className="toolbar-inline">
                             <button
                               type="button"
@@ -1436,6 +1765,79 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                               type="button"
                               className="stitch-button stitch-button-secondary"
                               onClick={() => patchNegativeFeedbackDraft(message.id, { isOpen: false, isSubmitting: false })}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                      {answerActionDraftFor(message.id).redoOpen ? (
+                        <div className="chat-redo-form">
+                          <Field label="Search mode">
+                            <Select
+                              value={answerActionDraftFor(message.id).redoMode}
+                              onChange={(event) => {
+                                const redoMode = event.target.value as AnswerActionDraft["redoMode"];
+                                patchAnswerActionDraft(message.id, { redoMode, ...(redoMode === "keyword" ? { redoDepth: "fast" } : {}) });
+                              }}
+                            >
+                              <option value="auto">Auto</option>
+                              <option value="hybrid">Hybrid</option>
+                              <option value="keyword">Keyword</option>
+                              <option value="vector">Semantic</option>
+                            </Select>
+                          </Field>
+                          <Field label="Depth" help={answerActionDraftFor(message.id).redoMode === "keyword" ? "Keyword retry runs fast exact search in this version." : undefined}>
+                            <Select
+                              value={answerActionDraftFor(message.id).redoMode === "keyword" ? "fast" : answerActionDraftFor(message.id).redoDepth}
+                              disabled={answerActionDraftFor(message.id).redoMode === "keyword"}
+                              onChange={(event) =>
+                                patchAnswerActionDraft(message.id, { redoDepth: event.target.value as AnswerActionDraft["redoDepth"] })
+                              }
+                            >
+                              <option value="fast">Fast</option>
+                              <option value="strict">Strict</option>
+                            </Select>
+                          </Field>
+                          <div className="toolbar-inline">
+                            <Toggle
+                              checked={answerActionDraftFor(message.id).includeDocuments}
+                              onChange={(event) => patchAnswerActionDraft(message.id, { includeDocuments: event.target.checked })}
+                              label="Documents"
+                            />
+                            <Toggle
+                              checked={answerActionDraftFor(message.id).includeTables}
+                              onChange={(event) => patchAnswerActionDraft(message.id, { includeTables: event.target.checked })}
+                              label="Spreadsheets"
+                            />
+                            <Toggle
+                              checked={answerActionDraftFor(message.id).includeEmails}
+                              onChange={(event) => patchAnswerActionDraft(message.id, { includeEmails: event.target.checked })}
+                              label="Emails"
+                            />
+                          </div>
+                          <Field label="Search instruction">
+                            <Textarea
+                              rows={2}
+                              value={answerActionDraftFor(message.id).redoNote}
+                              onChange={(event) => patchAnswerActionDraft(message.id, { redoNote: event.target.value })}
+                              placeholder="Optional: use exact wording, focus on a file, or name missing context"
+                            />
+                          </Field>
+                          <div className="toolbar-inline">
+                            <button
+                              type="button"
+                              className="stitch-button stitch-button-primary"
+                              disabled={answerActionDraftFor(message.id).redoSubmitting || isStreaming}
+                              onClick={() => retryAnswer(message, "add_details")}
+                            >
+                              {answerActionDraftFor(message.id).redoSubmitting ? "Retrying" : "Redo search"}
+                            </button>
+                            <button
+                              type="button"
+                              className="stitch-button stitch-button-secondary"
+                              disabled={answerActionDraftFor(message.id).redoSubmitting}
+                              onClick={() => patchAnswerActionDraft(message.id, { redoOpen: false })}
                             >
                               Cancel
                             </button>

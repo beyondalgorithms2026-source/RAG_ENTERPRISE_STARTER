@@ -15,7 +15,7 @@ export type AdminNavSection = { key: string; label: string; items: AdminNavItem[
 const ADMIN_NAV_SECTIONS: { key: string; label: string; modules: string[] }[] = [
   { key: "operate", label: "Operate", modules: ["health", "cost", "flywheel", "jobs", "traces"] },
   { key: "retrieval", label: "Retrieval", modules: ["profiles", "embedding", "evals"] },
-  { key: "data", label: "Data", modules: ["sources", "connectors", "corpora"] },
+  { key: "data", label: "Data", modules: ["uploads", "sources", "connectors", "corpora"] },
   { key: "governance", label: "Governance", modules: ["actions", "policies", "providers", "access", "audit"] },
 ];
 
