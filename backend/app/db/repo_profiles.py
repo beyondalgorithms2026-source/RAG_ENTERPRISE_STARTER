@@ -184,6 +184,22 @@ APPROVED_PROFILE_SEEDS: dict[str, list[dict[str, Any]]] = {
                 "approval_status": "approved",
             },
         },
+        {
+                "name": "gemma3_4b_it_qat",
+                "config": {
+                    "provider": "ollama",
+                    "model": "gemma3:4b-it-qat",
+                    "base_url": "http://localhost:11434",
+                    "api_key": "",
+                    "timeout_s": 60,
+                    "temperature": 0.0,
+                    "max_tokens": None,
+                    "display_name": "Gemma 3 4B IT QAT",
+                    "structured_output_mode": "native_json",
+                    "registry_entry": True,
+                    "approval_status": "approved",
+            },
+        },
     ],
 }
 

@@ -124,6 +124,8 @@ _EVAL_REPORT_FILES = {
     "retrieval": RETRIEVAL_REPORT_FILE,
     "benchmark": BENCHMARK_REPORT_FILE,
 }
+SANDBOX_TRANSFORM_TIMEOUT_MIN_MS = 20_000
+SANDBOX_TRANSFORM_TIMEOUT_MAX_MS = 90_000
 
 
 @router.get("/modules")
@@ -555,6 +557,12 @@ def _validated_retrieval_override(*, selected_profiles: dict[str, str], override
     if not retrieval_profile:
         raise HTTPException(status_code=404, detail=f"Profile '{retrieval_profile_name}' of type 'retrieval' not found")
     base_config = retrieval_profile["config_json"] or {}
+    if candidate.get("query_transform_enabled") or "transform_timeout_ms" in candidate:
+        try:
+            timeout_ms = int(candidate.get("transform_timeout_ms") or base_config.get("transform_timeout_ms") or SANDBOX_TRANSFORM_TIMEOUT_MIN_MS)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="Transform timeout must be numeric") from exc
+        candidate["transform_timeout_ms"] = min(SANDBOX_TRANSFORM_TIMEOUT_MAX_MS, max(SANDBOX_TRANSFORM_TIMEOUT_MIN_MS, timeout_ms))
     validated = _validated_profile_config(profile_type="retrieval", config=candidate, base_config=base_config)
     # Preserve exactly the keys the operator requested so lineage records intent
     # deterministically, regardless of the selected base profile's current values.

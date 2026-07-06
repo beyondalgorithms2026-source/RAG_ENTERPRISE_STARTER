@@ -118,7 +118,7 @@ def _build_usage(provider, data, model, system_prompt, user_prompt, content) -> 
     return usage
 
 
-def generate_transform_text(system_prompt: str, user_prompt: str, *, timeout_s: float, max_tokens: int = 256) -> dict:
+def generate_transform_text(system_prompt: str, user_prompt: str, *, timeout_s: float, max_tokens: int = 1024 ) -> dict:
     """Short-timeout, plain-text completion for query transformation (AR5).
 
     Unlike generate_answer (which floors the timeout at 300s for answer

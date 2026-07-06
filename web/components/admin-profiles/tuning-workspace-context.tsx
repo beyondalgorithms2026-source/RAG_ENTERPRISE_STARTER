@@ -8,6 +8,17 @@ import { tuningEndpoints } from "./endpoints";
 export type GenericMap = Record<string, unknown>;
 export type RuntimeSetting = { effective: unknown; override: unknown; source: string };
 
+export const SANDBOX_TRANSFORM_TIMEOUT_MIN_MS = 20_000;
+export const SANDBOX_TRANSFORM_TIMEOUT_MAX_MS = 90_000;
+
+export function clampSandboxTransformTimeoutMs(value: unknown) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return SANDBOX_TRANSFORM_TIMEOUT_MIN_MS;
+  }
+  return Math.min(SANDBOX_TRANSFORM_TIMEOUT_MAX_MS, Math.max(SANDBOX_TRANSFORM_TIMEOUT_MIN_MS, numeric));
+}
+
 export type TuningPayload = {
   live_configuration: GenericMap;
   candidate_drafts: GenericMap[];
@@ -489,11 +500,20 @@ function useTuningWorkspaceState() {
   }, [selectedProfiles.retrieval, liveSelected.retrieval, selectedRetrievalBaseConfig]);
 
   function updateRetrievalToggle(key: string, value: boolean) {
-    setCandidateRetrievalConfig((current) => ({ ...current, [key]: value }));
+    setCandidateRetrievalConfig((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "query_transform_enabled" && value) {
+        next.transform_timeout_ms = clampSandboxTransformTimeoutMs(next.transform_timeout_ms);
+      }
+      return next;
+    });
   }
 
   function updateRetrievalNumber(key: string, value: number) {
-    setCandidateRetrievalConfig((current) => ({ ...current, [key]: value }));
+    setCandidateRetrievalConfig((current) => ({
+      ...current,
+      [key]: key === "transform_timeout_ms" ? clampSandboxTransformTimeoutMs(value) : value,
+    }));
   }
 
   function resetDraftForm() {

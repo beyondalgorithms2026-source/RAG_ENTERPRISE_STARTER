@@ -7,7 +7,8 @@ import { TextInput } from "@/components/ui/TextInput";
 import { Field } from "@/components/ui/Field";
 import { Toggle } from "@/components/ui/Toggle";
 import {
-  EmptyState, ParameterLabel, TUNING_PROFILE_TYPES, candidateRetrievalSummary, type GenericMap,
+  EmptyState, ParameterLabel, SANDBOX_TRANSFORM_TIMEOUT_MAX_MS, SANDBOX_TRANSFORM_TIMEOUT_MIN_MS, TUNING_PROFILE_TYPES,
+  candidateRetrievalSummary, clampSandboxTransformTimeoutMs, type GenericMap,
   evalEvidenceSummary, formatMetricDelta, formatTimestamp, profileTypeLabel,
   renderCompareAnswer, selectedProfilesSignature, transformSummaryText,
   useTuningWorkspace, versionModelDetail, versionProfileConfig, versionProfileName,
@@ -21,6 +22,7 @@ function ToggleControl({ enabled, onToggle, disabled = false }: { label?: string
 
 export function TuningLabPanel() {
   const { historySectionRef, tuningPayload, comparePayload, error, isLoading, isComparing, savingDraft, isPromoting, isRollingBack, isEvaluating, evalRun, isOpsBusy, editingDraftId, tuningHistory, tuningOps, retrievalEvidence, visualMode, preparedCandidate, draftName, draftDescription, sampleQuery, promotionNote, evalEnforcement, approvalActor, savingEnforcement, selectedProfiles, candidateRetrievalConfig, tuningControls, liveSelected, liveResolved, liveRetrievalConfig, approvedLiveEmbeddingName, effectiveSelectedProfiles, isPreparedCurrent, hasUnsavedDraftChanges, selectedOptionLabels, queryTransformEnabled, expectedChange, comparisonTiles, cacheStats, cacheMetrics, activeCachePolicy, activeCacheVersion, cacheScopeCount, currentLiveSignature, liveHistoryVersions, inspectedHistoryVersion, setVisualMode, setSelectedProfiles, setTuningControls, setDraftName, setDraftDescription, setSampleQuery, setPromotionNote, setApprovalActor, setSelectedHistoryVersion, updateRetrievalToggle, updateRetrievalNumber, resetDraftForm, prepareSandboxCandidate, saveDraft, runCompare, runEvalPack, promoteCandidate, rollbackVersion, saveEvalEnforcement, scrollToVersionHistory, runOpsAction } = useTuningWorkspace();
+  const transformTimeoutSeconds = clampSandboxTransformTimeoutMs(candidateRetrievalConfig.transform_timeout_ms) / 1000;
   return (
     <>
       <section className="tuning-lab-shell-frame">
@@ -271,13 +273,13 @@ export function TuningLabPanel() {
                             <Field label="">
                               <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
                                 <ParameterLabel label="Transform Timeout (s)" tooltip="Latency budget in seconds for transform execution in the sandbox candidate." />
-                                <div className="tuning-lab-slider-value">{`${Number(candidateRetrievalConfig.transform_timeout_ms ?? 5000) / 1000} s`}</div>
+                                <div className="tuning-lab-slider-value">{`${transformTimeoutSeconds} s`}</div>
                                 <TextInput
                                   type="range"
-                                  min="1"
-                                  max="30"
+                                  min={String(SANDBOX_TRANSFORM_TIMEOUT_MIN_MS / 1000)}
+                                  max={String(SANDBOX_TRANSFORM_TIMEOUT_MAX_MS / 1000)}
                                   step="1"
-                                  value={Number(candidateRetrievalConfig.transform_timeout_ms ?? 5000) / 1000}
+                                  value={transformTimeoutSeconds}
                                   disabled={!queryTransformEnabled}
                                   onChange={(event) => updateRetrievalNumber("transform_timeout_ms", Number(event.target.value) * 1000)}
                                 />
