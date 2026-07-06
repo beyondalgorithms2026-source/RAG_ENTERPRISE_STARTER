@@ -51,7 +51,7 @@ class RetrievalProfileConfig(BaseModel):
     rewrite_enabled: bool = False
     expansion_enabled: bool = False
     hyde_enabled: bool = False
-    transform_timeout_ms: int = 750
+    transform_timeout_ms: int = 5000
     transform_max_variants: int = 3
     multi_query_enabled: bool = False
     semantic_cache_enabled: bool = False

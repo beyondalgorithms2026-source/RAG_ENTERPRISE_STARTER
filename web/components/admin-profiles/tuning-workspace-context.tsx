@@ -145,7 +145,7 @@ export function candidateRetrievalSummary(config: Record<string, unknown>, retri
   ].filter(Boolean);
   parts.push(strategies.length ? strategies.join(" + ") : "Transform enabled");
   parts.push(`${Number(config.transform_max_variants ?? 3)} variants`);
-  parts.push(`${Number(config.transform_timeout_ms ?? 750)} ms`);
+  parts.push(`${Number(config.transform_timeout_ms ?? 5000) / 1000} s`);
   if (config.multi_query_enabled) {
     parts.push("Multi-query fan-out");
   }

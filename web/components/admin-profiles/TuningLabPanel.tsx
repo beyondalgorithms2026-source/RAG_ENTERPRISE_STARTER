@@ -270,16 +270,16 @@ export function TuningLabPanel() {
                           <div className="tuning-lab-slider-grid tuning-lab-transform-sliders">
                             <Field label="">
                               <div className={`tuning-lab-slider-wrap ${queryTransformEnabled ? "" : "is-disabled"}`}>
-                                <ParameterLabel label="Transform Timeout (ms)" tooltip="Latency budget for transform execution in the sandbox candidate." />
-                                <div className="tuning-lab-slider-value">{String(candidateRetrievalConfig.transform_timeout_ms ?? 750)}</div>
+                                <ParameterLabel label="Transform Timeout (s)" tooltip="Latency budget in seconds for transform execution in the sandbox candidate." />
+                                <div className="tuning-lab-slider-value">{`${Number(candidateRetrievalConfig.transform_timeout_ms ?? 5000) / 1000} s`}</div>
                                 <TextInput
                                   type="range"
-                                  min="100"
-                                  max="2000"
-                                  step="50"
-                                  value={Number(candidateRetrievalConfig.transform_timeout_ms ?? 750)}
+                                  min="1"
+                                  max="30"
+                                  step="1"
+                                  value={Number(candidateRetrievalConfig.transform_timeout_ms ?? 5000) / 1000}
                                   disabled={!queryTransformEnabled}
-                                  onChange={(event) => updateRetrievalNumber("transform_timeout_ms", Number(event.target.value))}
+                                  onChange={(event) => updateRetrievalNumber("transform_timeout_ms", Number(event.target.value) * 1000)}
                                 />
                               </div>
                             </Field>

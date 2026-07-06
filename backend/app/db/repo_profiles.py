@@ -398,7 +398,7 @@ def seed_default_profiles(settings) -> None:
         "rewrite_enabled": False,
         "expansion_enabled": False,
         "hyde_enabled": False,
-        "transform_timeout_ms": 750,
+        "transform_timeout_ms": 5000,
         "transform_max_variants": 3,
     }, is_default=True)
 
