@@ -1,4 +1,4 @@
 {
-  "enabled_modules": ["audit", "corpora", "evals", "health", "jobs", "overview", "sources", "traces"],
+  "enabled_modules": ["audit", "corpora", "evals", "health", "jobs", "overview", "sources", "traces", "uploads"],
   "disabled_modules": ["access", "actions", "connectors", "cost", "embedding", "flywheel", "governance", "policies", "profiles", "providers", "tuning"]
 }

@@ -1,34 +1,51 @@
-# AGENTS.md — Token-efficient rules for Codex (Enterprise RAG Starter)
+# AGENTS.md — Codex rules (Enterprise RAG Starter)
 
-## 1. Token-saving rules (MUST follow every time)
-- Be extremely concise. Never explain unless explicitly asked.
-- Output ONLY the code changes (use unified diffs when editing files).
-- Never repeat content from AGENTS.md, CONTEXT.md or STATUS.md.
-- After finishing a task or milestone: reply ONLY "Milestone complete. Ready for next prompt."
-- Keep sessions short — after 10-15 turns suggest /clear or new session.
+**The canonical operating manual is [CLAUDE.md](CLAUDE.md). Read it first; this file is a
+compressed mirror and defers to it.** For current project state, `STATUS.md` wins over
+both.
 
-## 2. Project rules (from the official plan)
-- This is the Enterprise RAG Starter built on the existing stable PoC-grade baseline.
-- Core philosophy:
-  • Retrieval + governance are the hard parts. LLM is last-mile generation.
-  • Every change must preserve correctness, citation provenance, and security boundaries.
-  • Retrieval changes must be measurable, reversible, and explainable.
-- Milestone tracks: **M-series** (`docs/02_…Milestones.md`), **AR-series** (`docs/04_…Audit_Remediation_Milestones.md`, complete through AR20), **UX-series** (`docs/05_Enterprise_RAG_UIUX_Audit_Remediation_Milestones.md`). UX and AR numbering are disjoint from M-series.
-- **Current active track: UX-series.** Follow the exact UX order (UX0 → UX1 → …); UX0 (design language) gates everything after it. UX/AR plans must not modify `docs/02_…Milestones.md`.
-- Never break baseline correctness or citations.
-- Security trimming (ACL) must happen inside retrieval queries (SQL-level), never only in UI.
-- Every milestone must leave the full suite green and `tsc --noEmit` clean.
-- Always update STATUS.md after every milestone.
-- Add a short milestone/change note in `docs/milestones/` describing the change (create the folder if needed).
+## Session start
+- Read `README.md`, `CONTEXT.md`, `STATUS.md`. `STATUS.md` = current posture when older
+  docs (including audit findings quoted in CONTEXT.md) conflict — AR0–AR20 and UX0–UX12
+  are complete; the 2026-06-11 audit defects are fixed.
+- Active code: backend `backend/`, frontend `web/`. `frontend/` is legacy fallback —
+  never build there.
 
-## 2a. UI/UX execution rules (binding on ALL frontend work)
-- **Design-language-first.** Before building or changing any UI, read `web/DESIGN.md` (and the `design-language` skill if present) and obey it. Do not add a token, component, or CSS class not defined there — reuse the canonical primitive. One button system only.
-- **No external UI dependencies, ever.** No Google Fonts, no CDN icon font (Material Symbols), no third-party image hosts (`googleusercontent`, etc.). Fonts/icons are self-hosted/bundled; images are local or generated initials. The UI MUST render fully with the network blocked.
-- **No "Stitch" wording in code.** Keep *Stitch*/"stitched" out of comments and user-facing copy; add no Stitch placeholder assets or origin-narrating comments. Existing `stitch-*` class identifiers may stay (renaming out of scope); don't add new ones. (`web/stitch-reference/` is reference-only, out of build.)
-- **`globals.css` stays sectioned & clean:** table-of-contents header, banner-delimited sections, no orphaned selectors, no `AR##`/historical comments — current-intent comments only.
+## Hard rules
+- Retrieval + governance are the hard parts; LLM is last-mile. Never break citation
+  provenance or safe not-found behavior.
+- ACL trimming happens inside SQL retrieval queries
+  (`backend/app/auth/access_strategy.py` → `backend/app/db/repo_search.py`), never only
+  in UI or Python post-filtering.
+- Retrieval changes must be measurable (eval evidence), reversible (flag/profile),
+  explainable (traced). Never hardcode embedding dimensions; dimension-changing swaps go
+  through the AR7 lifecycle endpoints only.
+- Single-worker runtime (AR8): no multi-worker assumptions, no module-global
+  monkeypatching (use the `profile_overrides` ContextVar).
+- UX/AR work must not modify `docs/02_Enterprise_RAG_Project_Plan_Milestones.md`.
 
-## 3. How to work with me
-- I will work milestone-by-milestone.
-- Read CONTEXT.md and STATUS.md at the start of every session.
-- When I say "Start Milestone X" or give a prompt, execute exactly that milestone's Goal + DoD.
-- Always run re-run checks (baseline smoke tests + relevant eval pack) before declaring done.
+## UI rules (all frontend work)
+- Read `web/DESIGN.md` first and obey it. One button system (`.stitch-button*`), one
+  form system (`components/ui/*`), one table (`.admin-data-table`). No new
+  token/hex/class without updating `web/DESIGN.md`.
+- No external UI dependencies, ever (no Google Fonts, CDN icon fonts, remote image
+  hosts). The UI must render with the network blocked.
+- No new Stitch wording or new `stitch-*` class names; `globals.css` stays sectioned,
+  no orphaned selectors or `AR##` narration comments.
+
+## Milestone loop
+- Execute exactly the milestone's Goal + DoD from its plan file. Keep changes scoped.
+- Gate before declaring done: `make test`; `cd web && npx tsc --noEmit && pnpm run build`
+  if `web/` changed; `make scenario-validate` if auth/ACL/modules changed;
+  `make repo-hygiene-check` always.
+- Then update `STATUS.md` and add a note in `docs/milestones/`.
+- Never commit `backend/.env`, `web/.env.local`, `web/tsconfig.tsbuildinfo`, or root
+  eval outputs (reports go to `data/reports/`).
+
+## Style
+- Be extremely concise; output the code changes, not essays. Don't re-quote
+  AGENTS.md/CLAUDE.md/CONTEXT.md/STATUS.md. After finishing a milestone reply only
+  "Milestone complete. Ready for next prompt."
+
+Full details — canonical paths, all commands, quality bars per deliverable type,
+escalation rules, and repo-specific skill procedures — live in [CLAUDE.md](CLAUDE.md).
