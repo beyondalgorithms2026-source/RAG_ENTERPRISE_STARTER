@@ -295,11 +295,18 @@ export function SearchWorkspace() {
       ) : null}
 
       {loading ? (
-        <div className="workspace-empty-state" role="status">
-          <div className="workspace-empty-card">
-            <MaterialIcon name="progress_activity" className="workspace-empty-icon spin" />
-            <h2>Searching indexed content...</h2>
-            <p>Retrieval is running across the sources your account can currently access. Results appear here before you jump into chat.</p>
+        <div role="status" aria-label="Searching indexed content">
+          <div className="search-result-summary">
+            <MaterialIcon name="progress_activity" className="spin" /> Searching the sources your account can access...
+          </div>
+          <div className="v2-result-list" aria-hidden="true">
+            {[0, 1, 2, 3].map((row) => (
+              <article key={row} className="v2-result-card">
+                <span className="skeleton-line" style={{ maxWidth: "18em" }} />
+                <span className="skeleton-line" style={{ maxWidth: "32em" }} />
+                <span className="skeleton-line" style={{ maxWidth: "26em" }} />
+              </article>
+            ))}
           </div>
         </div>
       ) : null}
@@ -319,57 +326,49 @@ export function SearchWorkspace() {
       ) : null}
 
       {!loading && allResults.length > 0 && visibleResults.length > 0 ? (
-        <div className="admin-table-scroll">
-          <table className="admin-data-table">
-            <thead>
-              <tr>
-                <th scope="col">Source</th>
-                <th scope="col">Type</th>
-                <th scope="col">Location</th>
-                <th scope="col">Relevance</th>
-                <th scope="col">Snippet</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleResults.map((item) => {
-                const pct = Math.min(100, Math.max(6, Math.round((item.score / visibleMaxScore) * 100)));
-                return (
-                  <tr key={`${item.chunk_id}-${item.source_id}`}>
-                    <td>
-                      <div className="search-source-cell">
-                        <MaterialIcon name={sourceGlyph(item.source_type)} className="search-source-icon" />
-                        <div>
-                          <strong>{item.heading || item.file_name}</strong>
-                          <span className="search-source-file">{item.file_name}{item.corpus_name ? ` · ${item.corpus_name}` : ""}</span>
-                        </div>
-                        {item.freshness ? (
-                          <span className={`badge ${item.freshness.status === "fresh" ? "is-good" : item.freshness.status === "stale" ? "is-danger" : "is-warning"}`}>
-                            {item.freshness.status}
-                          </span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td>{item.source_type}</td>
-                    <td>{item.locator || "—"}</td>
-                    <td>
-                      <div
-                        className="search-relevance"
-                        title={`Retrieval score (${modeLabel} mode): ${item.score.toFixed(3)}. The bar is relative to the top visible result.`}
-                      >
-                        <span className="search-relevance-bar">
-                          <span style={{ width: `${pct}%` }} />
-                        </span>
-                        <span className="search-relevance-value">{item.score.toFixed(3)}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="search-snippet">{item.snippet}</span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="v2-result-list">
+          {visibleResults.map((item, index) => {
+            const pct = Math.min(100, Math.max(6, Math.round((item.score / visibleMaxScore) * 100)));
+            return (
+              <article key={`${item.chunk_id}-${item.source_id}`} className="v2-result-card">
+                <div className="v2-result-head">
+                  <span className="v2-result-rank" aria-hidden="true">{index + 1}</span>
+                  <MaterialIcon name={sourceGlyph(item.source_type)} className="v2-result-glyph" />
+                  <div className="v2-result-title">
+                    <strong>{item.heading || item.file_name}</strong>
+                    <span>{item.file_name}{item.locator ? ` · ${item.locator}` : ""}</span>
+                  </div>
+                  <div
+                    className="v2-result-relevance"
+                    title={`Retrieval score (${modeLabel} mode): ${item.score.toFixed(3)}. The bar is relative to the top visible result.`}
+                  >
+                    <span className="search-relevance-bar">
+                      <span style={{ width: `${pct}%` }} />
+                    </span>
+                    <span className="search-relevance-value">{item.score.toFixed(3)}</span>
+                  </div>
+                </div>
+                <p className="v2-result-snippet">{item.snippet}</p>
+                <div className="v2-result-foot">
+                  <span className="v2-tag">{item.source_type}</span>
+                  <span className="v2-tag">{item.corpus_name || UNASSIGNED_CORPUS}</span>
+                  {item.freshness ? (
+                    <span className={`v2-status-chip ${item.freshness.status === "fresh" ? "is-pass" : item.freshness.status === "stale" ? "is-fail" : "is-review"}`}>
+                      {item.freshness.status}
+                    </span>
+                  ) : null}
+                  <Link
+                    href={`/console/workspace/chat?q=${encodeURIComponent(query.trim() || (item.heading || item.file_name))}`}
+                    className="v2-result-ask"
+                    title="Get a grounded, cited answer for this question"
+                  >
+                    Ask about this
+                    <MaterialIcon name="arrow_forward" />
+                  </Link>
+                </div>
+              </article>
+            );
+          })}
         </div>
       ) : null}
 

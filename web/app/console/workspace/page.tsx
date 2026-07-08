@@ -1,5 +1,5 @@
-import { ChatWorkspace } from "@/components/chat-workspace";
+import { WorkspaceHome } from "@/components/workspace-home";
 
 export default function WorkspaceIndexPage() {
-  return <ChatWorkspace freshOnLoad />;
+  return <WorkspaceHome />;
 }

@@ -2,14 +2,14 @@
 
 import { BrandLogo, MaterialIcon, Monogram } from "@/components/icons";
 import Link from "next/link";
-import { ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import type { FormEvent, ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 import { LogoutButton } from "@/components/logout-button";
 import { groupAdminNav, type AdminNavItem } from "@/lib/admin-nav";
+import { browserApiUrl } from "@/lib/api-browser";
 import { hasAdminRole, type Viewer } from "@/lib/viewer";
-import { readThreads, THREADS_UPDATED_EVENT } from "@/lib/workspace";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type NavItem = {
   href: string;
@@ -26,6 +26,32 @@ function comingSoonProps(name: string) {
   return { disabled: true, "aria-label": `${name} (coming soon)`, title: COMING_SOON_TITLE, "data-coming-soon": "true" } as const;
 }
 
+type HealthState = "checking" | "ok" | "degraded";
+
+/** Live backend reachability chip fed by GET /health (no auth required). */
+function useBackendHealth(enabled: boolean) {
+  const [health, setHealth] = useState<HealthState>("checking");
+  const [retrievalMode, setRetrievalMode] = useState<string>("");
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    fetch(browserApiUrl("/health"))
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
+      .then((payload: { status?: string; retrieval_defaults?: { mode?: string } }) => {
+        if (cancelled) return;
+        setHealth(payload.status === "ok" ? "ok" : "degraded");
+        setRetrievalMode(payload.retrieval_defaults?.mode ?? "");
+      })
+      .catch(() => {
+        if (!cancelled) setHealth("degraded");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled]);
+  return { health, retrievalMode };
+}
+
 export function ConsoleShell({
   viewer,
   navItems,
@@ -38,39 +64,63 @@ export function ConsoleShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const [recentThreads, setRecentThreads] = useState<{ id: string; title: string }[]>([]);
+  const router = useRouter();
   const [collapsedNavSections, setCollapsedNavSections] = useState<Record<string, boolean>>({});
+  // Mobile nav drawer (≤820px): the nav column becomes a fixed overlay opened
+  // by the topbar toggle. Closed on route change / Escape / backdrop click.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
+  const sidebarRef = useRef<HTMLElement | null>(null);
   const adminNav = variant === "admin" ? groupAdminNav(navItems as AdminNavItem[]) : null;
+  const { health, retrievalMode } = useBackendHealth(variant === "workspace");
 
   useEffect(() => {
-    function refreshThreads() {
-      setRecentThreads(
-        readThreads()
-          .slice(0, 3)
-          .map((thread) => ({ id: thread.id, title: thread.title })),
-      );
-    }
-    refreshThreads();
-    window.addEventListener(THREADS_UPDATED_EVENT, refreshThreads);
-    window.addEventListener("storage", refreshThreads);
-    return () => {
-      window.removeEventListener(THREADS_UPDATED_EVENT, refreshThreads);
-      window.removeEventListener("storage", refreshThreads);
-    };
-  }, []);
+    setMobileNavOpen(false);
+  }, [pathname]);
 
-  const isSourcesSurface =
-    pathname.startsWith("/console/workspace/sources") ||
-    pathname.startsWith("/console/workspace/uploads") ||
-    pathname.startsWith("/console/workspace/connectors");
+  useEffect(() => {
+    if (mobileNavOpen) sidebarRef.current?.focus();
+  }, [mobileNavOpen]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setMobileNavOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mobileNavOpen]);
+
   const viewerPrimary = viewer.name || viewer.email || viewer.user_id;
   const viewerSecondary = viewer.email || viewer.user_id;
   const viewerRoleLabel = viewer.roles.length ? viewer.roles.join(", ").toUpperCase() : "USER";
 
+  const navToggleButton = (
+    <button
+      type="button"
+      className="shell-nav-toggle"
+      aria-expanded={mobileNavOpen}
+      aria-label={mobileNavOpen ? "Close navigation" : "Open navigation"}
+      onClick={() => setMobileNavOpen((open) => !open)}
+    >
+      <MaterialIcon name={mobileNavOpen ? "close" : "menu"} />
+    </button>
+  );
+  const navBackdrop = mobileNavOpen ? (
+    <button
+      type="button"
+      className="shell-nav-backdrop"
+      aria-label="Close navigation"
+      onClick={() => setMobileNavOpen(false)}
+    />
+  ) : null;
+
   if (variant === "admin") {
     return (
       <div className="admin-shell">
-        <aside className="admin-sidebar">
+        <a href="#console-main" className="skip-link">Skip to content</a>
+        {navBackdrop}
+        <aside className={`admin-sidebar ${mobileNavOpen ? "is-mobile-open" : ""}`} ref={sidebarRef} tabIndex={-1}>
           <div className="admin-sidebar-head">
             <div className="brand-lockup">
               <BrandLogo />
@@ -135,6 +185,7 @@ export function ConsoleShell({
 
         <main className="admin-main">
           <header className="admin-topbar">
+            {navToggleButton}
             <div className="admin-command" data-coming-soon="true" title={COMING_SOON_TITLE}>
               <MaterialIcon name="search" />
               <input readOnly value="Search traces, corpora, or jobs (⌘K)" aria-label="Admin command search (coming soon)" tabIndex={-1} />
@@ -159,7 +210,7 @@ export function ConsoleShell({
               </Link>
             </div>
           </header>
-          <div className="admin-main-content">{children}</div>
+          <div className="admin-main-content" id="console-main">{children}</div>
           <footer className="console-footer">
             <span>Built for enterprise retrieval teams</span>
             <div>
@@ -174,103 +225,88 @@ export function ConsoleShell({
     );
   }
 
-  return (
-    <div className="workspace-shell">
-      <header className="workspace-topbar">
-        <div className="workspace-topbar-left">
-          <Link href="/" className="workspace-brand">
-            <BrandLogo />
-            <span>RAG Enterprise</span>
-          </Link>
-          {isSourcesSurface ? (
-            <div className="workspace-search-input" data-coming-soon="true" title={COMING_SOON_TITLE}>
-              <MaterialIcon name="search" />
-              <input readOnly value="Search workspace..." aria-label="Workspace search (coming soon)" tabIndex={-1} />
-              <span className="coming-soon-badge">Soon</span>
-            </div>
-          ) : null}
-        </div>
-        <div className="workspace-topbar-actions">
-          <div className="console-viewer-chip" title={viewerSecondary}>
-            <div className="console-viewer-chip-copy">
-              <strong>{viewerPrimary}</strong>
-              <span>{viewerSecondary}</span>
-            </div>
-          </div>
-          <Link href="/console/workspace/requests" className="workspace-icon-button" aria-label="Notifications" title="Open access requests and notifications.">
-            <MaterialIcon name="notifications" />
-          </Link>
-          <button type="button" className="workspace-icon-button is-coming-soon" {...comingSoonProps("Settings")}>
-            <MaterialIcon name="settings" />
-          </button>
-          <div className="workspace-avatar">
-            <Monogram seed={viewerPrimary} />
-          </div>
-        </div>
-      </header>
+  // V2 workspace shell: dark icon rail + top command bar (see web/DESIGN.md §7,
+  // "V2 workflow console"). The rail is the only persistent chrome; workflow
+  // surfaces own the rest of the viewport.
+  const isRouteActive = (href: string) =>
+    href === "/console/workspace" ? pathname === href : pathname.startsWith(href);
 
-      <div className="workspace-body">
-        <aside className="workspace-sidebar">
-          <div className="workspace-sidebar-scroll">
-            <div className="workspace-sidebar-head">
-              <h2>Workspace</h2>
-              <p>User Console</p>
-            </div>
-            <nav className="workspace-sidebar-nav">
-              {navItems.map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={`workspace-sidebar-link ${pathname.startsWith(item.href) ? "is-active" : ""}`}
-                >
-                  <MaterialIcon name={item.icon} />
-                  <span>{item.label}</span>
-                </Link>
-              ))}
-            </nav>
-            {isSourcesSurface ? (
-              <div className="workspace-storage-card workspace-guide-card">
-                <span>First Run</span>
-                <div>
-                  <strong>Start with one upload.</strong>
-                  <p className="workspace-guide-copy">Use Upload Documents, wait for the file to show as indexed, then return to Ask or Search for the first grounded run.</p>
-                  <div className="workspace-guide-links">
-                    <Link href="/console/workspace/uploads">Open uploads</Link>
-                    <Link href="/console/workspace/chat">Open Ask</Link>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="workspace-thread-card">
-                <span>Recent Threads</span>
-                <div>
-                  {recentThreads.length === 0 ? (
-                    <p className="workspace-thread-empty">No saved threads yet. Ask your first grounded question and the thread will appear here after the first answer completes.</p>
-                  ) : (
-                    recentThreads.map((thread) => (
-                      <Link
-                        key={thread.id}
-                        href={`/console/workspace/chat/${thread.id}`}
-                        className={pathname.endsWith(thread.id) ? "is-active-thread" : ""}
-                      >
-                        {thread.title}
-                      </Link>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
+  function submitCommand(event: FormEvent) {
+    event.preventDefault();
+    const value = commandQuery.trim();
+    if (!value) return;
+    setCommandQuery("");
+    router.push(`/console/workspace/chat?q=${encodeURIComponent(value)}`);
+  }
+
+  return (
+    <div className="v2-shell">
+      <a href="#console-main" className="skip-link">Skip to content</a>
+      {navBackdrop}
+      <aside className={`v2-rail ${mobileNavOpen ? "is-mobile-open" : ""}`} ref={sidebarRef} tabIndex={-1} aria-label="Workspace navigation">
+        <Link href="/console/workspace" className="v2-rail-brand" aria-label="RAG Enterprise home">
+          <BrandLogo />
+        </Link>
+        <nav className="v2-rail-nav">
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`v2-rail-link ${isRouteActive(item.href) ? "is-active" : ""}`}
+              aria-current={isRouteActive(item.href) ? "page" : undefined}
+            >
+              <MaterialIcon name={item.icon} />
+              <span>{item.label}</span>
+            </Link>
+          ))}
+        </nav>
+        <div className="v2-rail-foot">
+          <Monogram seed={viewerPrimary} title={`${viewerPrimary} · ${viewerSecondary}`} />
+          <button
+            type="button"
+            className="v2-rail-link v2-rail-logout"
+            onClick={() => window.location.assign(browserApiUrl("/auth/logout"))}
+          >
+            <MaterialIcon name="logout" />
+            <span>Log out</span>
+          </button>
+        </div>
+      </aside>
+
+      <div className="v2-main">
+        <header className="v2-topbar">
+          {navToggleButton}
+          <form className="v2-command" onSubmit={submitCommand} role="search">
+            <MaterialIcon name="search" />
+            <input
+              value={commandQuery}
+              onChange={(event) => setCommandQuery(event.target.value)}
+              placeholder="Ask a governed question across your sources..."
+              aria-label="Ask a governed question"
+            />
+            <button type="submit" className="v2-command-go" aria-label="Ask">
+              <MaterialIcon name="arrow_forward" />
+            </button>
+          </form>
+          <div className="v2-topbar-status">
+            <span className="v2-chip is-on" title="Access trimming is enforced inside retrieval SQL for every query.">
+              <MaterialIcon name="shield_check" />
+              ACL enforced
+            </span>
+            <span
+              className={`v2-chip ${health === "ok" ? "is-on" : health === "checking" ? "is-wait" : "is-alert"}`}
+              title={health === "ok" ? `Backend healthy · default retrieval: ${retrievalMode || "—"}` : health === "checking" ? "Checking backend health..." : "Backend unreachable or degraded."}
+              role="status"
+            >
+              <MaterialIcon name={health === "ok" ? "check" : health === "checking" ? "progress_activity" : "warning"} className={health === "checking" ? "spin" : undefined} />
+              {health === "ok" ? `Retrieval ${retrievalMode || "ready"}` : health === "checking" ? "Checking" : "Degraded"}
+            </span>
+            <Link href="/console/workspace/requests" className="workspace-icon-button" aria-label="Approvals and notifications" title="Open approvals and notifications.">
+              <MaterialIcon name="notifications" />
+            </Link>
           </div>
-          <div className="workspace-sidebar-footer">
-            <div className="workspace-viewer-summary">
-              <strong>{viewerPrimary}</strong>
-              <span>{viewerSecondary}</span>
-            </div>
-            <span>Built for enterprise retrieval teams</span>
-            <LogoutButton />
-          </div>
-        </aside>
-        <div className="workspace-content">{children}</div>
+        </header>
+        <div className="v2-content" id="console-main">{children}</div>
       </div>
     </div>
   );

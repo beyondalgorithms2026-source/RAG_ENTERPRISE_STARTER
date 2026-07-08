@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "comment": "Placeholder server that respects the assigned PORT: the real app runs separately on :3001 (pnpm --dir web dev). Two `next dev` processes would share web/.next and corrupt it, so the preview tool gets an inert server and the browser tab navigates to :3001.",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["-e", "require('http').createServer((q,s)=>s.end('preview placeholder; app is on :3001')).listen(process.env.PORT||8931,'127.0.0.1')"],
+      "port": 8931,
+      "autoPort": true
+    }
+  ]
+}

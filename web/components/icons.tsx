@@ -65,6 +65,7 @@ const GLYPHS: Record<string, Glyph> = {
   mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></>,
   paperclip: <><path d="M20 11.5 12 19a4 4 0 0 1-6-5.3l7-7a2.5 2.5 0 0 1 3.7 3.4l-7 7a1 1 0 0 1-1.5-1.4L11 9" /></>,
   close: <><path d="M6 6 18 18M18 6 6 18" /></>,
+  menu: <><path d="M4 6h16M4 12h16M4 18h16" /></>,
   plus: <><path d="M12 5v14M5 12h14" /></>,
   link: <><path d="M9 12h6" /><path d="M10 8H8a4 4 0 0 0 0 8h2M14 8h2a4 4 0 0 1 0 8h-2" /></>,
   link_plus: <><path d="M10 8H8a4 4 0 0 0 0 8h2M14 16h2a4 4 0 0 0 3.9-3" /><path d="M9 12h4M18 9v6M15 12h6" /></>,

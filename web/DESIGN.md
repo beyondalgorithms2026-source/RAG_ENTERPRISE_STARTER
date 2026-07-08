@@ -45,8 +45,8 @@ The CSS custom properties in `app/globals.css :root` are the **only** token sour
 | `--danger` / `--danger-soft` | `#ba1a1a` / `#ffdad6` | Error / "stale" |
 | warning | `#f7e6bf` bg / `#7a5200` ink | Warning |
 
-### 2.3 Palette decision (UX0)
-**Keep the current palette as canonical.** It is already applied consistently across chat + admin, and a full neutral re-skin is a large change with no functional gain. The governing rules going forward:
+### 2.3 Palette decision (V2, supersedes UX0)
+**V2 (2026-07-07): the surface system moved from the tan palette to cool neutrals** (`--surface #f6f7fb`, tan `--surface-*` steps → cool grey steps, `--ink #14161f`) as part of the V2 workflow-console redesign, and a dark navigation rail was introduced (`--rail-bg #12141f`, `--rail-ink`, `--rail-active`, `--rail-line`). Semantic tokens (success/warning/danger/primary/lime) are unchanged. The governing rules below still hold:
 - **Status = semantic tokens only** (success / warning / danger + primary for info). No ad-hoc status colors.
 - **Lime is accent, not status** — restricted to marketing/illustrative surfaces; never used to signal state in the console.
 - **Primary indigo** = primary actions, links, selection, focus.
@@ -98,10 +98,27 @@ Form controls in chat/search currently use bespoke markup; new/edited forms shou
 - **Master/detail:** list on one side, sticky detail pane (`.admin-sticky-detail`) that reveals-on-select (scrollIntoView). Used by Sources/Jobs/Audit Log.
 - **Answer + citation pattern:** answer body (Markdown, UX4) → inline citation markers (UX5) → evidence rail cards (`chat-evidence-*`) → chunk-context card with neighbors + freshness + open-source link. Keep these four layers visually distinct.
 - **Form pattern:** `Field` (label + help/error) wrapping a `ui/*` control; actions in `FormActions`. Validation errors via `.ui-field-error` / `is-invalid`.
-- **Empty / loading / error states:** every data surface needs all three; reuse the existing empty-card pattern; loading uses an explicit CSS spinner (not a glyph).
+- **Empty / loading / error states:** every data surface needs all three; reuse the existing empty-card pattern; loading uses an explicit CSS spinner (not a glyph). For tabular/list surfaces whose loaded shape is known, loading may instead render `.skeleton-line` placeholder rows inside the real layout (shimmer over `--surface-high`/`--surface-low`; static under `prefers-reduced-motion`); mark the skeleton container `aria-hidden` and give the wrapper `role="status"` with an accessible label.
+- **Mobile nav drawer:** at ≤820px the workspace/admin sidebar becomes a fixed off-canvas drawer (`.is-mobile-open` on the sidebar) opened by the topbar `.shell-nav-toggle` hamburger, with a `.shell-nav-backdrop` scrim (same rgba scrim value as the modal backdrop). It closes on backdrop click, Escape, and route change; focus moves into the drawer on open (`tabIndex={-1}` on the sidebar); the closed drawer is `visibility: hidden` so it stays out of the tab order. Both elements are inert on wider viewports. On phones the inert coming-soon search boxes and the topbar viewer chip are hidden to make room (identity remains in the avatar and sidebar footer).
+- **Keyboard-submit hint:** the chat composer shows the `⌘/Ctrl + Enter` shortcut as a muted `.chat-composer-hint` beside the primary action (`aria-hidden`, hidden ≤768px).
+- **Skip link:** both console shells render an `<a href="#console-main" class="skip-link">` as the first focusable element; it is visually hidden until keyboard-focused, then appears over the shell and jumps focus past the navigation.
+- **Interaction states:** interactive surfaces use short (120–160ms) `ease` transitions on background/color/box-shadow only. The active sidebar route additionally shows a 3px primary leading-edge bar (`::before` on the canonical link classes); the composer signals focus with a card-level `:focus-within` ring (`--primary-soft`) instead of an inner control ring. A global `prefers-reduced-motion: reduce` override collapses all transitions/animations.
 - **Coming-soon pattern:** controls that are intentionally not wired yet are **preserved, not removed**, and marked consistently: keep them `disabled` (or `readOnly`/`tabIndex={-1}` for inputs), set `title="Coming in a later release."`, give an accessible name suffixed `(coming soon)`, and show a `.coming-soon-badge` ("Soon") pill on labelled controls or the `.is-coming-soon` accent dot on icon-only controls. Do not invent per-control wording.
 
 ---
+
+## 4b. V2 workflow console (workspace shell + surfaces)
+
+The user workspace runs on the V2 system (globals.css §12, `v2-*` classes); the admin console keeps the §8 shell and canonical data tables.
+
+- **Shell:** `.v2-shell` = dark icon rail (`.v2-rail`, `.v2-rail-link` with icon + short uppercase label, `is-active` state) + top command bar (`.v2-topbar` with `.v2-command` query form that routes to Ask, plus governance `.v2-chip`s). The rail becomes the mobile drawer via the existing `.shell-nav-toggle`/`.shell-nav-backdrop` pattern at ≤820px.
+- **Page scaffold:** `.v2-page` (constrained grid) + `.v2-kicker`/`.v2-page-head`/`.v2-page-sub`; content lives in `.v2-panel` cards and `.v2-columns` two-column grids.
+- **Metric cards:** `.v2-metric-grid` > `.v2-metric-card` (label / large value / note). Real, committed numbers are presented plainly; illustrative data must carry the `.v2-demo-chip` "Sample data" marker — never present sample values as live.
+- **Status chips:** `.v2-status-chip` + `is-pass` / `is-fail` / `is-review` (semantic tokens only). Shell/posture chips: `.v2-chip` + `is-on` / `is-wait` / `is-alert`.
+- **Timeline:** `.v2-timeline` ordered list with `.v2-timeline-dot` (+`is-unread`) — used for workflow/audit event feeds.
+- **Result cards (Search):** `.v2-result-list` > `.v2-result-card` (rank, source glyph, title/locator, relevance bar, 3-line clamped snippet, `.v2-tag`s + freshness chip + "Ask about this" bridge). This supersedes the UX3 results table **for the Search workspace surface only**; `.admin-data-table` remains the canonical table for admin/operator data.
+- **Approval gate:** `.v2-review-card` (pending review with reviewer-note `Field` + timed-grant actions), `.v2-request-card` with `.v2-request-trail` event list, and the timeline feed. All states are live backend data.
+- **Distribution bar:** `.v2-dist-bar` > `.v2-dist-segment` (`is-pass`/`is-manual`/`is-fail`, semantic colors).
 
 ## 5. Do NOT
 

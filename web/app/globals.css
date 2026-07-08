@@ -11,23 +11,31 @@
      6. Buttons (canonical .stitch-button system)
      7. Public & marketing surfaces (home, login, demo, video)
      8. Admin console (shell, topbar, panels, dashboard)
-     9. Workspace (shell, chat, search, sources, history, feedback)
+     9. Workspace surfaces (chat, search, sources, history, feedback)
     10. Tuning lab (admin)
     11. Responsive overrides (colocated above; wide → narrow blocks at the tail)
+    12. V2 workflow console (rail shell, command bar, workflow surfaces)
    =========================================================================== */
 
 /* ===========================================================================
    1. DESIGN TOKENS
    =========================================================================== */
 :root {
-  --surface: #fbfbe6;
-  --surface-low: #f5f5e0;
+  /* V2 cool-neutral surface system (supersedes the UX0 tan palette; see
+     web/DESIGN.md §2.3). */
+  --surface: #f6f7fb;
+  --surface-low: #edeff5;
   --surface-panel: #ffffff;
-  --surface-high: #eae9d5;
-  --surface-highest: #e4e4cf;
-  --surface-mid: #efefda;
-  --ink: #1b1d10;
+  --surface-high: #e7eaf2;
+  --surface-highest: #dde1ec;
+  --surface-mid: #eef0f7;
+  --ink: #14161f;
   --muted: #586373;
+  /* V2 shell rail (dark navigation column). */
+  --rail-bg: #12141f;
+  --rail-ink: #a7adc8;
+  --rail-active: #ffffff;
+  --rail-line: rgba(167, 173, 200, 0.16);
   --outline: rgba(198, 197, 217, 0.24);
   --outline-strong: rgba(198, 197, 217, 0.42);
   --primary: #0e11d8;
@@ -243,6 +251,14 @@ textarea {
   padding: 8px 12px;
   border-bottom: 1px solid var(--outline-strong);
   vertical-align: top;
+  /* Long unbroken tokens (file names, locators, URLs) may break mid-word, but
+     min-content column sizing is preserved (break-word, not anywhere) so
+     narrow viewports scroll the table instead of crushing columns. */
+  overflow-wrap: break-word;
+}
+
+.admin-data-table tbody tr {
+  transition: background 120ms ease;
 }
 
 .admin-data-table tbody tr:nth-child(even) {
@@ -285,6 +301,27 @@ textarea {
 button {
   border: 0;
   cursor: pointer;
+}
+
+/* Keyboard skip link: visually hidden until focused, then revealed above the
+   shell so keyboard users can jump straight past the navigation. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--surface-panel);
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  box-shadow: var(--ambient-lg);
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: none;
 }
 
 /* Global keyboard focus ring — every interactive element shows a visible focus
@@ -370,6 +407,34 @@ textarea:focus-visible {
   animation: app-spin 0.9s linear infinite;
 }
 
+/* Skeleton placeholder line for tabular/list loading states. Complements the
+   spinner (see web/DESIGN.md, Empty/loading/error pattern): use skeleton rows
+   when the loaded layout's shape is known, the spinner otherwise. */
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-line {
+  display: block;
+  width: 100%;
+  height: 0.75em;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--surface-high) 25%, var(--surface-low) 50%, var(--surface-high) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line {
+    animation: none;
+  }
+}
+
 /* Deterministic initials avatar (replaces external avatar images). */
 .monogram {
   display: inline-flex;
@@ -386,13 +451,6 @@ textarea:focus-visible {
   background: hsl(var(--monogram-hue, 240) 55% 90%);
   box-shadow: inset 0 0 0 1px hsl(var(--monogram-hue, 240) 40% 80%);
   user-select: none;
-}
-
-/* The workspace topbar avatar is a 34px slot — size the monogram to fill it. */
-.workspace-avatar .monogram {
-  width: 100%;
-  height: 100%;
-  font-size: 0.72rem;
 }
 
 /* Local decorative media block (replaces external marketing imagery). */
@@ -520,7 +578,7 @@ textarea:focus-visible {
   top: 0;
   z-index: 60;
   backdrop-filter: blur(24px);
-  background: rgba(251, 251, 230, 0.82);
+  background: rgba(246, 247, 251, 0.82);
   box-shadow: inset 0 -1px 0 rgba(198, 197, 217, 0.1);
 }
 
@@ -588,7 +646,6 @@ textarea:focus-visible {
   flex: 0 0 auto;
 }
 
-.workspace-brand,
 .public-brand {
   display: inline-flex;
   align-items: center;
@@ -1302,7 +1359,7 @@ textarea:focus-visible {
   margin-top: 28px;
   padding: 18px;
   border-radius: 18px;
-  background: rgba(245, 245, 224, 0.74);
+  background: rgba(237, 239, 245, 0.74);
   box-shadow: inset 0 1px 0 rgba(198, 197, 217, 0.18);
 }
 
@@ -1700,7 +1757,7 @@ textarea:focus-visible {
   z-index: 2;
   border-radius: 24px;
   padding: 18px;
-  background: rgba(251, 251, 230, 0.8);
+  background: rgba(246, 247, 251, 0.8);
   backdrop-filter: blur(24px);
   box-shadow: var(--ambient-lg);
 }
@@ -1980,8 +2037,7 @@ textarea:focus-visible {
   background: var(--surface);
 }
 
-.admin-sidebar,
-.workspace-sidebar {
+.admin-sidebar {
   background: var(--surface-low);
   flex-shrink: 0;
 }
@@ -1997,24 +2053,21 @@ textarea:focus-visible {
   height: 100vh;
 }
 
-.admin-sidebar-head h2,
-.workspace-sidebar-head h2 {
+.admin-sidebar-head h2 {
   margin: 0;
   font-size: 1rem;
   font-weight: 800;
   letter-spacing: -0.04em;
 }
 
-.admin-sidebar-head p,
-.workspace-sidebar-head p {
+.admin-sidebar-head p {
   margin: 4px 0 0;
   color: rgba(88, 99, 115, 0.85);
   font-size: 0.72rem;
   font-weight: 600;
 }
 
-.admin-sidebar-nav,
-.workspace-sidebar-nav {
+.admin-sidebar-nav {
   display: grid;
   gap: 6px;
 }
@@ -2036,8 +2089,8 @@ textarea:focus-visible {
   border-bottom: 1px solid var(--outline-strong);
 }
 
-.admin-sidebar-link,
-.workspace-sidebar-link {
+.admin-sidebar-link {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -2050,16 +2103,33 @@ textarea:focus-visible {
   transition: background 160ms ease, color 160ms ease;
 }
 
-.admin-sidebar-link:hover,
-.workspace-sidebar-link:hover {
-  background: rgba(234, 233, 213, 0.82);
+/* Active-route indicator: a small primary bar at the link's leading edge. */
+.admin-sidebar-link::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--primary);
+  opacity: 0;
+  transition: opacity 160ms ease;
 }
 
-.admin-sidebar-link.is-active,
-.workspace-sidebar-link.is-active {
+.admin-sidebar-link:hover {
+  background: rgba(231, 234, 242, 0.82);
+  color: var(--ink);
+}
+
+.admin-sidebar-link.is-active {
   background: var(--surface-panel);
   color: var(--primary-strong);
   box-shadow: var(--ambient);
+}
+
+.admin-sidebar-link.is-active::before {
+  opacity: 1;
 }
 
 /* Collapsible admin nav sections (Operate / Retrieval / Data / Governance). */
@@ -2147,8 +2217,7 @@ textarea:focus-visible {
   flex-direction: column;
 }
 
-.admin-topbar,
-.workspace-topbar {
+.admin-topbar {
   position: sticky;
   top: 0;
   z-index: 40;
@@ -2161,17 +2230,15 @@ textarea:focus-visible {
   justify-content: space-between;
   gap: 18px;
   padding: 18px 32px;
-  background: rgba(251, 251, 230, 0.82);
+  background: rgba(246, 247, 251, 0.82);
 }
 
-.admin-command,
-.workspace-search-input {
+.admin-command {
   position: relative;
   width: min(520px, 100%);
 }
 
-.admin-command .app-icon,
-.workspace-search-input .app-icon {
+.admin-command .app-icon {
   position: absolute;
   top: 50%;
   left: 14px;
@@ -2180,8 +2247,7 @@ textarea:focus-visible {
   font-size: 1.05rem;
 }
 
-.admin-command input,
-.workspace-search-input input {
+.admin-command input {
   padding-left: 42px;
   padding-right: 58px;
   border-radius: 16px;
@@ -2189,16 +2255,14 @@ textarea:focus-visible {
 
 /* Keep the "Soon" badge inside the search box (it sits in a position:relative
    container); the inline badge form is used on labelled controls elsewhere. */
-.admin-command .coming-soon-badge,
-.workspace-search-input .coming-soon-badge {
+.admin-command .coming-soon-badge {
   position: absolute;
   top: 50%;
   right: 12px;
   transform: translateY(-50%);
 }
 
-.admin-topbar-actions,
-.workspace-topbar-actions {
+.admin-topbar-actions {
   display: flex;
   align-items: center;
   gap: 14px;
@@ -2211,7 +2275,7 @@ textarea:focus-visible {
   max-width: 240px;
   padding: 8px 12px;
   border-radius: 14px;
-  background: rgba(234, 233, 213, 0.82);
+  background: rgba(231, 234, 242, 0.82);
 }
 
 .console-viewer-chip-copy {
@@ -2219,22 +2283,18 @@ textarea:focus-visible {
 }
 
 .console-viewer-chip-copy strong,
-.console-viewer-chip-copy span,
-.workspace-viewer-summary strong,
-.workspace-viewer-summary span {
+.console-viewer-chip-copy span {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.console-viewer-chip-copy strong,
-.workspace-viewer-summary strong {
+.console-viewer-chip-copy strong {
   font-size: 0.8rem;
 }
 
-.console-viewer-chip-copy span,
-.workspace-viewer-summary span {
+.console-viewer-chip-copy span {
   color: rgba(88, 99, 115, 0.84);
   font-size: 0.7rem;
 }
@@ -2251,9 +2311,34 @@ textarea:focus-visible {
   background: transparent;
 }
 
+/* Mobile nav drawer: on narrow viewports (≤820px, see responsive section) the
+   sidebar becomes a fixed overlay opened by this topbar toggle. Both elements
+   are inert on wide viewports. */
+.shell-nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: var(--ink);
+  background: var(--surface-panel);
+  box-shadow: inset 0 0 0 1px var(--outline-strong);
+}
+
+.shell-nav-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  padding: 0;
+  background: rgba(27, 29, 16, 0.45);
+}
+
 .admin-icon-button:hover,
 .workspace-icon-button:hover {
-  background: rgba(234, 233, 213, 0.82);
+  background: rgba(231, 234, 242, 0.82);
 }
 
 .admin-icon-button:disabled:hover,
@@ -2269,169 +2354,8 @@ textarea:focus-visible {
 }
 
 /* ===========================================================================
-   9. WORKSPACE (shell, chat, search, sources, history, feedback)
+   9. WORKSPACE SURFACES (chat, search, sources, history, feedback)
    =========================================================================== */
-.workspace-shell {
-  min-height: 100vh;
-  background: var(--surface);
-}
-
-.workspace-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 10px 20px;
-  background: rgba(251, 251, 230, 0.82);
-  box-shadow: inset 0 -1px 0 rgba(198, 197, 217, 0.12);
-}
-
-.workspace-topbar-left {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-.workspace-brand {
-  font-size: 1.2rem;
-  font-weight: 900;
-  letter-spacing: -0.04em;
-}
-
-.workspace-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  border-radius: 999px;
-  padding: 4px;
-  background: var(--surface-high);
-}
-
-.workspace-toggle button {
-  min-height: 36px;
-  padding: 0 18px;
-  border-radius: 999px;
-  color: rgba(88, 99, 115, 0.92);
-  font-size: 0.88rem;
-  font-weight: 700;
-}
-
-.workspace-toggle button.is-active {
-  background: var(--surface-panel);
-  color: var(--primary-strong);
-  box-shadow: var(--ambient);
-}
-
-.workspace-avatar {
-  width: 34px;
-  height: 34px;
-  overflow: hidden;
-  border-radius: 999px;
-  box-shadow: inset 0 0 0 2px rgba(14, 17, 216, 0.1);
-}
-
-.workspace-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.workspace-body {
-  display: flex;
-  min-height: calc(100vh - 60px);
-  align-items: flex-start;
-}
-
-.workspace-sidebar {
-  width: 214px;
-  padding: 24px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  position: sticky;
-  top: 60px;
-  height: calc(100vh - 60px);
-}
-
-.workspace-sidebar-scroll {
-  min-height: 0;
-  overflow-y: auto;
-  display: grid;
-  gap: 14px;
-}
-
-.workspace-thread-card,
-.workspace-storage-card {
-  margin-top: auto;
-  border-radius: 18px;
-  padding: 16px;
-  background: var(--surface-high);
-}
-
-.workspace-thread-card > span,
-.workspace-storage-head span {
-  color: rgba(118, 117, 136, 0.92);
-  font-size: 0.64rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.workspace-thread-card div {
-  display: grid;
-  gap: 6px;
-  margin-top: 12px;
-}
-
-.workspace-thread-card a,
-.workspace-thread-empty {
-  color: rgba(88, 99, 115, 0.92);
-  font-size: 0.76rem;
-}
-
-.workspace-thread-card a.is-active-thread {
-  color: var(--primary-strong);
-  font-weight: 700;
-}
-
-.workspace-guide-card > span {
-  color: rgba(118, 117, 136, 0.92);
-  font-size: 0.64rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.workspace-guide-card > div {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.workspace-guide-card strong {
-  font-size: 0.92rem;
-}
-
-.workspace-guide-copy {
-  margin: 0;
-  color: rgba(88, 99, 115, 0.92);
-  font-size: 0.76rem;
-  line-height: 1.6;
-}
-
-.workspace-guide-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.workspace-guide-links a {
-  color: var(--primary-strong);
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
 .workspace-empty-state {
   display: grid;
   place-items: center;
@@ -2474,51 +2398,7 @@ textarea:focus-visible {
   margin-top: 22px;
 }
 
-.workspace-storage-bar {
-  height: 6px;
-  margin-top: 12px;
-  border-radius: 999px;
-  background: rgba(198, 197, 217, 0.35);
-  overflow: hidden;
-}
-
-.workspace-storage-bar div {
-  width: 64%;
-  height: 100%;
-  background: var(--primary-strong);
-}
-
-.workspace-sidebar-footer {
-  display: grid;
-  gap: 12px;
-  margin-top: auto;
-  padding-top: 16px;
-}
-
-.workspace-viewer-summary {
-  display: grid;
-  gap: 4px;
-  padding: 12px;
-  border-radius: 16px;
-  background: var(--surface-high);
-}
-
-.workspace-sidebar-footer span {
-  color: rgba(118, 117, 136, 0.92);
-  font-size: 0.58rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.workspace-content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Enterprise Search surface: canonical data-table results + relevance bars. */
+/* Enterprise Search surface: query toolbar, facets, and V2 result cards. */
 .search-page {
   display: flex;
   flex-direction: column;
@@ -2550,8 +2430,12 @@ textarea:focus-visible {
   gap: 10px;
 }
 
+/* Query-first emphasis: the search box is the page's primary control. */
 .search-toolbar .search-query {
   flex: 1 1 320px;
+  min-height: 46px;
+  border-radius: 14px;
+  font-size: 1rem;
 }
 
 .search-toolbar .search-mode {
@@ -2567,6 +2451,11 @@ textarea:focus-visible {
 
 .search-result-summary strong {
   color: var(--ink);
+}
+
+.search-result-summary .app-icon {
+  font-size: 1.05em;
+  margin-right: 6px;
 }
 
 .search-source-cell {
@@ -2621,9 +2510,14 @@ textarea:focus-visible {
 }
 
 .search-snippet {
-  display: block;
+  /* Clamp to three lines so long chunks stay scannable in the results table. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
   max-width: 420px;
   color: var(--ink);
+  overflow-wrap: break-word;
 }
 
 .search-facets {
@@ -2766,7 +2660,7 @@ textarea:focus-visible {
   align-items: center;
   gap: 22px;
   padding: 14px 28px;
-  background: rgba(245, 245, 224, 0.36);
+  background: rgba(237, 239, 245, 0.36);
   box-shadow: inset 0 -1px 0 rgba(198, 197, 217, 0.12);
   color: rgba(118, 117, 136, 0.92);
   font-size: 0.68rem;
@@ -2846,10 +2740,10 @@ textarea:focus-visible {
 .chat-page {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 60px);
+  height: calc(100vh - 66px);
   /* Safari flex-shrinks a flex item with an explicit height when its parent isn't
      stretched; pin it so the chat actually fills the viewport. */
-  min-height: calc(100vh - 60px);
+  min-height: calc(100vh - 66px);
   flex-shrink: 0;
 }
 
@@ -3254,6 +3148,12 @@ textarea:focus-visible {
   color: rgba(69, 69, 86, 0.96);
   font-size: 0.78rem;
   font-weight: 700;
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+
+.chat-citation-pill:hover {
+  background: var(--surface-mid);
+  box-shadow: inset 0 0 0 1px var(--outline-strong);
 }
 
 .chat-citation-pill-name {
@@ -3434,12 +3334,32 @@ textarea:focus-visible {
   padding: 10px;
   box-shadow: var(--ambient-lg);
   box-shadow: var(--ambient-lg), inset 0 0 0 1px rgba(198, 197, 217, 0.16);
+  transition: box-shadow 160ms ease;
+}
+
+/* Calm focus treatment: the whole composer card acquires the focus ring, not
+   the inner textarea (which stays borderless). */
+.chat-composer:focus-within {
+  box-shadow: var(--ambient-lg), inset 0 0 0 2px var(--primary-soft);
 }
 
 .chat-composer textarea {
   min-height: 112px;
   background: transparent;
   padding: 14px;
+  border: 0;
+}
+
+/* Focus indication lives on the composer card ring (focus-within above), so
+   the inner textarea suppresses the generic control focus treatment. */
+.chat-composer textarea:focus-visible {
+  border: 0;
+  box-shadow: none;
+  outline: none;
+}
+
+.chat-composer textarea::placeholder {
+  color: rgba(88, 99, 115, 0.55);
 }
 
 .chat-composer-footer,
@@ -3453,8 +3373,21 @@ textarea:focus-visible {
   padding: 0 6px 6px;
 }
 
+.chat-composer-footer > div {
+  display: flex;
+  align-items: center;
+}
+
 .chat-composer-tools {
   gap: 6px;
+}
+
+/* Keyboard-submit hint beside the Ask button; hidden on touch-width screens. */
+.chat-composer-hint {
+  margin-right: 10px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
 }
 
 .chat-composer-tools button {
@@ -3465,7 +3398,7 @@ textarea:focus-visible {
 }
 
 .chat-composer-tools button:hover {
-  background: rgba(245, 245, 224, 0.86);
+  background: rgba(237, 239, 245, 0.86);
 }
 
 .chat-disclaimer {
@@ -3589,6 +3522,7 @@ textarea:focus-visible {
   padding: 16px;
   background: var(--surface-panel);
   box-shadow: var(--ambient);
+  transition: box-shadow 160ms ease;
 }
 
 .chat-evidence-card.is-selected {
@@ -3715,7 +3649,7 @@ textarea:focus-visible {
 .chat-evidence-snippet {
   border-radius: 12px;
   padding: 12px;
-  background: rgba(234, 233, 213, 0.46);
+  background: rgba(231, 234, 242, 0.46);
   color: rgba(69, 69, 86, 0.92);
   font-size: 0.74rem;
   line-height: 1.6;
@@ -3913,7 +3847,7 @@ textarea:focus-visible {
   gap: 4px;
   border-radius: 14px;
   padding: 10px 12px;
-  background: rgba(234, 233, 213, 0.34);
+  background: rgba(231, 234, 242, 0.34);
 }
 
 .chat-context-neighbor strong {
@@ -4707,7 +4641,7 @@ textarea:focus-visible {
   margin: 0;
   border-radius: 12px;
   padding: 12px;
-  background: rgba(245, 245, 224, 0.72);
+  background: rgba(237, 239, 245, 0.72);
   color: rgba(35, 39, 54, 0.9);
   font-size: 0.76rem;
 }
@@ -4726,7 +4660,7 @@ textarea:focus-visible {
 .feedback-cluster-card {
   border-radius: 14px;
   padding: 14px;
-  background: rgba(245, 245, 224, 0.74);
+  background: rgba(237, 239, 245, 0.74);
   box-shadow: inset 0 0 0 1px rgba(198, 197, 217, 0.24);
 }
 
@@ -5430,7 +5364,7 @@ textarea:focus-visible {
 .tuning-lab-compare-summary-grid article {
   border-radius: 18px;
   padding: 16px;
-  background: rgba(245, 245, 224, 0.72);
+  background: rgba(237, 239, 245, 0.72);
 }
 
 .tuning-lab-compare-summary-grid span {
@@ -5505,14 +5439,14 @@ textarea:focus-visible {
 .tuning-lab-compare-empty {
   border-radius: 22px;
   padding: 20px 22px;
-  background: rgba(245, 245, 224, 0.56);
+  background: rgba(237, 239, 245, 0.56);
   color: rgba(88, 99, 115, 0.88);
   font-size: 0.9rem;
   line-height: 1.7;
 }
 
 .tuning-lab-compare-answer-live {
-  background: rgba(245, 245, 224, 0.7);
+  background: rgba(237, 239, 245, 0.7);
   color: rgba(88, 99, 115, 0.94);
   border-left: 4px solid rgba(198, 197, 217, 0.78);
 }
@@ -5538,7 +5472,7 @@ textarea:focus-visible {
   align-items: center;
   border-radius: 999px;
   padding: 8px 12px;
-  background: rgba(234, 233, 213, 0.82);
+  background: rgba(231, 234, 242, 0.82);
   color: rgba(88, 99, 115, 0.92);
   font-size: 0.74rem;
   font-weight: 700;
@@ -5578,7 +5512,7 @@ textarea:focus-visible {
 .tuning-lab-compare-metrics div {
   border-radius: 18px;
   padding: 14px;
-  background: rgba(234, 233, 213, 0.68);
+  background: rgba(231, 234, 242, 0.68);
   text-align: center;
 }
 
@@ -5615,7 +5549,7 @@ textarea:focus-visible {
   min-width: min(340px, 100%);
   border-radius: 14px;
   padding: 12px 14px;
-  background: rgba(245, 245, 224, 0.88);
+  background: rgba(237, 239, 245, 0.88);
   box-shadow: inset 0 0 0 1px rgba(198, 197, 217, 0.46);
 }
 
@@ -5641,7 +5575,7 @@ textarea:focus-visible {
   gap: 8px;
   padding: 16px;
   border-radius: 18px;
-  background: rgba(245, 245, 224, 0.72);
+  background: rgba(237, 239, 245, 0.72);
 }
 
 .tuning-lab-cache-metrics span {
@@ -5683,7 +5617,7 @@ textarea:focus-visible {
   padding: 14px;
   border-radius: 16px;
   text-align: left;
-  background: rgba(245, 245, 224, 0.72);
+  background: rgba(237, 239, 245, 0.72);
 }
 
 .cache-policy-list > button.is-selected {
@@ -5732,7 +5666,7 @@ textarea:focus-visible {
   border: 0;
   border-radius: 16px;
   padding: 14px;
-  background: rgba(245, 245, 224, 0.7);
+  background: rgba(237, 239, 245, 0.7);
 }
 
 .cache-policy-scope-grid label {
@@ -5774,7 +5708,7 @@ textarea:focus-visible {
   min-width: 0;
   border-radius: 20px;
   padding: 18px;
-  background: rgba(245, 245, 224, 0.72);
+  background: rgba(237, 239, 245, 0.72);
 }
 
 .tuning-lab-history-card {
@@ -5933,7 +5867,7 @@ textarea:focus-visible {
 }
 
 .tuning-lab-ops-card-warning {
-  background: linear-gradient(180deg, rgba(255, 235, 173, 0.7), rgba(245, 245, 224, 0.78));
+  background: linear-gradient(180deg, rgba(255, 235, 173, 0.7), rgba(237, 239, 245, 0.78));
 }
 
 .tuning-lab-visual-toggle {
@@ -6290,7 +6224,7 @@ textarea:focus-visible {
   gap: 16px;
   border-radius: 18px;
   padding: 16px 18px;
-  background: rgba(245, 245, 224, 0.5);
+  background: rgba(237, 239, 245, 0.5);
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -6362,7 +6296,7 @@ textarea:focus-visible {
   gap: 4px;
   border-radius: 999px;
   padding: 4px;
-  background: rgba(245, 245, 224, 0.8);
+  background: rgba(237, 239, 245, 0.8);
   box-shadow: inset 0 0 0 1px rgba(198, 197, 217, 0.5);
 }
 
@@ -6386,7 +6320,7 @@ textarea:focus-visible {
   margin: 12px 0 0;
   max-width: 100%;
   border-radius: 18px;
-  background: rgba(245, 245, 224, 0.5);
+  background: rgba(237, 239, 245, 0.5);
   color: rgba(69, 69, 86, 0.96);
 }
 
@@ -6657,7 +6591,7 @@ textarea:focus-visible {
   margin-top: 18px;
   overflow: hidden;
   border-radius: 18px;
-  background: rgba(245, 245, 224, 0.46);
+  background: rgba(237, 239, 245, 0.46);
 }
 
 .admin-trace-intent strong,
@@ -6748,7 +6682,7 @@ textarea:focus-visible {
   gap: 12px;
   border-radius: 16px;
   padding: 14px;
-  background: rgba(234, 233, 213, 0.42);
+  background: rgba(231, 234, 242, 0.42);
 }
 
 .admin-notification-item i {
@@ -6937,10 +6871,56 @@ textarea:focus-visible {
     width: min(100%, calc(100% - 32px));
   }
 
-  .public-nav-links,
-  .workspace-sidebar,
-  .admin-sidebar {
+  .public-nav-links {
     display: none;
+  }
+
+  /* Inert (coming-soon) search boxes and the viewer chip yield their space to
+     the nav toggle on phones; identity remains in the avatar + sidebar footer. */
+  .admin-command,
+  .console-viewer-chip {
+    display: none;
+  }
+
+  /* Sidebars become an off-canvas drawer driven by .shell-nav-toggle.
+     visibility:hidden keeps the closed drawer out of the tab order and
+     accessibility tree while still allowing the slide transition. */
+  .shell-nav-toggle {
+    display: inline-flex;
+  }
+
+  .shell-nav-backdrop {
+    display: block;
+  }
+
+  .admin-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 95;
+    width: min(300px, 84vw);
+    height: 100dvh;
+    overflow-y: auto;
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition: transform 200ms ease, visibility 0s linear 200ms;
+    box-shadow: var(--ambient-lg);
+  }
+
+  .admin-sidebar.is-mobile-open {
+    visibility: visible;
+    transform: none;
+    transition: transform 200ms ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .admin-sidebar,
+    .admin-sidebar.is-mobile-open,
+    .v2-rail,
+    .v2-rail.is-mobile-open {
+      transition: none;
+    }
   }
 
   .admin-route-intro,
@@ -6958,11 +6938,6 @@ textarea:focus-visible {
     max-width: 100%;
   }
 
-  .workspace-body {
-    min-height: auto;
-  }
-
-  .workspace-topbar,
   .admin-topbar,
   .sources-page {
     padding-left: 16px;
@@ -7020,7 +6995,6 @@ textarea:focus-visible {
   }
 
   .public-header-actions,
-  .workspace-topbar-actions,
   .admin-topbar-actions {
     width: 100%;
   }
@@ -7137,5 +7111,1065 @@ textarea:focus-visible {
 
   .search-snippet {
     max-width: none;
+  }
+
+  .chat-composer-hint {
+    display: none;
+  }
+}
+
+/* ===========================================================================
+   12. V2 WORKFLOW CONSOLE (rail shell, command bar, workflow surfaces)
+   =========================================================================== */
+/* --- Shell: dark icon rail + top command bar ------------------------------ */
+.v2-shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--surface);
+}
+
+.v2-rail {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  flex: 0 0 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 14px 10px;
+  background: var(--rail-bg);
+  color: var(--rail-ink);
+  overflow-y: auto;
+}
+
+.v2-rail-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0 14px;
+  color: var(--lime);
+  border-bottom: 1px solid var(--rail-line);
+}
+
+.v2-rail-brand .brand-logo {
+  width: 26px;
+  height: 26px;
+}
+
+.v2-rail-nav {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  flex: 1;
+}
+
+.v2-rail-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 9px 4px 8px;
+  border-radius: 12px;
+  color: var(--rail-ink);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.v2-rail-link .app-icon {
+  font-size: 19px;
+}
+
+.v2-rail-link:hover {
+  color: var(--rail-active);
+  background: rgba(167, 173, 200, 0.12);
+}
+
+.v2-rail-link.is-active {
+  color: var(--rail-active);
+  background: rgba(52, 60, 237, 0.42);
+}
+
+.v2-rail-foot {
+  display: grid;
+  gap: 8px;
+  justify-items: stretch;
+  padding-top: 12px;
+  border-top: 1px solid var(--rail-line);
+}
+
+.v2-rail-foot .monogram {
+  width: 34px;
+  height: 34px;
+  justify-self: center;
+}
+
+.v2-rail-logout {
+  background: none;
+}
+
+.v2-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.v2-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 24px;
+  background: rgba(246, 247, 251, 0.88);
+  backdrop-filter: blur(24px);
+  box-shadow: inset 0 -1px 0 var(--outline-strong);
+}
+
+.v2-command {
+  position: relative;
+  flex: 1;
+  max-width: 640px;
+  display: flex;
+  align-items: center;
+}
+
+.v2-command > .app-icon {
+  position: absolute;
+  left: 14px;
+  color: var(--muted);
+  font-size: 18px;
+}
+
+/* The :not() chain mirrors the generic boxed-control rule (section 3) so these
+   paddings win on specificity. */
+.v2-command input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+  min-height: 42px;
+  padding-left: 42px;
+  padding-right: 48px;
+  border-radius: 999px;
+}
+
+.v2-command-go {
+  position: absolute;
+  right: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--hero-gradient);
+  color: #fff;
+}
+
+.v2-command-go .app-icon {
+  font-size: 16px;
+}
+
+.v2-topbar-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+/* Governance/state chips (shell + surfaces). Semantic colors only. */
+.v2-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--surface-panel);
+  color: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--outline-strong);
+  white-space: nowrap;
+}
+
+.v2-chip .app-icon {
+  font-size: 14px;
+}
+
+.v2-chip.is-on {
+  background: var(--success-bg);
+  color: var(--success-ink);
+  box-shadow: none;
+}
+
+.v2-chip.is-wait {
+  background: var(--surface-high);
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.v2-chip.is-alert {
+  background: var(--danger-soft);
+  color: var(--danger);
+  box-shadow: none;
+}
+
+.v2-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- Page scaffolding ------------------------------------------------------ */
+.v2-page {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 28px 0 48px;
+  display: grid;
+  gap: 22px;
+  align-content: start;
+}
+
+.v2-kicker {
+  margin: 0 0 6px;
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.v2-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.v2-page-head h1 {
+  margin: 0;
+  max-width: 30ch;
+  font-size: 1.7rem;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
+.v2-page-sub {
+  margin: 10px 0 0;
+  max-width: 62ch;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.v2-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* --- Home hero ------------------------------------------------------------- */
+.v2-hero {
+  padding: 30px 28px;
+  border-radius: 18px;
+  background: var(--surface-panel);
+  box-shadow: var(--ambient), inset 0 0 0 1px var(--outline-strong);
+  display: grid;
+  gap: 18px;
+}
+
+.v2-hero h1 {
+  margin: 0;
+  max-width: 26ch;
+  font-size: 1.9rem;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+}
+
+.v2-hero-composer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.v2-hero-composer > .app-icon {
+  position: absolute;
+  left: 16px;
+  top: 15px;
+  color: var(--muted);
+  font-size: 20px;
+}
+
+.v2-hero-composer input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+  flex: 1 1 320px;
+  min-height: 52px;
+  padding-left: 46px;
+  border-radius: 14px;
+  font-size: 1.02rem;
+}
+
+.v2-hero-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* --- Metric cards ----------------------------------------------------------- */
+.v2-metric-row {
+  display: grid;
+  gap: 12px;
+}
+
+.v2-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.v2-row-head h2,
+.v2-panel-head h2 {
+  margin: 0;
+  font-size: 1.02rem;
+  letter-spacing: -0.02em;
+}
+
+.v2-row-note {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.v2-row-note a {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.v2-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.v2-metric-card {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--surface-panel);
+  box-shadow: inset 0 0 0 1px var(--outline-strong);
+}
+
+.v2-metric-card strong {
+  font-size: 1.65rem;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.v2-metric-good {
+  color: var(--success-ink);
+}
+
+.v2-metric-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.v2-metric-label .app-icon {
+  font-size: 14px;
+}
+
+.v2-metric-note {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* --- Panels, columns, empties ---------------------------------------------- */
+.v2-columns {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.v2-panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--surface-panel);
+  box-shadow: var(--ambient), inset 0 0 0 1px var(--outline-strong);
+}
+
+.v2-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.v2-panel-head a {
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.v2-empty {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 26px 16px;
+  border-radius: 12px;
+  background: var(--surface-low);
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.v2-empty .app-icon {
+  font-size: 22px;
+}
+
+.v2-empty strong {
+  color: var(--ink);
+}
+
+.v2-empty p {
+  margin: 0;
+  max-width: 40ch;
+}
+
+.v2-flash {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+/* --- Threads + workflow summary (home) -------------------------------------- */
+.v2-thread-list {
+  display: grid;
+  gap: 8px;
+}
+
+.v2-thread-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-low);
+  transition: background 140ms ease;
+}
+
+.v2-thread-card:hover {
+  background: var(--surface-mid);
+}
+
+.v2-thread-card strong {
+  font-size: 0.9rem;
+}
+
+.v2-thread-card span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.v2-workflow-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--ink);
+  transition: background 140ms ease;
+}
+
+.v2-workflow-summary .app-icon {
+  color: var(--primary);
+  font-size: 22px;
+}
+
+.v2-workflow-summary strong {
+  display: block;
+  font-size: 0.9rem;
+}
+
+.v2-workflow-summary span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* --- Timeline (workflow events / audit feed) --------------------------------- */
+.v2-timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+}
+
+.v2-timeline-item {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 10px 0 14px;
+}
+
+.v2-timeline-item::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 38px;
+  bottom: 0;
+  width: 2px;
+  background: var(--outline-strong);
+}
+
+.v2-timeline-item:last-child::before {
+  display: none;
+}
+
+.v2-timeline-dot {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--surface-high);
+  color: var(--muted);
+}
+
+.v2-timeline-dot .app-icon {
+  font-size: 14px;
+}
+
+.v2-timeline-dot.is-unread {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.v2-timeline-item strong {
+  font-size: 0.85rem;
+}
+
+.v2-timeline-item p {
+  margin: 2px 0 4px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.v2-timeline-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.v2-timeline-read {
+  background: none;
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0;
+}
+
+/* --- Status chips + distribution (trust, approvals, search) ------------------- */
+.v2-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.v2-status-chip .app-icon {
+  font-size: 12px;
+}
+
+.v2-status-chip.is-pass {
+  background: var(--success-bg);
+  color: var(--success-ink);
+}
+
+.v2-status-chip.is-fail {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.v2-status-chip.is-review {
+  background: #f7e6bf;
+  color: #7a5200;
+}
+
+.v2-demo-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface-high);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.v2-dist-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-high);
+}
+
+.v2-dist-segment {
+  display: block;
+  flex-basis: 0;
+}
+
+.v2-dist-segment.is-pass,
+.v2-dist-swatch.is-pass {
+  background: var(--success-ink);
+}
+
+.v2-dist-segment.is-manual,
+.v2-dist-swatch.is-manual {
+  background: #7a5200;
+}
+
+.v2-dist-segment.is-fail,
+.v2-dist-swatch.is-fail {
+  background: var(--danger);
+}
+
+.v2-dist-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.v2-dist-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.v2-dist-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.v2-run-list {
+  display: grid;
+  gap: 8px;
+}
+
+.v2-run-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-low);
+}
+
+.v2-run-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.v2-run-body strong {
+  display: block;
+  font-size: 0.88rem;
+}
+
+.v2-run-body span {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.v2-run-when {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.v2-gate-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.v2-gate-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--surface-panel);
+  box-shadow: inset 0 0 0 1px var(--outline-strong);
+  font-size: 0.82rem;
+}
+
+.v2-gate-card .app-icon {
+  color: var(--primary);
+  font-size: 20px;
+}
+
+.v2-gate-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.v2-footnote {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.v2-footnote a {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+/* --- Approval gate ------------------------------------------------------------ */
+.v2-review-card,
+.v2-request-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--surface-low);
+}
+
+.v2-review-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.v2-review-id {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.v2-review-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.v2-review-facts dt {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.v2-review-facts dd {
+  margin: 4px 0 0;
+  font-size: 0.84rem;
+  overflow-wrap: break-word;
+}
+
+.v2-review-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.v2-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.v2-review-return {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface-panel);
+}
+
+.v2-resolved-list {
+  display: grid;
+  gap: 6px;
+}
+
+.v2-resolved-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-low);
+}
+
+.v2-resolved-row strong {
+  display: block;
+  font-size: 0.82rem;
+}
+
+.v2-resolved-row span:last-child {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.v2-request-question {
+  margin: 0;
+  font-size: 0.94rem;
+  font-weight: 600;
+}
+
+.v2-request-trail {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.v2-request-trail li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.v2-request-trail .app-icon {
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+/* --- Search result cards ------------------------------------------------------- */
+.v2-result-list {
+  display: grid;
+  gap: 12px;
+}
+
+.v2-result-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: var(--surface-panel);
+  box-shadow: var(--ambient), inset 0 0 0 1px var(--outline-strong);
+  transition: box-shadow 160ms ease;
+}
+
+.v2-result-card:hover {
+  box-shadow: var(--ambient-lg), inset 0 0 0 1px var(--outline-strong);
+}
+
+.v2-result-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.v2-result-rank {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--surface-high);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.v2-result-glyph {
+  color: var(--primary);
+  font-size: 18px;
+}
+
+.v2-result-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.v2-result-title strong {
+  display: block;
+  font-size: 0.94rem;
+  overflow-wrap: break-word;
+}
+
+.v2-result-title span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  overflow-wrap: break-word;
+}
+
+.v2-result-relevance {
+  flex: 0 0 150px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.v2-result-snippet {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.v2-result-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.v2-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface-high);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.v2-result-ask {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.v2-result-ask .app-icon {
+  font-size: 14px;
+}
+
+/* --- V2 responsive ------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .v2-columns,
+  .v2-gate-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .v2-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  /* The rail becomes the mobile drawer (shell-nav-toggle + backdrop pattern). */
+  .v2-rail {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 95;
+    width: min(260px, 80vw);
+    height: 100dvh;
+    flex-basis: auto;
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition: transform 200ms ease, visibility 0s linear 200ms;
+    box-shadow: var(--ambient-lg);
+  }
+
+  .v2-rail.is-mobile-open {
+    visibility: visible;
+    transform: none;
+    transition: transform 200ms ease;
+  }
+
+  .v2-rail-link {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 10px 12px;
+    font-size: 0.8rem;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .v2-topbar {
+    padding: 10px 14px;
+  }
+
+  .v2-topbar-status .v2-chip:first-child {
+    display: none;
+  }
+
+  .v2-page {
+    width: min(100%, calc(100% - 28px));
+  }
+
+  .v2-review-facts,
+  .v2-review-form {
+    grid-template-columns: 1fr;
+  }
+
+  .v2-result-head {
+    flex-wrap: wrap;
+  }
+
+  .v2-result-relevance {
+    flex-basis: 100%;
+  }
+
+  .v2-page-head h1,
+  .v2-hero h1 {
+    font-size: 1.45rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .v2-metric-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Motion accessibility: collapse decorative transitions/animations for users
+   who prefer reduced motion. (Placed last so it wins.) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

@@ -1899,10 +1899,13 @@ export function ChatWorkspace({ initialThreadId, freshOnLoad = false }: { initia
                     <MaterialIcon name="mic" />
                   </button>
                 </div>
-                <button type="button" className="stitch-button stitch-button-primary stitch-button-small" onClick={submitQuestion} disabled={isStreaming}>
-                  {isStreaming ? "Working..." : "Ask"}
-                  <MaterialIcon name="send" />
-                </button>
+                <div>
+                  <span className="chat-composer-hint" aria-hidden="true">⌘/Ctrl + Enter</span>
+                  <button type="button" className="stitch-button stitch-button-primary stitch-button-small" onClick={submitQuestion} disabled={isStreaming}>
+                    {isStreaming ? "Working..." : "Ask"}
+                    <MaterialIcon name="send" />
+                  </button>
+                </div>
               </div>
             </div>
             <p className="chat-disclaimer">AI can make mistakes. Verify critical answers against the cited source context.</p>
