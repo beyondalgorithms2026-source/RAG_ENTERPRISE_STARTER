@@ -20,7 +20,10 @@ class Settings(BaseSettings):
 
     # Project-isolated fallback used when backend/.env is absent.
     DATABASE_URL: str = "postgresql://rag_enterprise_starter:rag_enterprise_starter_dev_pass@localhost:55432/rag_enterprise_starter"
-    UPLOAD_DIR: str = os.path.join(REPO_ROOT, "data", "uploads")
+    # Deliberately outside the repository tree. Ingested documents are user data
+    # and must not sit inside a git working directory, where a single `git add -f`
+    # or an edited .gitignore would commit them permanently.
+    UPLOAD_DIR: str = os.path.expanduser(os.path.join("~", ".rag-enterprise", "uploads"))
     MAX_UPLOAD_SIZE_BYTES: int = 25 * 1024 * 1024
     ALLOWED_UPLOAD_EXTENSIONS: tuple[str, ...] = ("pdf", "docx", "pptx", "xlsx", "eml", "txt", "md")
 
