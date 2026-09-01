@@ -116,6 +116,32 @@ def validate_security_posture() -> None:
         )
     if mode == "dev" and not local_runtime_enabled():
         raise AuthError("dev_auth_not_allowed", "Local dev auth is only available when APP_ENV is local/dev.", 500)
+    # These have no source defaults by design. Refuse to start rather than fall
+    # back to a value a reader of this repository would already know.
+    if mode in {"dev", "oidc"} and not settings.AUTH_STATE_SIGNING_SECRET.strip():
+        raise AuthError(
+            "missing_auth_state_secret",
+            "AUTH_STATE_SIGNING_SECRET is not set. There is no default; set it in backend/.env. "
+            'Generate one with: python -c "import secrets;print(secrets.token_urlsafe(48))"',
+            500,
+        )
+    if mode == "dev":
+        missing_dev_settings = [
+            name
+            for name, value in (
+                ("DEV_LOCAL_JWT_SECRET", settings.DEV_LOCAL_JWT_SECRET),
+                ("DEV_TEST_USER_PASSWORD", settings.DEV_TEST_USER_PASSWORD),
+                ("DEV_TEST_ADMIN_PASSWORD", settings.DEV_TEST_ADMIN_PASSWORD),
+            )
+            if not value.strip()
+        ]
+        if missing_dev_settings:
+            raise AuthError(
+                "missing_dev_auth_settings",
+                f"AUTH_MODE=dev requires {', '.join(missing_dev_settings)} to be set in backend/.env. "
+                "These have no defaults so that no credential ships in source.",
+                500,
+            )
     if env in {"staging", "prod", "production"}:
         if not settings.FRONTEND_APP_URL.strip().lower().startswith("https://"):
             raise AuthError("https_required", "FRONTEND_APP_URL must use HTTPS in staging/prod.", 500)

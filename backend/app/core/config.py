@@ -70,14 +70,18 @@ class Settings(BaseSettings):
     AUTH_COOKIE_SECURE: bool = False
     FRONTEND_APP_URL: str = "http://127.0.0.1:3001"
     API_ALLOWED_ORIGINS: str = ""
-    AUTH_STATE_SIGNING_SECRET: str = "rag-enterprise-starter-dev-state-secret"
-    DEV_LOCAL_JWT_SECRET: str = "rag-enterprise-local-dev-jwt-secret"
+    # No defaults. These sign and gate authentication, so a value baked into
+    # source would be a shipped credential. validate_security_posture() in
+    # app/auth/service.py refuses to start when they are unset in a mode that
+    # uses them. Generate with: python -c "import secrets;print(secrets.token_urlsafe(48))"
+    AUTH_STATE_SIGNING_SECRET: str = ""
+    DEV_LOCAL_JWT_SECRET: str = ""
     DEV_LOCAL_ISSUER: str = "rag-enterprise-local-dev"
     DEV_TEST_USER_EMAIL: str = "test-user@ragenterprise.local"
-    DEV_TEST_USER_PASSWORD: str = "password123"
+    DEV_TEST_USER_PASSWORD: str = ""
     DEV_TEST_USER_NAME: str = "Test User"
     DEV_TEST_ADMIN_EMAIL: str = "test-admin@ragenterprise.local"
-    DEV_TEST_ADMIN_PASSWORD: str = "password123"
+    DEV_TEST_ADMIN_PASSWORD: str = ""
     DEV_TEST_ADMIN_NAME: str = "Test Admin"
     OIDC_DISCOVERY_URL: str = ""
     OIDC_ISSUER: str = ""
