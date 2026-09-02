@@ -22,6 +22,14 @@ from app.db.repo_semantic_cache_policies import (
 from app.db.repo_tuning_configs import list_candidate_drafts
 
 
+
+
+def setUpModule():
+    """Skip this module when no database is reachable."""
+    from tests.db_guard import require_database
+
+    require_database()
+
 class SemanticCacheGovernanceM33Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

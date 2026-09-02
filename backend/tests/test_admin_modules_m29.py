@@ -11,6 +11,14 @@ from app.db.repo_runtime_settings import delete_setting, get_setting, set_settin
 from app.main import app
 
 
+
+
+def setUpModule():
+    """Skip this module when no database is reachable."""
+    from tests.db_guard import require_database
+
+    require_database()
+
 class AdminModulesM29Tests(unittest.TestCase):
     def setUp(self):
         self.original = {

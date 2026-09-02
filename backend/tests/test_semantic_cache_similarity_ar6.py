@@ -25,6 +25,14 @@ _VECTORS = {
 }
 
 
+
+
+def setUpModule():
+    """Skip this module when no database is reachable."""
+    from tests.db_guard import require_database
+
+    require_database()
+
 class SemanticCacheSimilarityAR6Tests(unittest.TestCase):
     """AR6: the cache matched on an exact normalized-question hash; the
     semantic_cache_similarity_threshold field was dead code (audit). This adds a

@@ -92,6 +92,16 @@ def basis_vector(*head: float) -> list[float]:
 
 
 class SmokeTestBase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Every test in this hierarchy needs a live migrated Postgres.
+        from tests.db_guard import require_database
+
+        require_database()
+        parent = super()
+        if hasattr(parent, "setUpClass"):
+            parent.setUpClass()
+
     def setUp(self):
         self._temp_cleanup_paths: list[Path] = []
         # AR1: pin the runtime posture the smoke tests are written against so

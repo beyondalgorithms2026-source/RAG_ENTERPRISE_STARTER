@@ -17,6 +17,14 @@ from app.db.repo_chunks import insert_chunks
 from app.main import app
 
 
+
+
+def setUpModule():
+    """Skip this module when no database is reachable."""
+    from tests.db_guard import require_database
+
+    require_database()
+
 class AccessStrategyM28Tests(unittest.TestCase):
     def setUp(self):
         self.original = {

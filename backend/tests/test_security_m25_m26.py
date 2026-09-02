@@ -20,6 +20,14 @@ from app.llm.prompts import generate_user_prompt
 from app.main import _allowed_cors_origins, app
 
 
+
+
+def setUpModule():
+    """Skip this module when no database is reachable."""
+    from tests.db_guard import require_database
+
+    require_database()
+
 class SecurityM25M26Tests(unittest.TestCase):
     def setUp(self):
         self.original = {

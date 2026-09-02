@@ -10,6 +10,14 @@ from app.db.repo_acl import local_dev_acl_bypass_enabled
 from app.main import app
 
 
+
+
+def setUpModule():
+    """Skip this module when no database is reachable."""
+    from tests.db_guard import require_database
+
+    require_database()
+
 class DevAuthTests(unittest.TestCase):
     def setUp(self):
         self.original = {
