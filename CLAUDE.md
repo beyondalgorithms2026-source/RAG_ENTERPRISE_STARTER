@@ -73,7 +73,7 @@ for next prompt."; never re-quote CLAUDE.md/CONTEXT.md/STATUS.md content back.
 | Milestone notes | `docs/milestones/` |
 | Runbooks | `docs/runbooks/` |
 | Local generated reports | `data/reports/` (git-ignored) |
-| Reference-only | `docs/_master_docs/`, `web/stitch-reference/` (out of build) |
+| Reference-only | `docs/_master_docs/`, the original design reference (removed from this repository) (out of build) |
 
 There is **no repository CI** (no `.github/workflows`). Verification is local:
 Makefile targets + the checks named in each milestone's DoD.

@@ -1,6 +1,6 @@
 # M10.1 Stitch Design System
 
-- Source of truth: `web/stitch-reference/stitch/lumina_enterprise/DESIGN.md`
+- Source of truth: the original design reference (removed from this repository)stitch/lumina_enterprise/DESIGN.md`
 - Creative north star: Intelligent Curator
 - Surface model:
   - base `#fbfbe6`

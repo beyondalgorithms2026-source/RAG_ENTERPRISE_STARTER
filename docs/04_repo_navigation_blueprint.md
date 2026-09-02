@@ -58,7 +58,7 @@ If you only read one navigation document, read this one.
 | Legacy fallback UI | `frontend/` | You are explicitly validating `/frontend` compatibility |
 | Imported baseline docs | `docs/_master_docs/` | You need provenance or deep baseline comparison |
 | Imported baseline README | `docs/README_from_master.md` | You need copied-source historical context |
-| Stitch design references | `web/stitch-reference/` | You are checking visual/source design provenance |
+| Stitch design references | the original design reference (removed from this repository) | You are checking visual/source design provenance |
 
 Do not start normal product work in those areas unless the task is explicitly about legacy compatibility or provenance.
 

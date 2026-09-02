@@ -157,4 +157,4 @@ Use these terms consistently in UI copy, labels, and nav (set in UX10):
 - Form primitives: `web/components/ui/*`.
 - Icons: `web/components/icons.tsx`.
 - Shells/nav: `web/components/console-shell.tsx`, `web/lib/admin-modules.ts`, `web/app/console/**/layout.tsx`.
-- Reference mockups (out of build, do not depend on): `web/stitch-reference/`.
+- Reference mockups (out of build, do not depend on): the original design reference (removed from this repository).

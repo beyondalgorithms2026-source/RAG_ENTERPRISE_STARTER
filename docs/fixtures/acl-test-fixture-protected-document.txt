@@ -1,0 +1,8 @@
+SYNTHETIC TEST FIXTURE - NOT A REAL DOCUMENT AND NOT A SECRET.
+This file exists so an automated test can verify that access-controlled content
+is withheld from users who lack the required group membership. 'Falcon' is an
+invented customer and the token below is an arbitrary test string.
+
+contracttokenm161
+This file contains protected contract terms for the Falcon renewal.
+Only approved users should see this.

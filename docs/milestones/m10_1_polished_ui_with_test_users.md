@@ -8,7 +8,7 @@
   - `/console/workspace/chat`
   - `/console/workspace/sources`
   - `/console/admin`
-- Kept the Stitch reference package in `web/stitch-reference/` as the visual source of truth for layout, spacing, CTA hierarchy, and tonal surface treatment.
+- Kept the Stitch reference package in the original design reference (removed from this repository) as the visual source of truth for layout, spacing, CTA hierarchy, and tonal surface treatment.
 - Preserved the guarded local dev auth path with the existing test accounts:
   - `test-user@ragenterprise.local` / `password123`
   - `test-admin@ragenterprise.local` / `password123`
