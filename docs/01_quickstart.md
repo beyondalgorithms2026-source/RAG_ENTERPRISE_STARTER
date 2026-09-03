@@ -4,9 +4,9 @@ This is the canonical local run path for Enterprise RAG Starter.
 
 If you are new to the repo, read these first:
 
-1. [README.md](README.md)
-2. [STATUS.md](STATUS.md)
-3. [docs/04_repo_navigation_blueprint.md](docs/04_repo_navigation_blueprint.md)
+1. [README.md](../README.md)
+2. [STATUS.md](../STATUS.md)
+3. [docs/04_repo_navigation_blueprint.md](04_repo_navigation_blueprint.md)
 
 ## What should be running
 
@@ -85,7 +85,7 @@ pnpm run dev -- --port 3001
 Local dev accounts:
 
 - `test-user@ragenterprise.local` / `<the value you set in DEV_TEST_USER_PASSWORD>`
-- `test-admin@ragenterprise.local` / `<the value you set in DEV_TEST_USER_PASSWORD>`
+- `test-admin@ragenterprise.local` / `<the value you set in DEV_TEST_ADMIN_PASSWORD>`
 
 ## Shortcuts
 
@@ -98,6 +98,6 @@ make dev-web
 
 ## Related docs
 
-- Local run details: [docs/runbooks/LOCALHOST_DEV_RUNBOOK.md](docs/runbooks/LOCALHOST_DEV_RUNBOOK.md)
-- Repo workflow: [docs/runbooks/SOURCE_CONTROL_WORKFLOW.md](docs/runbooks/SOURCE_CONTROL_WORKFLOW.md)
-- Safe extension path: [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md)
+- Local run details: [docs/runbooks/LOCALHOST_DEV_RUNBOOK.md](runbooks/LOCALHOST_DEV_RUNBOOK.md)
+- Repo workflow: [docs/runbooks/SOURCE_CONTROL_WORKFLOW.md](runbooks/SOURCE_CONTROL_WORKFLOW.md)
+- Safe extension path: [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](runbooks/SAFE_EXTENSION_BLUEPRINT.md)

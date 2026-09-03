@@ -101,6 +101,18 @@ cd backend && python -m app.seed.public_demo
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
+Repository map:
+
+- Active backend: `backend/`
+- Active frontend: `web/`
+- Legacy fallback UI: `frontend/` (retained, not the active interface)
+- Generated local reports: `data/reports/` (gitignored)
+
+Maintainer documentation: [`docs/01_quickstart.md`](docs/01_quickstart.md),
+[`docs/04_repo_navigation_blueprint.md`](docs/04_repo_navigation_blueprint.md), and
+[`docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md`](docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md).
+The concise current-state record is [`STATUS.md`](STATUS.md).
+
 ## Licence
 
 Apache-2.0.

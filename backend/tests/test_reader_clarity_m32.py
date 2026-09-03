@@ -17,11 +17,12 @@ class ReaderClarityM32Tests(unittest.TestCase):
     def test_readme_is_canonical_entrypoint(self):
         content = README.read_text(encoding="utf-8")
         required = [
-            "## Start Here",
-            "What This Repo Is",
-            "How To Run It",
-            "Current Status",
-            "Canonical Paths",
+            "# Enterprise RAG — data layer",
+            "## The problem this solves",
+            "## What happens when the system does not know",
+            "## The test evidence",
+            "## What this is NOT",
+            "## Setup",
             "docs/01_quickstart.md",
             "docs/04_repo_navigation_blueprint.md",
             "docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md",
@@ -35,6 +36,8 @@ class ReaderClarityM32Tests(unittest.TestCase):
         self.assertIn("Operational Snapshot", content)
         self.assertIn("Historical Detail", content)
         self.assertIn("docs/project_state/milestone_history_archive.md", content)
+        self.assertIn("AR0–AR20", content)
+        self.assertIn("UX0–UX12", content)
         self.assertNotIn("**M10 summary**", content)
 
     def test_history_archive_exists_and_preserves_milestone_lookup(self):
@@ -69,6 +72,10 @@ class ReaderClarityM32Tests(unittest.TestCase):
         quickstart = QUICKSTART.read_text(encoding="utf-8")
         extension = SAFE_EXTENSION.read_text(encoding="utf-8")
         self.assertIn("This is the canonical local run path", quickstart)
+        self.assertIn("[README.md](../README.md)", quickstart)
+        self.assertIn("[STATUS.md](../STATUS.md)", quickstart)
+        self.assertIn("DEV_TEST_USER_PASSWORD", quickstart)
+        self.assertIn("DEV_TEST_ADMIN_PASSWORD", quickstart)
         self.assertIn("This is the canonical extension path", extension)
 
     def test_master_guide_and_scenario_blueprint_defer_to_canonical_path(self):
