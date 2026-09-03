@@ -120,7 +120,7 @@ JSON-backed internal state:
 - source lazy-enrichment trace metadata
 
 Authoritative internal JSON contract guide:
-- [internal_metadata_contracts.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
+- [internal_metadata_contracts.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
 
 ## Current Architecture Limits
 
@@ -132,8 +132,8 @@ Authoritative internal JSON contract guide:
 
 ## Related Docs
 
-- [module_map.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/module_map.md)
-- [api_surface.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/api_surface.md)
-- [configuration.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
-- [evaluation.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
+- [module_map.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/module_map.md)
+- [api_surface.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/api_surface.md)
+- [configuration.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
+- [evaluation.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
 

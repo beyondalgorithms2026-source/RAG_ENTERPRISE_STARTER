@@ -3,7 +3,7 @@
 This guide explains how to reuse `RAG_MM_MASTER_POC` as a base for a new RAG project.
 
 For the broadest first-pass walkthrough:
-- [master_guide.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/master_guide.md)
+- [master_guide.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/master_guide.md)
 
 ## What To Reuse As-Is First
 
@@ -93,9 +93,9 @@ More sensitive areas:
 
 ## Recommended First Reading For New Adopters
 
-1. [README.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/README.md)
-2. [configuration.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
-3. [architecture_overview.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
-4. [module_map.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/module_map.md)
-5. [internal_metadata_contracts.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
-6. [evaluation.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
+1. [README.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/README.md)
+2. [configuration.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
+3. [architecture_overview.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
+4. [module_map.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/module_map.md)
+5. [internal_metadata_contracts.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
+6. [evaluation.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)

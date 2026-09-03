@@ -135,6 +135,6 @@ Role:
 
 - [scenario_profiles_and_reuse_blueprint.md](../scenario_profiles_and_reuse_blueprint.md)
 - [m27_module_selection_map.mmd](../diagrams/m27_module_selection_map.mmd)
-- [architecture_overview.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
-- [api_surface.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/api_surface.md)
-- [adoption_guide.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/adoption_guide.md)
+- [architecture_overview.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
+- [api_surface.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/api_surface.md)
+- [adoption_guide.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/adoption_guide.md)

@@ -135,7 +135,7 @@ make seed-enterprise-acl
 
 Local URLs: backend `http://127.0.0.1:8000` (health `/health`), web
 `http://127.0.0.1:3001`. Dev logins: `test-user@ragenterprise.local` /
-`test-admin@ragenterprise.local`, password `password123`. Local LLM path needs Ollama.
+`test-admin@ragenterprise.local`, password `<the value you set in DEV_TEST_USER_PASSWORD>`. Local LLM path needs Ollama.
 
 ## 6. UI rules (binding on ALL frontend work)
 

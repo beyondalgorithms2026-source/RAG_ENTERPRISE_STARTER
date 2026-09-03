@@ -3,8 +3,8 @@
 Active technical reference.
 
 See also:
-- [docs/README.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/README.md)
-- [docs/architecture_overview.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
+- [docs/README.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/README.md)
+- [docs/architecture_overview.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
 
 This document records the current internal JSON contracts relied on by the codebase after M19. These are implementation-facing contracts, not public API contracts.
 

@@ -8,7 +8,7 @@ import { browserFetch } from "@/lib/api-browser";
 export function DevLoginForm({ nextPath }: { nextPath: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("test-user@ragenterprise.local");
-  const [password, setPassword] = useState("password123");
+  const [password, setPassword] = useState("<the value you set in DEV_TEST_USER_PASSWORD>");
   const [customIdentity, setCustomIdentity] = useState({
     name: "M161 Requester",
     email: "requester@ragenterprise.local",
@@ -113,13 +113,13 @@ export function DevLoginForm({ nextPath }: { nextPath: string }) {
         </label>
         <label>
           <span>Password</span>
-          <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="password123" type="password" />
+          <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="<the value you set in DEV_TEST_USER_PASSWORD>" type="password" />
         </label>
         {error ? <div className="dev-login-error">{error}</div> : null}
         <button className="stitch-button stitch-button-secondary stitch-button-block" type="submit" disabled={loading}>
           {loading ? "Signing In..." : "Sign In With Local Dev Account"}
         </button>
-        <div className="dev-login-helper">Use `test-user@ragenterprise.local` or `test-admin@ragenterprise.local` with `password123`.</div>
+        <div className="dev-login-helper">Use `test-user@ragenterprise.local` or `test-admin@ragenterprise.local` with `<the value you set in DEV_TEST_USER_PASSWORD>`.</div>
       </form>
 
       <form className="dev-login-form" onSubmit={onAssumeIdentity}>

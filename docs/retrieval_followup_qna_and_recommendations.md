@@ -2,7 +2,7 @@
 
 **Context**
 
-This document is a follow-up to [retrieval_stack_audit_and_customization_roadmap.pdf](/Users/Work/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/docs/retrieval_stack_audit_and_customization_roadmap.pdf). It captures the next round of retrieval questions that came up after the initial audit and answers them using the current codebase as the source of truth first, then contrasts that behavior with stronger enterprise retrieval patterns where appropriate.
+This document is a follow-up to [retrieval_stack_audit_and_customization_roadmap.pdf](/path/to/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/docs/retrieval_stack_audit_and_customization_roadmap.pdf). It captures the next round of retrieval questions that came up after the initial audit and answers them using the current codebase as the source of truth first, then contrasts that behavior with stronger enterprise retrieval patterns where appropriate.
 
 No code is being changed in this document. Where “exact code changes” are shown, they are proposed examples for later implementation.
 
@@ -12,7 +12,7 @@ No code is being changed in this document. Where “exact code changes” are sh
 
 ### 1.1 What is the current fusion logic?
 
-Today the core retrieval scoring is implemented in [backend/app/core_rag/retrieval.py](/Users/Work/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/core_rag/retrieval.py) and [backend/app/db/repo_search.py](/Users/Work/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/db/repo_search.py).
+Today the core retrieval scoring is implemented in [backend/app/core_rag/retrieval.py](/path/to/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/core_rag/retrieval.py) and [backend/app/db/repo_search.py](/path/to/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/db/repo_search.py).
 
 Current score definitions:
 
@@ -32,7 +32,7 @@ Current score definitions:
 combined_score = alpha * vector_score + (1.0 - alpha) * keyword_score
 ```
 
-Default `alpha` is `0.65` in [backend/app/core/config.py](/Users/Work/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/core/config.py), so vector relevance dominates hybrid by default.
+Default `alpha` is `0.65` in [backend/app/core/config.py](/path/to/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/core/config.py), so vector relevance dominates hybrid by default.
 
 Additional score signals already exist:
 
@@ -139,7 +139,7 @@ than an exception.
 
 ### 1.6 Why is reranking optional?
 
-Reranking exists in [backend/app/core_rag/reranker.py](/Users/Work/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/core_rag/reranker.py). It uses:
+Reranking exists in [backend/app/core_rag/reranker.py](/path/to/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/core_rag/reranker.py). It uses:
 
 - `cross-encoder/ms-marco-MiniLM-L-6-v2`
 
@@ -174,9 +174,9 @@ A heuristic is a practical rule-of-thumb, not a guaranteed-correct learned decis
 
 Repo-specific examples:
 
-- router keyword intent detection in [backend/app/core_rag/query_router.py](/Users/Work/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/core_rag/query_router.py)
-- anchor extraction in [backend/app/core_rag/retrieval.py](/Users/Work/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/core_rag/retrieval.py)
-- fixed chunk sizes and overlaps in [backend/app/ingestion/chunking.py](/Users/Work/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/ingestion/chunking.py)
+- router keyword intent detection in [backend/app/core_rag/query_router.py](/path/to/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/core_rag/query_router.py)
+- anchor extraction in [backend/app/core_rag/retrieval.py](/path/to/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/core_rag/retrieval.py)
+- fixed chunk sizes and overlaps in [backend/app/ingestion/chunking.py](/path/to/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/ingestion/chunking.py)
 
 Why it is repeatedly called a limitation:
 
@@ -188,7 +188,7 @@ Why it is repeatedly called a limitation:
 
 Lexical retrieval means matching based on words/tokens rather than semantic meaning.
 
-In this repo, lexical retrieval is the `keyword` path using PostgreSQL full-text search in [backend/app/db/repo_search.py](/Users/Work/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/db/repo_search.py).
+In this repo, lexical retrieval is the `keyword` path using PostgreSQL full-text search in [backend/app/db/repo_search.py](/path/to/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/db/repo_search.py).
 
 It helps most for:
 
@@ -233,7 +233,7 @@ It can absolutely be used selectively. That is the preferred rollout path.
 
 ### 2.4 What are query anchors?
 
-Query anchors are token-rule-based lexical cues extracted from the question or admin-supplied input. They are defined through hardcoded logic in [backend/app/core_rag/retrieval.py](/Users/Work/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/core_rag/retrieval.py), not through LLM reasoning.
+Query anchors are token-rule-based lexical cues extracted from the question or admin-supplied input. They are defined through hardcoded logic in [backend/app/core_rag/retrieval.py](/path/to/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/core_rag/retrieval.py), not through LLM reasoning.
 
 So yes:
 
@@ -289,7 +289,7 @@ These are not equivalent to:
 
 ### 3.1 Is EML the accepted format?
 
-Yes. `eml` is explicitly supported in [backend/app/core/config.py](/Users/Work/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/core/config.py) and parsed in [backend/app/adapters/email/parser.py](/Users/Work/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/adapters/email/parser.py).
+Yes. `eml` is explicitly supported in [backend/app/core/config.py](/path/to/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/core/config.py) and parsed in [backend/app/adapters/email/parser.py](/path/to/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/backend/app/adapters/email/parser.py).
 
 ### 3.2 Are attachments searchable today?
 
@@ -487,7 +487,7 @@ So yes, it is much broader than “token cost only.”
 
 ### 5.5 Can latency be shown in the UI?
 
-Yes. The repo already returns `latency_ms` and the frontend already displays latency in [frontend/ask.js](/Users/Work/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/frontend/ask.js).
+Yes. The repo already returns `latency_ms` and the frontend already displays latency in [frontend/ask.js](/path/to/local_dev/RAG%20workflow/RAG_ENTERPRISE_STARTER/frontend/ask.js).
 
 ### 5.6 Can latency logs be compared against accuracy and feedback later?
 

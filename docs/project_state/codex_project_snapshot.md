@@ -8,7 +8,7 @@ This file preserves project-specific context so a future Codex session can resta
 
 ## Project Summary
 
-- Project path: `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER`
+- Project path: `/path/to/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER`
 - Estimated size: 1.9 GB
 - Detected stack: Docker + FastAPI + Next.js
 - Git branch: `RAG_Enterprise_Dev`
@@ -34,9 +34,9 @@ Use this project snapshot to restore working context. Reconstruct the local setu
 
 ## Environment Files
 
-- `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/backend/.env`
-- `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/backend/.env.example`
-- `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/web/.env.example`
+- `/path/to/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/backend/.env`
+- `/path/to/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/backend/.env.example`
+- `/path/to/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/web/.env.example`
 
 ## Database Files
 
@@ -44,13 +44,13 @@ Use this project snapshot to restore working context. Reconstruct the local setu
 
 ## Key Project Files
 
-- `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/README.md`
-- `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/backend/requirements.txt`
-- `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/backend/tests/fixtures/eval/README.md`
-- `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/docker-compose.yml`
-- `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/docs/_master_docs/README.md`
-- `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/docs/milestones/m10_1_polished_ui_with_test_users.md`
-- `/Users/Work/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/web/package.json`
+- `/path/to/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/README.md`
+- `/path/to/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/backend/requirements.txt`
+- `/path/to/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/backend/tests/fixtures/eval/README.md`
+- `/path/to/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/docker-compose.yml`
+- `/path/to/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/docs/_master_docs/README.md`
+- `/path/to/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/docs/milestones/m10_1_polished_ui_with_test_users.md`
+- `/path/to/local_dev/RAG workflow/RAG_ENTERPRISE_STARTER/web/package.json`
 
 ## Package Scripts
 

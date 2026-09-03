@@ -5,13 +5,13 @@ This document describes the current runtime configuration of `RAG_MM_MASTER_POC`
 ## Sources Of Truth
 
 Runtime defaults:
-- [backend/app/core/config.py](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/core/config.py)
+- [backend/app/core/config.py](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/core/config.py)
 
 Example environment file:
-- [backend/.env.example](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/.env.example)
+- [backend/.env.example](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/.env.example)
 
 Local infrastructure:
-- [docker-compose.yml](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docker-compose.yml)
+- [docker-compose.yml](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docker-compose.yml)
 
 ## Default Runtime Story
 
@@ -148,6 +148,6 @@ When adapting this repo for a new project:
 
 ## Related Docs
 
-- [architecture_overview.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
-- [api_surface.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/api_surface.md)
-- [internal_metadata_contracts.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
+- [architecture_overview.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
+- [api_surface.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/api_surface.md)
+- [internal_metadata_contracts.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)

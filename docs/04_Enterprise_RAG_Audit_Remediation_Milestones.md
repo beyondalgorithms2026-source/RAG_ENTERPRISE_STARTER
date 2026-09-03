@@ -279,7 +279,7 @@ A guided, verifiable embedding-change lifecycle with hard blocks on mismatched s
 A "starter" that only runs on the author's machine and only under one process is not adoptable. The audit flagged fork blockers in the repo itself and correctness assumptions that silently break under standard deployment shapes.
 
 **What was not working in the earlier implementation**
-- `docker-compose.yml` hardcoded a personal volume path (`/Users/Work/Projects/Backup/Database/rag-enterprise-pgdata`); docs and README used absolute `/Users/Work/...` paths throughout — a fresh-machine fork fails immediately.
+- `docker-compose.yml` hardcoded a personal volume path (`/path/to/Projects/Backup/Database/rag-enterprise-pgdata`); docs and README used absolute `/path/to/...` paths throughout — a fresh-machine fork fails immediately.
 - Single-process assumptions: in-process threaded ingestion worker poked by an in-memory event, in-memory rate limiting (acknowledged in a code comment), module-global embedding/reranker singletons. Running `uvicorn --workers 2` silently breaks queue wakeups and rate limits.
 - Sandbox compare monkeypatched module-level resolver functions (`backend/app/tuning/sandbox_compare.py:28-76`); a concurrent live request during a compare could be served with candidate profiles — a correctness (and tuning-integrity) hazard.
 

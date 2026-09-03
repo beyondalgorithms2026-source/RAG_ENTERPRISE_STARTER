@@ -84,8 +84,8 @@ pnpm run dev -- --port 3001
 
 Local dev accounts:
 
-- `test-user@ragenterprise.local` / `password123`
-- `test-admin@ragenterprise.local` / `password123`
+- `test-user@ragenterprise.local` / `<the value you set in DEV_TEST_USER_PASSWORD>`
+- `test-admin@ragenterprise.local` / `<the value you set in DEV_TEST_USER_PASSWORD>`
 
 ## Shortcuts
 

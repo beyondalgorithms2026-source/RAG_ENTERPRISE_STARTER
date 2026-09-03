@@ -88,7 +88,7 @@ class DeploymentPortabilityAR8Tests(unittest.TestCase):
         for name in ("README.md", "docs/01_quickstart.md"):
             content = (REPO_ROOT / name).read_text(encoding="utf-8")
             with self.subTest(doc=name):
-                self.assertNotIn("/Users/Work", content)
+                self.assertNotIn("/path/to", content)
 
 
 if __name__ == "__main__":

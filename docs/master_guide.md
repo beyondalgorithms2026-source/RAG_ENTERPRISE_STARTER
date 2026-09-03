@@ -4,10 +4,10 @@ This is a deep reference guide, not the canonical first stop for a new reader.
 
 Start with:
 
-1. [README.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/README.md)
-2. [docs/01_quickstart.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/01_quickstart.md)
-3. [STATUS.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/STATUS.md)
-4. [docs/04_repo_navigation_blueprint.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/04_repo_navigation_blueprint.md)
+1. [README.md](/path/to/RAG_ENTERPRISE_STARTER/README.md)
+2. [docs/01_quickstart.md](/path/to/RAG_ENTERPRISE_STARTER/docs/01_quickstart.md)
+3. [STATUS.md](/path/to/RAG_ENTERPRISE_STARTER/STATUS.md)
+4. [docs/04_repo_navigation_blueprint.md](/path/to/RAG_ENTERPRISE_STARTER/docs/04_repo_navigation_blueprint.md)
 
 This file preserves a large amount of inherited deep-guide material, including some baseline-era naming. Treat it as a secondary reference after the canonical path above.
 
@@ -95,10 +95,10 @@ If you are actively forking the repo:
 5. `Common Issues / Where To Look When Something Breaks`
 
 See also:
-- [README.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/README.md)
+- [README.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/README.md)
 - [scenario_profiles_and_reuse_blueprint.md](scenario_profiles_and_reuse_blueprint.md)
-- [configuration.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
-- [maintainer_runbook.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
+- [configuration.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
+- [maintainer_runbook.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
 
 ---
 
@@ -230,8 +230,8 @@ Current operational posture:
 - compact JSON metadata for graph/temporal/lazy state
 
 See also:
-- [configuration.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
-- [architecture_overview.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
+- [configuration.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
+- [architecture_overview.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
 
 ---
 
@@ -442,8 +442,8 @@ If the repo grows, the first likely hotspots are:
   - for metadata enforcement and safer update patterns
 
 See also:
-- [module_map.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/module_map.md)
-- [maintainer_runbook.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
+- [module_map.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/module_map.md)
+- [maintainer_runbook.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
 
 ---
 
@@ -468,9 +468,9 @@ This table is written for people forking the repo.
 | migration flow | keep current lightweight model for PoCs | only if you already know you need stronger release/version discipline | yes | `backend/app/db/migrate.py`, `backend/app/db/schema.sql` | fresh setup, upgrades, embedding-dimension changes | upgrade drift and schema confusion |
 
 See also:
-- [configuration.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
-- [internal_metadata_contracts.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
-- [evaluation.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
+- [configuration.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
+- [internal_metadata_contracts.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
+- [evaluation.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
 
 ---
 
@@ -708,9 +708,9 @@ Change class:
 - later tuning change unless you have a very clear product need
 
 See also:
-- [configuration.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
-- [evaluation.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
-- [maintainer_runbook.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
+- [configuration.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
+- [evaluation.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
+- [maintainer_runbook.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
 
 ---
 
@@ -738,7 +738,7 @@ Why it is a problem:
 
 Do instead:
 - treat metadata JSON as an internal contract
-- update [internal_metadata_contracts.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md) first or alongside the change
+- update [internal_metadata_contracts.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md) first or alongside the change
 - re-verify source metadata, retrieval fallback, and eval behavior
 
 ### Mistake: Swapping the embedding model without checking dimension and migration behavior
@@ -821,9 +821,9 @@ This means:
 - metadata and migration decisions deserve more care than the current small-file surface might suggest
 
 See also:
-- [configuration.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
-- [internal_metadata_contracts.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
-- [maintainer_runbook.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
+- [configuration.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
+- [internal_metadata_contracts.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
+- [maintainer_runbook.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
 
 ---
 
@@ -969,7 +969,7 @@ Look at:
 Look at:
 - `backend/app/ingestion/enrichment.py`
 - `backend/app/graph/`
-- [internal_metadata_contracts.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
+- [internal_metadata_contracts.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
 
 ### Answer / Compare Issues
 
@@ -990,10 +990,10 @@ Look at:
 Look at:
 - `backend/app/eval/`
 - `backend/tests/fixtures/eval/`
-- [evaluation.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
+- [evaluation.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
 
 See also:
-- [maintainer_runbook.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
+- [maintainer_runbook.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
 
 ---
 
@@ -1001,14 +1001,14 @@ See also:
 
 If you need the shortest practical maintainer reading order:
 1. this guide
-2. [README.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/README.md)
-3. [configuration.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
-4. [architecture_overview.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
-5. [module_map.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/module_map.md)
-6. [api_surface.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/api_surface.md)
-7. [internal_metadata_contracts.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
-8. [evaluation.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
-9. [maintainer_runbook.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
+2. [README.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/README.md)
+3. [configuration.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
+4. [architecture_overview.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
+5. [module_map.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/module_map.md)
+6. [api_surface.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/api_surface.md)
+7. [internal_metadata_contracts.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
+8. [evaluation.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
+9. [maintainer_runbook.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
 
 ---
 
@@ -1091,6 +1091,6 @@ The most important internal caution in this repo is that metadata contracts matt
 If you change source metadata or chunk metadata casually, retrieval, enrichment, router, compare, and eval behavior can all drift at once.
 
 See also:
-- [internal_metadata_contracts.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
-- [evaluation.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
-- [maintainer_runbook.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
+- [internal_metadata_contracts.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
+- [evaluation.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
+- [maintainer_runbook.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)

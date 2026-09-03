@@ -5,9 +5,9 @@
 > It is not the primary guide to the current repo state.
 
 Current state docs:
-- [README.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/README.md)
-- [docs/README.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/README.md)
-- [docs/adoption_guide.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/adoption_guide.md)
+- [README.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/README.md)
+- [docs/README.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/README.md)
+- [docs/adoption_guide.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/adoption_guide.md)
 
 ## Summary
 

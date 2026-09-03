@@ -5,8 +5,8 @@
 ## Audit findings remediated
 
 - "`docker-compose.yml` hardcoded a personal volume path
-  (`/Users/Work/Projects/Backup/Database/rag-enterprise-pgdata`); docs and
-  README used absolute `/Users/Work/...` paths throughout — a fresh-machine fork
+  (`/path/to/Projects/Backup/Database/rag-enterprise-pgdata`); docs and
+  README used absolute `/path/to/...` paths throughout — a fresh-machine fork
   fails immediately."
 - "Single-process assumptions: in-process threaded ingestion worker poked by an
   in-memory event, in-memory rate limiting …, module-global embedding/reranker
@@ -21,7 +21,7 @@
 
 - **Portable compose + docs.** `docker-compose.yml` now persists to a named
   Docker volume (`rag_enterprise_pgdata`) with env-overridable
-  credentials/port/volume — no host path. Every absolute `/Users/Work/...` path
+  credentials/port/volume — no host path. Every absolute `/path/to/...` path
   in `README.md` and `docs/01_quickstart.md` is now repo-relative (links) or
   `cd "$(git rev-parse --show-toplevel)"` (shell), so a clean clone runs as-is.
 - **Concurrency-safe profile overrides.** Sandbox compare and candidate eval no

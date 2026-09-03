@@ -3,14 +3,14 @@
 This document explains the current evaluation harnesses added through M20.
 
 For a repo-wide orientation first:
-- [master_guide.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/master_guide.md)
+- [master_guide.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/master_guide.md)
 
 ## Eval Modules
 
 Current eval-only modules:
-- [backend/app/eval/retrieval_eval.py](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/eval/retrieval_eval.py)
-- [backend/app/eval/enriched_eval.py](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/eval/enriched_eval.py)
-- [backend/app/eval/compare_eval.py](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/eval/compare_eval.py)
+- [backend/app/eval/retrieval_eval.py](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/eval/retrieval_eval.py)
+- [backend/app/eval/enriched_eval.py](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/eval/enriched_eval.py)
+- [backend/app/eval/compare_eval.py](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/eval/compare_eval.py)
 
 These are evaluation-only surfaces and should not change production behavior.
 
@@ -275,7 +275,7 @@ When adapting this repo:
 
 ## Related Docs
 
-- [master_guide.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/master_guide.md)
-- [api_surface.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/api_surface.md)
-- [adoption_guide.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/adoption_guide.md)
-- [architecture_overview.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
+- [master_guide.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/master_guide.md)
+- [api_surface.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/api_surface.md)
+- [adoption_guide.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/adoption_guide.md)
+- [architecture_overview.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)

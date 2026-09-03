@@ -14,12 +14,12 @@ Current backend routes:
 - `/compare`
 
 Implemented in:
-- [backend/app/api/health.py](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/api/health.py)
-- [backend/app/api/upload.py](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/api/upload.py)
-- [backend/app/api/corpus.py](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/api/corpus.py)
-- [backend/app/api/search.py](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/api/search.py)
-- [backend/app/api/ask.py](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/api/ask.py)
-- [backend/app/api/compare.py](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/api/compare.py)
+- [backend/app/api/health.py](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/api/health.py)
+- [backend/app/api/upload.py](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/api/upload.py)
+- [backend/app/api/corpus.py](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/api/corpus.py)
+- [backend/app/api/search.py](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/api/search.py)
+- [backend/app/api/ask.py](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/api/ask.py)
+- [backend/app/api/compare.py](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/api/compare.py)
 
 ## `/health`
 
@@ -112,7 +112,7 @@ Behavior notes:
 ## Mode Semantics
 
 For the most explicit current retrieval-mode matrix:
-- [master_guide.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/master_guide.md)
+- [master_guide.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/master_guide.md)
 
 ### Baseline modes
 
@@ -146,6 +146,6 @@ Deep lookup policy:
 
 ## Related Docs
 
-- [configuration.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
-- [architecture_overview.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
-- [evaluation.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
+- [configuration.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
+- [architecture_overview.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
+- [evaluation.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)

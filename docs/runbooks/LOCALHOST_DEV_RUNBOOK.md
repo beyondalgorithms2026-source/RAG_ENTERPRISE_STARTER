@@ -15,13 +15,13 @@ You need 4 things:
 - Repo path:
 
 ```bash
-cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER
+cd /path/to/RAG_ENTERPRISE_STARTER
 ```
 
 - Postgres data should live at:
 
 ```bash
-/Users/Work/Projects/Backup/Database/rag-enterprise-pgdata
+/path/to/Projects/Backup/Database/rag-enterprise-pgdata
 ```
 
 - Backend env already exists at `backend/.env`
@@ -32,8 +32,8 @@ cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER
 ## Terminal 1: Start Docker / Postgres
 
 ```bash
-cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER
-mkdir -p /Users/Work/Projects/Backup/Database/rag-enterprise-pgdata
+cd /path/to/RAG_ENTERPRISE_STARTER
+mkdir -p /path/to/Projects/Backup/Database/rag-enterprise-pgdata
 docker compose up -d
 docker compose ps
 ```
@@ -65,7 +65,7 @@ ollama pull llama3.2:3b
 ## Terminal 3: Start Backend
 
 ```bash
-cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/backend
+cd /path/to/RAG_ENTERPRISE_STARTER/backend
 uv venv .venv
 source .venv/bin/activate
 uv pip install -r requirements.txt
@@ -79,14 +79,14 @@ Notes:
 - If you open a new backend terminal later, run:
 
 ```bash
-cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/backend
+cd /path/to/RAG_ENTERPRISE_STARTER/backend
 source .venv/bin/activate
 ```
 
 ## Terminal 4: Start Frontend
 
 ```bash
-cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/web
+cd /path/to/RAG_ENTERPRISE_STARTER/web
 pnpm install
 pnpm run dev --port 3001
 ```
@@ -105,7 +105,7 @@ Use `web/` for all normal development. Treat `frontend/` as fallback-only unless
 If backend deps and frontend deps are already installed, you can also use:
 
 ```bash
-cd /Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER
+cd /path/to/RAG_ENTERPRISE_STARTER
 make dev-web
 ```
 
@@ -121,8 +121,8 @@ Open these in the browser:
 
 ## Local dev login
 
-- User: `test-user@ragenterprise.local` / `password123`
-- Admin: `test-admin@ragenterprise.local` / `password123`
+- User: `test-user@ragenterprise.local` / `<the value you set in DEV_TEST_USER_PASSWORD>`
+- Admin: `test-admin@ragenterprise.local` / `<the value you set in DEV_TEST_USER_PASSWORD>`
 
 ## Quick verification commands
 

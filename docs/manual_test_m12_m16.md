@@ -7,7 +7,7 @@
 4. Start backend: `uvicorn app.main:app --reload --host 127.0.0.1 --port 8000`.
 5. Start frontend in another terminal: `cd web`, `pnpm dev --port 3001`.
 6. Open `http://127.0.0.1:3001/login`.
-7. Use `test-user@ragenterprise.local` / `password123` for user checks and `test-admin@ragenterprise.local` / `password123` for admin checks.
+7. Use `test-user@ragenterprise.local` / `<the value you set in DEV_TEST_USER_PASSWORD>` for user checks and `test-admin@ragenterprise.local` / `<the value you set in DEV_TEST_USER_PASSWORD>` for admin checks.
 
 ## M12 — DB And Structured Connectors
 1. In Docker Postgres: `docker exec -it rag_enterprise_starter_db psql -U rag_enterprise_starter -d rag_enterprise_starter`.

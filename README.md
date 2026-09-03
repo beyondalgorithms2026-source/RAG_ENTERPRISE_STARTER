@@ -1,101 +1,106 @@
-# Enterprise RAG Starter
+# Enterprise RAG — data layer
 
-Enterprise RAG Starter is a reusable internal-assistant foundation built around grounded retrieval, citations, access control, admin operations, and scenario-based reuse. It is strongest today as a PoC-grade but security-aware hybrid retrieval system that teams can extend into employee-wide, corpus-level, trusted no-auth, or enterprise OIDC + ACL deployments.
+The data layer of a three-part governed retrieval system: PostgreSQL with pgvector,
+hybrid retrieval, citations, and **access control enforced inside the retrieval SQL**.
 
-## Start Here
+**This is one of three repositories.** Start here:
+**[Governed RAG — agent layer](https://github.com/beyondalgorithms2026-source/RAG_ENTERPRISE_LANGGRAPH_APP)**
+· **[Evaluation report](https://beyondalgorithms2026-source.github.io/RAG_ENTERPRISE_LANGGRAPH_APP/evaluation/)**
 
-If you are new to this repo, read in this order:
+## The problem this solves
 
-1. [docs/01_quickstart.md](docs/01_quickstart.md)
-2. [STATUS.md](STATUS.md)
-3. [docs/04_repo_navigation_blueprint.md](docs/04_repo_navigation_blueprint.md)
-4. [docs/scenario_profiles_and_reuse_blueprint.md](docs/scenario_profiles_and_reuse_blueprint.md)
-5. [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md)
-6. [docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md](docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md) — independent audit baseline (2026-06-11), not a marketing document
-7. [docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md](docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md) — AR0–AR20 audit remediation plan (complete)
-8. [docs/05_Enterprise_RAG_UIUX_Audit_Remediation_Milestones.md](docs/05_Enterprise_RAG_UIUX_Audit_Remediation_Milestones.md) — UX0–UX10 UI/UX remediation plan (active work track)
-9. [web/DESIGN.md](web/DESIGN.md) — console design language (canonical UI source of truth; read before any frontend change)
+Two people ask an internal assistant the same question about salary bands. One works in
+HR and may see the answer. One does not.
 
-Those documents answer the core onboarding questions:
+Most systems solve this by filtering results after retrieval, or in the user interface.
+Both are the same mistake: the data has already left the database. If any layer above
+leaks, logs, or caches the result, the control is gone.
 
-- What is this repo?
-- How do I run it?
-- What is the current status?
-- Which areas are canonical?
-- Which capabilities are real, placeholder, or unverified? (audit baseline)
+Here, access control is composed into the retrieval query itself. A document the user may
+not see is never selected, never scored, never ranked, never returned. There is nothing
+to filter out afterwards, because it was never fetched.
 
-## What This Repo Is
+## What happens when the system does not know
 
-- A backend-and-console starter for grounded RAG with citations, admin control, feedback capture, governance, and scenario reuse.
-- A modular codebase where auth, access strategy, admin packaging, and scenario setup can be changed without rewriting the full retrieval engine first.
-- A repo intended for internal assistants and controlled enterprise pilots, not a browser-only demo or turnkey SaaS product.
+It returns a grounded refusal rather than an uncited answer. Citation enforcement is part
+of the answer path: an answer that cannot be tied to retrieved text is not released as a
+verified answer. The layer above then decides whether to retry, escalate to human review,
+or stop.
 
-## How To Run It
+Measured behaviour, on a 25-question evaluation: **five of five** questions with no
+supporting document in the corpus were refused.
 
-Use the canonical local run path in [docs/01_quickstart.md](docs/01_quickstart.md).
+## The test evidence
 
-Short version:
+**[The full evaluation report is here.](https://beyondalgorithms2026-source.github.io/RAG_ENTERPRISE_LANGGRAPH_APP/evaluation/)**
 
-```bash
-cd "$(git rev-parse --show-toplevel)"
-docker compose up -d
-make dev-web
+This repository's own suite has 36 test files. Twenty-two require a live migrated
+Postgres, because testing SQL-level access control against anything other than a real
+query planner proves very little. Those are skipped — visibly, with a reason — when no
+database is present.
+
+```
+Offline:  27 passed, 34 skipped, 0 failures
 ```
 
-Use `docs/01_quickstart.md` for env setup, Ollama, local accounts, and troubleshooting.
+Set `RAG_REQUIRE_DB=1` to turn the skips into failures, so a CI job that is supposed to
+have a database cannot pass by skipping everything.
 
-## Current Status
+## What this is NOT
 
-- Last completed M-series milestone: M33 governed semantic cache policies
-- Active work track: UX-series UI/UX remediation ([docs/05_Enterprise_RAG_UIUX_Audit_Remediation_Milestones.md](docs/05_Enterprise_RAG_UIUX_Audit_Remediation_Milestones.md)); AR-series ([docs/04_…](docs/04_Enterprise_RAG_Audit_Remediation_Milestones.md)) complete through AR20
-- UI design language (read before any frontend change): [web/DESIGN.md](web/DESIGN.md)
-- Strongest implemented runtime scenario: enterprise-style OIDC/dev identity plus SQL-level access trimming and admin governance
-- Regression suite: green as of AR1 (2026-06-12) — `make test` passes 224/224 on a fresh DB and on the tuned dev DB (the 2026-06-11 audit had measured 158/7/57 of 222)
+- **Not deployed anywhere.** A self-built proof of concept — no client environment, no
+  users, no real workload.
+- **Not multi-tenant, and not multi-worker.** Single-process by design and guarded
+  against being run otherwise.
+- **Agentic actions do not dispatch.** `send_email`, `send_slack` and
+  `create_calendar_event` prepare and record but never send. The approval, policy and
+  audit machinery around them is real; the outbound effect is deliberately absent.
+- **`AUTH_MODE=password` is not implemented.** It is reserved and says so.
+- **Retrieval enhancements ship off by design.** Reranking, MMR, query transformation,
+  rewrite, expansion, HyDE and multi-query are implemented and switched off. An operator
+  enables them per corpus; the agent layer cannot reach them. The published evaluation
+  measures both states.
 
-Read the operational snapshot in [STATUS.md](STATUS.md).
-Read the independent audit baseline in [docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md](docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md).
-Read preserved historical detail in [docs/project_state/milestone_history_archive.md](docs/project_state/milestone_history_archive.md).
+## What is here
 
-## Canonical Paths
+| | |
+|---|---|
+| Retrieval | Hybrid vector + keyword over pgvector, with linear or RRF fusion |
+| Access control | Five strategies, composed into retrieval SQL, from open to time-bound per-document grants |
+| Citations | Enforced on the answer path; safe not-found beats an uncited answer |
+| Providers | LLM provider swappable by environment variable — OpenAI-compatible, Ollama, Anthropic, vLLM, Azure |
+| Governance | Approval gates, hash-chained audit, admin console, evaluation packs |
+| Console | Next.js admin interface with no external dependencies — renders with the network blocked |
 
-- Active backend: `backend/`
-- Active frontend: `web/`
-- Legacy fallback UI: `frontend/`
-- Generated local reports: `data/reports/`
-- Scenario packs: `scenarios/`
-- Runbooks: `docs/runbooks/`
-- Milestone notes: `docs/milestones/`
-- Historical archive: `docs/project_state/`
-- Imported/reference-only baseline docs: `docs/_master_docs/`, `docs/README_from_master.md`
+## Setup
 
-`web/` is the active product UI. `frontend/` remains mounted at `/frontend` only as a legacy compatibility fallback.
+Requires Docker and Python 3.12.
 
-## Reader Paths By Persona
+```bash
+docker compose up -d
+cd backend && python3.12 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env      # then set the four secrets it names
+python -m app.db.migrate
+```
 
-- Engineer extending the product: start with [docs/04_repo_navigation_blueprint.md](docs/04_repo_navigation_blueprint.md) and [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md); for any UI change, read [web/DESIGN.md](web/DESIGN.md) first
-- Operator/admin running the product: start with [docs/01_quickstart.md](docs/01_quickstart.md) and [docs/runbooks/LOCALHOST_DEV_RUNBOOK.md](docs/runbooks/LOCALHOST_DEV_RUNBOOK.md)
-- Reviewer/auditor: start with [docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md](docs/03_Enterprise_RAG_Independent_Product_Audit_2026_06_11.md), [STATUS.md](STATUS.md), [docs/project_state/milestone_history_archive.md](docs/project_state/milestone_history_archive.md), and `docs/milestones/`
-- Team reusing the starter for a subset scenario: start with [docs/scenario_profiles_and_reuse_blueprint.md](docs/scenario_profiles_and_reuse_blueprint.md) and `scenarios/`
+The four secrets have **no defaults in source** — the application refuses to start
+without them and tells you which is missing. Generate each with:
 
-## Safe Extension Guidance
+```bash
+python -c "import secrets;print(secrets.token_urlsafe(48))"
+```
 
-Do not change retrieval internals first. Replace in this order unless you have a strong reason not to:
+Load the synthetic demo corpus — 27 invented HR and policy documents for a fictional
+company, with public, internal and restricted classifications that become real access
+grants:
 
-1. auth/provider setup
-2. access strategy
-3. admin module packaging
-4. scenario env/build pack
-5. connectors/storage/runtime providers
-6. retrieval internals
+```bash
+python corpus/generate_corpus.py --out ~/.rag-enterprise/uploads
+cd backend && python -m app.seed.public_demo
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
 
-Use [docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md](docs/runbooks/SAFE_EXTENSION_BLUEPRINT.md) for the extension path and replacement points.
+## Licence
 
-## Repo Workflow
-
-Canonical git workflow guidance lives in [docs/runbooks/SOURCE_CONTROL_WORKFLOW.md](docs/runbooks/SOURCE_CONTROL_WORKFLOW.md).
-
-Key rules:
-
-- Use the intended long-lived dev branch for milestone continuation.
-- Compare branches against the correct base branch before interpreting diff counts.
-- Keep sample env and curated proof artifacts only; local env/build/report noise stays out of git.
+Apache-2.0.

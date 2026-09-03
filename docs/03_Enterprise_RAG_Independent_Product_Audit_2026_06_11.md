@@ -134,7 +134,7 @@ Classified per the audit protocol:
 - **No conversational memory**: each ask is independent; threads are a UI grouping (client-side localStorage), not server-side context. "Claude-like chat" overstates this.
 - **Knowledge freshness is manual**: re-ingest/re-enrich are operator actions; connectors have no scheduling; there's no staleness surfacing on sources.
 - **Cost is invisible**: no token counting, no per-request model cost, no budget views — only latency. The plan's "latency/cost traces" is half-delivered.
-- **Onboarding is good but Mac-specific**: docs use absolute `/Users/Work/...` paths; docker-compose hardcodes a personal backup volume path (`docker-compose.yml`) — a fork blocker for any other machine.
+- **Onboarding is good but Mac-specific**: docs use absolute `/path/to/...` paths; docker-compose hardcodes a personal backup volume path (`docker-compose.yml`) — a fork blocker for any other machine.
 
 ---
 

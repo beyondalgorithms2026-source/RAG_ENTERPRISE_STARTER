@@ -4,7 +4,7 @@ This archive preserves the long-form historical context that no longer belongs i
 
 Use:
 
-- [STATUS.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/STATUS.md) for the current operational snapshot
+- [STATUS.md](/path/to/RAG_ENTERPRISE_STARTER/STATUS.md) for the current operational snapshot
 - this file for milestone chronology and historical lookup
 - `docs/milestones/` for milestone-specific implementation detail
 

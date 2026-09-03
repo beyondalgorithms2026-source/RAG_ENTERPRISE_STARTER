@@ -5,9 +5,9 @@
 > It is not the primary onboarding guide for the current repo.
 
 Current orientation docs:
-- [README.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/README.md)
-- [docs/README.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/README.md)
-- [docs/architecture_overview.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
+- [README.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/README.md)
+- [docs/README.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/README.md)
+- [docs/architecture_overview.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
 
 ## Classification Key
 

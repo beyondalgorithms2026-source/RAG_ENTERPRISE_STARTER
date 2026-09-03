@@ -10,8 +10,8 @@
   - `/console/admin`
 - Kept the Stitch reference package in the original design reference (removed from this repository) as the visual source of truth for layout, spacing, CTA hierarchy, and tonal surface treatment.
 - Preserved the guarded local dev auth path with the existing test accounts:
-  - `test-user@ragenterprise.local` / `password123`
-  - `test-admin@ragenterprise.local` / `password123`
+  - `test-user@ragenterprise.local` / `<the value you set in DEV_TEST_USER_PASSWORD>`
+  - `test-admin@ragenterprise.local` / `<the value you set in DEV_TEST_USER_PASSWORD>`
 - Kept `POST /auth/local-dev-login` for `AUTH_MODE=dev` and left the existing OIDC flow untouched for non-dev usage.
 - Moved the local-dev login into a secondary disclosure below the Stitch-faithful login card so the primary SSO layout remains visually intact.
 - Redirected non-reference routes back to Stitch-backed surfaces:

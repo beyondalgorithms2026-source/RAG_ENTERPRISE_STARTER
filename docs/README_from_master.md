@@ -3,9 +3,9 @@
 This file is kept for provenance. It is not the canonical entrypoint for this repo.
 
 Use these instead:
-- top-level [README.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/README.md)
-- [STATUS.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/STATUS.md)
-- [docs/02_Enterprise_RAG_Project_Plan_Milestones.md](/Users/Work/Projects/repos/RAG_ENTERPRISE_STARTER/docs/02_Enterprise_RAG_Project_Plan_Milestones.md)
+- top-level [README.md](/path/to/RAG_ENTERPRISE_STARTER/README.md)
+- [STATUS.md](/path/to/RAG_ENTERPRISE_STARTER/STATUS.md)
+- [docs/02_Enterprise_RAG_Project_Plan_Milestones.md](/path/to/RAG_ENTERPRISE_STARTER/docs/02_Enterprise_RAG_Project_Plan_Milestones.md)
 
 The content below is preserved from the imported baseline and may mention superseded paths such as `frontend/` as the primary UI.
 
@@ -29,7 +29,7 @@ Implemented through:
 - M0-M20 complete
 
 Milestone ledger:
-- [STATUS.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/STATUS.md)
+- [STATUS.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/STATUS.md)
 
 Authoritative project plan:
 - `RAG_Master_Revised_Project_Plan.md`
@@ -120,15 +120,15 @@ python scripts/cleanup_test_data.py --storage-prefix tests/ --apply
 ```
 
 For expected behavior and when to use each command:
-- [docs/maintainer_runbook.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
+- [docs/maintainer_runbook.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/maintainer_runbook.md)
 
 ## Runtime And Config Overview
 
 Default behavior is defined in:
-- [backend/app/core/config.py](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/core/config.py)
+- [backend/app/core/config.py](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/app/core/config.py)
 
 Example env file:
-- [backend/.env.example](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/.env.example)
+- [backend/.env.example](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/backend/.env.example)
 
 Key defaults:
 - `RETRIEVAL_MODE=hybrid`
@@ -143,7 +143,7 @@ Important runtime notes:
 - graph and temporal behavior do not affect baseline modes unless explicitly enabled and usable
 
 For the full config reference:
-- [docs/configuration.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
+- [docs/configuration.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
 
 ## Current API Surface
 
@@ -157,7 +157,7 @@ Current routes:
 - `/compare`
 
 API details:
-- [docs/api_surface.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/api_surface.md)
+- [docs/api_surface.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/api_surface.md)
 
 ## Frontend Scope
 
@@ -177,18 +177,18 @@ Current frontend limits:
 ## Documentation Guide
 
 Start here:
-- [docs/README.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/README.md)
+- [docs/README.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/README.md)
 
 Most useful guides:
-- [docs/master_guide.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/master_guide.md)
-- [docs/configuration.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
-- [docs/architecture_overview.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
-- [docs/module_map.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/module_map.md)
-- [docs/api_surface.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/api_surface.md)
-- [docs/adoption_guide.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/adoption_guide.md)
-- [docs/evaluation.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
-- [docs/internal_metadata_contracts.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
-- [docs/parser_capability_matrix.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/parser_capability_matrix.md)
+- [docs/master_guide.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/master_guide.md)
+- [docs/configuration.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/configuration.md)
+- [docs/architecture_overview.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/architecture_overview.md)
+- [docs/module_map.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/module_map.md)
+- [docs/api_surface.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/api_surface.md)
+- [docs/adoption_guide.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/adoption_guide.md)
+- [docs/evaluation.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/evaluation.md)
+- [docs/internal_metadata_contracts.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/internal_metadata_contracts.md)
+- [docs/parser_capability_matrix.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/parser_capability_matrix.md)
 
 ## Operational Caveats
 
@@ -209,5 +209,5 @@ For future adopters, the intended customization points are:
 - domain-specific docs and demo data
 
 Start with:
-- [docs/adoption_guide.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/adoption_guide.md)
-- [docs/master_guide.md](/Users/Work/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/master_guide.md)
+- [docs/adoption_guide.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/adoption_guide.md)
+- [docs/master_guide.md](/path/to/local_dev/RAG%20workflow/RAG_MM_MASTER_POC/docs/master_guide.md)

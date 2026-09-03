@@ -103,7 +103,7 @@ The risk is therefore **not in the retrieval core** — it is in **deployment po
 
 ### 6. Weak/default secrets with no boot-time guard — **High**
 - **Risk:** Forgeable tokens, predictable OIDC state HMAC, default DB creds.
-- **Evidence:** `backend/app/core/config.py` defaults: `DEV_LOCAL_JWT_SECRET`, `AUTH_STATE_SIGNING_SECRET="rag-enterprise-starter-dev-state-secret"`, `DEV_TEST_USER_PASSWORD="password123"`, hardcoded dev `DATABASE_URL`.
+- **Evidence:** `backend/app/core/config.py` defaults: `DEV_LOCAL_JWT_SECRET`, `AUTH_STATE_SIGNING_SECRET="rag-enterprise-starter-dev-state-secret"`, `DEV_TEST_USER_PASSWORD="<the value you set in DEV_TEST_USER_PASSWORD>"`, hardcoded dev `DATABASE_URL`.
 - **Fix:** No usable defaults for any secret in non-local env; assert presence/length at startup; use a secrets manager. (`backend/.env` is correctly untracked — keep it so.)
 - **Validation:** Boot with `ENV=prod` + default secrets → process refuses to start.
 
