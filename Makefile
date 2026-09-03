@@ -1,5 +1,7 @@
+PYTHON ?= .venv/bin/python
+
 test:
-	cd backend && . .venv/bin/activate && python -m unittest discover -s tests
+	cd backend && $(PYTHON) -m unittest discover -s tests
 
 dev-web:
 	@trap 'kill 0' INT TERM EXIT; \
@@ -20,4 +22,4 @@ repo-hygiene-check:
 	@echo "Repo hygiene checks passed."
 
 reader-clarity-check:
-	cd backend && . .venv/bin/activate && python -m unittest tests.test_reader_clarity_m32 tests.test_repo_hygiene_m31 tests.test_m27_reuse_blueprint_docs tests.test_scenario_build_packs_m30
+	cd backend && $(PYTHON) -m unittest tests.test_reader_clarity_m32 tests.test_repo_hygiene_m31 tests.test_m27_reuse_blueprint_docs tests.test_scenario_build_packs_m30
