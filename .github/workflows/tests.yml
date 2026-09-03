@@ -1,0 +1,32 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      # No Docker, database, or model. Database-bound coverage reports explicit
+      # skips; RAG_REQUIRE_DB=1 is reserved for jobs that provision Postgres.
+      - name: Install
+        run: pip install -r backend/requirements.txt
+
+      - name: Run offline tests
+        working-directory: backend
+        run: python -m unittest discover -s tests
+
+      - name: Reader clarity
+        run: make reader-clarity-check
+
+      - name: Repository hygiene
+        run: make repo-hygiene-check

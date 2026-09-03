@@ -9,6 +9,7 @@ GITIGNORE = REPO_ROOT / ".gitignore"
 WORKFLOW = REPO_ROOT / "docs" / "runbooks" / "SOURCE_CONTROL_WORKFLOW.md"
 MASTER_README = REPO_ROOT / "docs" / "README_from_master.md"
 MASTER_DOCS_README = REPO_ROOT / "docs" / "_master_docs" / "README.md"
+TEST_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "tests.yml"
 
 
 class RepoHygieneM31Tests(unittest.TestCase):
@@ -73,6 +74,20 @@ class RepoHygieneM31Tests(unittest.TestCase):
         for item in required:
             with self.subTest(item=item):
                 self.assertIn(item, content)
+
+        workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
+        required_ci = [
+            "push:",
+            "pull_request:",
+            'python-version: "3.12"',
+            "pip install -r backend/requirements.txt",
+            "python -m unittest discover -s tests",
+            "make reader-clarity-check",
+            "make repo-hygiene-check",
+        ]
+        for item in required_ci:
+            with self.subTest(ci_item=item):
+                self.assertIn(item, workflow)
 
     def test_imported_master_docs_are_marked_reference_only(self):
         master_readme = MASTER_README.read_text(encoding="utf-8")
