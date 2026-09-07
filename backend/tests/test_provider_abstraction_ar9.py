@@ -71,10 +71,11 @@ class ProviderRegistryAR9Tests(unittest.TestCase):
 
     def test_openai_payload_requests_json_object_when_supported(self):
         provider = OpenAICompatibleProvider()
-        llm = LLMProfileConfig(provider="openai", model="gpt-4o-mini")
+        llm = LLMProfileConfig(provider="openai", model="gpt-4o-mini-2024-07-18")
         payload = provider.build_payload(llm, "sys", "user", json_mode=True, temperature=0.0, max_tokens=128)
         self.assertEqual(payload["response_format"], {"type": "json_object"})
-        self.assertEqual(payload["model"], "gpt-4o-mini")
+        self.assertEqual(payload["model"], "gpt-4o-mini-2024-07-18")
+        self.assertEqual(payload["max_tokens"], 128)
 
     def test_anthropic_uses_messages_shape_and_api_key_header(self):
         provider = AnthropicProvider()
@@ -114,6 +115,14 @@ class TwoProviderAnswerContractAR9Tests(unittest.TestCase):
         self.assertIn('"answer"', result["content"])
         self.assertTrue(capture["url"].endswith("/v1/chat/completions"))
         self.assertEqual(capture["payload"]["response_format"], {"type": "json_object"})
+
+        # Provider project hard limits are surfaced as non-2xx responses. The
+        # client must fail closed instead of manufacturing answer content.
+        rejected = _FakeResponse({"error": {"code": "billing_hard_limit_reached"}}, status_code=429)
+        client._get_httpx = lambda: _FakeHttpx(capture, rejected)
+        capped = client.generate_answer("sys", "user")
+        self.assertFalse(capped["success"])
+        self.assertNotIn("content", capped)
 
     def test_anthropic_answer_same_contract(self):
         capture: dict = {}

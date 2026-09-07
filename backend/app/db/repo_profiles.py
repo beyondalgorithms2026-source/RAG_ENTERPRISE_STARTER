@@ -396,9 +396,12 @@ def seed_default_profiles(settings) -> None:
         "provider": settings.LLM_PROVIDER,
         "model": settings.LLM_MODEL,
         "base_url": settings.LLM_BASE_URL,
-        "api_key": settings.LLM_API_KEY,
+        # Environment credentials are resolved in memory by the profile
+        # resolver; never copy a host secret into the profiles table.
+        "api_key": "",
         "timeout_s": settings.LLM_TIMEOUT_S,
         "temperature": 0.0,
+        "max_tokens": settings.LLM_MAX_TOKENS,
         "structured_output_mode": "prompt_json_only" if settings.LLM_MODEL == "gpt-oss:20b-cloud" else "native_json",
         "reasoning_effort": "none" if settings.LLM_MODEL == "gpt-oss:20b-cloud" else None,
     }, is_default=True)

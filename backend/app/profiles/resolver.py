@@ -127,7 +127,13 @@ def get_effective_llm() -> LLMProfileConfig:
         return override["llm"]
     config = _load_active_config("llm")
     if config:
-        return LLMProfileConfig(**config)
+        resolved = dict(config)
+        # A deliberately stored profile credential still wins for backwards
+        # compatibility. The deployment default remains blank in Postgres and
+        # receives the host environment secret only in process memory.
+        if not resolved.get("api_key"):
+            resolved["api_key"] = settings.LLM_API_KEY
+        return LLMProfileConfig(**resolved)
     return LLMProfileConfig(
         provider=settings.LLM_PROVIDER,
         model=settings.LLM_MODEL,
@@ -135,6 +141,7 @@ def get_effective_llm() -> LLMProfileConfig:
         api_key=settings.LLM_API_KEY,
         timeout_s=settings.LLM_TIMEOUT_S,
         temperature=0.0,
+        max_tokens=settings.LLM_MAX_TOKENS,
         structured_output_mode="prompt_json_only" if settings.LLM_MODEL == "gpt-oss:20b-cloud" else "native_json",
         reasoning_effort="none" if settings.LLM_MODEL == "gpt-oss:20b-cloud" else None,
     )

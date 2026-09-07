@@ -84,6 +84,47 @@ class DeploymentPortabilityAR8Tests(unittest.TestCase):
         self.assertNotIn("/Users/", compose)
         self.assertIn("rag_enterprise_pgdata", compose)  # portable named volume
 
+        blueprint = (REPO_ROOT / "render.yaml").read_text(encoding="utf-8")
+        self.assertIn("plan: free", blueprint)
+        self.assertIn("region: singapore", blueprint)
+        self.assertIn("autoDeployTrigger: checksPass", blueprint)
+        self.assertIn("--workers 1", blueprint)
+        self.assertIn("RATE_LIMIT_ASK_PER_MINUTE", blueprint)
+        self.assertIn("sync: false", blueprint)
+        self.assertNotIn("sk-", blueprint)
+
+        security = (REPO_ROOT / "backend/app/auth/service.py").read_text(encoding="utf-8")
+        self.assertIn('env == "demo" and mode != "none"', security)
+        self.assertIn('env == "demo" and settings.AUTH_NONE_ALLOW_UPLOAD', security)
+        self.assertIn('embedding_provider == "openai" and not settings.EMBEDDING_API_KEY', security)
+
+        from app.auth.service import AuthError, validate_security_posture
+        from app.core.config import settings
+
+        overrides = {
+            "APP_ENV": "demo",
+            "AUTH_MODE": "none",
+            "AUTH_NONE_ALLOW_UPLOAD": False,
+            "ACCESS_STRATEGY": "document_acl_with_time_bound_grants",
+            "FRONTEND_APP_URL": "https://demo.example.test",
+            "DATABASE_URL": "postgresql://demo:a-strong-test-password@db.example.test/demo",
+            "LLM_PROVIDER": "openai",
+            "LLM_API_KEY": "test-generation-key",
+            "EMBEDDING_PROVIDER": "openai",
+            "EMBEDDING_API_KEY": "test-embedding-key",
+        }
+        originals = {name: getattr(settings, name) for name in overrides}
+        try:
+            for name, value in overrides.items():
+                setattr(settings, name, value)
+            validate_security_posture()
+            settings.AUTH_NONE_ALLOW_UPLOAD = True
+            with self.assertRaisesRegex(AuthError, "AUTH_NONE_ALLOW_UPLOAD=false"):
+                validate_security_posture()
+        finally:
+            for name, value in originals.items():
+                setattr(settings, name, value)
+
     def test_readme_and_quickstart_have_no_absolute_machine_paths(self):
         for name in ("README.md", "docs/01_quickstart.md"):
             content = (REPO_ROOT / name).read_text(encoding="utf-8")

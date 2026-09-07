@@ -1,0 +1,87 @@
+services:
+  - type: web
+    name: rag-enterprise-starter-demo
+    runtime: python
+    plan: free
+    region: singapore
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    numInstances: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.12
+      - key: WEB_CONCURRENCY
+        value: 1
+      - key: APP_ENV
+        value: demo
+      - key: AUTH_ENABLED
+        value: false
+      - key: AUTH_MODE
+        value: none
+      - key: AUTH_NONE_ALLOW_UPLOAD
+        value: false
+      - key: ACCESS_STRATEGY
+        value: document_acl_with_time_bound_grants
+      - key: FRONTEND_APP_URL
+        value: https://beyondalgorithms2026-source.github.io/RAG_ENTERPRISE_LANGGRAPH_APP/evaluation/
+      - key: API_ALLOWED_ORIGINS
+        value: https://beyondalgorithms2026-source.github.io
+      - key: RATE_LIMIT_ENABLED
+        value: true
+      - key: RATE_LIMIT_ASK_PER_MINUTE
+        value: 3
+      - key: RATE_LIMIT_SEARCH_PER_MINUTE
+        value: 10
+      - key: RATE_LIMIT_UPLOAD_PER_MINUTE
+        value: 0
+      - key: RATE_LIMIT_ADMIN_EXPENSIVE_PER_MINUTE
+        value: 0
+      - key: CONNECTOR_SCHEDULER_ENABLED
+        value: false
+      - key: EMBEDDING_PROVIDER
+        value: openai
+      - key: EMBEDDING_MODEL
+        value: text-embedding-3-small
+      - key: EMBEDDING_DIMENSIONS
+        value: 384
+      - key: EMBEDDING_BASE_URL
+        value: https://api.openai.com/v1
+      - key: LLM_PROVIDER
+        value: openai
+      - key: LLM_MODEL
+        value: gpt-4o-mini-2024-07-18
+      - key: LLM_BASE_URL
+        value: https://api.openai.com
+      - key: LLM_TIMEOUT_S
+        value: 60
+      - key: LLM_MAX_TOKENS
+        value: 600
+      - key: LLM_COST_ALERT_USD
+        value: 0.01
+      - key: ENABLE_GRAPH
+        value: false
+      - key: ENABLE_TEMPORAL
+        value: false
+      - key: ENABLE_ONTOLOGY
+        value: false
+      - key: EXTRACT_ENTITIES
+        value: false
+      - key: EXTRACT_RELATIONS
+        value: false
+      - key: EXTRACT_TEMPORAL_METADATA
+        value: false
+      - key: BUILD_GRAPH_ON_INGEST
+        value: false
+      - key: ALLOW_LAZY_ENRICHMENT
+        value: false
+      - key: RERANK_ENABLED
+        value: false
+      - key: DATABASE_URL
+        sync: false
+      - key: EMBEDDING_API_KEY
+        sync: false
+      - key: LLM_API_KEY
+        sync: false

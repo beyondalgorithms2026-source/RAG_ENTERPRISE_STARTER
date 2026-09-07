@@ -41,10 +41,16 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str = "http://localhost:11434"
     LLM_MODEL: str = "gpt-oss:20b-cloud"
     LLM_TIMEOUT_S: int = 60
+    # Bound provider output so a single public-demo request cannot generate an
+    # unbounded bill. The provider project's own hard spend limit remains the
+    # final enforcement boundary.
+    LLM_MAX_TOKENS: int = 600
     LLM_API_KEY: str = ""
     OLLAMA_API_KEY: str = ""
 
     # Runtime/security posture
+    # "demo" is an internet-facing, synthetic-corpus-only posture. It keeps
+    # non-local transport protections while permitting anonymous research.
     APP_ENV: str = "local"
 
     # AR4: promotion eval enforcement. "" derives from APP_ENV (warn in local,

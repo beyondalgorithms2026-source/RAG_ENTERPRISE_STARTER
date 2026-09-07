@@ -108,6 +108,16 @@ def validate_security_posture() -> None:
         raise AuthError("unsafe_access_strategy", "ACCESS_STRATEGY=none is allowed only with AUTH_MODE=none.", 500)
     if env in {"staging", "prod", "production"} and mode in {"none", "dev"}:
         raise AuthError("unsafe_auth_mode", f"AUTH_MODE '{mode}' is not allowed when APP_ENV={env}.", 500)
+    if env == "demo" and mode != "none":
+        raise AuthError("unsafe_demo_auth_mode", "APP_ENV=demo requires AUTH_MODE=none.", 500)
+    if env == "demo" and access_strategy != "document_acl_with_time_bound_grants":
+        raise AuthError(
+            "unsafe_demo_access_strategy",
+            "APP_ENV=demo requires ACCESS_STRATEGY=document_acl_with_time_bound_grants.",
+            500,
+        )
+    if env == "demo" and settings.AUTH_NONE_ALLOW_UPLOAD:
+        raise AuthError("unsafe_demo_upload", "APP_ENV=demo requires AUTH_NONE_ALLOW_UPLOAD=false.", 500)
     if mode == "password":
         raise AuthError(
             "password_auth_not_implemented",
@@ -142,11 +152,12 @@ def validate_security_posture() -> None:
                 "These have no defaults so that no credential ships in source.",
                 500,
             )
-    if env in {"staging", "prod", "production"}:
+    if env in {"demo", "staging", "prod", "production"}:
         if not settings.FRONTEND_APP_URL.strip().lower().startswith("https://"):
-            raise AuthError("https_required", "FRONTEND_APP_URL must use HTTPS in staging/prod.", 500)
+            raise AuthError("https_required", "FRONTEND_APP_URL must use HTTPS in demo/staging/prod.", 500)
         if _database_password_is_weak(settings.DATABASE_URL):
-            raise AuthError("weak_database_secret", "DATABASE_URL must include a strong non-default password in staging/prod.", 500)
+            raise AuthError("weak_database_secret", "DATABASE_URL must include a strong non-default password in demo/staging/prod.", 500)
+    if env in {"staging", "prod", "production"}:
         if _is_default_secret(
             settings.AUTH_STATE_SIGNING_SECRET,
             {"rag-enterprise-starter-dev-state-secret"},
@@ -162,6 +173,13 @@ def validate_security_posture() -> None:
         provider = (settings.LLM_PROVIDER or "").strip().lower()
         if provider not in {"ollama", "local", ""} and not (settings.LLM_API_KEY or settings.OLLAMA_API_KEY):
             raise AuthError("missing_llm_api_key", "A provider API key is required for non-local LLM providers in staging/prod.", 500)
+    if env == "demo":
+        provider = (settings.LLM_PROVIDER or "").strip().lower()
+        if provider not in {"ollama", "local", ""} and not (settings.LLM_API_KEY or settings.OLLAMA_API_KEY):
+            raise AuthError("missing_llm_api_key", "A provider API key is required for non-local LLM providers in demo.", 500)
+        embedding_provider = (settings.EMBEDDING_PROVIDER or "").strip().lower()
+        if embedding_provider == "openai" and not settings.EMBEDDING_API_KEY:
+            raise AuthError("missing_embedding_api_key", "EMBEDDING_API_KEY is required for OpenAI embeddings in demo.", 500)
 
 
 def oidc_configured() -> bool:
