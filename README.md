@@ -8,6 +8,8 @@ hybrid retrieval, citations, and **access control enforced inside the retrieval 
 · **[Evaluation report](https://beyondalgorithms2026-source.github.io/RAG_ENTERPRISE_LANGGRAPH_APP/evaluation/)**
 · **[Live data-layer API](https://rag-enterprise-starter-demo.onrender.com/docs)**
 
+> Render Free may take about one minute to wake after inactivity; leave the tab open while it starts.
+
 ## The problem this solves
 
 Two people ask an internal assistant the same question about salary bands. One works in
