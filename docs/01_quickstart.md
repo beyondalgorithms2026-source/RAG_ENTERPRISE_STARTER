@@ -63,7 +63,7 @@ NEXT_PUBLIC_DEV_MODE=true
 cd backend
 uv venv .venv
 source .venv/bin/activate
-uv pip install -r requirements.txt
+uv pip install -r requirements-local.txt
 python -m app.db.migrate
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```

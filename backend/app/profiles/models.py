@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 
 class EmbeddingProfileConfig(BaseModel):
+    provider: str = "sentence_transformers"
     model: str
     dimension: int
     batch_size: int = 32

@@ -28,8 +28,13 @@ class Settings(BaseSettings):
     ALLOWED_UPLOAD_EXTENSIONS: tuple[str, ...] = ("pdf", "docx", "pptx", "xlsx", "eml", "txt", "md")
 
     # Embedding configuration
+    EMBEDDING_PROVIDER: str = "sentence_transformers"
     EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
+    EMBEDDING_DIMENSIONS: int = 384
     EMBEDDING_BATCH_SIZE: int = 32
+    EMBEDDING_API_KEY: str = ""
+    EMBEDDING_BASE_URL: str = "https://api.openai.com/v1"
+    EMBEDDING_TIMEOUT_S: int = 60
 
     # LLM configuration
     LLM_PROVIDER: str = "ollama"

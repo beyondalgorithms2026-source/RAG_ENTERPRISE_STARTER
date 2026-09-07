@@ -12,6 +12,7 @@ APPROVED_PROFILE_SEEDS: dict[str, list[dict[str, Any]]] = {
         {
             "name": "bge-small-en-v1_5",
             "config": {
+                "provider": "sentence_transformers",
                 "model": "BAAI/bge-small-en-v1.5",
                 "dimension": 384,
                 "batch_size": 32,
@@ -23,6 +24,7 @@ APPROVED_PROFILE_SEEDS: dict[str, list[dict[str, Any]]] = {
         {
             "name": "bge-base-en-v1_5",
             "config": {
+                "provider": "sentence_transformers",
                 "model": "BAAI/bge-base-en-v1.5",
                 "dimension": 768,
                 "batch_size": 16,
@@ -34,6 +36,7 @@ APPROVED_PROFILE_SEEDS: dict[str, list[dict[str, Any]]] = {
         {
             "name": "nomic-embed-text",
             "config": {
+                "provider": "sentence_transformers",
                 "model": "nomic-ai/nomic-embed-text-v1.5",
                 "dimension": 768,
                 "batch_size": 16,
@@ -368,9 +371,10 @@ def seed_default_profiles(settings) -> None:
         from app.embedding.embedder import get_expected_dim
         dim = get_expected_dim()
     except Exception:
-        dim = 384
+        dim = settings.EMBEDDING_DIMENSIONS
 
     upsert_profile("embedding", "default", {
+        "provider": settings.EMBEDDING_PROVIDER,
         "model": settings.EMBEDDING_MODEL,
         "dimension": dim,
         "batch_size": settings.EMBEDDING_BATCH_SIZE,

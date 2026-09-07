@@ -26,7 +26,9 @@ def process_embeddings(force: bool = False, limit: Optional[int] = None, source_
 
     expected_dim = get_expected_dim()
     stats["expected_dim"] = expected_dim
-    batch_size = settings.EMBEDDING_BATCH_SIZE
+    from app.profiles.resolver import get_effective_embedding
+
+    batch_size = get_effective_embedding().batch_size
 
     for batch_start in range(0, len(chunks), batch_size):
         batch = chunks[batch_start : batch_start + batch_size]

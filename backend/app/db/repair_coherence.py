@@ -35,15 +35,20 @@ def repair_embedding_registry_dimensions() -> list[dict]:
     with engine.connect() as conn:
         rows = conn.execute(
             text(
-                "SELECT name, config_json->>'model' AS model, (config_json->>'dimension')::int AS dimension "
+                "SELECT name, COALESCE(config_json->>'provider', 'sentence_transformers') AS provider, "
+                "config_json->>'model' AS model, (config_json->>'dimension')::int AS dimension "
                 "FROM profiles WHERE profile_type = 'embedding'"
             )
         ).fetchall()
-    for name, model, declared in rows:
+    for name, provider, model, declared in rows:
         if not model or declared is None:
             continue
         try:
-            actual = model_output_dimension(model)
+            actual = model_output_dimension(
+                model,
+                provider=provider,
+                declared_dimension=declared,
+            )
         except Exception as exc:
             logger.warning("Skipping dimension repair for %s: model %s not loadable (%s)", name, model, exc)
             continue

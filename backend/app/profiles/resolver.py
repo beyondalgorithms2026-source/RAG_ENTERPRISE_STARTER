@@ -93,14 +93,10 @@ def get_effective_embedding() -> EmbeddingProfileConfig:
     config = _load_active_config("embedding")
     if config:
         return EmbeddingProfileConfig(**config)
-    try:
-        from app.embedding.embedder import get_expected_dim
-        dim = get_expected_dim()
-    except Exception:
-        dim = 384
     return EmbeddingProfileConfig(
+        provider=settings.EMBEDDING_PROVIDER,
         model=settings.EMBEDDING_MODEL,
-        dimension=dim,
+        dimension=settings.EMBEDDING_DIMENSIONS,
         batch_size=settings.EMBEDDING_BATCH_SIZE,
     )
 

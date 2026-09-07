@@ -18,24 +18,51 @@ from app.db.db import engine
 _MODEL_DIM_CACHE: dict[str, int] = {}
 
 
-def model_output_dimension(model_name: str) -> int:
-    """Load the embedding model and return its actual output dimension."""
-    cached = _MODEL_DIM_CACHE.get(model_name)
+def model_output_dimension(
+    model_name: str,
+    *,
+    provider: str = "sentence_transformers",
+    declared_dimension: Optional[int] = None,
+) -> int:
+    """Return the provider output dimension.
+
+    Local models are probed directly. OpenAI text-embedding-3 requests carry an
+    explicit dimension, and the adapter rejects any response that does not match it.
+    """
+    normalized_provider = (provider or "sentence_transformers").strip().lower().replace("-", "_")
+    cache_key = f"{normalized_provider}:{model_name}:{declared_dimension or ''}"
+    cached = _MODEL_DIM_CACHE.get(cache_key)
     if cached is not None:
         return cached
+    if normalized_provider == "openai":
+        if not model_name.startswith("text-embedding-3-"):
+            raise ValueError(
+                "OpenAI embedding profiles with an explicit dimension require a text-embedding-3 model."
+            )
+        if declared_dimension is None or int(declared_dimension) <= 0:
+            raise ValueError("OpenAI embedding profiles require a positive declared dimension.")
+        dimension = int(declared_dimension)
+        _MODEL_DIM_CACHE[cache_key] = dimension
+        return dimension
+    if normalized_provider not in {"sentence_transformers", "local", "sentence_transformer"}:
+        raise ValueError(f"Unsupported embedding provider '{provider}'.")
     from sentence_transformers import SentenceTransformer
 
     model = SentenceTransformer(model_name)
     dimension = model.get_sentence_embedding_dimension()
     if dimension is None:
         dimension = len(model.encode(["dimension probe"], normalize_embeddings=True)[0])
-    _MODEL_DIM_CACHE[model_name] = int(dimension)
+    _MODEL_DIM_CACHE[cache_key] = int(dimension)
     return int(dimension)
 
 
-def validate_embedding_profile_dimension(*, model_name: str, declared_dimension: int) -> None:
+def validate_embedding_profile_dimension(
+    *, model_name: str, declared_dimension: int, provider: str = "sentence_transformers"
+) -> None:
     """Raise ValueError when a profile declares a dimension its model does not produce."""
-    actual = model_output_dimension(model_name)
+    actual = model_output_dimension(
+        model_name, provider=provider, declared_dimension=declared_dimension
+    )
     if int(declared_dimension) != actual:
         raise ValueError(
             f"Embedding profile declares dimension {declared_dimension} but model "
@@ -83,7 +110,11 @@ def check_embedding_dimension(*, load_model: bool = False) -> dict[str, Any]:
             model=profile.model,
         )
     if load_model:
-        actual = model_output_dimension(profile.model)
+        actual = model_output_dimension(
+            profile.model,
+            provider=profile.provider,
+            declared_dimension=profile.dimension,
+        )
         if actual != declared:
             return _invariant(
                 "embedding_dimension",
@@ -112,20 +143,26 @@ def check_embedding_registry_metadata(*, load_models: bool = False) -> dict[str,
     with engine.connect() as conn:
         rows = conn.execute(
             text(
-                "SELECT name, config_json->>'model' AS model, config_json->>'dimension' AS dimension "
+                "SELECT name, COALESCE(config_json->>'provider', 'sentence_transformers') AS provider, "
+                "config_json->>'model' AS model, config_json->>'dimension' AS dimension "
                 "FROM profiles WHERE profile_type = 'embedding' ORDER BY name"
             )
         ).fetchall()
     mismatches: list[dict[str, Any]] = []
     unchecked: list[str] = []
-    for name, model, dimension in rows:
+    for name, provider, model, dimension in rows:
         if not model or dimension is None:
             mismatches.append({"profile": name, "reason": "missing model or dimension"})
             continue
-        if not load_models and model not in _MODEL_DIM_CACHE:
+        cache_key = f"{provider}:{model}:{dimension or ''}"
+        if not load_models and cache_key not in _MODEL_DIM_CACHE:
             unchecked.append(name)
             continue
-        actual = model_output_dimension(model)
+        actual = model_output_dimension(
+            model,
+            provider=provider,
+            declared_dimension=int(dimension),
+        )
         if int(dimension) != actual:
             mismatches.append({"profile": name, "model": model, "declared": int(dimension), "model_output": actual})
     if mismatches:

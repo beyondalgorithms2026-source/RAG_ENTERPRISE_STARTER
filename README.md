@@ -79,10 +79,13 @@ Requires Docker and Python 3.12.
 ```bash
 docker compose up -d
 cd backend && python3.12 -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env      # then set the four secrets it names
+pip install -r requirements-local.txt
+cp .env.example .env      # then set secrets required by the modes you select
 python -m app.db.migrate
 ```
+
+`requirements-local.txt` includes the local sentence-transformers/PyTorch embedding
+stack. A hosted backend using OpenAI embeddings installs the leaner `requirements.txt`.
 
 The four secrets have **no defaults in source** — the application refuses to start
 without them and tells you which is missing. Generate each with:

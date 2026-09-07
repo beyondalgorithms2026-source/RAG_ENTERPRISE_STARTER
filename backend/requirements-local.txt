@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# Local embedding provider only. Hosted OpenAI embeddings use httpx from the
+# base requirements and do not install PyTorch/sentence-transformers.
+sentence-transformers>=3.0.0

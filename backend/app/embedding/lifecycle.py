@@ -69,10 +69,15 @@ def plan_embedding_swap(*, target_profile_name: str) -> dict[str, Any]:
 
     profile = _embedding_profile(target_profile_name)
     config = profile["config_json"] or {}
+    provider = str(config.get("provider") or "sentence_transformers")
     model = str(config.get("model") or "")
     declared = int(config.get("dimension") or 0)
-    validate_embedding_profile_dimension(model_name=model, declared_dimension=declared)
-    actual = model_output_dimension(model)
+    validate_embedding_profile_dimension(
+        provider=provider, model_name=model, declared_dimension=declared
+    )
+    actual = model_output_dimension(
+        model, provider=provider, declared_dimension=declared
+    )
     index_dim = index_vector_dimension()
     total, embedded = _chunk_counts()
     return {
