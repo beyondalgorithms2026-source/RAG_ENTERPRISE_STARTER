@@ -1,6 +1,6 @@
 # Operational Snapshot
 
-Last reconciled: 3 September 2026.
+Last reconciled: 7 September 2026.
 
 ## Current state
 
@@ -13,8 +13,9 @@ Last reconciled: 3 September 2026.
 
 ## Verified B004 posture
 
-- This is a self-built proof of concept, not a deployed service. It has no client
-  environment, users, or real workload evidence.
+- This is a self-built proof of concept with a public Render Free portfolio demo over
+  the 27-document synthetic corpus. It is not a production or client deployment and has
+  no client environment, real users, or real workload evidence.
 - Access control is enforced inside retrieval SQL.
 - Citation enforcement prefers a safe not-found result to an unsupported answer.
 - Retrieval augmentation is implemented but off by default; a backend operator enables
@@ -28,8 +29,9 @@ The published B004 measurements and their limitations are maintained in the
 ## Known limitations
 
 - Single-process runtime; multi-worker safety has not been implemented.
-- Hosted LLM provider contracts are transport-tested without live cloud credentials in
-  this environment.
+- The public demo uses a versioned GPT-4o Mini snapshot. Provider transport contracts
+  remain tested with simulated responses; the live D9 smoke checks are recorded in the
+  B004 build log.
 - Connector scheduling uses an in-process poller; live mailbox/archive synchronization
   is not implemented.
 - Provider API keys are write-only through the API and excluded from response/audit

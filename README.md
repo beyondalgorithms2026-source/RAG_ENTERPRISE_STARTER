@@ -6,6 +6,7 @@ hybrid retrieval, citations, and **access control enforced inside the retrieval 
 **This is one of three repositories.** Start here:
 **[Governed RAG — agent layer](https://github.com/beyondalgorithms2026-source/RAG_ENTERPRISE_LANGGRAPH_APP)**
 · **[Evaluation report](https://beyondalgorithms2026-source.github.io/RAG_ENTERPRISE_LANGGRAPH_APP/evaluation/)**
+· **[Live data-layer API](https://rag-enterprise-starter-demo.onrender.com/docs)**
 
 ## The problem this solves
 
@@ -51,8 +52,9 @@ have a database cannot pass by skipping everything.
 
 ## What this is NOT
 
-- **Not deployed anywhere.** A self-built proof of concept — no client environment, no
-  users, no real workload.
+- **Not a production or client deployment.** The public Render Free service is a
+  self-built portfolio demo over a 27-document synthetic corpus. It has no client
+  environment, real users, or real workload evidence.
 - **Not multi-tenant, and not multi-worker.** Single-process by design and guarded
   against being run otherwise.
 - **Agentic actions do not dispatch.** `send_email`, `send_slack` and
