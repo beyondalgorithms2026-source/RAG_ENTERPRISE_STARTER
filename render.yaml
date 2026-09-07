@@ -32,7 +32,9 @@ services:
       - key: RATE_LIMIT_ENABLED
         value: true
       - key: RATE_LIMIT_ASK_PER_MINUTE
-        value: 3
+        # One governed visitor question can make several recovery calls, and
+        # all hosted visitors share the governance service's Render egress IP.
+        value: 12
       - key: RATE_LIMIT_SEARCH_PER_MINUTE
         value: 10
       - key: RATE_LIMIT_UPLOAD_PER_MINUTE
