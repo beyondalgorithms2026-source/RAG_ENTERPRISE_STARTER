@@ -64,6 +64,32 @@ class SourceDownloadAR20Tests(SmokeTestBase):
         self.assertEqual(resp.status_code, 404)
         self.assertEqual(resp.json()["detail"]["error"], "source_file_not_found")
 
+        # The public portfolio seed is database-backed on its hosted service;
+        # its original generated files are intentionally not deployed. The
+        # reader endpoint reconstructs only that named synthetic pack from its
+        # ACL-filtered chunks, while ordinary missing files still fail above.
+        from app.db.repo_chunks import insert_chunks
+
+        demo_sid = self._seed_source(
+            storage_path="missing/public-demo.md",
+            file_name="public-demo.md",
+            size=40,
+            source_type="md",
+        )
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE sources SET source_metadata_json = CAST(:meta AS jsonb) WHERE id = :id"),
+                {"id": demo_sid, "meta": '{"seed_pack":"public_demo","title":"Public Demo"}'},
+            )
+        insert_chunks(
+            demo_sid,
+            [{"chunk_index": 0, "heading": "Policy", "chunk_text": "Policy\n\nSynthetic policy text."}],
+        )
+        public_resp = client.get(f"/corpus/{demo_sid}/file", headers={"Authorization": "Bearer t"})
+        self.assertEqual(public_resp.status_code, 200, msg=public_resp.text)
+        self.assertIn("# Public Demo", public_resp.text)
+        self.assertIn("Synthetic policy text.", public_resp.text)
+
     def test_download_unknown_source_is_404(self):
         client = self._admin_client()
         resp = client.get("/admin/sources/99999999/download", headers={"Authorization": "Bearer t"})

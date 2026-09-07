@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.auth.context import AuthenticatedUser, get_current_user
 from app.auth.dependencies import require_admin_user, require_connector_request_user
-from app.db.repo_chunks import fetch_chunk_context
+from app.db.repo_chunks import fetch_chunk_context, get_chunks_for_enrichment
 from app.db.repo_admin_audit import insert_admin_audit_event
 from app.db.repo_connectors import (
     DbConnectorRow,
@@ -546,6 +546,18 @@ def corpus_source_file_endpoint(source_id: int):
 
     absolute_path = _source_file_absolute_path(source.storage_path)
     if not absolute_path.exists():
+        metadata = source.source_metadata_json or {}
+        if metadata.get("seed_pack") == "public_demo":
+            chunks = get_chunks_for_enrichment(source_id)
+            body = "\n\n".join(str(chunk.get("chunk_text") or "").strip() for chunk in chunks).strip()
+            if body:
+                title = str(metadata.get("title") or source.file_name).strip()
+                rendered = f"# {title}\n\n{body}\n"
+                return PlainTextResponse(
+                    rendered,
+                    media_type="text/markdown",
+                    headers={"Content-Disposition": f'inline; filename="{source.file_name}"'},
+                )
         raise HTTPException(
             status_code=404,
             detail={"error": "source_file_not_found", "source_id": source_id, "storage_path": source.storage_path},
