@@ -34,13 +34,16 @@ supporting document in the corpus were refused.
 
 **[The full evaluation report is here.](https://beyondalgorithms2026-source.github.io/RAG_ENTERPRISE_LANGGRAPH_APP/evaluation/)**
 
-This repository's own suite has 36 test files. Twenty-two require a live migrated
-Postgres, because testing SQL-level access control against anything other than a real
-query planner proves very little. Those are skipped — visibly, with a reason — when no
-database is present.
+This repository's suite discovers 361 test methods across 35 test modules. Twenty-four
+modules require a live migrated Postgres, because testing SQL-level access control
+against anything other than a real query planner proves very little. Those are skipped
+— visibly, with a reason — when no database is present.
 
 ```
-Offline:  27 passed, 34 skipped, 0 failures
+Discovered: 361 test methods
+Without a database: 65 executed and passed
+Database-dependent: 296 methods, represented by 34 module/class skip events
+Failures or errors among the 65 executed tests: 0
 ```
 
 Set `RAG_REQUIRE_DB=1` to turn the skips into failures, so a CI job that is supposed to
