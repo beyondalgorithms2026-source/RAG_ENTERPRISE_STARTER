@@ -7,6 +7,9 @@ name = "rag-enterprise-starter"
 version = "0.1.0"
 description = "Data layer for the three-repository Governed RAG proof of concept: FastAPI backend, pgvector retrieval, SQL-level access control."
 requires-python = ">=3.10"
+# Dependency ownership is intentionally separate from this tooling configuration.
+# backend/requirements.txt is the runtime source of truth; requirements-local.txt adds
+# the local embedding stack used for development. Keep installation workflows there.
 
 [tool.ruff]
 target-version = "py310"
