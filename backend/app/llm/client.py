@@ -1,3 +1,5 @@
+from urllib.parse import quote
+
 from app.core.config import settings
 from app.core.logging import logger
 
@@ -55,7 +57,18 @@ def verify_llm_connection(*, update_global: bool = True) -> dict:
                 if update_global:
                     _llm_ready = False
                 return {"ready": False, "reason": reason}
-            if not provider.verify_models(response.json(), llm.model):
+            model_available = provider.verify_models(response.json(), llm.model)
+            if not model_available and str(llm.provider).strip().lower() == "openai":
+                # OpenAI's bulk model listing can omit an accessible dated
+                # snapshot for restricted project keys. Verify the exact model
+                # resource before failing readiness; this remains a read-only
+                # preflight and does not substitute a completion for readiness.
+                model_response = client.get(
+                    f"{base}/v1/models/{quote(llm.model, safe='')}",
+                    headers=provider.headers(llm, _auth_headers(llm.api_key)),
+                )
+                model_available = model_response.status_code == 200
+            if not model_available:
                 reason = f"Model '{llm.model}' was not found"
                 logger.error("LLM preflight at %s (%s): %s", base, provider.name, reason)
                 if update_global:

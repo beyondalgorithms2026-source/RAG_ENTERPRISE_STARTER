@@ -58,6 +58,25 @@ class _FakeHttpx:
         return _FakeClient(self._capture, self._response)
 
 
+class _SequencedGetClient(_FakeClient):
+    def __init__(self, capture, responses):
+        super().__init__(capture, responses[-1])
+        self._responses = iter(responses)
+
+    def get(self, url, headers=None):
+        self._capture.setdefault("get_urls", []).append(url)
+        return next(self._responses)
+
+
+class _SequencedGetHttpx(_FakeHttpx):
+    def __init__(self, capture, responses):
+        self._capture = capture
+        self._responses = responses
+
+    def Client(self, timeout=None):
+        return _SequencedGetClient(self._capture, self._responses)
+
+
 class ProviderRegistryAR9Tests(unittest.TestCase):
     def test_registry_resolves_providers_by_name(self):
         for name in ("openai", "ollama", "vllm", "azure_openai", "openai_compatible"):
@@ -95,6 +114,63 @@ class ProviderRegistryAR9Tests(unittest.TestCase):
         )
         self.assertEqual(payload["system"], "sys")
         self.assertEqual(payload["messages"], [{"role": "user", "content": "user"}])
+
+    def test_openai_preflight_checks_exact_snapshot_when_listing_omits_it(self):
+        capture: dict = {}
+        original_httpx = client._get_httpx
+        client._get_httpx = lambda: _SequencedGetHttpx(
+            capture,
+            [
+                _FakeResponse({"data": [{"id": "gpt-4o-mini"}]}),
+                _FakeResponse({"id": "gpt-4o-mini-2024-07-18"}),
+            ],
+        )
+        import app.profiles.resolver as resolver
+
+        original_resolver = resolver.get_effective_llm
+        resolver.get_effective_llm = lambda: LLMProfileConfig(
+            provider="openai",
+            model="gpt-4o-mini-2024-07-18",
+            base_url="https://api.openai.example",
+            api_key="sk-test",
+        )
+        try:
+            result = client.verify_llm_connection(update_global=False)
+        finally:
+            client._get_httpx = original_httpx
+            resolver.get_effective_llm = original_resolver
+
+        self.assertTrue(result["ready"])
+        self.assertEqual(
+            capture["get_urls"],
+            [
+                "https://api.openai.example/v1/models",
+                "https://api.openai.example/v1/models/gpt-4o-mini-2024-07-18",
+            ],
+        )
+
+    def test_non_openai_preflight_does_not_assume_exact_model_endpoint(self):
+        capture: dict = {}
+        original_httpx = client._get_httpx
+        client._get_httpx = lambda: _SequencedGetHttpx(
+            capture, [_FakeResponse({"data": [{"id": "other-model"}]})]
+        )
+        import app.profiles.resolver as resolver
+
+        original_resolver = resolver.get_effective_llm
+        resolver.get_effective_llm = lambda: LLMProfileConfig(
+            provider="vllm",
+            model="wanted-model",
+            base_url="https://vllm.example",
+        )
+        try:
+            result = client.verify_llm_connection(update_global=False)
+        finally:
+            client._get_httpx = original_httpx
+            resolver.get_effective_llm = original_resolver
+
+        self.assertFalse(result["ready"])
+        self.assertEqual(capture["get_urls"], ["https://vllm.example/v1/models"])
 
 
 class TwoProviderAnswerContractAR9Tests(unittest.TestCase):
