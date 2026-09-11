@@ -1,8 +1,12 @@
 # Contributing
 
 Thank you for improving the governed RAG data layer. Read `README.md`, `STATUS.md`,
-`AGENTS.md`, and `CLAUDE.md` before changing this repository. Those files define the
-current architecture, security invariants, and verification requirements.
+[`AGENTS.md`](../AGENTS.md), and `CLAUDE.md` before changing this repository. Also read
+the canonical
+[B004 engineering standard](https://github.com/beyondalgorithms2026-source/RAG_ENTERPRISE_LANGGRAPH_APP/blob/main/docs/ENGINEERING_STANDARDS.md).
+The local guides contain enough essential information for safe work when APP is
+unavailable; preserve the stricter rule when instructions overlap. These documents are
+contributor guidance, while named CI and test checks provide mechanical enforcement.
 
 The active backend is under `backend/` and the active operator console is under `web/`.
 Do not add new work to the legacy `frontend/` directory. Access control must remain in
@@ -75,6 +79,13 @@ for secrets, and audits Python dependencies.
 Never commit credentials, `.env` files, corpus data, or generated local reports. Ask
 before adding dependencies or changing authentication, access control, retrieval,
 embedding, or governance behaviour.
+
+P12 is APP's fast mocked evaluation-harness smoke test. P12B is the authoritative real
+APP → MCP → STARTER → PostgreSQL/pgvector 25-question gate. Quality-sensitive retrieval,
+embedding, prompt, ACL, citation, or answer/refusal changes must include the applicable
+evaluation evidence. Mocked tests do not prove live retrieval or SQL ACL enforcement.
+P12B baselines must never be automatically overwritten after regression; every baseline
+change must be explicit, justified, and owner/CODEOWNER-reviewed.
 
 ## Protected branch policy
 
