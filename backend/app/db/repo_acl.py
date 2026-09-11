@@ -3,7 +3,16 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.auth.access_strategy import (
+    active_direct_grant_fingerprint as active_direct_grant_fingerprint,
+)
+from app.auth.access_strategy import (
+    can_current_user_access_source as can_current_user_access_source,
+)
+from app.auth.access_strategy import (
     current_access_context,
+)
+from app.auth.access_strategy import (
+    local_dev_acl_bypass_enabled as local_dev_acl_bypass_enabled,
 )
 from app.auth.context import AuthenticatedUser
 from app.db.db import engine
