@@ -9,6 +9,10 @@ class PricingAR11Tests(SmokeTestBase):
     def test_token_estimator_and_cost(self):
         self.assertEqual(estimate_tokens("a" * 40), 10)
         self.assertEqual(cost_usd("gpt-4o-mini", 1000, 1000), round(0.00015 + 0.0006, 6))
+        self.assertEqual(
+            cost_usd("gpt-4.1-mini-2025-04-14", 1000, 1000),
+            round(0.0004 + 0.0016, 6),
+        )
         self.assertEqual(cost_usd("some-local-model", 1000, 1000), 0.0)  # unknown = free
 
     def test_estimated_usage_is_flagged(self):

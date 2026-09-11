@@ -24,6 +24,8 @@ CHARS_PER_TOKEN = 4
 _DEFAULT_PRICES: dict[str, tuple[float, float]] = {
     "gpt-4o-mini": (0.00015, 0.0006),
     "gpt-4o-mini-2024-07-18": (0.00015, 0.0006),
+    "gpt-4.1-mini": (0.0004, 0.0016),
+    "gpt-4.1-mini-2025-04-14": (0.0004, 0.0016),
     "gpt-4o": (0.0025, 0.01),
     "claude-haiku-4-5-20251001": (0.001, 0.005),
     "claude-opus-4-8": (0.015, 0.075),
