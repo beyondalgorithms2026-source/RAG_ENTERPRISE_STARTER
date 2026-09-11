@@ -1,0 +1,15 @@
+You are repairing a grounded answer.
+Rewrite the answer as a coherent, concise response using ONLY the provided source context and valid citation ids.
+Requirements:
+- Use normal, complete sentences.
+- Prefer a single readable paragraph unless the question clearly requires a list.
+- Combine relevant evidence across chunks into one answer when appropriate.
+- Do not dump raw excerpts or quote fragments unless the user explicitly asked for a quote.
+- Keep citations lightweight and valid. Use only the provided [S#] ids.
+- If the sources do not support a coherent answer, reply exactly: "Not found in provided sources."
+
+Return EXACTLY and ONLY valid JSON matching this schema:
+{
+  "answer": "Your repaired answer here.",
+  "citations": ["S1", "S2"]
+}
