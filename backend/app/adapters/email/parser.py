@@ -2,6 +2,7 @@ from email import policy
 from email.parser import BytesParser
 
 from bs4 import BeautifulSoup
+
 from app.adapters.models import ParsedAttachment, ParsedSourceDocument, ParsedSourcePart
 
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 from app.db.repo_corpora import get_corpus
 from app.db.repo_sources import get_source_by_id
@@ -20,7 +20,7 @@ class CorpusPolicy:
     attachment_aware: bool = False
     future_document_class_overrides: bool = True
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -73,12 +73,12 @@ _POLICIES: dict[str, CorpusPolicy] = {
 }
 
 
-def get_corpus_policy(policy_name: Optional[str]) -> CorpusPolicy:
+def get_corpus_policy(policy_name: str | None) -> CorpusPolicy:
     normalized = str(policy_name or "").strip().lower()
     return _POLICIES.get(normalized, _DEFAULT_POLICY)
 
 
-def resolve_policy_name_from_source_metadata(source_metadata: Optional[Dict[str, Any]]) -> str:
+def resolve_policy_name_from_source_metadata(source_metadata: dict[str, Any] | None) -> str:
     metadata = dict(source_metadata or {})
     explicit_policy = str(metadata.get("corpus_policy") or "").strip().lower()
     if explicit_policy:
@@ -96,11 +96,10 @@ def resolve_policy_name_from_source_metadata(source_metadata: Optional[Dict[str,
     return "default"
 
 
-def get_source_corpus_policy(source_id: Optional[int]) -> CorpusPolicy:
+def get_source_corpus_policy(source_id: int | None) -> CorpusPolicy:
     if source_id is None:
         return _DEFAULT_POLICY
     source = get_source_by_id(source_id)
     if source is None:
         return _DEFAULT_POLICY
     return get_corpus_policy(resolve_policy_name_from_source_metadata(source.source_metadata_json))
-

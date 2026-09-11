@@ -1,12 +1,17 @@
 import json
-from types import SimpleNamespace
 import unittest
+from types import SimpleNamespace
 
-import app.core_rag.answering as answering_module
 import app.core_rag.answer_strategy as strategy_module
-from app.core_rag.answering import AskRequest
+import app.core_rag.answering as answering_module
 from app.core_rag.answer_strategy import select_answer_strategy, try_structured_aggregation
-from app.core_rag.retrieval import SearchRequest, SearchResponse, SearchResultItem, _resolve_query_text
+from app.core_rag.answering import AskRequest
+from app.core_rag.retrieval import (
+    SearchRequest,
+    SearchResponse,
+    SearchResultItem,
+    _resolve_query_text,
+)
 
 
 class AnswerStrategyAutoRedoTests(unittest.TestCase):
@@ -52,7 +57,10 @@ class AnswerStrategyAutoRedoTests(unittest.TestCase):
             result = try_structured_aggregation(
                 question="What is total sales by region?",
                 raw_chunks=[chunk],
-                make_citation=lambda source_part, heading: {"source_part_id": source_part.id, "heading": heading},
+                make_citation=lambda source_part, heading: {
+                    "source_part_id": source_part.id,
+                    "heading": heading,
+                },
             )
         finally:
             strategy_module.list_source_parts = original_list_source_parts
@@ -90,7 +98,12 @@ class AnswerStrategyAutoRedoTests(unittest.TestCase):
         def fake_generate_answer(system_prompt, user_prompt):
             calls.append((system_prompt, user_prompt))
             if len(calls) == 1:
-                return {"success": True, "content": json.dumps({"answer": "Not found in provided sources.", "citations": []})}
+                return {
+                    "success": True,
+                    "content": json.dumps(
+                        {"answer": "Not found in provided sources.", "citations": []}
+                    ),
+                }
             return {
                 "success": True,
                 "content": json.dumps(
@@ -105,7 +118,10 @@ class AnswerStrategyAutoRedoTests(unittest.TestCase):
         answering_module._maybe_gate_sensitive_answer = lambda **kwargs: None
         try:
             response = answering_module._perform_ask_internal(
-                AskRequest(question="What seminar did Sam Walton enroll himself in in Poughkeepsie New York?", mode="hybrid")
+                AskRequest(
+                    question="What seminar did Sam Walton enroll himself in in Poughkeepsie New York?",
+                    mode="hybrid",
+                )
             )
         finally:
             answering_module.perform_search = original_perform_search
@@ -152,14 +168,21 @@ class AnswerStrategyAutoRedoTests(unittest.TestCase):
             mode="keyword",
             debug_info={
                 "request_id": "rent-repair-unit",
-                "exact_numeric_boost": {"hits": [{"chunk_id": 202, "score": 2.4, "terms": ["rent", "sales"]}]},
+                "exact_numeric_boost": {
+                    "hits": [{"chunk_id": 202, "score": 2.4, "terms": ["rent", "sales"]}]
+                },
             },
         )
 
         def fake_generate_answer(system_prompt, user_prompt):
             calls.append((system_prompt, user_prompt))
             if len(calls) == 1:
-                return {"success": True, "content": json.dumps({"answer": "Not found in provided sources.", "citations": []})}
+                return {
+                    "success": True,
+                    "content": json.dumps(
+                        {"answer": "Not found in provided sources.", "citations": []}
+                    ),
+                }
             self.assertIn("5 percent of sales", user_prompt)
             return {
                 "success": True,
@@ -175,7 +198,10 @@ class AnswerStrategyAutoRedoTests(unittest.TestCase):
         answering_module._maybe_gate_sensitive_answer = lambda **kwargs: None
         try:
             response = answering_module._perform_ask_internal(
-                AskRequest(question="What Percentage of Rent to Sales did Sam Waltons first Ben Franklin cost?", mode="keyword")
+                AskRequest(
+                    question="What Percentage of Rent to Sales did Sam Waltons first Ben Franklin cost?",
+                    mode="keyword",
+                )
             )
         finally:
             answering_module.perform_search = original_perform_search
@@ -223,7 +249,9 @@ class AnswerStrategyAutoRedoTests(unittest.TestCase):
             "content": json.dumps({"answer": "Unsupported answer", "citations": []}),
         }
         try:
-            response = answering_module._perform_ask_internal(AskRequest(question="What seminar did Sam Walton enroll in?", mode="hybrid"))
+            response = answering_module._perform_ask_internal(
+                AskRequest(question="What seminar did Sam Walton enroll in?", mode="hybrid")
+            )
         finally:
             answering_module.perform_search = original_perform_search
             answering_module.generate_answer = original_generate_answer

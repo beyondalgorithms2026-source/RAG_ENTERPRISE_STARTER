@@ -1,7 +1,8 @@
 import json
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any
 
 from app.api.ask import ask_endpoint
 from app.api.compare import compare_endpoint
@@ -9,23 +10,22 @@ from app.core.config import settings
 from app.core_rag.answering import AskRequest, CompareRequest
 from app.eval.retrieval_eval import PROJECT_ROOT, write_eval_report
 
-
 EVAL_FIXTURE_DIR = PROJECT_ROOT / "backend" / "tests" / "fixtures" / "eval"
 ANSWER_CASES_FILE = EVAL_FIXTURE_DIR / "answer_cases.json"
 COMPARE_CASES_FILE = EVAL_FIXTURE_DIR / "compare_cases.json"
 DEFAULT_REPORT_FILE = PROJECT_ROOT / "data" / "reports" / "eval_report_enriched.json"
 
 
-def load_answer_cases(path: Optional[Path] = None) -> List[Dict[str, Any]]:
+def load_answer_cases(path: Path | None = None) -> list[dict[str, Any]]:
     case_path = path or ANSWER_CASES_FILE
-    with open(case_path, "r", encoding="utf-8") as handle:
+    with open(case_path, encoding="utf-8") as handle:
         data = json.load(handle)
     return data if isinstance(data, list) else []
 
 
-def load_compare_cases(path: Optional[Path] = None) -> List[Dict[str, Any]]:
+def load_compare_cases(path: Path | None = None) -> list[dict[str, Any]]:
     case_path = path or COMPARE_CASES_FILE
-    with open(case_path, "r", encoding="utf-8") as handle:
+    with open(case_path, encoding="utf-8") as handle:
         data = json.load(handle)
     return data if isinstance(data, list) else []
 
@@ -41,7 +41,7 @@ def _temporary_value(target: Any, attr_name: str, value: Any) -> Iterator[None]:
 
 
 @contextmanager
-def _temporary_settings(overrides: Optional[Dict[str, Any]]) -> Iterator[None]:
+def _temporary_settings(overrides: dict[str, Any] | None) -> Iterator[None]:
     overrides = overrides or {}
     originals = {key: getattr(settings, key) for key in overrides}
     for key, value in overrides.items():
@@ -53,7 +53,9 @@ def _temporary_settings(overrides: Optional[Dict[str, Any]]) -> Iterator[None]:
             setattr(settings, key, value)
 
 
-def _check_common_expectations(*, payload: Dict[str, Any], expected: Dict[str, Any]) -> Dict[str, Any]:
+def _check_common_expectations(
+    *, payload: dict[str, Any], expected: dict[str, Any]
+) -> dict[str, Any]:
     observed = {
         "used_chunks_count": payload.get("used_chunks_count", 0),
         "citation_count": len(payload.get("citations", [])),
@@ -135,7 +137,7 @@ def _check_common_expectations(*, payload: Dict[str, Any], expected: Dict[str, A
     return {"passed": passed, "failures": failures, "observed": observed}
 
 
-def evaluate_answer_case(case: Dict[str, Any]) -> Dict[str, Any]:
+def evaluate_answer_case(case: dict[str, Any]) -> dict[str, Any]:
     import app.api.ask as ask_api_module
     import app.core_rag.answering as answering_module
 
@@ -152,7 +154,10 @@ def evaluate_answer_case(case: Dict[str, Any]) -> Dict[str, Any]:
                 with _temporary_value(
                     answering_module,
                     "generate_answer",
-                    lambda system_prompt, user_prompt: {"success": True, "content": mock_llm_content},
+                    lambda system_prompt, user_prompt: {
+                        "success": True,
+                        "content": mock_llm_content,
+                    },
                 ):
                     response = ask_endpoint(request)
 
@@ -168,7 +173,7 @@ def evaluate_answer_case(case: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def evaluate_compare_case(case: Dict[str, Any]) -> Dict[str, Any]:
+def evaluate_compare_case(case: dict[str, Any]) -> dict[str, Any]:
     import app.api.compare as compare_api_module
     import app.core_rag.answering as answering_module
 
@@ -185,7 +190,10 @@ def evaluate_compare_case(case: Dict[str, Any]) -> Dict[str, Any]:
                 with _temporary_value(
                     answering_module,
                     "generate_answer",
-                    lambda system_prompt, user_prompt: {"success": True, "content": mock_llm_content},
+                    lambda system_prompt, user_prompt: {
+                        "success": True,
+                        "content": mock_llm_content,
+                    },
                 ):
                     response = compare_endpoint(request)
 
@@ -203,10 +211,10 @@ def evaluate_compare_case(case: Dict[str, Any]) -> Dict[str, Any]:
 
 def run_enriched_eval(
     *,
-    answer_cases: List[Dict[str, Any]],
-    compare_cases: List[Dict[str, Any]],
-    report_path: Optional[Path] = None,
-) -> Dict[str, Any]:
+    answer_cases: list[dict[str, Any]],
+    compare_cases: list[dict[str, Any]],
+    report_path: Path | None = None,
+) -> dict[str, Any]:
     results = [evaluate_answer_case(case) for case in answer_cases]
     results.extend(evaluate_compare_case(case) for case in compare_cases)
     failures = [item for item in results if item["status"] == "FAIL"]

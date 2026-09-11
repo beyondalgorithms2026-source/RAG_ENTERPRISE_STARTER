@@ -1,13 +1,20 @@
-from tests.smoke_test_base import *
-
 from app.system_posture import system_posture
+from tests.smoke_test_base import *
 
 
 class SystemPostureAR15Tests(SmokeTestBase):
     """AR15: an admin can see every operationally relevant default/flag without
     reading the environment or the database."""
 
-    REQUIRED_SECTIONS = {"serving", "cache", "retrieval_defaults", "eval_enforcement", "workers", "rate_limits", "cost_governance"}
+    REQUIRED_SECTIONS = {
+        "serving",
+        "cache",
+        "retrieval_defaults",
+        "eval_enforcement",
+        "workers",
+        "rate_limits",
+        "cost_governance",
+    }
 
     def test_posture_has_all_sections_with_editable_metadata(self):
         posture = system_posture()
@@ -39,10 +46,9 @@ class SystemPostureAR15Tests(SmokeTestBase):
         self.assertIn("globally OFF", cache["headline"])
 
     def test_endpoint_returns_posture(self):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         run_migrations()
         client = TestClient(app)
@@ -50,7 +56,9 @@ class SystemPostureAR15Tests(SmokeTestBase):
         original_fn = main_module.authenticate_request
         try:
             settings.AUTH_ENABLED = True
-            main_module.authenticate_request = lambda request: AuthenticatedUser(user_id="ar15-admin", email="ar15@example.com", roles=["admin"], groups=["ops"])
+            main_module.authenticate_request = lambda request: AuthenticatedUser(
+                user_id="ar15-admin", email="ar15@example.com", roles=["admin"], groups=["ops"]
+            )
             response = client.get("/admin/system/posture", headers={"Authorization": "Bearer t"})
         finally:
             settings.AUTH_ENABLED = original_auth

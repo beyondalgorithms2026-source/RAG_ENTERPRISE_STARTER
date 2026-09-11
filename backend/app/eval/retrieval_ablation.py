@@ -7,7 +7,6 @@ from typing import Any
 from app.eval.metrics import evaluate_ranking
 from app.eval.pack_builder import PACKS_DIR
 
-
 CASES_PATH = PACKS_DIR / "AR14_retrieval_isolation_cases.json"
 REPORT_PATH = PACKS_DIR / "AR14_retrieval_ablation_report.json"
 AR3_BASELINE_PATH = PACKS_DIR / "AR3_baseline_report.json"
@@ -35,17 +34,19 @@ def _verdict(feature: str, baseline: dict[str, Any], variant: dict[str, Any]) ->
     feature_gain = None
     if feature == "mmr":
         feature_gain = round(float(variant["diversity"]) - float(baseline["diversity"]), 4)
-    qualifying_gain = (deltas["ndcg_at_10"] or 0.0) >= MIN_GAIN or (feature_gain or 0.0) >= MIN_GAIN
+    qualifying_gain = (deltas["ndcg_at_10"] or 0.0) >= MIN_GAIN or (
+        feature_gain or 0.0
+    ) >= MIN_GAIN
     passes = (
-        (deltas["recall_at_5"] or 0.0) >= 0.0
-        and (deltas["mrr"] or 0.0) >= 0.0
-        and qualifying_gain
+        (deltas["recall_at_5"] or 0.0) >= 0.0 and (deltas["mrr"] or 0.0) >= 0.0 and qualifying_gain
     )
     return {
         "name": variant["name"],
         "metrics": candidate_metrics,
         "deltas": deltas,
-        "feature_metric": {"name": "intra_list_diversity", "delta": feature_gain} if feature_gain is not None else None,
+        "feature_metric": {"name": "intra_list_diversity", "delta": feature_gain}
+        if feature_gain is not None
+        else None,
         "latency_ms": variant.get("latency_ms"),
         "passes": passes,
     }
@@ -71,9 +72,15 @@ def build_report(*, global_after: dict[str, Any] | None = None) -> dict[str, Any
     cases = json.loads(CASES_PATH.read_text(encoding="utf-8"))
     evidence = []
     for feature in cases["features"]:
-        relevant = {int(key): int(value) for key, value in (feature["baseline"].get("relevant") or {}).items()}
+        relevant = {
+            int(key): int(value)
+            for key, value in (feature["baseline"].get("relevant") or {}).items()
+        }
         baseline_metrics = _ranking_metrics(feature["baseline"], relevant)
-        variants = [_verdict(feature["feature"], feature["baseline"], variant) for variant in feature["variants"]]
+        variants = [
+            _verdict(feature["feature"], feature["baseline"], variant)
+            for variant in feature["variants"]
+        ]
         chosen = _choose(variants)
         evidence.append(
             {

@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
-from typing import Any, Iterator, Optional
+from typing import Any
 
 from app.core_rag.answering import AskRequest, AskResponse, perform_ask
 from app.db.repo_tuning_configs import build_resolved_profile_bundle
-from app.profiles.models import EmbeddingProfileConfig, LLMProfileConfig, RerankerProfileConfig, RetrievalProfileConfig
+from app.profiles.models import (
+    EmbeddingProfileConfig,
+    LLMProfileConfig,
+    RerankerProfileConfig,
+    RetrievalProfileConfig,
+)
 from app.profiles.resolver import (
-    get_effective_embedding,
-    get_effective_llm,
-    get_effective_reranker,
-    get_effective_retrieval,
     profile_overrides,
 )
 
@@ -21,7 +23,7 @@ from app.profiles.resolver import (
 # served candidate profiles. These thin wrappers preserve the existing call
 # sites (including app.eval.promotion_evidence).
 @contextmanager
-def _temporary_llm_profile(profile: Optional[LLMProfileConfig]) -> Iterator[None]:
+def _temporary_llm_profile(profile: LLMProfileConfig | None) -> Iterator[None]:
     if profile is None:
         yield
         return
@@ -30,7 +32,7 @@ def _temporary_llm_profile(profile: Optional[LLMProfileConfig]) -> Iterator[None
 
 
 @contextmanager
-def _temporary_embedding_profile(profile: Optional[EmbeddingProfileConfig]) -> Iterator[None]:
+def _temporary_embedding_profile(profile: EmbeddingProfileConfig | None) -> Iterator[None]:
     if profile is None:
         yield
         return
@@ -39,7 +41,7 @@ def _temporary_embedding_profile(profile: Optional[EmbeddingProfileConfig]) -> I
 
 
 @contextmanager
-def _temporary_retrieval_profile(profile: Optional[RetrievalProfileConfig]) -> Iterator[None]:
+def _temporary_retrieval_profile(profile: RetrievalProfileConfig | None) -> Iterator[None]:
     if profile is None:
         yield
         return
@@ -48,7 +50,7 @@ def _temporary_retrieval_profile(profile: Optional[RetrievalProfileConfig]) -> I
 
 
 @contextmanager
-def _temporary_reranker_profile(profile: Optional[RerankerProfileConfig]) -> Iterator[None]:
+def _temporary_reranker_profile(profile: RerankerProfileConfig | None) -> Iterator[None]:
     if profile is None:
         yield
         return
@@ -57,7 +59,7 @@ def _temporary_reranker_profile(profile: Optional[RerankerProfileConfig]) -> Ite
 
 
 @contextmanager
-def _temporary_chunk_cap(chunk_size_cap_chars: Optional[int]) -> Iterator[None]:
+def _temporary_chunk_cap(chunk_size_cap_chars: int | None) -> Iterator[None]:
     if not chunk_size_cap_chars:
         yield
         return
@@ -65,7 +67,9 @@ def _temporary_chunk_cap(chunk_size_cap_chars: Optional[int]) -> Iterator[None]:
         yield
 
 
-def _effective_selected_profiles(*, live_selected: dict[str, str], selected_profiles: Optional[dict[str, str]] = None) -> dict[str, str]:
+def _effective_selected_profiles(
+    *, live_selected: dict[str, str], selected_profiles: dict[str, str] | None = None
+) -> dict[str, str]:
     combined = dict(live_selected)
     for key, value in (selected_profiles or {}).items():
         token = str(value or "").strip()
@@ -85,7 +89,9 @@ def _profile_models_from_selected(selected_profiles: dict[str, str]) -> dict[str
     }
 
 
-def _profile_models_with_retrieval_override(selected_profiles: dict[str, str], retrieval_override_config: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+def _profile_models_with_retrieval_override(
+    selected_profiles: dict[str, str], retrieval_override_config: dict[str, Any] | None = None
+) -> dict[str, Any]:
     resolved = build_resolved_profile_bundle(selected_profiles, retrieval_override_config)
     return {
         "embedding": EmbeddingProfileConfig(**(resolved["embedding"]["config"] or {})),
@@ -97,7 +103,9 @@ def _profile_models_with_retrieval_override(selected_profiles: dict[str, str], r
 
 
 def _retrieval_summary(response: AskResponse) -> dict[str, Any]:
-    trace = ((response.debug_info or {}).get("retrieval_trace") or {}) if response.debug_info else {}
+    trace = (
+        ((response.debug_info or {}).get("retrieval_trace") or {}) if response.debug_info else {}
+    )
     return {
         "resolved_mode": response.mode,
         "retrieval_path": trace.get("retrieval_path_used"),
@@ -142,11 +150,13 @@ def _run_payload(
     llm_config: LLMProfileConfig,
     retrieval_config: RetrievalProfileConfig,
     reranker_config: RerankerProfileConfig,
-    chunk_size_cap_chars: Optional[int],
+    chunk_size_cap_chars: int | None,
 ) -> dict[str, Any]:
     retrieval_summary = _retrieval_summary(response)
     citations = [item.model_dump() for item in response.citations]
-    answer_generation_path = str((response.debug_info or {}).get("answer_generation_path") or "unknown")
+    answer_generation_path = str(
+        (response.debug_info or {}).get("answer_generation_path") or "unknown"
+    )
     return {
         "label": label,
         "status": "completed",
@@ -191,11 +201,11 @@ def _run_ask(
     llm_config: LLMProfileConfig,
     retrieval_config: RetrievalProfileConfig,
     reranker_config: RerankerProfileConfig,
-    embedding_config: Optional[EmbeddingProfileConfig],
-    temperature: Optional[float],
-    top_p: Optional[float],
-    chunk_size_cap_chars: Optional[int],
-    k_retrieval_count: Optional[int],
+    embedding_config: EmbeddingProfileConfig | None,
+    temperature: float | None,
+    top_p: float | None,
+    chunk_size_cap_chars: int | None,
+    k_retrieval_count: int | None,
 ) -> dict[str, Any]:
     candidate_llm = llm_config.model_copy(
         update={
@@ -235,18 +245,22 @@ def run_sandbox_compare(
     *,
     question: str,
     live_selected_profiles: dict[str, str],
-    selected_profiles: Optional[dict[str, str]] = None,
-    retrieval_override_config: Optional[dict[str, Any]] = None,
-    temperature: Optional[float] = None,
-    top_p: Optional[float] = None,
-    chunk_size_cap_chars: Optional[int] = None,
-    k_retrieval_count: Optional[int] = None,
+    selected_profiles: dict[str, str] | None = None,
+    retrieval_override_config: dict[str, Any] | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    chunk_size_cap_chars: int | None = None,
+    k_retrieval_count: int | None = None,
 ) -> dict[str, Any]:
     live_selected = _effective_selected_profiles(live_selected=live_selected_profiles)
-    candidate_selected = _effective_selected_profiles(live_selected=live_selected_profiles, selected_profiles=selected_profiles)
+    candidate_selected = _effective_selected_profiles(
+        live_selected=live_selected_profiles, selected_profiles=selected_profiles
+    )
 
     live_models = _profile_models_from_selected(live_selected)
-    candidate_models = _profile_models_with_retrieval_override(candidate_selected, retrieval_override_config)
+    candidate_models = _profile_models_with_retrieval_override(
+        candidate_selected, retrieval_override_config
+    )
 
     live_run = _run_ask(
         question=question,
@@ -272,7 +286,7 @@ def run_sandbox_compare(
     if retrieval_override_config and "retrieval" not in changed_profile_types:
         changed_profile_types.append("retrieval")
 
-    candidate_run: Optional[dict[str, Any]]
+    candidate_run: dict[str, Any] | None
     if candidate_selected.get("embedding") != live_selected.get("embedding"):
         warning = {
             "code": "embedding_scope_later_enhancement",
@@ -294,7 +308,9 @@ def run_sandbox_compare(
             "generation_summary": {
                 "provider": candidate_models["llm"].provider,
                 "model": candidate_models["llm"].model,
-                "temperature": float(temperature if temperature is not None else candidate_models["llm"].temperature),
+                "temperature": float(
+                    temperature if temperature is not None else candidate_models["llm"].temperature
+                ),
                 "top_p": float(top_p if top_p is not None else candidate_models["llm"].top_p),
                 "max_tokens": candidate_models["llm"].max_tokens,
             },
@@ -323,23 +339,43 @@ def run_sandbox_compare(
             k_retrieval_count=k_retrieval_count,
         )
 
-    candidate_latency = candidate_run["latency_ms"] if candidate_run and candidate_run["status"] == "completed" else None
-    candidate_citations = candidate_run["citation_count"] if candidate_run and candidate_run["status"] == "completed" else None
-    candidate_chunks = candidate_run["used_chunks_count"] if candidate_run and candidate_run["status"] == "completed" else None
+    candidate_latency = (
+        candidate_run["latency_ms"]
+        if candidate_run and candidate_run["status"] == "completed"
+        else None
+    )
+    candidate_citations = (
+        candidate_run["citation_count"]
+        if candidate_run and candidate_run["status"] == "completed"
+        else None
+    )
+    candidate_chunks = (
+        candidate_run["used_chunks_count"]
+        if candidate_run and candidate_run["status"] == "completed"
+        else None
+    )
 
     # AR11: token/cost deltas alongside latency.
     def _usage(run):
         return ((run or {}).get("retrieval_summary") or {}).get("generation_usage") or {}
 
     live_usage = _usage(live_run)
-    candidate_usage = _usage(candidate_run) if candidate_run and candidate_run["status"] == "completed" else {}
+    candidate_usage = (
+        _usage(candidate_run) if candidate_run and candidate_run["status"] == "completed" else {}
+    )
     cost_delta = (
-        round(float(candidate_usage.get("cost_usd") or 0.0) - float(live_usage.get("cost_usd") or 0.0), 6)
+        round(
+            float(candidate_usage.get("cost_usd") or 0.0)
+            - float(live_usage.get("cost_usd") or 0.0),
+            6,
+        )
         if candidate_usage
         else None
     )
     token_delta = (
-        int(candidate_usage.get("total_tokens") or 0) - int(live_usage.get("total_tokens") or 0) if candidate_usage else None
+        int(candidate_usage.get("total_tokens") or 0) - int(live_usage.get("total_tokens") or 0)
+        if candidate_usage
+        else None
     )
 
     return {
@@ -347,17 +383,39 @@ def run_sandbox_compare(
         "candidate_run": candidate_run,
         "summary": {
             "changed_profile_types": changed_profile_types,
-            "latency_delta_ms": candidate_latency - live_run["latency_ms"] if candidate_latency is not None else None,
-            "citation_count_delta": candidate_citations - live_run["citation_count"] if candidate_citations is not None else None,
-            "used_chunk_delta": candidate_chunks - live_run["used_chunks_count"] if candidate_chunks is not None else None,
+            "latency_delta_ms": candidate_latency - live_run["latency_ms"]
+            if candidate_latency is not None
+            else None,
+            "citation_count_delta": candidate_citations - live_run["citation_count"]
+            if candidate_citations is not None
+            else None,
+            "used_chunk_delta": candidate_chunks - live_run["used_chunks_count"]
+            if candidate_chunks is not None
+            else None,
             "live_retrieval_path": (live_run["retrieval_summary"] or {}).get("retrieval_path"),
-            "candidate_retrieval_path": (candidate_run["retrieval_summary"] or {}).get("retrieval_path") if candidate_run else None,
+            "candidate_retrieval_path": (candidate_run["retrieval_summary"] or {}).get(
+                "retrieval_path"
+            )
+            if candidate_run
+            else None,
             "live_mode": live_run["mode"],
             "candidate_mode": candidate_run["mode"] if candidate_run else None,
-            "live_answer_path": ((live_run["retrieval_summary"] or {}).get("answer_generation_path")),
-            "candidate_answer_path": ((candidate_run["retrieval_summary"] or {}).get("answer_generation_path")) if candidate_run else None,
-            "live_transform_summary": (live_run["retrieval_summary"] or {}).get("transform_summary"),
-            "candidate_transform_summary": (candidate_run["retrieval_summary"] or {}).get("transform_summary") if candidate_run else None,
+            "live_answer_path": (
+                (live_run["retrieval_summary"] or {}).get("answer_generation_path")
+            ),
+            "candidate_answer_path": (
+                (candidate_run["retrieval_summary"] or {}).get("answer_generation_path")
+            )
+            if candidate_run
+            else None,
+            "live_transform_summary": (live_run["retrieval_summary"] or {}).get(
+                "transform_summary"
+            ),
+            "candidate_transform_summary": (candidate_run["retrieval_summary"] or {}).get(
+                "transform_summary"
+            )
+            if candidate_run
+            else None,
             "live_generation_usage": live_usage,
             "candidate_generation_usage": candidate_usage,
             "cost_delta_usd": cost_delta,

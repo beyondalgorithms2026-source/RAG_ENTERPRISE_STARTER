@@ -4,18 +4,16 @@ import hmac
 import json
 import secrets
 import time
-from typing import Any, Optional
-from urllib.parse import urlencode
-from urllib.parse import urlparse
+from typing import Any
+from urllib.parse import urlencode, urlparse
 
 import httpx
 import jwt
 from fastapi import Request
 
-from app.auth.context import AuthenticatedUser
 from app.auth.admin_modules import ADMIN_MODULES, SCENARIO_ADMIN_MODULE_PRESETS
+from app.auth.context import AuthenticatedUser
 from app.core.config import settings
-
 
 _CACHE_TTL_S = 300
 _metadata_cache: dict[str, tuple[float, dict[str, Any]]] = {}
@@ -86,28 +84,61 @@ def _database_password_is_weak(database_url: str) -> bool:
     parsed = urlparse(database_url or "")
     if not parsed.password:
         return True
-    return parsed.password in {"password", "postgres", "rag_enterprise_starter_dev_pass"} or len(parsed.password) < 16
+    return (
+        parsed.password in {"password", "postgres", "rag_enterprise_starter_dev_pass"}
+        or len(parsed.password) < 16
+    )
 
 
 def validate_security_posture() -> None:
     mode = auth_mode()
     env = app_env()
-    access_strategy = (settings.ACCESS_STRATEGY or "document_acl_with_time_bound_grants").strip().lower()
+    access_strategy = (
+        (settings.ACCESS_STRATEGY or "document_acl_with_time_bound_grants").strip().lower()
+    )
     scenario_profile = (settings.SCENARIO_PROFILE or "enterprise_oidc_acl").strip().lower()
-    admin_modules_override = {item.strip().lower() for item in (settings.ADMIN_MODULES_ENABLED or "").split(",") if item.strip()}
+    admin_modules_override = {
+        item.strip().lower()
+        for item in (settings.ADMIN_MODULES_ENABLED or "").split(",")
+        if item.strip()
+    }
     if mode not in {"none", "dev", "password", "oidc"}:
         raise AuthError("unsupported_auth_mode", f"AUTH_MODE '{mode}' is not supported.", 500)
-    if access_strategy not in {"none", "employee_all", "corpus_level", "document_acl", "document_acl_with_time_bound_grants"}:
-        raise AuthError("unsupported_access_strategy", f"ACCESS_STRATEGY '{access_strategy}' is not supported.", 500)
+    if access_strategy not in {
+        "none",
+        "employee_all",
+        "corpus_level",
+        "document_acl",
+        "document_acl_with_time_bound_grants",
+    }:
+        raise AuthError(
+            "unsupported_access_strategy",
+            f"ACCESS_STRATEGY '{access_strategy}' is not supported.",
+            500,
+        )
     if scenario_profile not in SCENARIO_ADMIN_MODULE_PRESETS:
-        raise AuthError("unsupported_scenario_profile", f"SCENARIO_PROFILE '{scenario_profile}' is not supported.", 500)
+        raise AuthError(
+            "unsupported_scenario_profile",
+            f"SCENARIO_PROFILE '{scenario_profile}' is not supported.",
+            500,
+        )
     unknown_admin_modules = sorted(admin_modules_override - set(ADMIN_MODULES))
     if unknown_admin_modules:
-        raise AuthError("unsupported_admin_module", f"ADMIN_MODULES_ENABLED contains unsupported modules: {', '.join(unknown_admin_modules)}.", 500)
+        raise AuthError(
+            "unsupported_admin_module",
+            f"ADMIN_MODULES_ENABLED contains unsupported modules: {', '.join(unknown_admin_modules)}.",
+            500,
+        )
     if access_strategy == "none" and mode != "none":
-        raise AuthError("unsafe_access_strategy", "ACCESS_STRATEGY=none is allowed only with AUTH_MODE=none.", 500)
+        raise AuthError(
+            "unsafe_access_strategy",
+            "ACCESS_STRATEGY=none is allowed only with AUTH_MODE=none.",
+            500,
+        )
     if env in {"staging", "prod", "production"} and mode in {"none", "dev"}:
-        raise AuthError("unsafe_auth_mode", f"AUTH_MODE '{mode}' is not allowed when APP_ENV={env}.", 500)
+        raise AuthError(
+            "unsafe_auth_mode", f"AUTH_MODE '{mode}' is not allowed when APP_ENV={env}.", 500
+        )
     if env == "demo" and mode != "none":
         raise AuthError("unsafe_demo_auth_mode", "APP_ENV=demo requires AUTH_MODE=none.", 500)
     if env == "demo" and access_strategy != "document_acl_with_time_bound_grants":
@@ -117,7 +148,9 @@ def validate_security_posture() -> None:
             500,
         )
     if env == "demo" and settings.AUTH_NONE_ALLOW_UPLOAD:
-        raise AuthError("unsafe_demo_upload", "APP_ENV=demo requires AUTH_NONE_ALLOW_UPLOAD=false.", 500)
+        raise AuthError(
+            "unsafe_demo_upload", "APP_ENV=demo requires AUTH_NONE_ALLOW_UPLOAD=false.", 500
+        )
     if mode == "password":
         raise AuthError(
             "password_auth_not_implemented",
@@ -125,7 +158,11 @@ def validate_security_posture() -> None:
             500,
         )
     if mode == "dev" and not local_runtime_enabled():
-        raise AuthError("dev_auth_not_allowed", "Local dev auth is only available when APP_ENV is local/dev.", 500)
+        raise AuthError(
+            "dev_auth_not_allowed",
+            "Local dev auth is only available when APP_ENV is local/dev.",
+            500,
+        )
     # These have no source defaults by design. Refuse to start rather than fall
     # back to a value a reader of this repository would already know.
     if mode in {"dev", "oidc"} and not settings.AUTH_STATE_SIGNING_SECRET.strip():
@@ -154,32 +191,64 @@ def validate_security_posture() -> None:
             )
     if env in {"demo", "staging", "prod", "production"}:
         if not settings.FRONTEND_APP_URL.strip().lower().startswith("https://"):
-            raise AuthError("https_required", "FRONTEND_APP_URL must use HTTPS in demo/staging/prod.", 500)
+            raise AuthError(
+                "https_required", "FRONTEND_APP_URL must use HTTPS in demo/staging/prod.", 500
+            )
         if _database_password_is_weak(settings.DATABASE_URL):
-            raise AuthError("weak_database_secret", "DATABASE_URL must include a strong non-default password in demo/staging/prod.", 500)
+            raise AuthError(
+                "weak_database_secret",
+                "DATABASE_URL must include a strong non-default password in demo/staging/prod.",
+                500,
+            )
     if env in {"staging", "prod", "production"}:
         if _is_default_secret(
             settings.AUTH_STATE_SIGNING_SECRET,
             {"rag-enterprise-starter-dev-state-secret"},
         ):
-            raise AuthError("weak_auth_state_secret", "AUTH_STATE_SIGNING_SECRET must be strong in staging/prod.", 500)
+            raise AuthError(
+                "weak_auth_state_secret",
+                "AUTH_STATE_SIGNING_SECRET must be strong in staging/prod.",
+                500,
+            )
         if _is_default_secret(
             settings.DEV_LOCAL_JWT_SECRET,
             {"rag-enterprise-local-dev-jwt-secret"},
         ):
-            raise AuthError("weak_dev_jwt_secret", "DEV_LOCAL_JWT_SECRET must be strong in staging/prod.", 500)
+            raise AuthError(
+                "weak_dev_jwt_secret", "DEV_LOCAL_JWT_SECRET must be strong in staging/prod.", 500
+            )
         if mode == "oidc" and _is_default_secret(settings.OIDC_CLIENT_SECRET, {""}):
-            raise AuthError("weak_oidc_client_secret", "OIDC_CLIENT_SECRET must be configured in staging/prod OIDC mode.", 500)
+            raise AuthError(
+                "weak_oidc_client_secret",
+                "OIDC_CLIENT_SECRET must be configured in staging/prod OIDC mode.",
+                500,
+            )
         provider = (settings.LLM_PROVIDER or "").strip().lower()
-        if provider not in {"ollama", "local", ""} and not (settings.LLM_API_KEY or settings.OLLAMA_API_KEY):
-            raise AuthError("missing_llm_api_key", "A provider API key is required for non-local LLM providers in staging/prod.", 500)
+        if provider not in {"ollama", "local", ""} and not (
+            settings.LLM_API_KEY or settings.OLLAMA_API_KEY
+        ):
+            raise AuthError(
+                "missing_llm_api_key",
+                "A provider API key is required for non-local LLM providers in staging/prod.",
+                500,
+            )
     if env == "demo":
         provider = (settings.LLM_PROVIDER or "").strip().lower()
-        if provider not in {"ollama", "local", ""} and not (settings.LLM_API_KEY or settings.OLLAMA_API_KEY):
-            raise AuthError("missing_llm_api_key", "A provider API key is required for non-local LLM providers in demo.", 500)
+        if provider not in {"ollama", "local", ""} and not (
+            settings.LLM_API_KEY or settings.OLLAMA_API_KEY
+        ):
+            raise AuthError(
+                "missing_llm_api_key",
+                "A provider API key is required for non-local LLM providers in demo.",
+                500,
+            )
         embedding_provider = (settings.EMBEDDING_PROVIDER or "").strip().lower()
         if embedding_provider == "openai" and not settings.EMBEDDING_API_KEY:
-            raise AuthError("missing_embedding_api_key", "EMBEDDING_API_KEY is required for OpenAI embeddings in demo.", 500)
+            raise AuthError(
+                "missing_embedding_api_key",
+                "EMBEDDING_API_KEY is required for OpenAI embeddings in demo.",
+                500,
+            )
 
 
 def oidc_configured() -> bool:
@@ -199,7 +268,7 @@ def _resolve_discovery_url() -> str:
     return ""
 
 
-def _cached_get(cache: dict[str, tuple[float, Any]], key: str) -> Optional[Any]:
+def _cached_get(cache: dict[str, tuple[float, Any]], key: str) -> Any | None:
     entry = cache.get(key)
     if entry and (time.time() - entry[0]) < _CACHE_TTL_S:
         return entry[1]
@@ -214,7 +283,9 @@ def _cached_set(cache: dict[str, tuple[float, Any]], key: str, value: Any) -> An
 def get_oidc_metadata() -> dict[str, Any]:
     discovery_url = _resolve_discovery_url()
     if not discovery_url:
-        raise AuthError("oidc_not_configured", "OIDC discovery URL or issuer is not configured", 503)
+        raise AuthError(
+            "oidc_not_configured", "OIDC discovery URL or issuer is not configured", 503
+        )
     cached = _cached_get(_metadata_cache, discovery_url)
     if cached is not None:
         return cached
@@ -236,7 +307,7 @@ def _get_jwk_client() -> Any:
     return _cached_set(_jwk_client_cache, jwks_uri, jwt.PyJWKClient(jwks_uri))
 
 
-def _audience() -> Optional[str]:
+def _audience() -> str | None:
     return settings.OIDC_AUDIENCE.strip() or settings.OIDC_CLIENT_ID.strip() or None
 
 
@@ -245,7 +316,12 @@ def _allowed_algorithms() -> list[str]:
 
 
 def _get_roles(claims: dict[str, Any]) -> list[str]:
-    raw_value = claims.get(settings.OIDC_ROLE_CLAIM) or claims.get("roles") or claims.get("role") or claims.get("groups")
+    raw_value = (
+        claims.get(settings.OIDC_ROLE_CLAIM)
+        or claims.get("roles")
+        or claims.get("role")
+        or claims.get("groups")
+    )
     extracted: list[str]
     if raw_value is None:
         extracted = []
@@ -294,7 +370,7 @@ def validate_access_token(token: str) -> AuthenticatedUser:
     except AuthError:
         raise
     except Exception as exc:
-        raise AuthError("invalid_token", f"Token validation failed: {exc}")
+        raise AuthError("invalid_token", f"Token validation failed: {exc}") from exc
 
     return AuthenticatedUser(
         user_id=str(claims.get("sub")),
@@ -336,7 +412,7 @@ def _local_dev_users() -> dict[str, dict[str, Any]]:
     }
 
 
-def authenticate_local_dev_user(email: str, password: str) -> Optional[AuthenticatedUser]:
+def authenticate_local_dev_user(email: str, password: str) -> AuthenticatedUser | None:
     candidate = _local_dev_users().get(email.strip().lower())
     if not candidate:
         return None
@@ -349,15 +425,25 @@ def build_local_dev_user(
     *,
     user_id: str,
     email: str,
-    name: Optional[str] = None,
-    roles: Optional[list[str]] = None,
-    groups: Optional[list[str]] = None,
-    raw_claims: Optional[dict[str, Any]] = None,
+    name: str | None = None,
+    roles: list[str] | None = None,
+    groups: list[str] | None = None,
+    raw_claims: dict[str, Any] | None = None,
 ) -> AuthenticatedUser:
     normalized_email = email.strip().lower()
-    display_name = (name or normalized_email.split("@", 1)[0].replace("-", " ").replace("_", " ").title()).strip() or normalized_email
-    normalized_roles = sorted({str(role or "").strip().lower() for role in (roles or ["user"]) if str(role or "").strip()}) or ["user"]
-    normalized_groups = sorted({str(group or "").strip() for group in (groups or []) if str(group or "").strip()})
+    display_name = (
+        name or normalized_email.split("@", 1)[0].replace("-", " ").replace("_", " ").title()
+    ).strip() or normalized_email
+    normalized_roles = sorted(
+        {
+            str(role or "").strip().lower()
+            for role in (roles or ["user"])
+            if str(role or "").strip()
+        }
+    ) or ["user"]
+    normalized_groups = sorted(
+        {str(group or "").strip() for group in (groups or []) if str(group or "").strip()}
+    )
     claims = {"auth_mode": "dev", **(raw_claims or {})}
     return AuthenticatedUser(
         user_id=user_id.strip(),
@@ -395,7 +481,7 @@ def validate_local_dev_token(token: str) -> AuthenticatedUser:
             options={"require": ["exp", "iat", "sub"], "verify_aud": False},
         )
     except Exception as exc:
-        raise AuthError("invalid_token", f"Local dev token validation failed: {exc}")
+        raise AuthError("invalid_token", f"Local dev token validation failed: {exc}") from exc
     return AuthenticatedUser(
         user_id=str(claims.get("sub")),
         email=claims.get("email"),
@@ -422,7 +508,11 @@ def _urlsafe_b64(data: bytes) -> str:
 
 
 def _state_secret() -> str:
-    return settings.AUTH_STATE_SIGNING_SECRET or settings.OIDC_CLIENT_SECRET or settings.OIDC_CLIENT_ID
+    return (
+        settings.AUTH_STATE_SIGNING_SECRET
+        or settings.OIDC_CLIENT_SECRET
+        or settings.OIDC_CLIENT_ID
+    )
 
 
 def create_state(*, next_path: str) -> str:
@@ -432,7 +522,9 @@ def create_state(*, next_path: str) -> str:
         "exp": int(time.time()) + 600,
     }
     encoded = _urlsafe_b64(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
-    signature = _urlsafe_b64(hmac.new(_state_secret().encode("utf-8"), encoded.encode("utf-8"), hashlib.sha256).digest())
+    signature = _urlsafe_b64(
+        hmac.new(_state_secret().encode("utf-8"), encoded.encode("utf-8"), hashlib.sha256).digest()
+    )
     return f"{encoded}.{signature}"
 
 
@@ -440,8 +532,10 @@ def verify_state(state: str) -> dict[str, Any]:
     try:
         encoded, signature = state.split(".", 1)
     except ValueError:
-        raise AuthError("invalid_state", "OIDC state payload is malformed", 400)
-    expected = _urlsafe_b64(hmac.new(_state_secret().encode("utf-8"), encoded.encode("utf-8"), hashlib.sha256).digest())
+        raise AuthError("invalid_state", "OIDC state payload is malformed", 400) from None
+    expected = _urlsafe_b64(
+        hmac.new(_state_secret().encode("utf-8"), encoded.encode("utf-8"), hashlib.sha256).digest()
+    )
     if not hmac.compare_digest(signature, expected):
         raise AuthError("invalid_state", "OIDC state signature is invalid", 400)
     padded = encoded + "=" * (-len(encoded) % 4)
@@ -455,7 +549,11 @@ def build_login_url(*, next_path: str) -> tuple[str, str]:
     metadata = get_oidc_metadata()
     authorization_endpoint = metadata.get("authorization_endpoint")
     if not authorization_endpoint:
-        raise AuthError("oidc_authorization_missing", "OIDC metadata does not contain authorization_endpoint", 503)
+        raise AuthError(
+            "oidc_authorization_missing",
+            "OIDC metadata does not contain authorization_endpoint",
+            503,
+        )
     state = create_state(next_path=next_path)
     query = urlencode(
         {
@@ -488,7 +586,7 @@ def exchange_code_for_token(code: str) -> dict[str, Any]:
         return response.json()
 
 
-def token_from_request(request: Request) -> Optional[str]:
+def token_from_request(request: Request) -> str | None:
     authorization = request.headers.get("Authorization", "").strip()
     if authorization.lower().startswith("bearer "):
         return authorization.split(" ", 1)[1].strip()
@@ -496,7 +594,7 @@ def token_from_request(request: Request) -> Optional[str]:
     return cookie_token.strip() if cookie_token else None
 
 
-def authenticate_request(request: Request) -> Optional[AuthenticatedUser]:
+def authenticate_request(request: Request) -> AuthenticatedUser | None:
     if not auth_enabled():
         return None
     token = token_from_request(request)

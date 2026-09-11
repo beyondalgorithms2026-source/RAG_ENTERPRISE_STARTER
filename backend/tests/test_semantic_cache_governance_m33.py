@@ -1,8 +1,6 @@
 import unittest
 from uuid import uuid4
 
-from sqlalchemy import text
-
 from app.auth.context import AuthenticatedUser
 from app.db.db import engine
 from app.db.migrate import run_migrations
@@ -20,8 +18,7 @@ from app.db.repo_semantic_cache_policies import (
     validate_policy_config,
 )
 from app.db.repo_tuning_configs import list_candidate_drafts
-
-
+from sqlalchemy import text
 
 
 def setUpModule():
@@ -29,6 +26,7 @@ def setUpModule():
     from tests.db_guard import require_database
 
     require_database()
+
 
 class SemanticCacheGovernanceM33Tests(unittest.TestCase):
     @classmethod
@@ -51,14 +49,29 @@ class SemanticCacheGovernanceM33Tests(unittest.TestCase):
             version_ids = [
                 int(row[0])
                 for row in conn.execute(
-                    text("SELECT id FROM semantic_cache_policy_versions WHERE policy_id = ANY(:policy_ids)"),
+                    text(
+                        "SELECT id FROM semantic_cache_policy_versions WHERE policy_id = ANY(:policy_ids)"
+                    ),
                     {"policy_ids": self.policy_ids},
                 ).fetchall()
             ]
             if version_ids:
-                conn.execute(text("DELETE FROM semantic_cache_policy_events WHERE policy_version_id = ANY(:version_ids)"), {"version_ids": version_ids})
-                conn.execute(text("DELETE FROM semantic_cache_entries WHERE policy_version_id = ANY(:version_ids)"), {"version_ids": version_ids})
-            conn.execute(text("DELETE FROM semantic_cache_policies WHERE id = ANY(:policy_ids)"), {"policy_ids": self.policy_ids})
+                conn.execute(
+                    text(
+                        "DELETE FROM semantic_cache_policy_events WHERE policy_version_id = ANY(:version_ids)"
+                    ),
+                    {"version_ids": version_ids},
+                )
+                conn.execute(
+                    text(
+                        "DELETE FROM semantic_cache_entries WHERE policy_version_id = ANY(:version_ids)"
+                    ),
+                    {"version_ids": version_ids},
+                )
+            conn.execute(
+                text("DELETE FROM semantic_cache_policies WHERE id = ANY(:policy_ids)"),
+                {"policy_ids": self.policy_ids},
+            )
 
     def _create(self, **config):
         policy = create_policy(
@@ -104,16 +117,55 @@ class SemanticCacheGovernanceM33Tests(unittest.TestCase):
                 "deny_questions": ["Show secrets"],
             }
         )
-        self.assertEqual(policy_allows(policy, question="Show secrets", corpus_names=["handbook"], groups=["employees"]), (False, "question_denied"))
-        self.assertEqual(policy_allows(policy, question="What is the leave policy?", corpus_names=["restricted"], groups=["employees"]), (False, "corpus_denied"))
-        self.assertEqual(policy_allows(policy, question="What is the leave policy?", corpus_names=["handbook"], groups=["contractors"]), (False, "group_denied"))
-        self.assertEqual(policy_allows(policy, question="What is the leave policy?", corpus_names=["handbook", "other"], groups=["employees"]), (False, "corpus_not_fully_eligible"))
-        self.assertEqual(policy_allows(policy, question="What is the leave policy?", corpus_names=["handbook", "benefits"], groups=["employees"]), (True, "eligible"))
+        self.assertEqual(
+            policy_allows(
+                policy, question="Show secrets", corpus_names=["handbook"], groups=["employees"]
+            ),
+            (False, "question_denied"),
+        )
+        self.assertEqual(
+            policy_allows(
+                policy,
+                question="What is the leave policy?",
+                corpus_names=["restricted"],
+                groups=["employees"],
+            ),
+            (False, "corpus_denied"),
+        )
+        self.assertEqual(
+            policy_allows(
+                policy,
+                question="What is the leave policy?",
+                corpus_names=["handbook"],
+                groups=["contractors"],
+            ),
+            (False, "group_denied"),
+        )
+        self.assertEqual(
+            policy_allows(
+                policy,
+                question="What is the leave policy?",
+                corpus_names=["handbook", "other"],
+                groups=["employees"],
+            ),
+            (False, "corpus_not_fully_eligible"),
+        )
+        self.assertEqual(
+            policy_allows(
+                policy,
+                question="What is the leave policy?",
+                corpus_names=["handbook", "benefits"],
+                groups=["employees"],
+            ),
+            (True, "eligible"),
+        )
 
     def test_policy_lifecycle_does_not_create_tuning_candidate(self):
         before = len(list_candidate_drafts())
         policy = self._create()
-        activated = activate_policy(int(policy["id"]), confirmation=policy["name"], actor=self.actor)
+        activated = activate_policy(
+            int(policy["id"]), confirmation=policy["name"], actor=self.actor
+        )
         self.assertEqual(activated["status"], "active")
         self.assertEqual(len(list_candidate_drafts()), before)
         disabled = disable_policy(int(policy["id"]))

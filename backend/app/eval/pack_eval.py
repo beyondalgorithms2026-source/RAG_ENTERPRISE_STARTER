@@ -11,11 +11,12 @@ separately and never fail the gate (AR12 quarantine rule).
 
 Run: python -m app.eval.pack_eval [--degraded] [--out PATH]
 """
+
 import argparse
 import json
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from app.core_rag.retrieval import SearchRequest, perform_search
 from app.eval.metrics import aggregate_case_metrics, evaluate_ranking
@@ -42,7 +43,9 @@ def load_pack(path: Path) -> dict[str, Any]:
 
 
 def evaluate_case(case: dict[str, Any], *, mode: str, k: int = 10) -> dict[str, Any]:
-    relevant_grades = {int(chunk_id): int(grade) for chunk_id, grade in (case.get("relevant") or {}).items()}
+    relevant_grades = {
+        int(chunk_id): int(grade) for chunk_id, grade in (case.get("relevant") or {}).items()
+    }
     response = perform_search(SearchRequest(question=case["question"], k=k, mode=mode))
     ranked_ids = [item.chunk_id for item in response.results]
     metrics = evaluate_ranking(ranked_ids, relevant_grades, ks=(5, 10))
@@ -57,16 +60,22 @@ def evaluate_case(case: dict[str, Any], *, mode: str, k: int = 10) -> dict[str, 
     }
 
 
-def evaluate_gate(aggregates: dict[str, Optional[float]], thresholds: dict[str, float]) -> dict[str, Any]:
+def evaluate_gate(
+    aggregates: dict[str, float | None], thresholds: dict[str, float]
+) -> dict[str, Any]:
     failures = []
     for metric, threshold in thresholds.items():
         observed = aggregates.get(metric)
         if observed is None or observed < threshold:
             failures.append({"metric": metric, "threshold": threshold, "observed": observed})
-    return {"status": "fail" if failures else "pass", "thresholds": thresholds, "failures": failures}
+    return {
+        "status": "fail" if failures else "pass",
+        "thresholds": thresholds,
+        "failures": failures,
+    }
 
 
-def _sample_cases(cases: list[dict[str, Any]], sample_size: Optional[int]) -> list[dict[str, Any]]:
+def _sample_cases(cases: list[dict[str, Any]], sample_size: int | None) -> list[dict[str, Any]]:
     """Deterministic even-stride sample so per-mode breakdowns stay affordable
     when the live config reranks every search (~5s/query on this hardware)."""
     if sample_size is None or sample_size >= len(cases):
@@ -77,14 +86,14 @@ def _sample_cases(cases: list[dict[str, Any]], sample_size: Optional[int]) -> li
 
 def run_pack_eval(
     *,
-    pack_paths: Optional[list[Path]] = None,
+    pack_paths: list[Path] | None = None,
     modes: tuple[str, ...] = DEFAULT_MODES,
     k: int = 10,
-    thresholds: Optional[dict[str, float]] = None,
+    thresholds: dict[str, float] | None = None,
     gate_mode: str = "hybrid",
     label: str = "live",
-    non_gate_mode_sample: Optional[int] = None,
-    gate_mode_sample: Optional[int] = None,
+    non_gate_mode_sample: int | None = None,
+    gate_mode_sample: int | None = None,
 ) -> dict[str, Any]:
     from app.profiles.resolver import get_active_profile_snapshot, get_effective_retrieval
 
@@ -102,17 +111,25 @@ def run_pack_eval(
         # committed baselines run the full pack (gate_mode_sample=None).
         gate_pool = _sample_cases(all_cases, gate_mode_sample)
         for mode in modes:
-            mode_cases = gate_pool if mode == gate_mode else _sample_cases(all_cases, non_gate_mode_sample)
+            mode_cases = (
+                gate_pool if mode == gate_mode else _sample_cases(all_cases, non_gate_mode_sample)
+            )
             for case in mode_cases:
                 case_results.append(evaluate_case(case, mode=mode, k=k))
-        gating = [r for r in case_results if r["mode"] == gate_mode and r["review_status"] != "unreviewed"]
+        gating = [
+            r
+            for r in case_results
+            if r["mode"] == gate_mode and r["review_status"] != "unreviewed"
+        ]
         gating_case_metrics.extend(gating)
         per_mode = {
             mode: aggregate_case_metrics([r for r in case_results if r["mode"] == mode])
             for mode in modes
         }
         per_provenance = {
-            provenance: aggregate_case_metrics([r for r in case_results if r["provenance"] == provenance])
+            provenance: aggregate_case_metrics(
+                [r for r in case_results if r["provenance"] == provenance]
+            )
             for provenance in sorted({r["provenance"] for r in case_results})
         }
         pack_reports.append(
@@ -124,7 +141,9 @@ def run_pack_eval(
                 "non_gate_mode_sample": non_gate_mode_sample,
                 "gate_mode_sample": gate_mode_sample,
                 "gating_case_count": len(gating),
-                "unreviewed_case_count": sum(1 for case in all_cases if case.get("review_status") == "unreviewed"),
+                "unreviewed_case_count": sum(
+                    1 for case in all_cases if case.get("review_status") == "unreviewed"
+                ),
                 "metrics_by_mode": per_mode,
                 "metrics_by_provenance": per_provenance,
                 "cases": case_results,
@@ -152,7 +171,9 @@ def run_pack_eval(
 def write_report(report: dict[str, Any], path: Path, *, include_cases: bool = False) -> Path:
     payload = dict(report)
     if not include_cases:
-        payload["packs"] = [{k: v for k, v in pack.items() if k != "cases"} for pack in report["packs"]]
+        payload["packs"] = [
+            {k: v for k, v in pack.items() if k != "cases"} for pack in report["packs"]
+        ]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=1) + "\n", encoding="utf-8")
     return path
@@ -168,7 +189,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--packs", nargs="*", type=Path, default=None)
     parser.add_argument("--out", type=Path, default=PACKS_DIR / "pack_eval_report.json")
-    parser.add_argument("--degraded", action="store_true", help="Run under the deliberately degraded negative-control profile")
+    parser.add_argument(
+        "--degraded",
+        action="store_true",
+        help="Run under the deliberately degraded negative-control profile",
+    )
     parser.add_argument("--include-cases", action="store_true")
     parser.add_argument("--non-gate-mode-sample", type=int, default=100)
     parser.add_argument(
@@ -195,9 +220,20 @@ def main() -> None:
     else:
         label = "live"
 
-    report = run_pack_eval(pack_paths=args.packs, label=label, non_gate_mode_sample=args.non_gate_mode_sample)
+    report = run_pack_eval(
+        pack_paths=args.packs, label=label, non_gate_mode_sample=args.non_gate_mode_sample
+    )
     path = write_report(report, args.out, include_cases=args.include_cases)
-    print(json.dumps({"report": str(path), "gate": report["gate"], "gate_aggregates": report["gate_aggregates"]}, indent=1))
+    print(
+        json.dumps(
+            {
+                "report": str(path),
+                "gate": report["gate"],
+                "gate_aggregates": report["gate_aggregates"],
+            },
+            indent=1,
+        )
+    )
 
 
 if __name__ == "__main__":

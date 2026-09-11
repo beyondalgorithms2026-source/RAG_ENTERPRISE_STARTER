@@ -1,6 +1,6 @@
 import hashlib
 import json
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import text
 
@@ -8,7 +8,6 @@ from app.auth.context import AuthenticatedUser, get_current_user
 from app.auth.service import anonymous_research_enabled, local_dev_auth_enabled
 from app.core.config import settings
 from app.db.db import engine
-
 
 SUPPORTED_ACCESS_STRATEGIES = {
     "none",
@@ -26,7 +25,7 @@ def active_access_strategy() -> str:
     return strategy
 
 
-def local_dev_acl_bypass_enabled(user: Optional[AuthenticatedUser] = None) -> bool:
+def local_dev_acl_bypass_enabled(user: AuthenticatedUser | None = None) -> bool:
     principal = user or get_current_user()
     if principal is None or not local_dev_auth_enabled():
         return False
@@ -35,7 +34,10 @@ def local_dev_acl_bypass_enabled(user: Optional[AuthenticatedUser] = None) -> bo
         settings.DEV_TEST_USER_EMAIL.strip().lower(),
         settings.DEV_TEST_ADMIN_EMAIL.strip().lower(),
     }
-    return principal.user_id in allowed_ids or (principal.email or "").strip().lower() in allowed_emails
+    return (
+        principal.user_id in allowed_ids
+        or (principal.email or "").strip().lower() in allowed_emails
+    )
 
 
 def current_access_context() -> dict[str, Any]:
@@ -103,7 +105,9 @@ def _corpus_grant_sql(*, source_alias: str, external_user_param: str, email_para
     )"""
 
 
-def source_access_sql(*, params: dict[str, Any], source_alias: str = "s", prefix: str = "access") -> str:
+def source_access_sql(
+    *, params: dict[str, Any], source_alias: str = "s", prefix: str = "access"
+) -> str:
     context = current_access_context()
     strategy = context["strategy"]
     external_user_id = context.get("external_user_id")
@@ -135,9 +139,17 @@ def source_access_sql(*, params: dict[str, Any], source_alias: str = "s", prefix
         _document_acl_sql(source_alias=source_alias, external_user_param=external_param),
     ]
     if strategy == "document_acl_with_time_bound_grants":
-        clauses.append(_direct_grant_sql(source_alias=source_alias, external_user_param=external_param, email_param=email_param))
+        clauses.append(
+            _direct_grant_sql(
+                source_alias=source_alias,
+                external_user_param=external_param,
+                email_param=email_param,
+            )
+        )
         if context.get("local_dev_full_access"):
-            clauses.append(f"NOT EXISTS (SELECT 1 FROM document_acl da_any WHERE da_any.source_id = {source_alias}.id)")
+            clauses.append(
+                f"NOT EXISTS (SELECT 1 FROM document_acl da_any WHERE da_any.source_id = {source_alias}.id)"
+            )
     return "(\n            " + "\n            OR ".join(clauses) + "\n        )"
 
 
@@ -181,7 +193,12 @@ def active_direct_grant_fingerprint() -> str:
         """
     )
     with engine.connect() as conn:
-        rows = [dict(row) for row in conn.execute(sql, {"external_user_id": external_user_id, "email": email}).mappings().all()]
+        rows = [
+            dict(row)
+            for row in conn.execute(sql, {"external_user_id": external_user_id, "email": email})
+            .mappings()
+            .all()
+        ]
     payload = json.dumps(rows, sort_keys=True, default=str)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -207,7 +224,12 @@ def active_corpus_grant_fingerprint() -> str:
         """
     )
     with engine.connect() as conn:
-        rows = [dict(row) for row in conn.execute(sql, {"external_user_id": external_user_id, "email": email}).mappings().all()]
+        rows = [
+            dict(row)
+            for row in conn.execute(sql, {"external_user_id": external_user_id, "email": email})
+            .mappings()
+            .all()
+        ]
     payload = json.dumps(rows, sort_keys=True, default=str)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -215,9 +237,9 @@ def active_corpus_grant_fingerprint() -> str:
 def grant_corpus_access(
     *,
     corpus_name: str,
-    grantee_external_user_id: Optional[str] = None,
-    grantee_email: Optional[str] = None,
-    group_name: Optional[str] = None,
+    grantee_external_user_id: str | None = None,
+    grantee_email: str | None = None,
+    group_name: str | None = None,
 ) -> None:
     if not corpus_name.strip():
         raise ValueError("corpus_name is required")
@@ -258,7 +280,10 @@ def grant_corpus_access(
 
 def clear_corpus_access_grants(corpus_name: str) -> None:
     with engine.begin() as conn:
-        conn.execute(text("DELETE FROM corpus_access_grants WHERE corpus_name = :corpus_name"), {"corpus_name": corpus_name.strip()})
+        conn.execute(
+            text("DELETE FROM corpus_access_grants WHERE corpus_name = :corpus_name"),
+            {"corpus_name": corpus_name.strip()},
+        )
     from app.db.repo_semantic_cache import bump_cache_revision
 
     bump_cache_revision(scope_type="access", reason=f"corpus_grants_cleared:{corpus_name}")

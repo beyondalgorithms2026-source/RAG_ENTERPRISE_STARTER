@@ -1,8 +1,7 @@
 import os
 
-from pydantic_settings import BaseSettings
 from pydantic import ConfigDict
-
+from pydantic_settings import BaseSettings
 
 CORE_DIR = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.dirname(CORE_DIR)
@@ -15,7 +14,7 @@ class Settings(BaseSettings):
     model_config = ConfigDict(
         env_file=ENV_FILE_PATH,
         env_file_encoding="utf-8",
-        extra="ignore"  # Ignore extra fields from .env file
+        extra="ignore",  # Ignore extra fields from .env file
     )
 
     # Project-isolated fallback used when backend/.env is absent.
@@ -25,7 +24,15 @@ class Settings(BaseSettings):
     # or an edited .gitignore would commit them permanently.
     UPLOAD_DIR: str = os.path.expanduser(os.path.join("~", ".rag-enterprise", "uploads"))
     MAX_UPLOAD_SIZE_BYTES: int = 25 * 1024 * 1024
-    ALLOWED_UPLOAD_EXTENSIONS: tuple[str, ...] = ("pdf", "docx", "pptx", "xlsx", "eml", "txt", "md")
+    ALLOWED_UPLOAD_EXTENSIONS: tuple[str, ...] = (
+        "pdf",
+        "docx",
+        "pptx",
+        "xlsx",
+        "eml",
+        "txt",
+        "md",
+    )
 
     # Embedding configuration
     EMBEDDING_PROVIDER: str = "sentence_transformers"

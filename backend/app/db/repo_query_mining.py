@@ -1,11 +1,10 @@
 import json
 import re
-from typing import Any, Optional
-
-from sqlalchemy import text
+from typing import Any
 
 from app.auth.context import AuthenticatedUser
 from app.db.db import engine
+from sqlalchemy import text
 
 
 def normalize_question(question: str) -> str:
@@ -16,13 +15,13 @@ def record_query_event(
     *,
     question: str,
     event_type: str,
-    answer_path: Optional[str] = None,
-    request_id: Optional[str] = None,
-    retrieval_mode: Optional[str] = None,
-    latency_ms: Optional[int] = None,
-    feedback_type: Optional[str] = None,
-    actor: Optional[AuthenticatedUser] = None,
-    metadata_json: Optional[dict[str, Any]] = None,
+    answer_path: str | None = None,
+    request_id: str | None = None,
+    retrieval_mode: str | None = None,
+    latency_ms: int | None = None,
+    feedback_type: str | None = None,
+    actor: AuthenticatedUser | None = None,
+    metadata_json: dict[str, Any] | None = None,
 ) -> int:
     with engine.begin() as conn:
         return int(
@@ -61,9 +60,10 @@ def record_query_event(
 
 def list_query_events(limit: int = 200) -> list[dict[str, Any]]:
     with engine.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
+        rows = (
+            conn.execute(
+                text(
+                    """
                 SELECT id, question, normalized_question, event_type, answer_path, request_id,
                        retrieval_mode, latency_ms, feedback_type, actor_external_user_id,
                        actor_email, metadata_json, created_at
@@ -71,17 +71,21 @@ def list_query_events(limit: int = 200) -> list[dict[str, Any]]:
                 ORDER BY created_at DESC, id DESC
                 LIMIT :limit
                 """
-            ),
-            {"limit": limit},
-        ).mappings().all()
+                ),
+                {"limit": limit},
+            )
+            .mappings()
+            .all()
+        )
     return [_jsonable(dict(row)) for row in rows]
 
 
 def build_failure_clusters(limit: int = 200) -> list[dict[str, Any]]:
     with engine.begin() as conn:
-        rows = conn.execute(
-            text(
-                """
+        rows = (
+            conn.execute(
+                text(
+                    """
                 SELECT normalized_question, MIN(question) AS sample_question, COUNT(*)::int AS query_count,
                        jsonb_agg(DISTINCT question) AS sample_questions
                 FROM query_events
@@ -92,15 +96,19 @@ def build_failure_clusters(limit: int = 200) -> list[dict[str, Any]]:
                 ORDER BY query_count DESC, normalized_question
                 LIMIT :limit
                 """
-            ),
-            {"limit": limit},
-        ).mappings().all()
+                ),
+                {"limit": limit},
+            )
+            .mappings()
+            .all()
+        )
         clusters = []
         for row in rows:
             cluster_key = f"q:{row['normalized_question'][:160]}"
-            cluster = conn.execute(
-                text(
-                    """
+            cluster = (
+                conn.execute(
+                    text(
+                        """
                     INSERT INTO query_failure_clusters (
                         cluster_key, label, query_count, sample_questions_json, updated_at
                     )
@@ -115,59 +123,79 @@ def build_failure_clusters(limit: int = 200) -> list[dict[str, Any]]:
                     RETURNING id, cluster_key, label, status, query_count, sample_questions_json,
                               annotation_json, created_at, updated_at
                     """
-                ),
-                {
-                    "cluster_key": cluster_key,
-                    "label": str(row["sample_question"] or row["normalized_question"])[:180],
-                    "query_count": row["query_count"],
-                    "sample_questions": json.dumps(row["sample_questions"] or []),
-                },
-            ).mappings().one()
+                    ),
+                    {
+                        "cluster_key": cluster_key,
+                        "label": str(row["sample_question"] or row["normalized_question"])[:180],
+                        "query_count": row["query_count"],
+                        "sample_questions": json.dumps(row["sample_questions"] or []),
+                    },
+                )
+                .mappings()
+                .one()
+            )
             clusters.append(_jsonable(dict(cluster)))
     return clusters
 
 
 def annotate_cluster(cluster_id: int, annotation_json: dict[str, Any]) -> dict[str, Any]:
     with engine.begin() as conn:
-        row = conn.execute(
-            text(
-                """
+        row = (
+            conn.execute(
+                text(
+                    """
                 UPDATE query_failure_clusters
                 SET annotation_json = CAST(:annotation_json AS jsonb), updated_at = now()
                 WHERE id = :cluster_id
                 RETURNING id, cluster_key, label, status, query_count, sample_questions_json,
                           annotation_json, created_at, updated_at
                 """
-            ),
-            {"cluster_id": cluster_id, "annotation_json": json.dumps(annotation_json)},
-        ).mappings().first()
+                ),
+                {"cluster_id": cluster_id, "annotation_json": json.dumps(annotation_json)},
+            )
+            .mappings()
+            .first()
+        )
     if not row:
         raise ValueError(f"Cluster {cluster_id} not found")
     return _jsonable(dict(row))
 
 
-def create_eval_pack_from_clusters(*, name: str, cluster_ids: list[int], actor: Optional[AuthenticatedUser] = None) -> dict[str, Any]:
+def create_eval_pack_from_clusters(
+    *, name: str, cluster_ids: list[int], actor: AuthenticatedUser | None = None
+) -> dict[str, Any]:
     with engine.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
+        rows = (
+            conn.execute(
+                text(
+                    """
                 SELECT id, label, sample_questions_json
                 FROM query_failure_clusters
                 ORDER BY id
                 """
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
     wanted = {int(item) for item in cluster_ids}
     rows = [row for row in rows if int(row["id"]) in wanted]
     cases = []
     for row in rows:
         questions = row["sample_questions_json"] or [row["label"]]
         for question in questions[:3]:
-            cases.append({"id": f"cluster_{row['id']}_{len(cases) + 1}", "question": question, "expected_cues": []})
+            cases.append(
+                {
+                    "id": f"cluster_{row['id']}_{len(cases) + 1}",
+                    "question": question,
+                    "expected_cues": [],
+                }
+            )
     with engine.begin() as conn:
-        payload = conn.execute(
-            text(
-                """
+        payload = (
+            conn.execute(
+                text(
+                    """
                 INSERT INTO derived_eval_packs (
                     name, cluster_ids_json, cases_json, status,
                     created_by_external_user_id, created_by_email
@@ -184,49 +212,60 @@ def create_eval_pack_from_clusters(*, name: str, cluster_ids: list[int], actor: 
                 RETURNING id, name, cluster_ids_json, cases_json, status,
                           created_by_external_user_id, created_by_email, created_at
                 """
-            ),
-            {
-                "name": name,
-                "cluster_ids": json.dumps(cluster_ids),
-                "cases": json.dumps(cases),
-                "actor_id": actor.user_id if actor else None,
-                "actor_email": actor.email if actor else None,
-            },
-        ).mappings().one()
+                ),
+                {
+                    "name": name,
+                    "cluster_ids": json.dumps(cluster_ids),
+                    "cases": json.dumps(cases),
+                    "actor_id": actor.user_id if actor else None,
+                    "actor_email": actor.email if actor else None,
+                },
+            )
+            .mappings()
+            .one()
+        )
     return _jsonable(dict(payload))
 
 
 def list_failure_clusters(limit: int = 100) -> list[dict[str, Any]]:
     with engine.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
+        rows = (
+            conn.execute(
+                text(
+                    """
                 SELECT id, cluster_key, label, status, query_count, sample_questions_json,
                        annotation_json, created_at, updated_at
                 FROM query_failure_clusters
                 ORDER BY query_count DESC, updated_at DESC
                 LIMIT :limit
                 """
-            ),
-            {"limit": limit},
-        ).mappings().all()
+                ),
+                {"limit": limit},
+            )
+            .mappings()
+            .all()
+        )
     return [_jsonable(dict(row)) for row in rows]
 
 
 def list_derived_eval_packs(limit: int = 100) -> list[dict[str, Any]]:
     with engine.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
+        rows = (
+            conn.execute(
+                text(
+                    """
                 SELECT id, name, cluster_ids_json, cases_json, status,
                        created_by_external_user_id, created_by_email, created_at
                 FROM derived_eval_packs
                 ORDER BY created_at DESC, id DESC
                 LIMIT :limit
                 """
-            ),
-            {"limit": limit},
-        ).mappings().all()
+                ),
+                {"limit": limit},
+            )
+            .mappings()
+            .all()
+        )
     return [_jsonable(dict(row)) for row in rows]
 
 

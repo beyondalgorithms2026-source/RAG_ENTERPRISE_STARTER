@@ -53,9 +53,7 @@ class _FakeHttpx:
 
 class GptOssJsonCompatibilityTests(unittest.TestCase):
     def test_parser_accepts_fenced_json(self):
-        parsed = _parse_llm_json(
-            '```json\n{"answer":"Supported [S1].","citations":["S1"]}\n```'
-        )
+        parsed = _parse_llm_json('```json\n{"answer":"Supported [S1].","citations":["S1"]}\n```')
         self.assertEqual(parsed["answer"], "Supported [S1].")
         self.assertEqual(parsed["citations"], ["S1"])
 

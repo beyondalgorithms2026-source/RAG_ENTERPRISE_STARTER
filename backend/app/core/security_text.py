@@ -3,7 +3,6 @@ from typing import Any
 
 from app.core.logging import log_event
 
-
 _INJECTION_PATTERNS = [
     re.compile(r"\bignore (all )?(previous|prior|above) instructions\b", re.I),
     re.compile(r"\bsystem prompt\b", re.I),
@@ -22,7 +21,9 @@ def detect_prompt_injection_signals(text_value: str) -> list[str]:
     return signals
 
 
-def log_prompt_injection_signals(*, stage: str, text_value: str, metadata: dict[str, Any] | None = None) -> list[str]:
+def log_prompt_injection_signals(
+    *, stage: str, text_value: str, metadata: dict[str, Any] | None = None
+) -> list[str]:
     signals = detect_prompt_injection_signals(text_value)
     if signals:
         log_event(

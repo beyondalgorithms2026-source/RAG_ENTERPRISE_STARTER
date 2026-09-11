@@ -9,11 +9,11 @@ Repairs, with admin-audit entries:
 
 Run: python -m app.db.repair_coherence
 """
-from sqlalchemy import text
 
 from app.coherence import is_draft_profile_name, model_output_dimension
 from app.core.logging import logger
 from app.db.db import engine
+from sqlalchemy import text
 
 
 def _audit(action: str, resource_id: str, before: dict, after: dict) -> None:
@@ -50,7 +50,9 @@ def repair_embedding_registry_dimensions() -> list[dict]:
                 declared_dimension=declared,
             )
         except Exception as exc:
-            logger.warning("Skipping dimension repair for %s: model %s not loadable (%s)", name, model, exc)
+            logger.warning(
+                "Skipping dimension repair for %s: model %s not loadable (%s)", name, model, exc
+            )
             continue
         if int(declared) == actual:
             continue
@@ -68,7 +70,13 @@ def repair_embedding_registry_dimensions() -> list[dict]:
             {"model": model, "dimension": int(declared)},
             {"model": model, "dimension": actual},
         )
-        logger.info("Repaired embedding registry row %s: dimension %s -> %s (model %s)", name, declared, actual, model)
+        logger.info(
+            "Repaired embedding registry row %s: dimension %s -> %s (model %s)",
+            name,
+            declared,
+            actual,
+            model,
+        )
         repaired.append({"profile": name, "model": model, "from": int(declared), "to": actual})
     return repaired
 
@@ -80,7 +88,9 @@ def repair_draft_active_profiles() -> list[dict]:
 
     repaired: list[dict] = []
     with engine.connect() as conn:
-        rows = conn.execute(text("SELECT profile_type, profile_name FROM active_profiles")).fetchall()
+        rows = conn.execute(
+            text("SELECT profile_type, profile_name FROM active_profiles")
+        ).fetchall()
     for profile_type, profile_name in rows:
         if not is_draft_profile_name(profile_name):
             continue
@@ -99,7 +109,9 @@ def repair_draft_active_profiles() -> list[dict]:
             {"active_profile": profile_name},
             {"active_profile": promoted_name, "promoted_from_draft": profile_name},
         )
-        logger.info("Repaired draft-active profile %s/%s -> %s", profile_type, profile_name, promoted_name)
+        logger.info(
+            "Repaired draft-active profile %s/%s -> %s", profile_type, profile_name, promoted_name
+        )
         repaired.append({"profile_type": profile_type, "from": profile_name, "to": promoted_name})
     if repaired:
         invalidate_cache()

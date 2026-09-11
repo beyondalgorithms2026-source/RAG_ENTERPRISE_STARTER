@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 import threading
-from typing import Optional
 
 from app.core.logging import logger
 from app.db.repo_jobs import claim_next_ingestion_job
 from app.db.repo_sources import get_source_by_id
 
-
 _queue_event = threading.Event()
-_worker_thread: Optional[threading.Thread] = None
+_worker_thread: threading.Thread | None = None
 _worker_lock = threading.Lock()
 
 
@@ -30,7 +28,11 @@ def _worker_loop() -> None:
                 break
             source = get_source_by_id(int(job.source_id)) if job.source_id is not None else None
             if source is None:
-                logger.warning("Skipping ingestion job %s because source %s is missing.", job.id, job.source_id)
+                logger.warning(
+                    "Skipping ingestion job %s because source %s is missing.",
+                    job.id,
+                    job.source_id,
+                )
                 continue
             try:
                 _process_job(job.id)

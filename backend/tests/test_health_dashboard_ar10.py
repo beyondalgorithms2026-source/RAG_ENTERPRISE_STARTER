@@ -1,6 +1,11 @@
+from app.health import (
+    P0_TILES,
+    eval_gate_tile,
+    health_dashboard,
+    reranker_warmup_tile,
+    semantic_cache_tile,
+)
 from tests.smoke_test_base import *
-
-from app.health import P0_TILES, eval_gate_tile, health_dashboard, reranker_warmup_tile, semantic_cache_tile
 
 
 class HealthDashboardAR10Tests(SmokeTestBase):
@@ -14,9 +19,15 @@ class HealthDashboardAR10Tests(SmokeTestBase):
         dashboard = health_dashboard()
         for name in P0_TILES:
             with self.subTest(tile=name):
-                self.assertEqual(self._tile(dashboard, name)["status"], "pass", msg=self._tile(dashboard, name)["reason"])
+                self.assertEqual(
+                    self._tile(dashboard, name)["status"],
+                    "pass",
+                    msg=self._tile(dashboard, name)["reason"],
+                )
         self.assertFalse(dashboard["p0_breached"])
-        self.assertIn(dashboard["banner"], {"pass", "warn"})  # warn allowed (e.g. no baseline eval yet)
+        self.assertIn(
+            dashboard["banner"], {"pass", "warn"}
+        )  # warn allowed (e.g. no baseline eval yet)
 
     def test_injected_draft_active_profile_turns_tile_red_and_breaches_p0(self):
         # AR2-style incoherence injected directly into the DB (bypassing the API
@@ -64,7 +75,6 @@ class HealthDashboardAR10Tests(SmokeTestBase):
         # Restore active retrieval to a non-draft promoted profile before deleting
         # the injected draft, so live-config sync (which resolves active profiles)
         # never references a missing row during teardown.
-        from app.db.repo_profiles import set_active_profile
         from app.profiles.resolver import invalidate_cache
 
         snapshot = getattr(self, "_active_profiles_snapshot", {})
@@ -77,7 +87,10 @@ class HealthDashboardAR10Tests(SmokeTestBase):
                 )
             invalidate_cache(profile_type)
         with engine.begin() as conn:
-            conn.execute(text("DELETE FROM profiles WHERE profile_type = :t AND name = :n"), {"t": profile_type, "n": name})
+            conn.execute(
+                text("DELETE FROM profiles WHERE profile_type = :t AND name = :n"),
+                {"t": profile_type, "n": name},
+            )
 
     def test_eval_gate_tile_reports_baseline_or_warns(self):
         tile = eval_gate_tile()
@@ -96,10 +109,9 @@ class HealthDashboardAR10Tests(SmokeTestBase):
             self.assertIn("globally OFF", tile["reason"])
 
     def test_dashboard_endpoint_returns_banner_and_tiles(self):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         run_migrations()
         client = TestClient(app)
@@ -107,7 +119,9 @@ class HealthDashboardAR10Tests(SmokeTestBase):
         original_fn = main_module.authenticate_request
         try:
             settings.AUTH_ENABLED = True
-            main_module.authenticate_request = lambda request: AuthenticatedUser(user_id="ar10-admin", email="ar10@example.com", roles=["admin"], groups=["ops"])
+            main_module.authenticate_request = lambda request: AuthenticatedUser(
+                user_id="ar10-admin", email="ar10@example.com", roles=["admin"], groups=["ops"]
+            )
             response = client.get("/admin/health/dashboard", headers={"Authorization": "Bearer t"})
         finally:
             settings.AUTH_ENABLED = original_auth

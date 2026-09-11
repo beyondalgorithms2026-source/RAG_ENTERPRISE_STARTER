@@ -13,7 +13,6 @@ from app.core_rag.answering import AskRequest, AskResponse, perform_ask
 from app.db.repo_governance import is_restricted
 from app.llm.client import verify_llm_ready
 
-
 router = APIRouter()
 
 
@@ -30,7 +29,10 @@ def ask_endpoint(
     user = _resolved_user(user)
     restriction = is_restricted(user, {"query_block"})
     if restriction:
-        raise HTTPException(status_code=403, detail={"error": "query_blocked", "message": restriction.get("reason")})
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "query_blocked", "message": restriction.get("reason")},
+        )
     if not request.dry_run and not verify_llm_ready():
         raise HTTPException(
             status_code=503,
@@ -51,7 +53,10 @@ def ask_stream_endpoint(
     user = _resolved_user(user)
     restriction = is_restricted(user, {"query_block"})
     if restriction:
-        raise HTTPException(status_code=403, detail={"error": "query_blocked", "message": restriction.get("reason")})
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "query_blocked", "message": restriction.get("reason")},
+        )
     if not request.dry_run and not verify_llm_ready():
         raise HTTPException(
             status_code=503,
@@ -66,7 +71,9 @@ def ask_stream_endpoint(
         worker_user = user
 
         def emit(progress: int, label: str):
-            events.put(json.dumps({"type": "progress", "progress": progress, "label": label}) + "\n")
+            events.put(
+                json.dumps({"type": "progress", "progress": progress, "label": label}) + "\n"
+            )
 
         def run() -> None:
             token = set_current_user(worker_user)

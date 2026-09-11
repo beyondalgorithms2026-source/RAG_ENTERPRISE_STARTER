@@ -2,22 +2,22 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi import Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
-from app.auth.dependencies import require_admin_user
 from app.auth.admin_modules import admin_modules_payload
 from app.auth.context import get_current_user
+from app.auth.dependencies import require_admin_user
 from app.auth.high_impact import require_high_impact_approval
-from app.corpus_policies import get_corpus_policy
 from app.core.config import REPO_ROOT, settings
 from app.core.logging import logger
 from app.core.rate_limit import rate_limit_admin_expensive
 from app.core_rag.retrieval import SearchFilters, SearchRequest, perform_search
+from app.corpus_policies import get_corpus_policy
+from app.db.repo_access_requests import upsert_source_access_contacts
 from app.db.repo_acl import (
     assign_document_acl,
     explain_source_access,
@@ -28,8 +28,13 @@ from app.db.repo_acl import (
     replace_user_memberships,
 )
 from app.db.repo_actions import list_approval_requests, top_failed_queries
-from app.db.repo_admin_audit import insert_admin_audit_event, list_admin_audit_events, verify_admin_audit_integrity
+from app.db.repo_admin_audit import (
+    insert_admin_audit_event,
+    list_admin_audit_events,
+    verify_admin_audit_integrity,
+)
 from app.db.repo_corpora import get_corpus, list_corpora, upsert_corpus
+from app.db.repo_eval_runs import get_eval_run, list_eval_runs
 from app.db.repo_governance import (
     create_restriction,
     lift_restriction,
@@ -46,7 +51,6 @@ from app.db.repo_jobs import (
 )
 from app.db.repo_priority_requests import (
     expire_stale_priority_requests,
-    get_latest_priority_request_for_job,
     get_priority_request,
     list_priority_requests,
     update_priority_request_status,
@@ -60,39 +64,6 @@ from app.db.repo_profiles import (
     set_active_profile,
     upsert_profile,
 )
-from app.db.repo_sources import get_source_by_id, list_sources, update_source_admin_fields, update_source_status
-from app.db.repo_semantic_cache import (
-    bump_cache_revision,
-    cache_health,
-    invalidate_cache as invalidate_semantic_cache,
-)
-from app.db.repo_semantic_cache_policies import (
-    activate_policy as activate_semantic_cache_policy,
-    create_policy as create_semantic_cache_policy,
-    disable_policy as disable_semantic_cache_policy,
-    get_active_policy_version as get_active_semantic_cache_policy_version,
-    get_policy as get_semantic_cache_policy,
-    list_policies as list_semantic_cache_policies,
-    policy_metrics as semantic_cache_policy_metrics,
-    rollback_policy as rollback_semantic_cache_policy,
-    update_policy as update_semantic_cache_policy,
-)
-from app.db.repo_traces import get_trace, get_trace_by_id, list_traces
-from app.db.repo_tuning_configs import (
-    create_embedding_experiment,
-    create_candidate_draft,
-    get_candidate_draft,
-    get_live_configuration,
-    list_embedding_experiments,
-    list_candidate_drafts,
-    list_model_warmups,
-    list_tuning_history,
-    promote_candidate_to_live,
-    record_model_warmup,
-    rollback_to_version,
-    sync_live_configuration_record,
-    update_candidate_draft,
-)
 from app.db.repo_query_mining import (
     annotate_cluster,
     build_failure_clusters,
@@ -101,22 +72,80 @@ from app.db.repo_query_mining import (
     list_failure_clusters,
     list_query_events,
 )
-from app.db.repo_eval_runs import get_eval_run, list_eval_runs
 from app.db.repo_retention import run_retention_policy
+from app.db.repo_semantic_cache import (
+    bump_cache_revision,
+    cache_health,
+)
+from app.db.repo_semantic_cache import (
+    invalidate_cache as invalidate_semantic_cache,
+)
+from app.db.repo_semantic_cache_policies import (
+    activate_policy as activate_semantic_cache_policy,
+)
+from app.db.repo_semantic_cache_policies import (
+    create_policy as create_semantic_cache_policy,
+)
+from app.db.repo_semantic_cache_policies import (
+    disable_policy as disable_semantic_cache_policy,
+)
+from app.db.repo_semantic_cache_policies import (
+    get_active_policy_version as get_active_semantic_cache_policy_version,
+)
+from app.db.repo_semantic_cache_policies import (
+    get_policy as get_semantic_cache_policy,
+)
+from app.db.repo_semantic_cache_policies import (
+    list_policies as list_semantic_cache_policies,
+)
+from app.db.repo_semantic_cache_policies import (
+    policy_metrics as semantic_cache_policy_metrics,
+)
+from app.db.repo_semantic_cache_policies import (
+    rollback_policy as rollback_semantic_cache_policy,
+)
+from app.db.repo_semantic_cache_policies import (
+    update_policy as update_semantic_cache_policy,
+)
+from app.db.repo_sources import (
+    get_source_by_id,
+    list_sources,
+    update_source_admin_fields,
+    update_source_status,
+)
+from app.db.repo_traces import get_trace, get_trace_by_id, list_traces
+from app.db.repo_tuning_configs import (
+    create_candidate_draft,
+    create_embedding_experiment,
+    get_candidate_draft,
+    get_live_configuration,
+    list_candidate_drafts,
+    list_embedding_experiments,
+    list_model_warmups,
+    list_tuning_history,
+    promote_candidate_to_live,
+    record_model_warmup,
+    rollback_to_version,
+    sync_live_configuration_record,
+    update_candidate_draft,
+)
 from app.eval.compare_eval import DEFAULT_REPORT_FILE as BENCHMARK_REPORT_FILE
 from app.eval.compare_eval import load_benchmark_cases, run_mode_benchmark
 from app.eval.retrieval_eval import DEFAULT_REPORT_FILE as RETRIEVAL_REPORT_FILE
 from app.eval.retrieval_eval import load_eval_cases, run_retrieval_eval
 from app.ingestion.enrichment import admin_rerun_enrichment
-from app.ingestion.jobs import admin_reindex_source, _reset_source_for_reindex
+from app.ingestion.jobs import _reset_source_for_reindex, admin_reindex_source
 from app.ingestion.queue_metrics import priority_request_payload, summarize_ingestion_queue
 from app.ingestion.queue_runtime import poke_ingestion_queue
 from app.profiles.models import PROFILE_TYPE_MODELS
-from app.profiles.resolver import get_active_profile_snapshot, get_effective_reranker, get_effective_retrieval, invalidate_cache
+from app.profiles.resolver import (
+    get_active_profile_snapshot,
+    get_effective_reranker,
+    get_effective_retrieval,
+    invalidate_cache,
+)
 from app.seed.enterprise_acl import DEFAULT_PACK_DIR, seed_enterprise_acl_pack
-from app.db.repo_access_requests import upsert_source_access_contacts
 from app.tuning.sandbox_compare import run_sandbox_compare
-
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_user)])
 
@@ -134,13 +163,15 @@ def get_admin_modules():
 
 
 class AdminModulesUpdateRequest(BaseModel):
-    enabled_modules: Optional[list[str]] = None
+    enabled_modules: list[str] | None = None
 
 
 @router.patch("/modules")
 def patch_admin_modules(body: AdminModulesUpdateRequest, request: Request):
     actor = get_current_user()
-    approval = require_high_impact_approval(request=request, actor=actor, action="admin_modules.update")
+    approval = require_high_impact_approval(
+        request=request, actor=actor, action="admin_modules.update"
+    )
     from app.db.repo_runtime_settings import delete_setting, set_setting
 
     before = admin_modules_payload()
@@ -196,15 +227,15 @@ class CorpusCreateRequest(BaseModel):
 
 class CorpusSourceAssignmentRequest(BaseModel):
     source_ids: list[int]
-    sensitivity_label: Optional[str] = None
+    sensitivity_label: str | None = None
     metadata_patch: dict[str, Any] = Field(default_factory=dict)
 
 
 class SourceUpdateRequest(BaseModel):
-    corpus_name: Optional[str] = None
-    sensitivity_label: Optional[str] = None
+    corpus_name: str | None = None
+    sensitivity_label: str | None = None
     metadata_patch: dict[str, Any] = Field(default_factory=dict)
-    acl_group_names: Optional[list[str]] = None
+    acl_group_names: list[str] | None = None
 
 
 class ReindexRequest(BaseModel):
@@ -219,12 +250,12 @@ class EvalRunRequest(BaseModel):
 class QueryTraceRequest(BaseModel):
     question: str
     k: int = 10
-    filters: Optional[SearchFilters] = None
-    mode: Optional[str] = None
+    filters: SearchFilters | None = None
+    mode: str | None = None
     deep_research: bool = False
-    custom_query: Optional[str] = None
+    custom_query: str | None = None
     anchor_terms: list[str] = Field(default_factory=list)
-    exact_phrase_bias: Optional[str] = None
+    exact_phrase_bias: str | None = None
     expand_neighbors: bool = False
     force_rare_keyword_scan: bool = False
 
@@ -246,7 +277,7 @@ class QueueControlRequest(BaseModel):
 
 
 class AccessSeedImportRequest(BaseModel):
-    pack_dir: Optional[str] = None
+    pack_dir: str | None = None
 
 
 class UserMembershipUpdateRequest(BaseModel):
@@ -259,9 +290,9 @@ class SourceAclUpdateRequest(BaseModel):
 
 class SourceContactInput(BaseModel):
     contact_role: str
-    contact_external_user_id: Optional[str] = None
-    contact_email: Optional[str] = None
-    contact_display_name: Optional[str] = None
+    contact_external_user_id: str | None = None
+    contact_email: str | None = None
+    contact_display_name: str | None = None
 
 
 class SourceContactsUpdateRequest(BaseModel):
@@ -286,15 +317,15 @@ class CandidateDraftRequest(BaseModel):
 
 
 class CandidateDraftUpdateRequest(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    selected_profiles: Optional[dict[str, str]] = None
-    retrieval_override_config: Optional[dict[str, Any]] = None
+    name: str | None = None
+    description: str | None = None
+    selected_profiles: dict[str, str] | None = None
+    retrieval_override_config: dict[str, Any] | None = None
 
 
 class TuningCompareRequest(BaseModel):
     question: str
-    draft_id: Optional[int] = None
+    draft_id: int | None = None
     selected_profiles: dict[str, str] = Field(default_factory=dict)
     retrieval_override_config: dict[str, Any] = Field(default_factory=dict)
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
@@ -306,25 +337,25 @@ class TuningCompareRequest(BaseModel):
 class TuningPromotionRequest(BaseModel):
     draft_id: int
     promotion_note: str = ""
-    embedding_experiment_id: Optional[int] = None
-    eval_run_id: Optional[int] = None
+    embedding_experiment_id: int | None = None
+    eval_run_id: int | None = None
 
 
 class TuningRollbackRequest(BaseModel):
     version_label: str
     reason: str = ""
-    eval_run_id: Optional[int] = None
+    eval_run_id: int | None = None
 
 
 class TuningEvalRunRequest(BaseModel):
-    draft_id: Optional[int] = None
+    draft_id: int | None = None
     pack_names: list[str] = Field(default_factory=list)
-    sample_size: Optional[int] = Field(default=150, ge=1, le=2000)
+    sample_size: int | None = Field(default=150, ge=1, le=2000)
     k: int = Field(default=10, ge=1, le=50)
 
 
 class EmbeddingExperimentRequest(BaseModel):
-    candidate_config_id: Optional[int] = None
+    candidate_config_id: int | None = None
     target_embedding_profile: str
     scope_type: str = Field(pattern="^(selected_5_files|all_files)$")
     source_ids: list[int] = Field(default_factory=list)
@@ -350,7 +381,7 @@ class SemanticCachePolicyRequest(BaseModel):
     name: str
     justification: str = ""
     owner: str = ""
-    review_at: Optional[datetime] = None
+    review_at: datetime | None = None
     enabled: bool = False
     match_mode: str = Field(default="exact", pattern="^(exact|semantic)$")
     similarity_threshold: float = Field(default=0.92, ge=0.5, le=0.999)
@@ -374,15 +405,17 @@ class SemanticCachePolicyRollbackRequest(BaseModel):
 
 class SemanticCachePolicyCheckRequest(BaseModel):
     question: str
-    mode: Optional[str] = "hybrid"
+    mode: str | None = "hybrid"
 
 
 class GovernanceRestrictionRequest(BaseModel):
-    user_external_user_id: Optional[str] = None
-    user_email: Optional[str] = None
-    restriction_type: str = Field(pattern="^(warn_only|extra_review_required|access_request_block|query_block)$")
+    user_external_user_id: str | None = None
+    user_email: str | None = None
+    restriction_type: str = Field(
+        pattern="^(warn_only|extra_review_required|access_request_block|query_block)$"
+    )
     reason: str
-    duration_hours: Optional[int] = None
+    duration_hours: int | None = None
 
 
 class GovernanceRestrictionLiftRequest(BaseModel):
@@ -421,7 +454,7 @@ def _source_to_payload(row) -> dict[str, Any]:
     }
 
 
-def _coerce_datetime(value: Optional[str]) -> Optional[datetime]:
+def _coerce_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
@@ -437,7 +470,11 @@ def _job_payload(row, *, kind: str, source_lookup: dict[int, dict[str, Any]]) ->
     duration_seconds = None
     if started_at and completed_at:
         duration_seconds = round((completed_at - started_at).total_seconds(), 3)
-    source = source_lookup.get(int(payload["source_id"])) if payload.get("source_id") is not None else None
+    source = (
+        source_lookup.get(int(payload["source_id"]))
+        if payload.get("source_id") is not None
+        else None
+    )
     payload["job_kind"] = kind
     payload["duration_seconds"] = duration_seconds
     payload["source_file_name"] = source["file_name"] if source else None
@@ -448,13 +485,17 @@ def _job_payload(row, *, kind: str, source_lookup: dict[int, dict[str, Any]]) ->
 def _trace_payload(trace: dict[str, Any]) -> dict[str, Any]:
     payload = dict(trace)
     latency = payload.get("latency_ms") or {}
-    payload["total_latency_ms"] = latency.get("total") or latency.get("search_total") or latency.get("search")
+    payload["total_latency_ms"] = (
+        latency.get("total") or latency.get("search_total") or latency.get("search")
+    )
     payload["search_latency_ms"] = latency.get("search")
     payload["has_fallback"] = bool(payload.get("fallback_reason"))
     return payload
 
 
-def _validated_profile_config(*, profile_type: str, config: dict[str, Any], base_config: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+def _validated_profile_config(
+    *, profile_type: str, config: dict[str, Any], base_config: dict[str, Any] | None = None
+) -> dict[str, Any]:
     if profile_type not in PROFILE_TYPE_MODELS:
         raise HTTPException(status_code=400, detail=f"Unknown profile type: {profile_type}")
     merged = dict(base_config or {})
@@ -463,12 +504,18 @@ def _validated_profile_config(*, profile_type: str, config: dict[str, Any], base
     try:
         return model_cls(**merged).model_dump()
     except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Profile config validation failed: {exc}") from exc
+        raise HTTPException(
+            status_code=422, detail=f"Profile config validation failed: {exc}"
+        ) from exc
 
 
 def _redact_secrets(value: Any) -> Any:
     if isinstance(value, dict):
-        redacted = {key: _redact_secrets(item) for key, item in value.items() if key != "api_key_configured"}
+        redacted = {
+            key: _redact_secrets(item)
+            for key, item in value.items()
+            if key != "api_key_configured"
+        }
         if "api_key" in value:
             redacted["api_key"] = ""
             redacted["api_key_configured"] = bool(value.get("api_key"))
@@ -498,7 +545,9 @@ def _transform_posture(config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _effective_tuning_selected_profiles(selected_profiles: Optional[dict[str, str]]) -> dict[str, str]:
+def _effective_tuning_selected_profiles(
+    selected_profiles: dict[str, str] | None,
+) -> dict[str, str]:
     live_selected = dict((get_live_configuration() or {}).get("selected_profiles") or {})
     effective = dict(live_selected)
     for profile_type in PROFILE_TYPES_FOR_TUNING:
@@ -518,7 +567,10 @@ def _enforce_llm_provider(*, profile_type: str, config: dict[str, Any]) -> None:
     if provider not in supported_providers():
         raise HTTPException(
             status_code=422,
-            detail={"error": "unknown_llm_provider", "message": f"Provider '{provider}' is not supported. Known: {supported_providers()}"},
+            detail={
+                "error": "unknown_llm_provider",
+                "message": f"Provider '{provider}' is not supported. Known: {supported_providers()}",
+            },
         )
 
 
@@ -535,7 +587,9 @@ def _enforce_embedding_dimension_coherence(*, profile_type: str, config: dict[st
             declared_dimension=int(config.get("dimension") or 0),
         )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail={"error": "embedding_dimension_mismatch", "message": str(exc)})
+        raise HTTPException(
+            status_code=422, detail={"error": "embedding_dimension_mismatch", "message": str(exc)}
+        ) from exc
     except Exception as exc:  # model not loadable locally
         raise HTTPException(
             status_code=422,
@@ -543,33 +597,50 @@ def _enforce_embedding_dimension_coherence(*, profile_type: str, config: dict[st
                 "error": "embedding_model_unverifiable",
                 "message": f"Could not load model to verify its dimension: {exc}",
             },
-        )
+        ) from exc
 
 
-def _validated_retrieval_override(*, selected_profiles: dict[str, str], override_config: Optional[dict[str, Any]]) -> dict[str, Any]:
+def _validated_retrieval_override(
+    *, selected_profiles: dict[str, str], override_config: dict[str, Any] | None
+) -> dict[str, Any]:
     candidate = dict(override_config or {})
     if not candidate:
         return {}
     retrieval_profile_name = str(selected_profiles.get("retrieval") or "").strip()
     if not retrieval_profile_name:
-        raise HTTPException(status_code=422, detail="Retrieval override requires a selected retrieval profile")
+        raise HTTPException(
+            status_code=422, detail="Retrieval override requires a selected retrieval profile"
+        )
     retrieval_profile = get_profile("retrieval", retrieval_profile_name)
     if not retrieval_profile:
-        raise HTTPException(status_code=404, detail=f"Profile '{retrieval_profile_name}' of type 'retrieval' not found")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Profile '{retrieval_profile_name}' of type 'retrieval' not found",
+        )
     base_config = retrieval_profile["config_json"] or {}
     if candidate.get("query_transform_enabled") or "transform_timeout_ms" in candidate:
         try:
-            timeout_ms = int(candidate.get("transform_timeout_ms") or base_config.get("transform_timeout_ms") or SANDBOX_TRANSFORM_TIMEOUT_MIN_MS)
+            timeout_ms = int(
+                candidate.get("transform_timeout_ms")
+                or base_config.get("transform_timeout_ms")
+                or SANDBOX_TRANSFORM_TIMEOUT_MIN_MS
+            )
         except (TypeError, ValueError) as exc:
-            raise HTTPException(status_code=422, detail="Transform timeout must be numeric") from exc
-        candidate["transform_timeout_ms"] = min(SANDBOX_TRANSFORM_TIMEOUT_MAX_MS, max(SANDBOX_TRANSFORM_TIMEOUT_MIN_MS, timeout_ms))
-    validated = _validated_profile_config(profile_type="retrieval", config=candidate, base_config=base_config)
+            raise HTTPException(
+                status_code=422, detail="Transform timeout must be numeric"
+            ) from exc
+        candidate["transform_timeout_ms"] = min(
+            SANDBOX_TRANSFORM_TIMEOUT_MAX_MS, max(SANDBOX_TRANSFORM_TIMEOUT_MIN_MS, timeout_ms)
+        )
+    validated = _validated_profile_config(
+        profile_type="retrieval", config=candidate, base_config=base_config
+    )
     # Preserve exactly the keys the operator requested so lineage records intent
     # deterministically, regardless of the selected base profile's current values.
     return {key: value for key, value in validated.items() if key in candidate}
 
 
-def _profile_payload(row: dict[str, Any], *, active_map: dict[str, Optional[str]]) -> dict[str, Any]:
+def _profile_payload(row: dict[str, Any], *, active_map: dict[str, str | None]) -> dict[str, Any]:
     profile_type = row["profile_type"]
     config = _validated_profile_config(profile_type=profile_type, config=row["config_json"] or {})
     payload = {
@@ -606,7 +677,9 @@ def _latest_priority_requests_by_job() -> dict[int, Any]:
     return latest
 
 
-def _ingestion_queue_payloads(*, source_id: Optional[int] = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _ingestion_queue_payloads(
+    *, source_id: int | None = None
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     source_lookup = _source_row_lookup()
     jobs = list_ingestion_jobs(source_id=source_id)
     priority_lookup = _latest_priority_requests_by_job()
@@ -630,7 +703,9 @@ def _preview_priority_change(job_id: int, new_priority: int) -> dict[str, Any]:
         before = before_by_id.get(int(after["id"]))
         if before is None:
             continue
-        if before.get("queue_position") != after.get("queue_position") or before.get("eta_window") != after.get("eta_window"):
+        if before.get("queue_position") != after.get("queue_position") or before.get(
+            "eta_window"
+        ) != after.get("eta_window"):
             impacted.append(
                 {
                     "job_id": after["id"],
@@ -644,9 +719,9 @@ def _preview_priority_change(job_id: int, new_priority: int) -> dict[str, Any]:
 
 
 @router.get("/profiles")
-def get_profiles(profile_type: Optional[str] = None):
+def get_profiles(profile_type: str | None = None):
     rows = list_profiles(profile_type)
-    active_map: dict[str, Optional[str]] = {}
+    active_map: dict[str, str | None] = {}
     for row in rows:
         pt = row["profile_type"]
         if pt not in active_map:
@@ -661,7 +736,10 @@ def create_profile(body: ProfileCreateRequest):
     if not profile_name:
         raise HTTPException(status_code=422, detail="profile_name is required")
     if get_profile(profile_type, profile_name):
-        raise HTTPException(status_code=409, detail=f"Profile '{profile_name}' of type '{profile_type}' already exists")
+        raise HTTPException(
+            status_code=409,
+            detail=f"Profile '{profile_name}' of type '{profile_type}' already exists",
+        )
 
     validated_config = _validated_profile_config(profile_type=profile_type, config=body.config)
     _enforce_embedding_dimension_coherence(profile_type=profile_type, config=validated_config)
@@ -680,24 +758,38 @@ def create_profile(body: ProfileCreateRequest):
         after_json={"config": _redact_secrets(validated_config), "is_default": body.is_default},
         actor=actor,
     )
-    return {"status": "ok", "profile": _profile_payload(get_profile(profile_type, profile_name), active_map={profile_type: get_active_profile_name(profile_type)})}
+    return {
+        "status": "ok",
+        "profile": _profile_payload(
+            get_profile(profile_type, profile_name),
+            active_map={profile_type: get_active_profile_name(profile_type)},
+        ),
+    }
 
 
 @router.patch("/profiles/{profile_type}/{profile_name}")
 def update_profile(profile_type: str, profile_name: str, body: ProfileUpdateRequest):
     existing = get_profile(profile_type, profile_name)
     if not existing:
-        raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' of type '{profile_type}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Profile '{profile_name}' of type '{profile_type}' not found"
+        )
 
-    validated_config = _validated_profile_config(profile_type=profile_type, config=body.config, base_config=existing["config_json"] or {})
+    validated_config = _validated_profile_config(
+        profile_type=profile_type, config=body.config, base_config=existing["config_json"] or {}
+    )
     _enforce_embedding_dimension_coherence(profile_type=profile_type, config=validated_config)
     _enforce_llm_provider(profile_type=profile_type, config=validated_config)
-    upsert_profile(profile_type, profile_name, validated_config, is_default=bool(existing["is_default"]))
+    upsert_profile(
+        profile_type, profile_name, validated_config, is_default=bool(existing["is_default"])
+    )
 
     if get_active_profile_name(profile_type) == profile_name:
         invalidate_cache(profile_type)
         invalidate_semantic_cache(reason=f"profile_update:{profile_type}:{profile_name}")
-        bump_cache_revision(scope_type="profile", reason=f"profile_update:{profile_type}:{profile_name}")
+        bump_cache_revision(
+            scope_type="profile", reason=f"profile_update:{profile_type}:{profile_name}"
+        )
         sync_live_configuration_record()
 
     actor = get_current_user()
@@ -709,11 +801,23 @@ def update_profile(profile_type: str, profile_name: str, body: ProfileUpdateRequ
         resource_name=profile_name,
         profile_type=profile_type,
         profile_name=profile_name,
-        before_json={"config": _redact_secrets(existing["config_json"] or {}), "is_default": bool(existing["is_default"])},
-        after_json={"config": _redact_secrets(validated_config), "is_default": bool(existing["is_default"])},
+        before_json={
+            "config": _redact_secrets(existing["config_json"] or {}),
+            "is_default": bool(existing["is_default"]),
+        },
+        after_json={
+            "config": _redact_secrets(validated_config),
+            "is_default": bool(existing["is_default"]),
+        },
         actor=actor,
     )
-    return {"status": "ok", "profile": _profile_payload(get_profile(profile_type, profile_name), active_map={profile_type: get_active_profile_name(profile_type)})}
+    return {
+        "status": "ok",
+        "profile": _profile_payload(
+            get_profile(profile_type, profile_name),
+            active_map={profile_type: get_active_profile_name(profile_type)},
+        ),
+    }
 
 
 @router.post("/profiles/active")
@@ -723,7 +827,10 @@ def set_active(body: ActiveProfileRequest):
 
     profile = get_profile(body.profile_type, body.profile_name)
     if not profile:
-        raise HTTPException(status_code=404, detail=f"Profile '{body.profile_name}' of type '{body.profile_type}' not found")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Profile '{body.profile_name}' of type '{body.profile_type}' not found",
+        )
 
     from app.coherence import is_draft_profile_name
 
@@ -736,7 +843,9 @@ def set_active(body: ActiveProfileRequest):
             },
         )
 
-    validated_config = _validated_profile_config(profile_type=body.profile_type, config=profile["config_json"] or {})
+    validated_config = _validated_profile_config(
+        profile_type=body.profile_type, config=profile["config_json"] or {}
+    )
     _enforce_llm_provider(profile_type=body.profile_type, config=validated_config)
 
     # AR7: a dimension-changing embedding activation cannot go live through the
@@ -747,7 +856,11 @@ def set_active(body: ActiveProfileRequest):
 
         declared = int((profile["config_json"] or {}).get("dimension") or 0)
         column = index_vector_dimension()
-        if column is not None and declared != column and body.profile_name != get_active_profile_name("embedding"):
+        if (
+            column is not None
+            and declared != column
+            and body.profile_name != get_active_profile_name("embedding")
+        ):
             raise HTTPException(
                 status_code=422,
                 detail={
@@ -828,7 +941,7 @@ class EmbeddingSwapPlanRequest(BaseModel):
 
 class EmbeddingSwapRunRequest(BaseModel):
     run_id: int
-    batch_limit: Optional[int] = Field(default=None, ge=1, le=100000)
+    batch_limit: int | None = Field(default=None, ge=1, le=100000)
 
 
 class EmbeddingSwapAbortRequest(BaseModel):
@@ -872,15 +985,22 @@ def begin_embedding_swap_endpoint(body: EmbeddingSwapPlanRequest, request: Reque
         resource_type="embedding_swap_run",
         resource_id=str(run["id"]),
         resource_name=body.target_profile_name,
-        event_json={"target_dimension": run["target_dimension"], "source_dimension": run["source_dimension"]},
+        event_json={
+            "target_dimension": run["target_dimension"],
+            "source_dimension": run["source_dimension"],
+        },
         actor=actor,
     )
     return {"swap_run": run}
 
 
 @router.post("/embedding/swap/run")
-def run_embedding_swap_endpoint(body: EmbeddingSwapRunRequest, request: Request, _rate_limit: None = Depends(rate_limit_admin_expensive)):
-    actor = get_current_user()
+def run_embedding_swap_endpoint(
+    body: EmbeddingSwapRunRequest,
+    request: Request,
+    _rate_limit: None = Depends(rate_limit_admin_expensive),
+):
+    get_current_user()
     from app.embedding.lifecycle import run_embedding_swap
 
     try:
@@ -982,7 +1102,11 @@ def feedback_eval_review(body: FeedbackReviewRequest):
 
     try:
         case = review_pack_case(
-            body.pack_name, body.case_id, relevant=body.relevant, review_status=body.review_status, reviewer=actor.email if actor else None
+            body.pack_name,
+            body.case_id,
+            relevant=body.relevant,
+            review_status=body.review_status,
+            reviewer=actor.email if actor else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -1020,7 +1144,12 @@ def cost_summary_endpoint(group_by: str = "retrieval_mode"):
     """AR11: token/cost rollup. group_by=retrieval_mode answers 'deep research vs
     fast mode cost'; group_by=model gives per-model spend."""
     from app.db.repo_generation_usage import cost_summary
-    from app.llm.pricing import cost_alert_source, cost_alert_usd, effective_price_table, price_table_source
+    from app.llm.pricing import (
+        cost_alert_source,
+        cost_alert_usd,
+        effective_price_table,
+        price_table_source,
+    )
 
     payload = cost_summary(group_by=group_by)
     payload["governance"] = {
@@ -1040,8 +1169,8 @@ def list_llm_providers():
 
 
 class LLMVerifyRequest(BaseModel):
-    profile_name: Optional[str] = None
-    config: Optional[dict[str, Any]] = None
+    profile_name: str | None = None
+    config: dict[str, Any] | None = None
 
 
 @router.post("/llm/verify")
@@ -1056,7 +1185,9 @@ def verify_llm_profile(body: LLMVerifyRequest):
     if body.profile_name:
         profile = get_profile("llm", body.profile_name)
         if not profile:
-            raise HTTPException(status_code=404, detail=f"LLM profile '{body.profile_name}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"LLM profile '{body.profile_name}' not found"
+            )
         config = profile["config_json"] or {}
     else:
         config = body.config or {}
@@ -1083,7 +1214,12 @@ def get_runtime_settings():
     """AR17: console-editable governed settings + their effective values."""
     from app.db.repo_runtime_settings import all_settings
     from app.eval.promotion_evidence import enforcement_mode_source, resolve_enforcement_mode
-    from app.llm.pricing import cost_alert_source, cost_alert_usd, effective_price_table, price_table_source
+    from app.llm.pricing import (
+        cost_alert_source,
+        cost_alert_usd,
+        effective_price_table,
+        price_table_source,
+    )
 
     overrides = all_settings()
     return {
@@ -1111,14 +1247,24 @@ def get_runtime_settings():
 @router.patch("/runtime-settings")
 def patch_runtime_settings(body: RuntimeSettingRequest, request: Request):
     actor = get_current_user()
-    approval = require_high_impact_approval(request=request, actor=actor, action="runtime_settings.update")
+    approval = require_high_impact_approval(
+        request=request, actor=actor, action="runtime_settings.update"
+    )
     if body.key not in _RUNTIME_SETTING_KEYS:
-        raise HTTPException(status_code=422, detail={"error": "not_editable", "message": f"'{body.key}' is not a runtime-editable setting."})
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "not_editable",
+                "message": f"'{body.key}' is not a runtime-editable setting.",
+            },
+        )
     from app.db.repo_runtime_settings import delete_setting, set_setting
 
     try:
         before = get_runtime_settings()["settings"][body.key]
-        if body.value is None or (body.key == "tuning_eval_enforcement" and str(body.value).strip() == ""):
+        if body.value is None or (
+            body.key == "tuning_eval_enforcement" and str(body.value).strip() == ""
+        ):
             delete_setting(body.key)
         else:
             set_setting(body.key, body.value, actor=actor)
@@ -1144,14 +1290,24 @@ def get_profile_metadata():
     retrieval_settings = get_effective_retrieval().model_dump()
     reranker_settings = get_effective_reranker().model_dump()
     live_configuration = get_live_configuration()
-    current_live_retrieval = ((live_configuration.get("resolved_config") or {}).get("retrieval") or {}) if live_configuration else {}
-    live_retrieval_config = (current_live_retrieval.get("config") or retrieval_settings) if isinstance(current_live_retrieval, dict) else retrieval_settings
+    current_live_retrieval = (
+        ((live_configuration.get("resolved_config") or {}).get("retrieval") or {})
+        if live_configuration
+        else {}
+    )
+    live_retrieval_config = (
+        (current_live_retrieval.get("config") or retrieval_settings)
+        if isinstance(current_live_retrieval, dict)
+        else retrieval_settings
+    )
     return {
         "active_profiles": get_active_profile_snapshot(),
         "retrieval_settings": retrieval_settings,
         "reranker_settings": reranker_settings,
         "current_live_retrieval": {
-            "profile_name": ((live_configuration.get("selected_profiles") or {}).get("retrieval")) if live_configuration else get_active_profile_name("retrieval"),
+            "profile_name": ((live_configuration.get("selected_profiles") or {}).get("retrieval"))
+            if live_configuration
+            else get_active_profile_name("retrieval"),
             "config": live_retrieval_config,
             "transform_posture": _transform_posture(live_retrieval_config),
         },
@@ -1162,8 +1318,12 @@ def get_profile_metadata():
             "vector_candidates": retrieval_settings.get("vector_candidates"),
             "keyword_candidates": retrieval_settings.get("keyword_candidates"),
             "hybrid_alpha": retrieval_settings.get("hybrid_alpha"),
-            "deep_research_vector_candidates": retrieval_settings.get("deep_research_vector_candidates"),
-            "deep_research_keyword_candidates": retrieval_settings.get("deep_research_keyword_candidates"),
+            "deep_research_vector_candidates": retrieval_settings.get(
+                "deep_research_vector_candidates"
+            ),
+            "deep_research_keyword_candidates": retrieval_settings.get(
+                "deep_research_keyword_candidates"
+            ),
             "rerank_enabled": reranker_settings.get("enabled"),
             "rerank_enabled_modes": reranker_settings.get("enabled_modes"),
             "rerank_enabled_corpora": reranker_settings.get("enabled_corpora"),
@@ -1195,7 +1355,9 @@ def get_retrieval_evidence():
     from app.eval.retrieval_ablation import REPORT_PATH
 
     if not REPORT_PATH.exists():
-        raise HTTPException(status_code=503, detail="AR14 retrieval evidence report has not been generated")
+        raise HTTPException(
+            status_code=503, detail="AR14 retrieval evidence report has not been generated"
+        )
     return json.loads(REPORT_PATH.read_text(encoding="utf-8"))
 
 
@@ -1264,10 +1426,14 @@ def create_tuning_draft(body: CandidateDraftRequest):
 @router.patch("/tuning/drafts/{draft_id}")
 def patch_tuning_draft(draft_id: int, body: CandidateDraftUpdateRequest):
     actor = get_current_user()
-    before = next((item for item in list_candidate_drafts() if int(item["id"]) == int(draft_id)), None)
+    before = next(
+        (item for item in list_candidate_drafts() if int(item["id"]) == int(draft_id)), None
+    )
     if not before:
         raise HTTPException(status_code=404, detail=f"Draft {draft_id} not found")
-    effective_selected_profiles = _effective_tuning_selected_profiles(body.selected_profiles or before.get("selected_profiles") or {})
+    effective_selected_profiles = _effective_tuning_selected_profiles(
+        body.selected_profiles or before.get("selected_profiles") or {}
+    )
     try:
         draft = update_candidate_draft(
             draft_id,
@@ -1277,7 +1443,9 @@ def patch_tuning_draft(draft_id: int, body: CandidateDraftUpdateRequest):
             retrieval_override_config=_validated_retrieval_override(
                 selected_profiles=effective_selected_profiles,
                 override_config=body.retrieval_override_config,
-            ) if body.retrieval_override_config is not None else None,
+            )
+            if body.retrieval_override_config is not None
+            else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -1302,18 +1470,30 @@ def run_tuning_compare(body: TuningCompareRequest):
     live_configuration = get_live_configuration()
     live_selected = dict(live_configuration.get("selected_profiles") or {})
     if not live_selected:
-        raise HTTPException(status_code=422, detail="Live configuration is not ready for sandbox compare")
+        raise HTTPException(
+            status_code=422, detail="Live configuration is not ready for sandbox compare"
+        )
 
     selected_profiles = dict(live_selected)
     if body.draft_id is not None:
         draft = get_candidate_draft(body.draft_id)
         if not draft:
             raise HTTPException(status_code=404, detail=f"Draft {body.draft_id} not found")
-        selected_profiles.update({key: str(value) for key, value in (draft.get("selected_profiles") or {}).items() if value})
-        retrieval_override_config = dict((draft.get("lineage") or {}).get("retrieval_override_config") or {})
+        selected_profiles.update(
+            {
+                key: str(value)
+                for key, value in (draft.get("selected_profiles") or {}).items()
+                if value
+            }
+        )
+        retrieval_override_config = dict(
+            (draft.get("lineage") or {}).get("retrieval_override_config") or {}
+        )
     else:
         retrieval_override_config = {}
-    selected_profiles.update({key: str(value) for key, value in body.selected_profiles.items() if value})
+    selected_profiles.update(
+        {key: str(value) for key, value in body.selected_profiles.items() if value}
+    )
     retrieval_override_config = _validated_retrieval_override(
         selected_profiles=selected_profiles,
         override_config=body.retrieval_override_config or retrieval_override_config,
@@ -1341,7 +1521,10 @@ def run_tuning_compare(body: TuningCompareRequest):
         resource_name=(compare.get("candidate_run") or {}).get("label") or "sandbox",
         before_json={"live_selected_profiles": live_selected},
         after_json={
-            "candidate_selected_profiles": (compare.get("candidate_run") or {}).get("selected_profiles") or selected_profiles,
+            "candidate_selected_profiles": (compare.get("candidate_run") or {}).get(
+                "selected_profiles"
+            )
+            or selected_profiles,
             "summary": compare.get("summary"),
             "warnings": compare.get("warnings"),
         },
@@ -1367,7 +1550,9 @@ def get_tuning_history():
 def create_tuning_embedding_experiment(body: EmbeddingExperimentRequest):
     actor = get_current_user()
     live_configuration = get_live_configuration()
-    basis_embedding = str((live_configuration.get("selected_profiles") or {}).get("embedding") or "")
+    basis_embedding = str(
+        (live_configuration.get("selected_profiles") or {}).get("embedding") or ""
+    )
     if not basis_embedding:
         raise HTTPException(status_code=422, detail="Live embedding profile is not available")
     try:
@@ -1401,7 +1586,11 @@ def get_tuning_embedding_experiments():
 
 
 @router.post("/tuning/eval-runs")
-def run_tuning_eval(body: TuningEvalRunRequest, request: Request, _rate_limit: None = Depends(rate_limit_admin_expensive)):
+def run_tuning_eval(
+    body: TuningEvalRunRequest,
+    request: Request,
+    _rate_limit: None = Depends(rate_limit_admin_expensive),
+):
     """AR4: run AR3 eval packs under a candidate draft's bundle (or the live
     configuration) and persist the result as promotion evidence."""
     actor = get_current_user()
@@ -1435,7 +1624,7 @@ def run_tuning_eval(body: TuningEvalRunRequest, request: Request, _rate_limit: N
 
 
 @router.get("/tuning/eval-runs")
-def get_tuning_eval_runs(draft_id: Optional[int] = None):
+def get_tuning_eval_runs(draft_id: int | None = None):
     return {"eval_runs": list_eval_runs(draft_id=draft_id, limit=100)}
 
 
@@ -1443,7 +1632,9 @@ def _parse_event_timestamp(value: Any) -> datetime:
     return datetime.fromisoformat(str(value).replace(" ", "T"))
 
 
-def _resolve_promotion_eval_evidence(*, draft: dict[str, Any], eval_run_id: Optional[int]) -> dict[str, Any]:
+def _resolve_promotion_eval_evidence(
+    *, draft: dict[str, Any], eval_run_id: int | None
+) -> dict[str, Any]:
     """AR4 gate: in 'require' mode a fresh, passing eval run on this draft is
     mandatory; in 'warn' mode missing/failed evidence is recorded loudly."""
     from app.eval.promotion_evidence import build_promotion_evidence, resolve_enforcement_mode
@@ -1458,13 +1649,21 @@ def _resolve_promotion_eval_evidence(*, draft: dict[str, Any], eval_run_id: Opti
         if eval_run.get("draft_id") != int(draft["id"]):
             raise HTTPException(
                 status_code=422,
-                detail={"error": "eval_run_draft_mismatch", "message": f"Eval run {eval_run_id} was not produced from draft {draft['id']}."},
+                detail={
+                    "error": "eval_run_draft_mismatch",
+                    "message": f"Eval run {eval_run_id} was not produced from draft {draft['id']}.",
+                },
             )
-        if _parse_event_timestamp(eval_run["created_at"]) < _parse_event_timestamp(draft["updated_at"]):
+        if _parse_event_timestamp(eval_run["created_at"]) < _parse_event_timestamp(
+            draft["updated_at"]
+        ):
             if mode == "require":
                 raise HTTPException(
                     status_code=422,
-                    detail={"error": "stale_eval_run", "message": "The draft changed after this eval run; re-run evaluation on the current draft."},
+                    detail={
+                        "error": "stale_eval_run",
+                        "message": "The draft changed after this eval run; re-run evaluation on the current draft.",
+                    },
                 )
             warnings.append("promoted_with_stale_eval_run")
         if eval_run["gate_status"] != "pass":
@@ -1503,7 +1702,12 @@ def promote_tuning_candidate(body: TuningPromotionRequest, request: Request):
     live = get_live_configuration()
     live_embedding = str((live.get("selected_profiles") or {}).get("embedding") or "")
     candidate_embedding = str((draft.get("selected_profiles") or {}).get("embedding") or "")
-    if candidate_embedding and live_embedding and candidate_embedding != live_embedding and body.embedding_experiment_id is None:
+    if (
+        candidate_embedding
+        and live_embedding
+        and candidate_embedding != live_embedding
+        and body.embedding_experiment_id is None
+    ):
         raise HTTPException(
             status_code=409,
             detail={
@@ -1636,17 +1840,27 @@ def _approved_warmup_models(model_type: str) -> set[str]:
 
 
 @router.post("/tuning/warmup")
-def warm_tuning_models(body: WarmupRequest, request: Request, _rate_limit: None = Depends(rate_limit_admin_expensive)):
+def warm_tuning_models(
+    body: WarmupRequest, request: Request, _rate_limit: None = Depends(rate_limit_admin_expensive)
+):
     actor = get_current_user()
     require_high_impact_approval(request=request, actor=actor, action="tuning.warmup")
     results = []
     for model_name in body.embeddings:
-        if settings.APPROVED_MODEL_WARMUP_ONLY and model_name not in _approved_warmup_models("embedding"):
-            raise HTTPException(status_code=422, detail={"error": "model_not_approved", "model_name": model_name})
+        if settings.APPROVED_MODEL_WARMUP_ONLY and model_name not in _approved_warmup_models(
+            "embedding"
+        ):
+            raise HTTPException(
+                status_code=422, detail={"error": "model_not_approved", "model_name": model_name}
+            )
         results.append(_warm_model("embedding", model_name))
     for model_name in body.rerankers:
-        if settings.APPROVED_MODEL_WARMUP_ONLY and model_name not in _approved_warmup_models("reranker"):
-            raise HTTPException(status_code=422, detail={"error": "model_not_approved", "model_name": model_name})
+        if settings.APPROVED_MODEL_WARMUP_ONLY and model_name not in _approved_warmup_models(
+            "reranker"
+        ):
+            raise HTTPException(
+                status_code=422, detail={"error": "model_not_approved", "model_name": model_name}
+            )
         results.append(_warm_model("reranker", model_name))
     return {"warmup_results": results}
 
@@ -1752,7 +1966,9 @@ def check_semantic_cache_policy_endpoint(policy_id: int, body: SemanticCachePoli
     actor = get_current_user()
     policy = get_semantic_cache_policy(policy_id)
     if not policy or not policy.get("draft_version"):
-        raise HTTPException(status_code=404, detail=f"Cache policy {policy_id} has no draft version")
+        raise HTTPException(
+            status_code=404, detail=f"Cache policy {policy_id} has no draft version"
+        )
     draft = dict(policy["draft_version"])
     namespace = f"sandbox:{policy_id}:{draft['id']}:{int(time.time())}"
     from app.core_rag.answering import AskRequest, perform_ask
@@ -1770,7 +1986,9 @@ def check_semantic_cache_policy_endpoint(policy_id: int, body: SemanticCachePoli
         policy_override=draft,
         cache_namespace_override=namespace,
     )
-    invalidated = invalidate_semantic_cache(reason="sandbox_policy_check_complete", cache_namespace=namespace)
+    invalidated = invalidate_semantic_cache(
+        reason="sandbox_policy_check_complete", cache_namespace=namespace
+    )
     result = {
         "namespace": namespace,
         "cold": cold.model_dump(),
@@ -1791,12 +2009,18 @@ def check_semantic_cache_policy_endpoint(policy_id: int, body: SemanticCachePoli
 
 
 @router.post("/semantic-cache/policies/{policy_id}/activate")
-def activate_semantic_cache_policy_endpoint(policy_id: int, body: SemanticCachePolicyActivationRequest, request: Request):
+def activate_semantic_cache_policy_endpoint(
+    policy_id: int, body: SemanticCachePolicyActivationRequest, request: Request
+):
     actor = get_current_user()
-    approval = require_high_impact_approval(request=request, actor=actor, action="semantic_cache.policy.activate")
+    approval = require_high_impact_approval(
+        request=request, actor=actor, action="semantic_cache.policy.activate"
+    )
     before = get_semantic_cache_policy(policy_id)
     try:
-        policy = activate_semantic_cache_policy(policy_id, confirmation=body.confirmation, actor=actor)
+        policy = activate_semantic_cache_policy(
+            policy_id, confirmation=body.confirmation, actor=actor
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     insert_admin_audit_event(
@@ -1816,7 +2040,9 @@ def activate_semantic_cache_policy_endpoint(policy_id: int, body: SemanticCacheP
 @router.post("/semantic-cache/policies/{policy_id}/disable")
 def disable_semantic_cache_policy_endpoint(policy_id: int, request: Request):
     actor = get_current_user()
-    approval = require_high_impact_approval(request=request, actor=actor, action="semantic_cache.policy.disable")
+    approval = require_high_impact_approval(
+        request=request, actor=actor, action="semantic_cache.policy.disable"
+    )
     before = get_semantic_cache_policy(policy_id)
     try:
         policy = disable_semantic_cache_policy(policy_id)
@@ -1840,9 +2066,13 @@ def disable_semantic_cache_policy_endpoint(policy_id: int, request: Request):
 
 
 @router.post("/semantic-cache/policies/{policy_id}/rollback")
-def rollback_semantic_cache_policy_endpoint(policy_id: int, body: SemanticCachePolicyRollbackRequest, request: Request):
+def rollback_semantic_cache_policy_endpoint(
+    policy_id: int, body: SemanticCachePolicyRollbackRequest, request: Request
+):
     actor = get_current_user()
-    approval = require_high_impact_approval(request=request, actor=actor, action="semantic_cache.policy.rollback")
+    approval = require_high_impact_approval(
+        request=request, actor=actor, action="semantic_cache.policy.rollback"
+    )
     before = get_semantic_cache_policy(policy_id)
     try:
         policy = rollback_semantic_cache_policy(policy_id, version_id=body.version_id, actor=actor)
@@ -1870,10 +2100,16 @@ def get_semantic_cache_policy_metrics():
 @router.post("/semantic-cache/clear")
 def clear_semantic_cache(request: Request):
     actor = get_current_user()
-    approval = require_high_impact_approval(request=request, actor=actor, action="semantic_cache.clear")
+    approval = require_high_impact_approval(
+        request=request, actor=actor, action="semantic_cache.clear"
+    )
     active_policy = get_active_semantic_cache_policy_version()
     namespace = str((active_policy or {}).get("cache_namespace") or "")
-    invalidated = invalidate_semantic_cache(reason="admin_clear", cache_namespace=namespace) if namespace else 0
+    invalidated = (
+        invalidate_semantic_cache(reason="admin_clear", cache_namespace=namespace)
+        if namespace
+        else 0
+    )
     insert_admin_audit_event(
         event_type="cache",
         action="semantic_cache.clear",
@@ -1931,13 +2167,18 @@ def patch_query_mining_cluster(cluster_id: int, body: QueryClusterAnnotationRequ
 def create_query_mining_eval_pack(body: DerivedEvalPackRequest):
     if not body.cluster_ids:
         raise HTTPException(status_code=400, detail="At least one cluster id is required")
-    pack = create_eval_pack_from_clusters(name=body.name, cluster_ids=body.cluster_ids, actor=get_current_user())
+    pack = create_eval_pack_from_clusters(
+        name=body.name, cluster_ids=body.cluster_ids, actor=get_current_user()
+    )
     return {"eval_pack": pack}
 
 
 @router.get("/governance")
 def get_governance_controls():
-    return {"risk_signals": list_risk_signals(limit=200), "restrictions": list_restrictions(limit=200)}
+    return {
+        "risk_signals": list_risk_signals(limit=200),
+        "restrictions": list_restrictions(limit=200),
+    }
 
 
 @router.post("/governance/restrictions")
@@ -1994,17 +2235,30 @@ def get_admin_overview():
         }
         for row in sources
     }
-    enrichment_jobs = [_job_payload(row, kind="enrichment", source_lookup=source_lookup) for row in list_enrichment_jobs()]
+    enrichment_jobs = [
+        _job_payload(row, kind="enrichment", source_lookup=source_lookup)
+        for row in list_enrichment_jobs()
+    ]
     traces = [_trace_payload(row) for row in list_traces(limit=6, offset=0)]
     reports = [_report_summary(kind, path) for kind, path in _EVAL_REPORT_FILES.items()]
     audit_events = list_admin_audit_events(limit=5)
     latest_report = next((report for report in reports if report["exists"]), None)
-    priority_requests = [request for request in _latest_priority_requests_by_job().values() if request.status in {"submitted", "under_review"}]
-    pending_approvals = [request for request in list_approval_requests(limit=200) if request.status == "pending"]
+    priority_requests = [
+        request
+        for request in _latest_priority_requests_by_job().values()
+        if request.status in {"submitted", "under_review"}
+    ]
+    pending_approvals = [
+        request for request in list_approval_requests(limit=200) if request.status == "pending"
+    ]
     failed_queries = top_failed_queries(limit=5)
 
     alerts: list[dict[str, Any]] = []
-    failed_jobs = [job for job in [*ingestion_jobs, *enrichment_jobs] if str(job.get("status", "")).lower() in {"failed", "error"}]
+    failed_jobs = [
+        job
+        for job in [*ingestion_jobs, *enrichment_jobs]
+        if str(job.get("status", "")).lower() in {"failed", "error"}
+    ]
     if failed_jobs:
         alerts.append(
             {
@@ -2014,7 +2268,9 @@ def get_admin_overview():
                 "href": "/console/admin/jobs",
             }
         )
-    unassigned_sources = [row for row in sources if not (row.source_metadata_json or {}).get("corpus")]
+    unassigned_sources = [
+        row for row in sources if not (row.source_metadata_json or {}).get("corpus")
+    ]
     if unassigned_sources:
         alerts.append(
             {
@@ -2081,7 +2337,9 @@ def get_admin_overview():
             "corpora_count": len(corpora),
             "source_count": len(sources),
             "active_job_count": len(active_jobs),
-            "latest_eval_pass_rate": (latest_report or {}).get("summary", {}).get("pass_rate_percent"),
+            "latest_eval_pass_rate": (latest_report or {})
+            .get("summary", {})
+            .get("pass_rate_percent"),
             "latest_eval_kind": latest_report["kind"] if latest_report else None,
             "pending_priority_request_count": len(priority_requests),
             "pending_approval_count": len(pending_approvals),
@@ -2101,7 +2359,9 @@ def get_corpora():
     sources = list_sources()
     acl_map = list_source_acl_map()
     source_payload = [_source_payload_with_acl(row, acl_map) for row in sources]
-    unassigned_count = sum(1 for row in sources if not (row.source_metadata_json or {}).get("corpus"))
+    unassigned_count = sum(
+        1 for row in sources if not (row.source_metadata_json or {}).get("corpus")
+    )
     return {
         "corpora": [
             {
@@ -2129,8 +2389,14 @@ def get_sources():
 def create_corpus(body: CorpusCreateRequest):
     if not body.name.strip():
         raise HTTPException(status_code=400, detail="Corpus name is required")
-    row = upsert_corpus(name=body.name.strip(), description=body.description.strip(), metadata_json=body.metadata_json)
-    bump_cache_revision(scope_type="corpus", scope_key=body.name.strip().lower(), reason="corpus_created")
+    row = upsert_corpus(
+        name=body.name.strip(),
+        description=body.description.strip(),
+        metadata_json=body.metadata_json,
+    )
+    bump_cache_revision(
+        scope_type="corpus", scope_key=body.name.strip().lower(), reason="corpus_created"
+    )
     insert_admin_audit_event(
         event_type="corpus",
         action="corpus.create",
@@ -2149,8 +2415,12 @@ def update_corpus(corpus_name: str, body: CorpusCreateRequest):
     if existing is None:
         raise HTTPException(status_code=404, detail=f"Corpus '{corpus_name}' not found")
     target_name = body.name.strip() or corpus_name
-    row = upsert_corpus(name=target_name, description=body.description.strip(), metadata_json=body.metadata_json)
-    bump_cache_revision(scope_type="corpus", scope_key=target_name.lower(), reason="corpus_updated")
+    row = upsert_corpus(
+        name=target_name, description=body.description.strip(), metadata_json=body.metadata_json
+    )
+    bump_cache_revision(
+        scope_type="corpus", scope_key=target_name.lower(), reason="corpus_updated"
+    )
     insert_admin_audit_event(
         event_type="corpus",
         action="corpus.update",
@@ -2186,8 +2456,12 @@ def assign_sources_to_corpus(corpus_name: str, body: CorpusSourceAssignmentReque
             sensitivity_label=body.sensitivity_label,
             source_metadata_json=metadata,
         )
-        bump_cache_revision(scope_type="source", scope_key=str(source_id), reason="corpus_assignment")
-        bump_cache_revision(scope_type="corpus", scope_key=corpus_name.lower(), reason="source_assigned")
+        bump_cache_revision(
+            scope_type="source", scope_key=str(source_id), reason="corpus_assignment"
+        )
+        bump_cache_revision(
+            scope_type="corpus", scope_key=corpus_name.lower(), reason="source_assigned"
+        )
         updated_source_ids.append(source_id)
     insert_admin_audit_event(
         event_type="corpus",
@@ -2227,7 +2501,9 @@ def update_source(source_id: int, body: SourceUpdateRequest, request: Request):
         sensitivity_label=body.sensitivity_label,
         source_metadata_json=next_metadata,
     )
-    bump_cache_revision(scope_type="source", scope_key=str(source_id), reason="source_admin_update")
+    bump_cache_revision(
+        scope_type="source", scope_key=str(source_id), reason="source_admin_update"
+    )
     bump_cache_revision(scope_type="content", reason="source_admin_update")
     if body.acl_group_names is not None:
         assign_document_acl(source_id=source_id, group_names=body.acl_group_names)
@@ -2262,7 +2538,10 @@ def source_download_info(source_id: int):
     whether the console should warn before downloading a large file."""
     row = get_source_by_id(source_id)
     if row is None:
-        raise HTTPException(status_code=404, detail={"error": "source_not_found", "message": f"Source {source_id} not found"})
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "source_not_found", "message": f"Source {source_id} not found"},
+        )
     size = int(getattr(row, "file_size_bytes", 0) or 0)
     return {
         "source_id": source_id,
@@ -2282,18 +2561,32 @@ def download_source_file(source_id: int):
 
     row = get_source_by_id(source_id)
     if row is None:
-        raise HTTPException(status_code=404, detail={"error": "source_not_found", "message": f"Source {source_id} not found"})
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "source_not_found", "message": f"Source {source_id} not found"},
+        )
     if row.source_type == "db_row":
         from app.db.repo_source_parts import list_source_parts
 
-        body = "\n\n".join((part.content_text or "") for part in list_source_parts(source_id)).strip()
+        body = "\n\n".join(
+            (part.content_text or "") for part in list_source_parts(source_id)
+        ).strip()
         return PlainTextResponse(body or row.file_name, media_type="text/plain")
     from app.ingestion.jobs import _source_file_absolute_path
 
     absolute_path = _source_file_absolute_path(row.storage_path)
     if not absolute_path.exists():
-        raise HTTPException(status_code=404, detail={"error": "source_file_not_found", "source_id": source_id, "storage_path": row.storage_path})
-    media_type = getattr(row, "mime_type", None) or ("application/pdf" if row.source_type == "pdf" else "application/octet-stream")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "source_file_not_found",
+                "source_id": source_id,
+                "storage_path": row.storage_path,
+            },
+        )
+    media_type = getattr(row, "mime_type", None) or (
+        "application/pdf" if row.source_type == "pdf" else "application/octet-stream"
+    )
     return FileResponse(path=str(absolute_path), media_type=media_type, filename=row.file_name)
 
 
@@ -2354,7 +2647,7 @@ def trigger_enrichment(source_id: int, body: ReindexRequest):
 
 
 @router.get("/jobs")
-def get_jobs(source_id: Optional[int] = None):
+def get_jobs(source_id: int | None = None):
     source_lookup = {
         int(row.id): {
             "file_name": row.file_name,
@@ -2365,15 +2658,24 @@ def get_jobs(source_id: Optional[int] = None):
     ingestion_jobs, queue_summary = _ingestion_queue_payloads(source_id=source_id)
     return {
         "ingestion_jobs": ingestion_jobs,
-        "enrichment_jobs": [_job_payload(row, kind="enrichment", source_lookup=source_lookup) for row in list_enrichment_jobs(source_id=source_id)],
+        "enrichment_jobs": [
+            _job_payload(row, kind="enrichment", source_lookup=source_lookup)
+            for row in list_enrichment_jobs(source_id=source_id)
+        ],
         "queue_summary": queue_summary,
-        "priority_requests": [priority_request_payload(request) for request in list_priority_requests(limit=100) if priority_request_payload(request)],
+        "priority_requests": [
+            priority_request_payload(request)
+            for request in list_priority_requests(limit=100)
+            if priority_request_payload(request)
+        ],
     }
 
 
 @router.get("/jobs/ingestion/{job_id}")
 def get_ingestion_job_status(job_id: int):
-    payload = next((job for job in _ingestion_queue_payloads()[0] if int(job["id"]) == job_id), None)
+    payload = next(
+        (job for job in _ingestion_queue_payloads()[0] if int(job["id"]) == job_id), None
+    )
     if payload is None:
         raise HTTPException(status_code=404, detail={"error": "job_not_found", "job_id": job_id})
     return payload
@@ -2385,7 +2687,13 @@ def update_ingestion_job_priority(job_id: int, body: QueuePriorityUpdateRequest)
     if row is None:
         raise HTTPException(status_code=404, detail={"error": "job_not_found", "job_id": job_id})
     if str(row.status).lower() not in {"queued", "paused"}:
-        raise HTTPException(status_code=400, detail={"error": "priority_change_not_supported", "message": "Only waiting jobs can be reprioritized safely in this environment."})
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "priority_change_not_supported",
+                "message": "Only waiting jobs can be reprioritized safely in this environment.",
+            },
+        )
     impact = _preview_priority_change(job_id, body.priority)
     if body.preview_only:
         return {"status": "preview", "job_id": job_id, "priority": body.priority, "impact": impact}
@@ -2408,11 +2716,20 @@ def update_ingestion_job_priority(job_id: int, body: QueuePriorityUpdateRequest)
 
 
 @router.post("/jobs/ingestion/{job_id}/priority-request/{request_id}")
-def review_ingestion_priority_request(job_id: int, request_id: int, body: QueuePriorityDecisionRequest):
+def review_ingestion_priority_request(
+    job_id: int, request_id: int, body: QueuePriorityDecisionRequest
+):
     row = get_ingestion_job(job_id)
     request = get_priority_request(request_id)
     if row is None or request is None or int(request.job_id) != job_id:
-        raise HTTPException(status_code=404, detail={"error": "priority_request_not_found", "job_id": job_id, "request_id": request_id})
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "priority_request_not_found",
+                "job_id": job_id,
+                "request_id": request_id,
+            },
+        )
     before_status = request.status
     update_priority_request_status(request_id, status=body.decision, review_reason=body.reason)
     impact = None
@@ -2448,20 +2765,43 @@ def control_ingestion_job(job_id: int, body: QueueControlRequest):
         raise HTTPException(status_code=404, detail={"error": "job_not_found", "job_id": job_id})
     action = body.action
     normalized_status = str(row.status).lower()
-    if normalized_status in {"processing", "running"} and action in {"pause", "cancel", "requeue", "retry"}:
-        raise HTTPException(status_code=400, detail={"error": "running_job_not_supported", "message": "Running jobs cannot be safely reordered or interrupted in this environment. Wait for completion, then retry or requeue if needed."})
+    if normalized_status in {"processing", "running"} and action in {
+        "pause",
+        "cancel",
+        "requeue",
+        "retry",
+    }:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "running_job_not_supported",
+                "message": "Running jobs cannot be safely reordered or interrupted in this environment. Wait for completion, then retry or requeue if needed.",
+            },
+        )
 
     result: dict[str, Any]
     if action == "pause":
         if normalized_status != "queued":
-            raise HTTPException(status_code=400, detail={"error": "pause_not_allowed", "message": "Only queued jobs can be paused."})
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "pause_not_allowed",
+                    "message": "Only queued jobs can be paused.",
+                },
+            )
         update_ingestion_job(job_id, status="paused", stage="paused")
         if row.source_id is not None:
             update_source_status(row.source_id, ingestion_status="paused")
         result = {"status": "paused", "job": get_ingestion_job_status(job_id)}
     elif action == "resume":
         if normalized_status != "paused":
-            raise HTTPException(status_code=400, detail={"error": "resume_not_allowed", "message": "Only paused jobs can be resumed."})
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "resume_not_allowed",
+                    "message": "Only paused jobs can be resumed.",
+                },
+            )
         update_ingestion_job(job_id, status="queued", stage="queued")
         if row.source_id is not None:
             update_source_status(row.source_id, ingestion_status="queued")
@@ -2469,27 +2809,60 @@ def control_ingestion_job(job_id: int, body: QueueControlRequest):
         result = {"status": "queued", "job": get_ingestion_job_status(job_id)}
     elif action == "cancel":
         if normalized_status not in {"queued", "paused"}:
-            raise HTTPException(status_code=400, detail={"error": "cancel_not_allowed", "message": "Only waiting jobs can be cancelled."})
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "cancel_not_allowed",
+                    "message": "Only waiting jobs can be cancelled.",
+                },
+            )
         update_ingestion_job(job_id, status="cancelled", stage="cancelled", completed_at_now=True)
         if row.source_id is not None:
             update_source_status(row.source_id, ingestion_status="cancelled")
         result = {"status": "cancelled", "job": get_ingestion_job_status(job_id)}
     elif action == "requeue":
         if normalized_status not in {"paused", "cancelled"}:
-            raise HTTPException(status_code=400, detail={"error": "requeue_not_allowed", "message": "Only paused or cancelled jobs can be requeued."})
-        update_ingestion_job(job_id, status="queued", stage="queued", clear_started_at=True, clear_completed_at=True, error_message="")
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "requeue_not_allowed",
+                    "message": "Only paused or cancelled jobs can be requeued.",
+                },
+            )
+        update_ingestion_job(
+            job_id,
+            status="queued",
+            stage="queued",
+            clear_started_at=True,
+            clear_completed_at=True,
+            error_message="",
+        )
         if row.source_id is not None:
             update_source_status(row.source_id, ingestion_status="queued")
         poke_ingestion_queue()
         result = {"status": "queued", "job": get_ingestion_job_status(job_id)}
     else:
         if normalized_status not in {"failed", "cancelled"}:
-            raise HTTPException(status_code=400, detail={"error": "retry_not_allowed", "message": "Only failed or cancelled jobs can be retried."})
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "retry_not_allowed",
+                    "message": "Only failed or cancelled jobs can be retried.",
+                },
+            )
         if row.source_id is None:
-            raise HTTPException(status_code=400, detail={"error": "source_missing", "message": "The source record is required before retrying this job."})
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "source_missing",
+                    "message": "The source record is required before retrying this job.",
+                },
+            )
         source = get_source_by_id(row.source_id)
         if source is None:
-            raise HTTPException(status_code=404, detail={"error": "source_not_found", "source_id": row.source_id})
+            raise HTTPException(
+                status_code=404, detail={"error": "source_not_found", "source_id": row.source_id}
+            )
         _reset_source_for_reindex(row.source_id)
         new_job_id = create_ingestion_job(
             source_id=row.source_id,
@@ -2507,7 +2880,11 @@ def control_ingestion_job(job_id: int, body: QueueControlRequest):
             },
         )
         poke_ingestion_queue()
-        result = {"status": "queued", "job": get_ingestion_job_status(new_job_id), "retry_of_job_id": job_id}
+        result = {
+            "status": "queued",
+            "job": get_ingestion_job_status(new_job_id),
+            "retry_of_job_id": job_id,
+        }
 
     insert_admin_audit_event(
         event_type="queue",
@@ -2543,9 +2920,13 @@ def get_enrichment_job_status(job_id: int):
 def run_eval(body: EvalRunRequest):
     report_kind = body.report_kind.strip().lower()
     if report_kind == "retrieval":
-        report = run_retrieval_eval(cases=load_eval_cases(), report_path=RETRIEVAL_REPORT_FILE, debug=body.debug)
+        report = run_retrieval_eval(
+            cases=load_eval_cases(), report_path=RETRIEVAL_REPORT_FILE, debug=body.debug
+        )
     elif report_kind == "benchmark":
-        report = run_mode_benchmark(cases=load_benchmark_cases(), report_path=BENCHMARK_REPORT_FILE)
+        report = run_mode_benchmark(
+            cases=load_benchmark_cases(), report_path=BENCHMARK_REPORT_FILE
+        )
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported report kind: {body.report_kind}")
     payload = {
@@ -2613,7 +2994,9 @@ def get_retrieval_traces(limit: int = 20, offset: int = 0):
 def get_retrieval_trace_by_request(request_id: str):
     trace = get_trace(request_id)
     if not trace:
-        raise HTTPException(status_code=404, detail=f"Trace for request_id '{request_id}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Trace for request_id '{request_id}' not found"
+        )
     return {
         "trace": _trace_payload(trace),
         "active_profiles": get_active_profile_snapshot(),
@@ -2642,7 +3025,10 @@ def get_access():
 def import_access_seed_pack(body: AccessSeedImportRequest):
     pack_dir = Path(body.pack_dir).expanduser() if body.pack_dir else DEFAULT_PACK_DIR
     if not pack_dir.exists():
-        raise HTTPException(status_code=404, detail={"error": "seed_pack_not_found", "message": f"Seed pack not found: {pack_dir}"})
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "seed_pack_not_found", "message": f"Seed pack not found: {pack_dir}"},
+        )
     summary = seed_enterprise_acl_pack(pack_dir)
     actor = get_current_user()
     insert_admin_audit_event(
@@ -2658,9 +3044,13 @@ def import_access_seed_pack(body: AccessSeedImportRequest):
 
 
 @router.patch("/access/users/{external_user_id}/memberships")
-def update_user_memberships(external_user_id: str, body: UserMembershipUpdateRequest, request: Request):
+def update_user_memberships(
+    external_user_id: str, body: UserMembershipUpdateRequest, request: Request
+):
     actor = get_current_user()
-    approval = require_high_impact_approval(request=request, actor=actor, action="access.user_memberships.update")
+    approval = require_high_impact_approval(
+        request=request, actor=actor, action="access.user_memberships.update"
+    )
     replace_user_memberships(external_user_id=external_user_id, group_names=body.group_names)
     insert_admin_audit_event(
         event_type="access",
@@ -2679,9 +3069,14 @@ def update_user_memberships(external_user_id: str, body: UserMembershipUpdateReq
 def update_source_acl_assignments(source_id: int, body: SourceAclUpdateRequest, request: Request):
     row = get_source_by_id(source_id)
     if row is None:
-        raise HTTPException(status_code=404, detail={"error": "source_not_found", "message": f"Source {source_id} not found"})
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "source_not_found", "message": f"Source {source_id} not found"},
+        )
     actor = get_current_user()
-    approval = require_high_impact_approval(request=request, actor=actor, action="access.source_acl.update")
+    approval = require_high_impact_approval(
+        request=request, actor=actor, action="access.source_acl.update"
+    )
     replace_source_acl(source_id=source_id, group_names=body.group_names)
     insert_admin_audit_event(
         event_type="access",
@@ -2701,7 +3096,10 @@ def update_source_acl_assignments(source_id: int, body: SourceAclUpdateRequest, 
 def update_source_contacts(source_id: int, body: SourceContactsUpdateRequest):
     row = get_source_by_id(source_id)
     if row is None:
-        raise HTTPException(status_code=404, detail={"error": "source_not_found", "message": f"Source {source_id} not found"})
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "source_not_found", "message": f"Source {source_id} not found"},
+        )
     upsert_source_access_contacts(source_id, [contact.model_dump() for contact in body.contacts])
     actor = get_current_user()
     insert_admin_audit_event(
@@ -2742,7 +3140,10 @@ def bulk_assign_group_to_sources(body: BulkGroupAssignmentRequest):
 def bulk_assign_sources_to_group(body: BulkSourceAssignmentRequest):
     row = get_source_by_id(body.source_id)
     if row is None:
-        raise HTTPException(status_code=404, detail={"error": "source_not_found", "message": f"Source {body.source_id} not found"})
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "source_not_found", "message": f"Source {body.source_id} not found"},
+        )
     replace_source_acl(source_id=body.source_id, group_names=body.group_names)
     actor = get_current_user()
     insert_admin_audit_event(
@@ -2763,7 +3164,9 @@ def get_source_access_explanation(source_id: int):
     try:
         return explain_source_access(source_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail={"error": "source_not_found", "message": str(exc)}) from exc
+        raise HTTPException(
+            status_code=404, detail={"error": "source_not_found", "message": str(exc)}
+        ) from exc
 
 
 @router.get("/access/explain/user/{external_user_id}")
@@ -2771,22 +3174,24 @@ def get_user_access_explanation(external_user_id: str):
     try:
         return explain_user_access(external_user_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail={"error": "user_not_found", "message": str(exc)}) from exc
+        raise HTTPException(
+            status_code=404, detail={"error": "user_not_found", "message": str(exc)}
+        ) from exc
 
 
 @router.get("/audit-log")
 def get_admin_audit_log(
     limit: int = 50,
     offset: int = 0,
-    action: Optional[str] = None,
-    resource_type: Optional[str] = None,
-    outcome: Optional[str] = None,
-    actor_external_user_id: Optional[str] = None,
-    actor_query: Optional[str] = None,
-    source_id: Optional[int] = None,
-    job_id: Optional[int] = None,
-    from_ts: Optional[str] = None,
-    to_ts: Optional[str] = None,
+    action: str | None = None,
+    resource_type: str | None = None,
+    outcome: str | None = None,
+    actor_external_user_id: str | None = None,
+    actor_query: str | None = None,
+    source_id: int | None = None,
+    job_id: int | None = None,
+    from_ts: str | None = None,
+    to_ts: str | None = None,
 ):
     if limit < 1 or limit > 100:
         raise HTTPException(status_code=400, detail="limit must be between 1 and 100")
@@ -2810,15 +3215,15 @@ def get_admin_audit_log(
 @router.get("/audit-log/export")
 def export_admin_audit_log(
     request: Request,
-    action: Optional[str] = None,
-    resource_type: Optional[str] = None,
-    outcome: Optional[str] = None,
-    actor_external_user_id: Optional[str] = None,
-    actor_query: Optional[str] = None,
-    source_id: Optional[int] = None,
-    job_id: Optional[int] = None,
-    from_ts: Optional[str] = None,
-    to_ts: Optional[str] = None,
+    action: str | None = None,
+    resource_type: str | None = None,
+    outcome: str | None = None,
+    actor_external_user_id: str | None = None,
+    actor_query: str | None = None,
+    source_id: int | None = None,
+    job_id: int | None = None,
+    from_ts: str | None = None,
+    to_ts: str | None = None,
 ):
     actor = get_current_user()
     require_high_impact_approval(request=request, actor=actor, action="audit.export")

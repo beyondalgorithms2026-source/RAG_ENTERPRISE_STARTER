@@ -2,10 +2,8 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 from sqlalchemy import text
-
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -39,12 +37,14 @@ def cleanup_test_data(*, storage_prefix: str, apply: bool) -> dict:
 
     source_ids = [item["source_id"] for item in matches]
     with engine.begin() as conn:
-        conn.execute(text("DELETE FROM sources WHERE id = ANY(:source_ids)"), {"source_ids": source_ids})
+        conn.execute(
+            text("DELETE FROM sources WHERE id = ANY(:source_ids)"), {"source_ids": source_ids}
+        )
     result["deleted_count"] = len(source_ids)
     return result
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Conservatively clean up test/dev source data.")
     parser.add_argument(
         "--storage-prefix",

@@ -77,9 +77,7 @@ class OpenAIEmbeddingProviderTests(unittest.TestCase):
             embedder._OpenAIEmbeddingProvider(profile)
 
     def test_unknown_provider_fails_closed(self):
-        profile = EmbeddingProfileConfig(
-            provider="mystery", model="unknown", dimension=384
-        )
+        profile = EmbeddingProfileConfig(provider="mystery", model="unknown", dimension=384)
         with self.assertRaisesRegex(RuntimeError, "Unsupported EMBEDDING_PROVIDER"):
             embedder._build_provider(profile)
 

@@ -1,21 +1,20 @@
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Dict
 
-from .md import parse_md_bytes
-from .email import parse_eml_bytes
-from .models import ParsedSourceDocument
 from .docx import parse_docx_bytes
+from .email import parse_eml_bytes
+from .md import parse_md_bytes
+from .models import ParsedSourceDocument
 from .pdf import parse_pdf_bytes
 from .pptx import parse_pptx_bytes
+from .safety import validate_parser_input
 from .txt import parse_txt_bytes
 from .xlsx import parse_xlsx_bytes
-from .safety import validate_parser_input
-
 
 AdapterFn = Callable[[bytes, str], ParsedSourceDocument]
 
 
-_ADAPTERS: Dict[str, AdapterFn] = {
+_ADAPTERS: dict[str, AdapterFn] = {
     "pdf": parse_pdf_bytes,
     "docx": parse_docx_bytes,
     "pptx": parse_pptx_bytes,

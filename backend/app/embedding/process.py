@@ -1,13 +1,14 @@
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
-from app.core.config import settings
 from app.core.logging import logger
 from app.db.repo_chunks import get_chunks_to_embed, update_chunk_embeddings
 from app.embedding.embedder import embed_texts, get_expected_dim
 
 
-def process_embeddings(force: bool = False, limit: Optional[int] = None, source_id: Optional[int] = None) -> Dict[str, Any]:
+def process_embeddings(
+    force: bool = False, limit: int | None = None, source_id: int | None = None
+) -> dict[str, Any]:
     start_time = time.time()
     chunks = get_chunks_to_embed(force=force, limit=limit, source_id=source_id)
 
@@ -55,7 +56,7 @@ def process_embeddings(force: bool = False, limit: Optional[int] = None, source_
             continue
 
         db_updates = []
-        for chunk_id, vector in zip(valid_ids, embeddings):
+        for chunk_id, vector in zip(valid_ids, embeddings, strict=False):
             if len(vector) != expected_dim:
                 logger.error(
                     "Embedding dimension mismatch for chunk_id=%s: expected=%s actual=%s",

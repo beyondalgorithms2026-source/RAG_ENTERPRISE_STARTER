@@ -1,9 +1,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from app.core.config import settings
-
 
 GRAPH_INDEX_ARTIFACT_VERSION = "m14-graph-artifact-v1"
 
@@ -33,8 +32,8 @@ def _compact_chunk_ref(chunk: dict[str, Any]) -> dict[str, Any]:
 
 def ensure_graph_artifacts(
     *,
-    source_id: Optional[int] = None,
-    chunks: Optional[list[dict[str, Any]]] = None,
+    source_id: int | None = None,
+    chunks: list[dict[str, Any]] | None = None,
 ) -> GraphArtifactStatus:
     if not settings.ENABLE_GRAPH:
         return GraphArtifactStatus(available=False, reason="graph_disabled")
@@ -43,7 +42,9 @@ def ensure_graph_artifacts(
         return GraphArtifactStatus(available=False, reason="graph_build_disabled")
 
     if not chunks:
-        return GraphArtifactStatus(available=False, reason=f"no_graph_ready_chunks:source_id={source_id}")
+        return GraphArtifactStatus(
+            available=False, reason=f"no_graph_ready_chunks:source_id={source_id}"
+        )
 
     node_map: dict[str, dict[str, Any]] = {}
     edge_map: dict[str, dict[str, Any]] = {}
@@ -75,7 +76,9 @@ def ensure_graph_artifacts(
                 },
             )
             node["mention_count"] += 1
-            node["ontology_tags"] = sorted(set(node["ontology_tags"]) | set(entity.get("ontology_tags") or []))
+            node["ontology_tags"] = sorted(
+                set(node["ontology_tags"]) | set(entity.get("ontology_tags") or [])
+            )
             node["aliases"] = sorted(set(node["aliases"]) | set(entity.get("aliases") or []))
             if chunk_ref not in node["chunk_refs"]:
                 node["chunk_refs"].append(chunk_ref)
@@ -117,7 +120,10 @@ def ensure_graph_artifacts(
         )
 
     nodes = sorted(node_map.values(), key=lambda item: item["canonical_name"])
-    edges = sorted(edge_map.values(), key=lambda item: (item["subject"], item["relation_type"], item["object"]))
+    edges = sorted(
+        edge_map.values(),
+        key=lambda item: (item["subject"], item["relation_type"], item["object"]),
+    )
     relation_type_counts: dict[str, int] = {}
     entity_type_counts: dict[str, int] = {}
     for node in nodes:

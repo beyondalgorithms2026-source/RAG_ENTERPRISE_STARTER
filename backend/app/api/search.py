@@ -5,7 +5,6 @@ from app.auth.dependencies import require_search_user
 from app.core.rate_limit import rate_limit_search
 from app.core_rag.retrieval import SearchRequest, SearchResponse, perform_search
 
-
 router = APIRouter()
 
 

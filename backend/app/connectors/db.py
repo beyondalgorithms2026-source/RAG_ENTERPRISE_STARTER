@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import Any, Dict, Iterable, List, Optional
+from collections.abc import Iterable
+from typing import Any
 
 from sqlalchemy import create_engine, text
 
 from app.adapters import ParsedSourceDocument, ParsedSourcePart
-from app.corpus_policies import resolve_policy_name_from_source_metadata
 from app.core.logging import log_event
+from app.corpus_policies import resolve_policy_name_from_source_metadata
 from app.db.repo_acl import assign_document_acl
 from app.db.repo_chunks import check_chunks_exist, delete_chunks_for_source, insert_chunks
 from app.db.repo_connectors import (
@@ -22,7 +23,6 @@ from app.embedding.process import process_embeddings
 from app.ingestion.chunking import chunk_parsed_document
 from app.ingestion.enrichment import run_post_ingestion_enrichment
 
-
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$")
 
 
@@ -33,10 +33,15 @@ def _validate_identifier(value: str, label: str) -> str:
     return normalized
 
 
-def _column_list(connector: DbConnectorRow) -> List[str]:
-    columns = [connector.id_column, connector.updated_at_column, *connector.text_columns_json, *connector.metadata_columns_json]
+def _column_list(connector: DbConnectorRow) -> list[str]:
+    columns = [
+        connector.id_column,
+        connector.updated_at_column,
+        *connector.text_columns_json,
+        *connector.metadata_columns_json,
+    ]
     seen: set[str] = set()
-    result: List[str] = []
+    result: list[str] = []
     for column in columns:
         normalized = _validate_identifier(column, "column name")
         if normalized not in seen:
@@ -45,13 +50,13 @@ def _column_list(connector: DbConnectorRow) -> List[str]:
     return result
 
 
-def _select_incremental_rows(connector: DbConnectorRow, *, row_limit: int) -> List[Dict[str, Any]]:
+def _select_incremental_rows(connector: DbConnectorRow, *, row_limit: int) -> list[dict[str, Any]]:
     table_name = _validate_identifier(connector.table_name, "table name")
     id_column = _validate_identifier(connector.id_column, "id column")
     updated_at_column = _validate_identifier(connector.updated_at_column, "updated_at column")
     columns = _column_list(connector)
     quoted_columns = ", ".join(columns)
-    params: Dict[str, Any] = {"limit": max(1, min(int(row_limit or 200), 1000))}
+    params: dict[str, Any] = {"limit": max(1, min(int(row_limit or 200), 1000))}
     where_clause = ""
     if connector.last_cursor_updated_at is not None and connector.last_cursor_id is not None:
         where_clause = (
@@ -87,11 +92,15 @@ def _sqlalchemy_url(db_url: str) -> str:
     return db_url
 
 
-def inspect_db_connector_schema(connector: DbConnectorRow) -> Dict[str, Any]:
+def inspect_db_connector_schema(connector: DbConnectorRow) -> dict[str, Any]:
     source_engine = create_engine(_sqlalchemy_url(connector.db_url))
     try:
         with source_engine.connect() as conn:
-            result = conn.execute(text(f"SELECT * FROM {_validate_identifier(connector.table_name, 'table name')} LIMIT 0"))
+            result = conn.execute(
+                text(
+                    f"SELECT * FROM {_validate_identifier(connector.table_name, 'table name')} LIMIT 0"
+                )
+            )
             columns = [{"name": item} for item in result.keys()]
     finally:
         source_engine.dispose()
@@ -104,7 +113,9 @@ def inspect_db_connector_schema(connector: DbConnectorRow) -> Dict[str, Any]:
     }
 
 
-def preview_db_connector_sync(connector: DbConnectorRow, *, row_limit: int = 200) -> Dict[str, Any]:
+def preview_db_connector_sync(
+    connector: DbConnectorRow, *, row_limit: int = 200
+) -> dict[str, Any]:
     rows = _select_incremental_rows(connector, row_limit=row_limit)
     return {
         "connector_id": connector.id,
@@ -124,7 +135,7 @@ def _stringify(value: Any) -> str:
     return str(value)
 
 
-def serialize_db_row(connector: DbConnectorRow, row: Dict[str, Any]) -> ParsedSourceDocument:
+def serialize_db_row(connector: DbConnectorRow, row: dict[str, Any]) -> ParsedSourceDocument:
     row_id = _stringify(row.get(connector.id_column))
     updated_at = _stringify(row.get(connector.updated_at_column))
     metadata = {
@@ -141,7 +152,10 @@ def serialize_db_row(connector: DbConnectorRow, row: Dict[str, Any]) -> ParsedSo
     for column in connector.metadata_columns_json:
         metadata[column] = _stringify(row.get(column))
 
-    text_lines = [f"{connector.table_name} row {row_id}", f"{connector.updated_at_column}: {updated_at}"]
+    text_lines = [
+        f"{connector.table_name} row {row_id}",
+        f"{connector.updated_at_column}: {updated_at}",
+    ]
     for column in connector.text_columns_json:
         value = _stringify(row.get(column)).strip()
         if value:
@@ -168,13 +182,13 @@ def serialize_db_row(connector: DbConnectorRow, row: Dict[str, Any]) -> ParsedSo
     )
 
 
-def _hash_row(connector: DbConnectorRow, row: Dict[str, Any]) -> str:
+def _hash_row(connector: DbConnectorRow, row: dict[str, Any]) -> str:
     payload = "|".join(_stringify(row.get(column)) for column in _column_list(connector))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _persist_source_parts(source_id: int, parsed: ParsedSourceDocument) -> Dict[int, int]:
-    part_ids: Dict[int, int] = {}
+def _persist_source_parts(source_id: int, parsed: ParsedSourceDocument) -> dict[int, int]:
+    part_ids: dict[int, int] = {}
     for part in parsed.parts:
         part_ids[part.part_index] = insert_source_part(
             source_id=source_id,
@@ -188,8 +202,10 @@ def _persist_source_parts(source_id: int, parsed: ParsedSourceDocument) -> Dict[
     return part_ids
 
 
-def _link_chunks(chunks: Iterable[Dict[str, Any]], part_ids: Dict[int, int]) -> List[Dict[str, Any]]:
-    linked: List[Dict[str, Any]] = []
+def _link_chunks(
+    chunks: Iterable[dict[str, Any]], part_ids: dict[int, int]
+) -> list[dict[str, Any]]:
+    linked: list[dict[str, Any]] = []
     for chunk in chunks:
         next_chunk = dict(chunk)
         part_index = (next_chunk.get("provenance_json") or {}).get("source_part_index")
@@ -199,13 +215,15 @@ def _link_chunks(chunks: Iterable[Dict[str, Any]], part_ids: Dict[int, int]) -> 
     return linked
 
 
-def _ingest_row(connector: DbConnectorRow, row: Dict[str, Any]) -> int:
+def _ingest_row(connector: DbConnectorRow, row: dict[str, Any]) -> int:
     parsed = serialize_db_row(connector, row)
     row_id = _stringify(row.get(connector.id_column))
     updated_at = _stringify(row.get(connector.updated_at_column))
     metadata = dict(parsed.metadata)
     metadata["row_updated_at"] = updated_at
-    metadata["source_row_storage_path"] = f"connector/db/{connector.id}/{connector.table_name}/{row_id}"
+    metadata["source_row_storage_path"] = (
+        f"connector/db/{connector.id}/{connector.table_name}/{row_id}"
+    )
     metadata["freshness_threshold_hours"] = max(1, int(connector.sync_interval_minutes * 2 / 60))
     hash_sha256 = _hash_row(connector, row)
     source_id = upsert_source(
@@ -246,25 +264,37 @@ def _ingest_row(connector: DbConnectorRow, row: Dict[str, Any]) -> int:
     chunks = _link_chunks(chunk_parsed_document(parsed, policy_name=policy_name), part_ids)
     insert_chunks(source_id, chunks)
     update_source_status(source_id, ingestion_status="chunked")
-    update_ingestion_job(job_id, status="processing", stage="embedding", job_metadata_json={"connector_id": connector.id, "actual_chunk_count": len(chunks)})
+    update_ingestion_job(
+        job_id,
+        status="processing",
+        stage="embedding",
+        job_metadata_json={"connector_id": connector.id, "actual_chunk_count": len(chunks)},
+    )
     embed_stats = process_embeddings(force=False, source_id=source_id)
     if embed_stats["chunks_embedded"] < len(chunks):
-        raise RuntimeError(f"Only embedded {embed_stats['chunks_embedded']} of {len(chunks)} DB row chunk(s)")
+        raise RuntimeError(
+            f"Only embedded {embed_stats['chunks_embedded']} of {len(chunks)} DB row chunk(s)"
+        )
     update_source_status(source_id, ingestion_status="embedded")
-    run_post_ingestion_enrichment(source_id=source_id, source_part_count=len(part_ids), chunk_count=len(chunks), record_job=False)
+    run_post_ingestion_enrichment(
+        source_id=source_id,
+        source_part_count=len(part_ids),
+        chunk_count=len(chunks),
+        record_job=False,
+    )
     finish_ingestion_job(job_id, status="completed")
     update_ingestion_job(job_id, status="completed", stage="embedded")
     return source_id
 
 
-def _ingest_db_connector_rows(connector_id: int, *, row_limit: int = 200) -> Dict[str, Any]:
+def _ingest_db_connector_rows(connector_id: int, *, row_limit: int = 200) -> dict[str, Any]:
     connector = get_db_connector(connector_id)
     if connector is None:
         raise ValueError(f"DB connector {connector_id} not found")
     rows_ingested = 0
-    source_ids: List[int] = []
-    last_updated_at: Optional[str] = None
-    last_id: Optional[str] = None
+    source_ids: list[int] = []
+    last_updated_at: str | None = None
+    last_id: str | None = None
     rows = _select_incremental_rows(connector, row_limit=row_limit)
     for row in rows:
         source_ids.append(_ingest_row(connector, row))
@@ -272,7 +302,13 @@ def _ingest_db_connector_rows(connector_id: int, *, row_limit: int = 200) -> Dic
         last_updated_at = _stringify(row.get(connector.updated_at_column)) or last_updated_at
         last_id = _stringify(row.get(connector.id_column)) or last_id
     mark_sources_synced(source_ids)
-    log_event("connector.db.sync.completed", source_id=source_ids[-1] if source_ids else None, stage="connector", status="completed", reason=connector.name)
+    log_event(
+        "connector.db.sync.completed",
+        source_id=source_ids[-1] if source_ids else None,
+        stage="connector",
+        status="completed",
+        reason=connector.name,
+    )
     return {
         "status": "completed",
         "connector_id": connector_id,
@@ -283,7 +319,7 @@ def _ingest_db_connector_rows(connector_id: int, *, row_limit: int = 200) -> Dic
     }
 
 
-def ingest_db_connector(connector_id: int, *, row_limit: int = 200) -> Dict[str, Any]:
+def ingest_db_connector(connector_id: int, *, row_limit: int = 200) -> dict[str, Any]:
     from app.connectors.runtime import run_connector_sync
 
     return run_connector_sync(connector_id, trigger_type="manual", row_limit=row_limit)

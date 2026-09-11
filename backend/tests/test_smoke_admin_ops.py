@@ -110,20 +110,37 @@ class SmokeTestAdminOps(SmokeTestBase):
         token = None
         try:
             retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
-            alpha_user = AuthenticatedUser(user_id="user-alpha", email="alpha@example.com", groups=["group-alpha"], roles=["user"])
+            alpha_user = AuthenticatedUser(
+                user_id="user-alpha",
+                email="alpha@example.com",
+                groups=["group-alpha"],
+                roles=["user"],
+            )
             sync_authenticated_user(alpha_user)
             token = set_current_user(alpha_user)
 
-            alpha_search = perform_search(SearchRequest(question="alphaonlytoken123", k=5, mode="keyword"))
+            alpha_search = perform_search(
+                SearchRequest(question="alphaonlytoken123", k=5, mode="keyword")
+            )
             self.assertTrue(alpha_search.results)
-            self.assertTrue(all(item.source_id == seeded["alpha_source_id"] for item in alpha_search.results))
+            self.assertTrue(
+                all(item.source_id == seeded["alpha_source_id"] for item in alpha_search.results)
+            )
             self.assertTrue(all(item.freshness is not None for item in alpha_search.results))
 
-            forbidden_search = perform_search(SearchRequest(question="betaonlytoken456", k=5, mode="keyword"))
-            self.assertTrue(all(item.source_id != seeded["beta_source_id"] for item in forbidden_search.results))
+            forbidden_search = perform_search(
+                SearchRequest(question="betaonlytoken456", k=5, mode="keyword")
+            )
+            self.assertTrue(
+                all(
+                    item.source_id != seeded["beta_source_id"] for item in forbidden_search.results
+                )
+            )
             self.assertTrue(all(item.freshness is not None for item in forbidden_search.results))
 
-            forbidden_answer = perform_ask(AskRequest(question="betaonlytoken456", k_chunks=3, mode="keyword"))
+            forbidden_answer = perform_ask(
+                AskRequest(question="betaonlytoken456", k_chunks=3, mode="keyword")
+            )
             self.assertEqual(forbidden_answer.answer, "Not found in provided sources.")
             self.assertEqual(forbidden_answer.citations, [])
             self.assertEqual(forbidden_answer.used_chunks_count, 0)
@@ -157,15 +174,21 @@ class SmokeTestAdminOps(SmokeTestBase):
                 token = set_current_user(user)
                 try:
                     with self.assertLogs(logger.name, level="INFO") as captured:
-                        response = perform_search(SearchRequest(question=case["query"], k=5, mode="keyword"))
+                        response = perform_search(
+                            SearchRequest(question=case["query"], k=5, mode="keyword")
+                        )
                 finally:
                     reset_current_user(token)
 
                 self.assertTrue(response.results)
                 allowed_source_id = seeded[case["allowed_source_key"]]
                 forbidden_source_id = seeded[case["forbidden_source_key"]]
-                self.assertTrue(all(item.source_id == allowed_source_id for item in response.results))
-                self.assertTrue(all(item.source_id != forbidden_source_id for item in response.results))
+                self.assertTrue(
+                    all(item.source_id == allowed_source_id for item in response.results)
+                )
+                self.assertTrue(
+                    all(item.source_id != forbidden_source_id for item in response.results)
+                )
                 output = "\n".join(captured.output)
                 self.assertIn('"event": "search.audit_access"', output)
                 self.assertIn(f'"user_id": "{case["user_id"]}"', output)
@@ -177,9 +200,8 @@ class SmokeTestAdminOps(SmokeTestBase):
             self._delete_retrieval_records(seeded.values())
 
     def test_m3_oidc_login_redirect_support_exists(self):
-        from fastapi.testclient import TestClient
-
         import app.api.auth as auth_api
+        from fastapi.testclient import TestClient
 
         client = TestClient(app)
         original_auth_enabled = settings.AUTH_ENABLED
@@ -190,21 +212,27 @@ class SmokeTestAdminOps(SmokeTestBase):
             # Pin OIDC mode: under AUTH_MODE=dev the login route redirects to the
             # local dev login instead of the issuer (environment-coupled otherwise).
             settings.AUTH_MODE = "oidc"
-            auth_api.build_login_url = lambda next_path: ("https://issuer.example.com/authorize?state=fake", "signed-state")
-            response = client.get("/auth/login", params={"next_path": "/frontend/"}, follow_redirects=False)
+            auth_api.build_login_url = lambda next_path: (
+                "https://issuer.example.com/authorize?state=fake",
+                "signed-state",
+            )
+            response = client.get(
+                "/auth/login", params={"next_path": "/frontend/"}, follow_redirects=False
+            )
         finally:
             settings.AUTH_ENABLED = original_auth_enabled
             settings.AUTH_MODE = original_auth_mode
             auth_api.build_login_url = original_build_login_url
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.headers["location"], "https://issuer.example.com/authorize?state=fake")
+        self.assertEqual(
+            response.headers["location"], "https://issuer.example.com/authorize?state=fake"
+        )
         self.assertIn(settings.AUTH_STATE_COOKIE_NAME, response.headers.get("set-cookie", ""))
 
     def test_m3_ask_requires_auth_when_enabled(self):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
+        from fastapi.testclient import TestClient
 
         client = TestClient(app)
         original_auth_enabled = settings.AUTH_ENABLED
@@ -212,7 +240,10 @@ class SmokeTestAdminOps(SmokeTestBase):
         try:
             settings.AUTH_ENABLED = True
             main_module.authenticate_request = lambda request: None
-            response = client.post("/ask", json={"question": "Who is authenticated?", "dry_run": True, "mode": "hybrid"})
+            response = client.post(
+                "/ask",
+                json={"question": "Who is authenticated?", "dry_run": True, "mode": "hybrid"},
+            )
         finally:
             settings.AUTH_ENABLED = original_auth_enabled
             main_module.authenticate_request = original_verify
@@ -221,12 +252,11 @@ class SmokeTestAdminOps(SmokeTestBase):
         self.assertEqual(response.json()["detail"]["error"], "authentication_required")
 
     def test_m3_authenticated_user_identity_appears_in_logs(self):
-        from fastapi.testclient import TestClient
-
-        import app.main as main_module
-        import app.core_rag.retrieval as retrieval_module
         import app.core_rag.answering as answering_module
+        import app.core_rag.retrieval as retrieval_module
+        import app.main as main_module
         from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         seeded = self._seed_retrieval_records()
         client = TestClient(app)
@@ -245,10 +275,10 @@ class SmokeTestAdminOps(SmokeTestBase):
             retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
             answering_module.generate_answer = lambda system_prompt, user_prompt: {
                 "success": True,
-                "content": "{\"answer\":\"The answer confirms the alpha semantic vector match text in the retrieved source [S1]\",\"citations\":[\"S1\"]}",
+                "content": '{"answer":"The answer confirms the alpha semantic vector match text in the retrieved source [S1]","citations":["S1"]}',
             }
-            with self.assertLogs(logger.name, level="INFO") as captured:
-                response = client.post(
+            with self.assertLogs(logger.name, level="INFO"):
+                client.post(
                     "/ask",
                     json={
                         "question": "alpha semantic vector match text",
@@ -267,10 +297,9 @@ class SmokeTestAdminOps(SmokeTestBase):
             self._delete_retrieval_records(seeded.values())
 
     def test_m5_admin_endpoints_require_admin_role(self):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         client = TestClient(app)
         original_auth_enabled = settings.AUTH_ENABLED
@@ -291,12 +320,11 @@ class SmokeTestAdminOps(SmokeTestBase):
         self.assertEqual(response.json()["detail"]["error"], "admin_required")
 
     def test_m5_admin_control_plane_runs_without_code_edits(self):
-        from fastapi.testclient import TestClient
-
         import app.api.admin as admin_api
-        import app.main as main_module
         import app.core_rag.retrieval as retrieval_module
+        import app.main as main_module
         from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         run_migrations()
         seeded = self._seed_retrieval_records()
@@ -330,7 +358,11 @@ class SmokeTestAdminOps(SmokeTestBase):
 
             create_response = client.post(
                 "/admin/corpora",
-                json={"name": "ops-corpus", "description": "Operations corpus", "metadata_json": {"owner": "ops"}},
+                json={
+                    "name": "ops-corpus",
+                    "description": "Operations corpus",
+                    "metadata_json": {"owner": "ops"},
+                },
                 headers={"Authorization": "Bearer fake-token"},
             )
             self.assertEqual(create_response.status_code, 200)
@@ -341,12 +373,18 @@ class SmokeTestAdminOps(SmokeTestBase):
                 headers={"Authorization": "Bearer fake-token"},
             )
             self.assertEqual(assign_response.status_code, 200)
-            self.assertEqual(assign_response.json()["updated_source_ids"], [seeded["pdf_source_id"]])
+            self.assertEqual(
+                assign_response.json()["updated_source_ids"], [seeded["pdf_source_id"]]
+            )
 
-            corpora_response = client.get("/admin/corpora", headers={"Authorization": "Bearer fake-token"})
+            corpora_response = client.get(
+                "/admin/corpora", headers={"Authorization": "Bearer fake-token"}
+            )
             self.assertEqual(corpora_response.status_code, 200)
             corpora_payload = corpora_response.json()
-            self.assertTrue(any(item["name"] == "ops-corpus" for item in corpora_payload["corpora"]))
+            self.assertTrue(
+                any(item["name"] == "ops-corpus" for item in corpora_payload["corpora"])
+            )
 
             reindex_response = client.post(
                 f"/admin/sources/{seeded['pdf_source_id']}/reindex",
@@ -367,7 +405,9 @@ class SmokeTestAdminOps(SmokeTestBase):
             self.assertIn("trace", trace_payload)
             self.assertIn("request_id", trace_payload["trace"])
 
-            metadata_response = client.get("/admin/profiles/metadata", headers={"Authorization": "Bearer fake-token"})
+            metadata_response = client.get(
+                "/admin/profiles/metadata", headers={"Authorization": "Bearer fake-token"}
+            )
             self.assertEqual(metadata_response.status_code, 200)
             self.assertIn("strategy_defaults", metadata_response.json())
 
@@ -379,9 +419,13 @@ class SmokeTestAdminOps(SmokeTestBase):
             self.assertEqual(eval_response.status_code, 200)
             self.assertEqual(eval_response.json()["status"], "completed")
 
-            reports_response = client.get("/admin/eval/reports", headers={"Authorization": "Bearer fake-token"})
+            reports_response = client.get(
+                "/admin/eval/reports", headers={"Authorization": "Bearer fake-token"}
+            )
             self.assertEqual(reports_response.status_code, 200)
-            self.assertTrue(any(item["kind"] == "retrieval" for item in reports_response.json()["reports"]))
+            self.assertTrue(
+                any(item["kind"] == "retrieval" for item in reports_response.json()["reports"])
+            )
         finally:
             settings.AUTH_ENABLED = original_auth_enabled
             main_module.authenticate_request = original_authenticate
@@ -392,11 +436,10 @@ class SmokeTestAdminOps(SmokeTestBase):
             self._delete_retrieval_records(seeded.values())
 
     def test_m5_admin_job_status_surface_lists_ingestion_and_enrichment_jobs(self):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
         from app.db.repo_jobs import create_enrichment_job, create_ingestion_job
+        from fastapi.testclient import TestClient
 
         run_migrations()
         client = TestClient(app)
@@ -424,11 +467,17 @@ class SmokeTestAdminOps(SmokeTestBase):
                 job_metadata_json={"test": "m5"},
             )
 
-            jobs_response = client.get("/admin/jobs", headers={"Authorization": "Bearer fake-token"})
+            jobs_response = client.get(
+                "/admin/jobs", headers={"Authorization": "Bearer fake-token"}
+            )
             self.assertEqual(jobs_response.status_code, 200)
             jobs_payload = jobs_response.json()
-            self.assertTrue(any(item["id"] == ingestion_job_id for item in jobs_payload["ingestion_jobs"]))
-            self.assertTrue(any(item["id"] == enrichment_job_id for item in jobs_payload["enrichment_jobs"]))
+            self.assertTrue(
+                any(item["id"] == ingestion_job_id for item in jobs_payload["ingestion_jobs"])
+            )
+            self.assertTrue(
+                any(item["id"] == enrichment_job_id for item in jobs_payload["enrichment_jobs"])
+            )
 
             ingestion_response = client.get(
                 f"/admin/jobs/ingestion/{ingestion_job_id}",
@@ -448,11 +497,10 @@ class SmokeTestAdminOps(SmokeTestBase):
             main_module.authenticate_request = original_authenticate
 
     def test_m10_1_3_1_admin_truthful_surfaces_and_audit_log(self):
-        from fastapi.testclient import TestClient
-
         import app.api.admin as admin_api
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         class StubEnrichmentResult:
             def __init__(self, source_id: int):
@@ -485,19 +533,26 @@ class SmokeTestAdminOps(SmokeTestBase):
                 "chunk_count": 1,
                 "source_part_count": 1,
             }
-            admin_api.admin_rerun_enrichment = lambda source_id, force=False: StubEnrichmentResult(source_id)
+            admin_api.admin_rerun_enrichment = lambda source_id, force=False: StubEnrichmentResult(
+                source_id
+            )
             admin_api.load_eval_cases = lambda: []
             admin_api.run_retrieval_eval = lambda cases, report_path=None, debug=False: {
                 "summary": {"pass_rate_percent": 100, "total": 0, "passed": 0, "failed": 0},
                 "report_metadata": {"active_profiles": admin_api.get_active_profile_snapshot()},
             }
 
-            profiles_response = client.get("/admin/profiles", headers={"Authorization": "Bearer fake-token"})
+            profiles_response = client.get(
+                "/admin/profiles", headers={"Authorization": "Bearer fake-token"}
+            )
             self.assertEqual(profiles_response.status_code, 200)
             first_profile = profiles_response.json()["profiles"][0]
             activate_response = client.post(
                 "/admin/profiles/active",
-                json={"profile_type": first_profile["profile_type"], "profile_name": first_profile["name"]},
+                json={
+                    "profile_type": first_profile["profile_type"],
+                    "profile_name": first_profile["name"],
+                },
                 headers={"Authorization": "Bearer fake-token"},
             )
             self.assertEqual(activate_response.status_code, 200)
@@ -522,7 +577,9 @@ class SmokeTestAdminOps(SmokeTestBase):
                 headers={"Authorization": "Bearer fake-token"},
             )
             self.assertEqual(source_update_response.status_code, 200)
-            self.assertEqual(source_update_response.json()["source"]["sensitivity_label"], "confidential")
+            self.assertEqual(
+                source_update_response.json()["source"]["sensitivity_label"], "confidential"
+            )
 
             reindex_response = client.post(
                 f"/admin/sources/{seeded['pdf_source_id']}/reindex",
@@ -545,29 +602,51 @@ class SmokeTestAdminOps(SmokeTestBase):
             )
             self.assertEqual(eval_response.status_code, 200)
 
-            overview_response = client.get("/admin/overview", headers={"Authorization": "Bearer fake-token"})
+            overview_response = client.get(
+                "/admin/overview", headers={"Authorization": "Bearer fake-token"}
+            )
             self.assertEqual(overview_response.status_code, 200)
             overview_payload = overview_response.json()
             self.assertIsInstance(overview_payload["summary"]["source_count"], int)
             self.assertNotEqual(overview_payload["summary"]["source_count"], "45.2k")
             self.assertIn("alerts", overview_payload)
 
-            sources_response = client.get("/admin/sources", headers={"Authorization": "Bearer fake-token"})
+            sources_response = client.get(
+                "/admin/sources", headers={"Authorization": "Bearer fake-token"}
+            )
             self.assertEqual(sources_response.status_code, 200)
-            source_item = next(item for item in sources_response.json()["sources"] if item["id"] == seeded["pdf_source_id"])
+            source_item = next(
+                item
+                for item in sources_response.json()["sources"]
+                if item["id"] == seeded["pdf_source_id"]
+            )
             self.assertEqual(source_item["corpus_name"], "audit-ops")
             self.assertEqual(set(source_item["acl_groups"]), {"legal", "ops"})
 
-            access_response = client.get("/admin/access", headers={"Authorization": "Bearer fake-token"})
+            access_response = client.get(
+                "/admin/access", headers={"Authorization": "Bearer fake-token"}
+            )
             self.assertEqual(access_response.status_code, 200)
             access_payload = access_response.json()
             self.assertGreaterEqual(access_payload["summary"]["protected_source_count"], 1)
             self.assertTrue(any(group["name"] == "ops" for group in access_payload["groups"]))
 
-            audit_response = client.get("/admin/audit-log", headers={"Authorization": "Bearer fake-token"})
+            audit_response = client.get(
+                "/admin/audit-log", headers={"Authorization": "Bearer fake-token"}
+            )
             self.assertEqual(audit_response.status_code, 200)
             actions = {item["action"] for item in audit_response.json()["events"]}
-            self.assertTrue({"profile.activate", "corpus.create", "corpus.assign_sources", "source.update", "source.reindex", "source.enrich", "eval.run"}.issubset(actions))
+            self.assertTrue(
+                {
+                    "profile.activate",
+                    "corpus.create",
+                    "corpus.assign_sources",
+                    "source.update",
+                    "source.reindex",
+                    "source.enrich",
+                    "eval.run",
+                }.issubset(actions)
+            )
         finally:
             settings.AUTH_ENABLED = original_auth_enabled
             main_module.authenticate_request = original_authenticate
@@ -578,10 +657,9 @@ class SmokeTestAdminOps(SmokeTestBase):
             self._delete_retrieval_records(seeded.values())
 
     def test_m17_b_1_live_configuration_candidate_drafts_and_approved_registry(self):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         run_migrations()
         client = TestClient(app)
@@ -596,7 +674,9 @@ class SmokeTestAdminOps(SmokeTestBase):
                 groups=["ops"],
             )
 
-            tuning_response = client.get("/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"})
+            tuning_response = client.get(
+                "/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"}
+            )
             self.assertEqual(tuning_response.status_code, 200)
             tuning_payload = tuning_response.json()
             self.assertEqual(tuning_payload["live_configuration"]["version_label"], "live-current")
@@ -642,10 +722,18 @@ class SmokeTestAdminOps(SmokeTestBase):
             )
             self.assertEqual(partial_response.status_code, 200)
             partial_draft = partial_response.json()["draft"]
-            self.assertEqual(partial_draft["selected_profiles"]["retrieval"], live_selected["retrieval"])
-            self.assertEqual(partial_draft["selected_profiles"]["embedding"], live_selected["embedding"])
-            self.assertTrue(partial_draft["lineage"]["retrieval_override_config"]["query_transform_enabled"])
-            self.assertTrue(partial_draft["lineage"]["retrieval_override_config"]["rewrite_enabled"])
+            self.assertEqual(
+                partial_draft["selected_profiles"]["retrieval"], live_selected["retrieval"]
+            )
+            self.assertEqual(
+                partial_draft["selected_profiles"]["embedding"], live_selected["embedding"]
+            )
+            self.assertTrue(
+                partial_draft["lineage"]["retrieval_override_config"]["query_transform_enabled"]
+            )
+            self.assertTrue(
+                partial_draft["lineage"]["retrieval_override_config"]["rewrite_enabled"]
+            )
 
             invalid_response = client.post(
                 "/admin/tuning/drafts",
@@ -669,34 +757,54 @@ class SmokeTestAdminOps(SmokeTestBase):
                 headers={"Authorization": "Bearer fake-token"},
             )
             self.assertEqual(patch_response.status_code, 200)
-            self.assertEqual(patch_response.json()["draft"]["description"], "Updated M17.b.1 smoke draft")
+            self.assertEqual(
+                patch_response.json()["draft"]["description"], "Updated M17.b.1 smoke draft"
+            )
 
-            profiles_response = client.get("/admin/profiles", headers={"Authorization": "Bearer fake-token"})
+            profiles_response = client.get(
+                "/admin/profiles", headers={"Authorization": "Bearer fake-token"}
+            )
             self.assertEqual(profiles_response.status_code, 200)
-            llm_profiles = [profile for profile in profiles_response.json()["profiles"] if profile["profile_type"] == "llm"]
-            target_profile = next((profile for profile in llm_profiles if not profile["is_active"]), llm_profiles[0])
+            llm_profiles = [
+                profile
+                for profile in profiles_response.json()["profiles"]
+                if profile["profile_type"] == "llm"
+            ]
+            target_profile = next(
+                (profile for profile in llm_profiles if not profile["is_active"]), llm_profiles[0]
+            )
             activate_response = client.post(
                 "/admin/profiles/active",
                 json={"profile_type": "llm", "profile_name": target_profile["name"]},
                 headers={"Authorization": "Bearer fake-token"},
             )
             self.assertEqual(activate_response.status_code, 200)
-            self.assertEqual(activate_response.json()["live_configuration"]["version_label"], "live-current")
-            self.assertEqual(activate_response.json()["live_configuration"]["selected_profiles"]["llm"], target_profile["name"])
+            self.assertEqual(
+                activate_response.json()["live_configuration"]["version_label"], "live-current"
+            )
+            self.assertEqual(
+                activate_response.json()["live_configuration"]["selected_profiles"]["llm"],
+                target_profile["name"],
+            )
 
-            audit_response = client.get("/admin/audit-log", headers={"Authorization": "Bearer fake-token"})
+            audit_response = client.get(
+                "/admin/audit-log", headers={"Authorization": "Bearer fake-token"}
+            )
             self.assertEqual(audit_response.status_code, 200)
             actions = {item["action"] for item in audit_response.json()["events"]}
-            self.assertTrue({"tuning.draft.create", "tuning.draft.update", "profile.activate"}.issubset(actions))
+            self.assertTrue(
+                {"tuning.draft.create", "tuning.draft.update", "profile.activate"}.issubset(
+                    actions
+                )
+            )
         finally:
             settings.AUTH_ENABLED = original_auth_enabled
             main_module.authenticate_request = original_authenticate
 
     def test_approved_gpt_oss_cloud_model_is_available_to_sandbox(self):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         run_migrations()
         client = TestClient(app)
@@ -711,27 +819,29 @@ class SmokeTestAdminOps(SmokeTestBase):
                 groups=["ops"],
             )
 
-            response = client.get("/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"})
+            response = client.get(
+                "/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"}
+            )
             self.assertEqual(response.status_code, 200)
             approved_llms = {
-                option["name"]: option
-                for option in response.json()["approved_options"]["llm"]
+                option["name"]: option for option in response.json()["approved_options"]["llm"]
             }
             self.assertIn("gpt_oss_20b_cloud", approved_llms)
             self.assertEqual(approved_llms["gpt_oss_20b_cloud"]["model"], "gpt-oss:20b-cloud")
-            self.assertEqual(approved_llms["gpt_oss_20b_cloud"]["display_name"], "GPT-OSS 20B Cloud")
+            self.assertEqual(
+                approved_llms["gpt_oss_20b_cloud"]["display_name"], "GPT-OSS 20B Cloud"
+            )
             self.assertNotIn("deepseek_v3_1_cloud", approved_llms)
         finally:
             settings.AUTH_ENABLED = original_auth_enabled
             main_module.authenticate_request = original_authenticate
 
     def test_m17_b_2_interactive_sandbox_compare_and_embedding_scope_warning(self):
-        from fastapi.testclient import TestClient
-
-        import app.main as main_module
-        from app.auth.context import AuthenticatedUser
         import app.core_rag.answering as answering_module
         import app.core_rag.retrieval as retrieval_module
+        import app.main as main_module
+        from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         run_migrations()
         seeded = self._seed_retrieval_records()
@@ -751,10 +861,12 @@ class SmokeTestAdminOps(SmokeTestBase):
             retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
             answering_module.generate_answer = lambda system_prompt, user_prompt: {
                 "success": True,
-                "content": "{\"answer\":\"Sandbox compare confirms the alpha semantic vector match text in the retrieved source [S1]\",\"citations\":[\"S1\"]}",
+                "content": '{"answer":"Sandbox compare confirms the alpha semantic vector match text in the retrieved source [S1]","citations":["S1"]}',
             }
 
-            tuning_payload = client.get("/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"}).json()
+            tuning_payload = client.get(
+                "/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"}
+            ).json()
             selected_profiles = dict(tuning_payload["live_configuration"]["selected_profiles"])
             # Pin a native-sampling LLM: prompt_json_only models force temperature
             # to 0.0, so the 0.7 override assertion depends on the model choice.
@@ -776,12 +888,21 @@ class SmokeTestAdminOps(SmokeTestBase):
             compare_payload = compare_response.json()
             self.assertEqual(compare_payload["live_run"]["status"], "completed")
             self.assertEqual(compare_payload["candidate_run"]["status"], "completed")
-            self.assertEqual(compare_payload["candidate_run"]["generation_summary"]["temperature"], 0.7)
+            self.assertEqual(
+                compare_payload["candidate_run"]["generation_summary"]["temperature"], 0.7
+            )
             self.assertEqual(compare_payload["candidate_run"]["generation_summary"]["top_p"], 0.9)
-            self.assertEqual(compare_payload["candidate_run"]["retrieval_summary"]["answer_time_chunk_cap_chars"], 640)
+            self.assertEqual(
+                compare_payload["candidate_run"]["retrieval_summary"][
+                    "answer_time_chunk_cap_chars"
+                ],
+                640,
+            )
             self.assertLessEqual(compare_payload["candidate_run"]["used_chunks_count"], 2)
             self.assertIn("transform_summary", compare_payload["live_run"]["retrieval_summary"])
-            self.assertIn("transform_summary", compare_payload["candidate_run"]["retrieval_summary"])
+            self.assertIn(
+                "transform_summary", compare_payload["candidate_run"]["retrieval_summary"]
+            )
 
             alternate_embedding = next(
                 option["name"]
@@ -806,7 +927,9 @@ class SmokeTestAdminOps(SmokeTestBase):
             self.assertTrue(blocked_payload["warnings"])
             self.assertIn("file-", blocked_payload["warnings"][0]["detail"])
 
-            audit_response = client.get("/admin/audit-log", headers={"Authorization": "Bearer fake-token"})
+            audit_response = client.get(
+                "/admin/audit-log", headers={"Authorization": "Bearer fake-token"}
+            )
             actions = {item["action"] for item in audit_response.json()["events"]}
             self.assertIn("tuning.compare.run", actions)
         finally:
@@ -817,10 +940,10 @@ class SmokeTestAdminOps(SmokeTestBase):
             self._delete_retrieval_records(seeded.values())
 
     def test_m18_admin_profiles_can_manage_transform_profiles_and_trace_status(self):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
+
         run_migrations()
         # This test exercises real DB-backed profile activation end to end; the
         # harness restores the previous active profiles in tearDown.
@@ -838,7 +961,9 @@ class SmokeTestAdminOps(SmokeTestBase):
             )
             profile_name = f"rewrite-only-lab-{uuid4().hex[:6]}"
 
-            metadata_response = client.get("/admin/profiles/metadata", headers={"Authorization": "Bearer fake-token"})
+            metadata_response = client.get(
+                "/admin/profiles/metadata", headers={"Authorization": "Bearer fake-token"}
+            )
             self.assertEqual(metadata_response.status_code, 200)
             base_retrieval = dict(metadata_response.json()["retrieval_settings"])
 
@@ -860,7 +985,9 @@ class SmokeTestAdminOps(SmokeTestBase):
             )
             self.assertEqual(create_response.status_code, 200)
             self.assertTrue(create_response.json()["profile"]["transform_posture"]["enabled"])
-            self.assertTrue(create_response.json()["profile"]["transform_posture"]["rewrite_enabled"])
+            self.assertTrue(
+                create_response.json()["profile"]["transform_posture"]["rewrite_enabled"]
+            )
 
             patch_response = client.patch(
                 f"/admin/profiles/retrieval/{profile_name}",
@@ -868,7 +995,9 @@ class SmokeTestAdminOps(SmokeTestBase):
                 headers={"Authorization": "Bearer fake-token"},
             )
             self.assertEqual(patch_response.status_code, 200)
-            self.assertEqual(patch_response.json()["profile"]["config"]["transform_timeout_ms"], 900)
+            self.assertEqual(
+                patch_response.json()["profile"]["config"]["transform_timeout_ms"], 900
+            )
 
             activate_response = client.post(
                 "/admin/profiles/active",
@@ -877,10 +1006,16 @@ class SmokeTestAdminOps(SmokeTestBase):
             )
             self.assertEqual(activate_response.status_code, 200)
 
-            live_metadata = client.get("/admin/profiles/metadata", headers={"Authorization": "Bearer fake-token"}).json()
+            live_metadata = client.get(
+                "/admin/profiles/metadata", headers={"Authorization": "Bearer fake-token"}
+            ).json()
             self.assertEqual(live_metadata["current_live_retrieval"]["profile_name"], profile_name)
-            self.assertTrue(live_metadata["current_live_retrieval"]["transform_posture"]["enabled"])
-            self.assertTrue(live_metadata["current_live_retrieval"]["transform_posture"]["rewrite_enabled"])
+            self.assertTrue(
+                live_metadata["current_live_retrieval"]["transform_posture"]["enabled"]
+            )
+            self.assertTrue(
+                live_metadata["current_live_retrieval"]["transform_posture"]["rewrite_enabled"]
+            )
 
             trace_response = client.post(
                 "/admin/traces/query-debug",
@@ -891,9 +1026,13 @@ class SmokeTestAdminOps(SmokeTestBase):
             self.assertTrue(trace_response.json()["trace"]["query_transform"]["enabled"])
             self.assertIn("rewrite", trace_response.json()["trace"]["query_transform"]["strategy"])
 
-            audit_response = client.get("/admin/audit-log", headers={"Authorization": "Bearer fake-token"})
+            audit_response = client.get(
+                "/admin/audit-log", headers={"Authorization": "Bearer fake-token"}
+            )
             actions = {item["action"] for item in audit_response.json()["events"]}
-            self.assertTrue({"profile.create", "profile.update", "profile.activate"}.issubset(actions))
+            self.assertTrue(
+                {"profile.create", "profile.update", "profile.activate"}.issubset(actions)
+            )
         finally:
             # Active-profile restoration is handled by the harness tearDown
             # snapshot; do not overwrite the "default" profile config here.
@@ -901,12 +1040,11 @@ class SmokeTestAdminOps(SmokeTestBase):
             main_module.authenticate_request = original_authenticate
 
     def test_m18_sandbox_compare_surfaces_candidate_retrieval_transform_posture(self):
-        from fastapi.testclient import TestClient
-
-        import app.main as main_module
-        from app.auth.context import AuthenticatedUser
         import app.core_rag.answering as answering_module
         import app.core_rag.retrieval as retrieval_module
+        import app.main as main_module
+        from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         run_migrations()
         seeded = self._seed_retrieval_records()
@@ -926,10 +1064,12 @@ class SmokeTestAdminOps(SmokeTestBase):
             retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
             answering_module.generate_answer = lambda system_prompt, user_prompt: {
                 "success": True,
-                "content": "{\"answer\":\"Sandbox compare confirms the alpha semantic vector match text in the retrieved source [S1]\",\"citations\":[\"S1\"]}",
+                "content": '{"answer":"Sandbox compare confirms the alpha semantic vector match text in the retrieved source [S1]","citations":["S1"]}',
             }
 
-            tuning_payload = client.get("/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"}).json()
+            tuning_payload = client.get(
+                "/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"}
+            ).json()
             selected_profiles = dict(tuning_payload["live_configuration"]["selected_profiles"])
 
             compare_response = client.post(
@@ -953,10 +1093,24 @@ class SmokeTestAdminOps(SmokeTestBase):
             )
             self.assertEqual(compare_response.status_code, 200)
             compare_payload = compare_response.json()
-            self.assertEqual(compare_payload["candidate_run"]["selected_profiles"]["retrieval"], selected_profiles["retrieval"])
-            self.assertTrue(compare_payload["candidate_run"]["retrieval_summary"]["transform_summary"]["enabled"])
-            self.assertTrue(compare_payload["candidate_run"]["retrieval_summary"]["transform_summary"]["expansion_enabled"])
-            self.assertEqual(compare_payload["summary"]["candidate_transform_summary"]["strategy"], ["expansion"])
+            self.assertEqual(
+                compare_payload["candidate_run"]["selected_profiles"]["retrieval"],
+                selected_profiles["retrieval"],
+            )
+            self.assertTrue(
+                compare_payload["candidate_run"]["retrieval_summary"]["transform_summary"][
+                    "enabled"
+                ]
+            )
+            self.assertTrue(
+                compare_payload["candidate_run"]["retrieval_summary"]["transform_summary"][
+                    "expansion_enabled"
+                ]
+            )
+            self.assertEqual(
+                compare_payload["summary"]["candidate_transform_summary"]["strategy"],
+                ["expansion"],
+            )
             self.assertIn("retrieval", compare_payload["summary"]["changed_profile_types"])
         finally:
             settings.AUTH_ENABLED = original_auth_enabled
@@ -966,10 +1120,9 @@ class SmokeTestAdminOps(SmokeTestBase):
             self._delete_retrieval_records(seeded.values())
 
     def test_m18_promoting_sandbox_transform_override_materializes_live_retrieval_profile(self):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         run_migrations()
         client = TestClient(app)
@@ -984,7 +1137,9 @@ class SmokeTestAdminOps(SmokeTestBase):
                 groups=["ops"],
             )
 
-            tuning_payload = client.get("/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"}).json()
+            tuning_payload = client.get(
+                "/admin/tuning/configurations", headers={"Authorization": "Bearer fake-token"}
+            ).json()
             selected_profiles = dict(tuning_payload["live_configuration"]["selected_profiles"])
             draft_response = client.post(
                 "/admin/tuning/drafts",
@@ -1007,14 +1162,19 @@ class SmokeTestAdminOps(SmokeTestBase):
 
             promote_response = client.post(
                 "/admin/tuning/promote",
-                json={"draft_id": draft_id, "promotion_note": "Promote inline sandbox transform override."},
+                json={
+                    "draft_id": draft_id,
+                    "promotion_note": "Promote inline sandbox transform override.",
+                },
                 headers={"Authorization": "Bearer fake-token", "X-Admin-Approval": "approved"},
             )
             self.assertEqual(promote_response.status_code, 200)
             live_configuration = promote_response.json()["live_configuration"]
             live_retrieval_name = str(live_configuration["selected_profiles"]["retrieval"])
             self.assertIn("retrieval", live_retrieval_name)
-            live_retrieval_config = ((live_configuration["resolved_config"] or {}).get("retrieval") or {}).get("config") or {}
+            live_retrieval_config = (
+                (live_configuration["resolved_config"] or {}).get("retrieval") or {}
+            ).get("config") or {}
             self.assertTrue(live_retrieval_config["query_transform_enabled"])
             self.assertTrue(live_retrieval_config["expansion_enabled"])
             self.assertFalse(live_retrieval_config["rewrite_enabled"])
@@ -1023,10 +1183,9 @@ class SmokeTestAdminOps(SmokeTestBase):
             main_module.authenticate_request = original_authenticate
 
     def test_m17_2_seed_import_admin_access_controls_and_executive_acl_visibility(self):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
         from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
+        from fastapi.testclient import TestClient
 
         run_migrations()
         client = TestClient(app)
@@ -1041,18 +1200,34 @@ class SmokeTestAdminOps(SmokeTestBase):
                 groups=["dev-admins"],
             )
 
-            seed_response = client.post("/admin/access/seed-import", json={}, headers={"Authorization": "Bearer fake-token"})
+            seed_response = client.post(
+                "/admin/access/seed-import",
+                json={},
+                headers={"Authorization": "Bearer fake-token"},
+            )
             self.assertEqual(seed_response.status_code, 200)
             summary = seed_response.json()["summary"]
             self.assertGreaterEqual(summary["users"], 10)
             self.assertGreaterEqual(summary["sources"], 5)
 
-            access_response = client.get("/admin/access", headers={"Authorization": "Bearer fake-token"})
+            access_response = client.get(
+                "/admin/access", headers={"Authorization": "Bearer fake-token"}
+            )
             self.assertEqual(access_response.status_code, 200)
             access_payload = access_response.json()
             self.assertTrue(access_payload["seed_pack_status"]["ready"])
-            self.assertTrue(any(item["seed_source_key"] == "finance_budget" for item in access_payload["source_acl"]))
-            self.assertTrue(any(item["contact_role"] == "business_approver" for item in access_payload["source_contacts"]))
+            self.assertTrue(
+                any(
+                    item["seed_source_key"] == "finance_budget"
+                    for item in access_payload["source_acl"]
+                )
+            )
+            self.assertTrue(
+                any(
+                    item["contact_role"] == "business_approver"
+                    for item in access_payload["source_contacts"]
+                )
+            )
 
             restricted_before = AuthenticatedUser(
                 user_id="m172-restricted",
@@ -1062,7 +1237,9 @@ class SmokeTestAdminOps(SmokeTestBase):
             )
             token = set_current_user(restricted_before)
             try:
-                before = perform_search(SearchRequest(question="legalfalcontoken", k=5, mode="keyword"))
+                before = perform_search(
+                    SearchRequest(question="legalfalcontoken", k=5, mode="keyword")
+                )
             finally:
                 reset_current_user(token)
             self.assertFalse(before.results)
@@ -1074,9 +1251,15 @@ class SmokeTestAdminOps(SmokeTestBase):
             )
             self.assertEqual(membership_response.status_code, 200)
             explained_user = membership_response.json()["user"]
-            self.assertTrue(any(item["reason"] == "group:finance" for item in explained_user["group_access"]))
+            self.assertTrue(
+                any(item["reason"] == "group:finance" for item in explained_user["group_access"])
+            )
 
-            finance_source = next(item for item in access_payload["source_acl"] if item["seed_source_key"] == "finance_budget")
+            finance_source = next(
+                item
+                for item in access_payload["source_acl"]
+                if item["seed_source_key"] == "finance_budget"
+            )
             acl_response = client.patch(
                 f"/admin/access/sources/{finance_source['source_id']}/acl",
                 json={"group_names": ["finance", "executive_access", "compliance_observers"]},
@@ -1107,7 +1290,12 @@ class SmokeTestAdminOps(SmokeTestBase):
                 headers={"Authorization": "Bearer fake-token"},
             )
             self.assertEqual(contacts_response.status_code, 200)
-            self.assertTrue(any(item["contact_role"] == "acl_manager" for item in contacts_response.json()["source"]["contacts"]))
+            self.assertTrue(
+                any(
+                    item["contact_role"] == "acl_manager"
+                    for item in contacts_response.json()["source"]["contacts"]
+                )
+            )
 
             executive = AuthenticatedUser(
                 user_id="m172-ceo",
@@ -1117,7 +1305,9 @@ class SmokeTestAdminOps(SmokeTestBase):
             )
             token = set_current_user(executive)
             try:
-                executive_results = perform_search(SearchRequest(question="q3budgettoken", k=5, mode="keyword"))
+                executive_results = perform_search(
+                    SearchRequest(question="q3budgettoken", k=5, mode="keyword")
+                )
             finally:
                 reset_current_user(token)
             self.assertTrue(executive_results.results)
@@ -1131,7 +1321,9 @@ class SmokeTestAdminOps(SmokeTestBase):
             )
             token = set_current_user(reviewer)
             try:
-                reviewer_results = perform_search(SearchRequest(question="legalfalcontoken", k=5, mode="keyword"))
+                reviewer_results = perform_search(
+                    SearchRequest(question="legalfalcontoken", k=5, mode="keyword")
+                )
             finally:
                 reset_current_user(token)
             self.assertTrue(reviewer_results.results)
@@ -1141,17 +1333,16 @@ class SmokeTestAdminOps(SmokeTestBase):
             main_module.authenticate_request = original_authenticate
 
     def test_m2_retrieval_trace_persists_full_ask_lifecycle_and_admin_inspection(self):
-        from fastapi.testclient import TestClient
-
         from app.core_rag.answering import perform_ask
         from app.db.migrate import run_migrations
         from app.db.repo_traces import get_trace
+        from fastapi.testclient import TestClient
 
         run_migrations()
         seeded = self._seed_retrieval_records()
         client = TestClient(app)
-        import app.core_rag.retrieval as retrieval_module
         import app.core_rag.answering as answering_module
+        import app.core_rag.retrieval as retrieval_module
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
 
@@ -1172,7 +1363,7 @@ class SmokeTestAdminOps(SmokeTestBase):
             retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
             answering_module.generate_answer = lambda system_prompt, user_prompt: {
                 "success": True,
-                "content": "{\"answer\":\"The answer confirms the alpha semantic vector match text in the retrieved source [S1]\",\"citations\":[\"S1\"]}",
+                "content": '{"answer":"The answer confirms the alpha semantic vector match text in the retrieved source [S1]","citations":["S1"]}',
             }
             response = perform_ask(
                 AskRequest(
@@ -1217,7 +1408,9 @@ class SmokeTestAdminOps(SmokeTestBase):
             listing = client.get("/admin/traces", params={"limit": 5})
             self.assertEqual(listing.status_code, 200)
             listing_json = listing.json()
-            self.assertTrue(any(item["request_id"] == trace_request_id for item in listing_json["traces"]))
+            self.assertTrue(
+                any(item["request_id"] == trace_request_id for item in listing_json["traces"])
+            )
             self.assertIn("retrieval", listing_json["active_profiles"])
             self.assertIn("default_mode", listing_json["retrieval_settings"])
         finally:
@@ -1225,12 +1418,15 @@ class SmokeTestAdminOps(SmokeTestBase):
             main_module.authenticate_request = original_authenticate
             if trace_request_id:
                 with engine.begin() as conn:
-                    conn.execute(text("DELETE FROM retrieval_traces WHERE request_id = :request_id"), {"request_id": trace_request_id})
+                    conn.execute(
+                        text("DELETE FROM retrieval_traces WHERE request_id = :request_id"),
+                        {"request_id": trace_request_id},
+                    )
             self._delete_retrieval_records(seeded.values())
 
     def test_m21_structured_logs_exist_for_upload_search_ask_enrich_and_build_graph(self):
-        from app.ingestion.jobs import process_upload
         from app.core_rag.answering import perform_ask
+        from app.ingestion.jobs import process_upload
 
         unique_name = f"m21-logs-{uuid4().hex[:8]}.pdf"
         upload = UploadFile(
@@ -1294,7 +1490,10 @@ class SmokeTestAdminOps(SmokeTestBase):
         source_id = result["source_id"]
         try:
             with engine.begin() as conn:
-                conn.execute(text("UPDATE sources SET ingestion_status = 'failed' WHERE id = :source_id"), {"source_id": source_id})
+                conn.execute(
+                    text("UPDATE sources SET ingestion_status = 'failed' WHERE id = :source_id"),
+                    {"source_id": source_id},
+                )
 
             first_chunk_count = self._source_chunk_count(source_id)
             first_part_count = self._source_part_count(source_id)
@@ -1359,7 +1558,9 @@ class SmokeTestAdminOps(SmokeTestBase):
             self.assertTrue(result.attempted)
             self.assertEqual(source.enrichment_status, "completed")
             self.assertIn("temporal", source.source_metadata_json)
-            self.assertNotEqual(source.source_metadata_json["temporal"].get("build_status"), "failed")
+            self.assertNotEqual(
+                source.source_metadata_json["temporal"].get("build_status"), "failed"
+            )
             self.assertEqual(source.source_metadata_json["lazy_enrichment"]["reason"], "old-trace")
         finally:
             self._delete_seed_source(source_id)
@@ -1422,7 +1623,10 @@ class SmokeTestAdminOps(SmokeTestBase):
             self.assertIsNotNone(get_source_by_id(keep_source_id))
         finally:
             with engine.begin() as conn:
-                conn.execute(text("DELETE FROM sources WHERE id = :source_id"), {"source_id": keep_source_id})
+                conn.execute(
+                    text("DELETE FROM sources WHERE id = :source_id"),
+                    {"source_id": keep_source_id},
+                )
 
     def test_m17_b3_promotion_rollback_embedding_scope_and_warmup_records(self):
         from app.auth.context import AuthenticatedUser
@@ -1440,7 +1644,9 @@ class SmokeTestAdminOps(SmokeTestBase):
 
         run_migrations()
         seed_default_profiles(settings)
-        actor = AuthenticatedUser(user_id="admin-m17b3", email="admin.m17b3@example.com", roles=["admin"])
+        actor = AuthenticatedUser(
+            user_id="admin-m17b3", email="admin.m17b3@example.com", roles=["admin"]
+        )
         selected_profiles = get_active_profile_map(["embedding", "reranker", "llm", "retrieval"])
         draft = create_candidate_draft(
             name=f"m17b3-smoke-{uuid4().hex[:6]}",
@@ -1485,19 +1691,38 @@ class SmokeTestAdminOps(SmokeTestBase):
             actor=actor,
         )
         self.assertIsNotNone(full["job_id"])
-        self.assertEqual(get_ingestion_job(full["job_id"]).stage, "embedding_full_reindex_requested")
+        self.assertEqual(
+            get_ingestion_job(full["job_id"]).stage, "embedding_full_reindex_requested"
+        )
 
-        promoted = promote_candidate_to_live(draft_id=draft["id"], promotion_note="Smoke promotion.", actor=actor)
+        promoted = promote_candidate_to_live(
+            draft_id=draft["id"], promotion_note="Smoke promotion.", actor=actor
+        )
         promoted_label = promoted["promoted_version"]["version_label"]
-        rolled_back = rollback_to_version(version_label=promoted_label, reason="Smoke rollback.", actor=actor)
+        rolled_back = rollback_to_version(
+            version_label=promoted_label, reason="Smoke rollback.", actor=actor
+        )
         self.assertEqual(rolled_back["rolled_back_to"]["version_label"], promoted_label)
         history = list_tuning_history()
         self.assertTrue(any(event["action"] == "promote" for event in history["promotion_events"]))
-        self.assertTrue(any(event["action"] == "rollback" for event in history["promotion_events"]))
+        self.assertTrue(
+            any(event["action"] == "rollback" for event in history["promotion_events"])
+        )
 
-        warmup = record_model_warmup(model_type="reranker", model_name="cross-encoder/ms-marco-TinyBERT-L-2-v2", status="success", latency_ms=12, error_message=None)
+        warmup = record_model_warmup(
+            model_type="reranker",
+            model_name="cross-encoder/ms-marco-TinyBERT-L-2-v2",
+            status="success",
+            latency_ms=12,
+            error_message=None,
+        )
         self.assertEqual(warmup["status"], "success")
-        self.assertTrue(any(row["model_name"] == "cross-encoder/ms-marco-TinyBERT-L-2-v2" for row in list_model_warmups()))
+        self.assertTrue(
+            any(
+                row["model_name"] == "cross-encoder/ms-marco-TinyBERT-L-2-v2"
+                for row in list_model_warmups()
+            )
+        )
 
     def test_m18_query_transform_is_disabled_by_default_and_trace_visible_when_enabled(self):
         import app.core_rag.query_transform as qt
@@ -1516,7 +1741,10 @@ class SmokeTestAdminOps(SmokeTestBase):
             qt._HYDE_SYSTEM: "The Q4 liability clause limits subcontracting obligations.",
         }
         original = qt._generate
-        qt._generate = lambda system_prompt, user_prompt, **_: {"success": True, "content": responses[system_prompt]}
+        qt._generate = lambda system_prompt, user_prompt, **_: {
+            "success": True,
+            "content": responses[system_prompt],
+        }
         try:
             transformed = transform_query(
                 "Q4 liability subcontracting",
@@ -1541,13 +1769,25 @@ class SmokeTestAdminOps(SmokeTestBase):
         from app.db.repo_semantic_cache import get_cache_entry, invalidate_cache, store_cache_entry
 
         run_migrations()
-        actor = AuthenticatedUser(user_id=f"user-cache-{uuid4().hex[:6]}", email="cache@example.com", groups=["ops"], roles=["user"])
+        actor = AuthenticatedUser(
+            user_id=f"user-cache-{uuid4().hex[:6]}",
+            email="cache@example.com",
+            groups=["ops"],
+            roles=["user"],
+        )
         question = f"cache question {uuid4().hex}"
         invalidate_cache(reason="test_setup")
 
         token = set_current_user(actor)
         try:
-            self.assertIsNone(get_cache_entry(question=question, retrieval_mode="hybrid", corpus_scope={"corpus": "ops"}, actor=actor))
+            self.assertIsNone(
+                get_cache_entry(
+                    question=question,
+                    retrieval_mode="hybrid",
+                    corpus_scope={"corpus": "ops"},
+                    actor=actor,
+                )
+            )
             entry = store_cache_entry(
                 question=question,
                 retrieval_mode="hybrid",
@@ -1559,8 +1799,22 @@ class SmokeTestAdminOps(SmokeTestBase):
                 metadata_json={"test": True},
             )
             self.assertGreater(entry["id"], 0)
-            self.assertIsNotNone(get_cache_entry(question=question, retrieval_mode="hybrid", corpus_scope={"corpus": "ops"}, actor=actor))
-            self.assertIsNone(get_cache_entry(question=question, retrieval_mode="keyword", corpus_scope={"corpus": "ops"}, actor=actor))
+            self.assertIsNotNone(
+                get_cache_entry(
+                    question=question,
+                    retrieval_mode="hybrid",
+                    corpus_scope={"corpus": "ops"},
+                    actor=actor,
+                )
+            )
+            self.assertIsNone(
+                get_cache_entry(
+                    question=question,
+                    retrieval_mode="keyword",
+                    corpus_scope={"corpus": "ops"},
+                    actor=actor,
+                )
+            )
             self.assertGreaterEqual(invalidate_cache(reason="test_teardown"), 1)
         finally:
             reset_current_user(token)
@@ -1575,25 +1829,40 @@ class SmokeTestAdminOps(SmokeTestBase):
         )
 
         run_migrations()
-        actor = AuthenticatedUser(user_id=f"user-mining-{uuid4().hex[:6]}", email="mining@example.com", roles=["user"])
+        actor = AuthenticatedUser(
+            user_id=f"user-mining-{uuid4().hex[:6]}", email="mining@example.com", roles=["user"]
+        )
         question = f"missing payroll policy {uuid4().hex}"
-        record_query_event(question=question, event_type="no_evidence", answer_path="not_found", retrieval_mode="hybrid", actor=actor)
-        record_query_event(question=question, event_type="not_helpful", feedback_type="not_helpful", retrieval_mode="hybrid", actor=actor)
+        record_query_event(
+            question=question,
+            event_type="no_evidence",
+            answer_path="not_found",
+            retrieval_mode="hybrid",
+            actor=actor,
+        )
+        record_query_event(
+            question=question,
+            event_type="not_helpful",
+            feedback_type="not_helpful",
+            retrieval_mode="hybrid",
+            actor=actor,
+        )
         clusters = build_failure_clusters()
         cluster = next(item for item in clusters if question in item["sample_questions_json"])
         annotated = annotate_cluster(cluster["id"], {"owner": "retrieval", "priority": "high"})
         self.assertEqual(annotated["annotation_json"]["priority"], "high")
-        pack = create_eval_pack_from_clusters(name=f"derived-pack-{uuid4().hex[:6]}", cluster_ids=[cluster["id"]], actor=actor)
+        pack = create_eval_pack_from_clusters(
+            name=f"derived-pack-{uuid4().hex[:6]}", cluster_ids=[cluster["id"]], actor=actor
+        )
         self.assertEqual(pack["status"], "ready")
         self.assertTrue(pack["cases_json"])
 
     def test_m22_structured_negative_feedback_persists_and_lists_for_admin(self):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
         from app.db.repo_actions import list_negative_feedback_events
         from app.db.repo_query_mining import list_query_events
+        from fastapi.testclient import TestClient
 
         run_migrations()
         client = TestClient(app)
@@ -1644,7 +1913,14 @@ class SmokeTestAdminOps(SmokeTestBase):
                     "negative_reason": "wrong_document",
                     "note": "The cited file is unrelated.",
                     "answer_text": "The answer cited the wrong source [S1].",
-                    "citations_json": [{"citation_id": "S1", "source_id": 123, "chunk_id": 456, "file_name": "wrong.pdf"}],
+                    "citations_json": [
+                        {
+                            "citation_id": "S1",
+                            "source_id": 123,
+                            "chunk_id": 456,
+                            "file_name": "wrong.pdf",
+                        }
+                    ],
                     "used_chunks_count": 3,
                     "active_profile_snapshot_json": {"retrieval": {"name": "default"}},
                     "request_id": request_id,
@@ -1656,7 +1932,11 @@ class SmokeTestAdminOps(SmokeTestBase):
             negative_feedback_id = negative.json()["negative_feedback_id"]
             self.assertGreater(negative_feedback_id, 0)
 
-            rows = [row for row in list_negative_feedback_events(limit=20) if row.request_id == request_id]
+            rows = [
+                row
+                for row in list_negative_feedback_events(limit=20)
+                if row.request_id == request_id
+            ]
             self.assertEqual(len(rows), 1)
             row = rows[0]
             self.assertEqual(row.negative_reason, "wrong_document")
@@ -1666,8 +1946,15 @@ class SmokeTestAdminOps(SmokeTestBase):
             self.assertEqual(row.cited_chunk_ids_json, [456])
             self.assertEqual(row.active_profile_snapshot_json["retrieval"]["name"], "default")
 
-            events = [item for item in list_query_events(limit=50) if item["request_id"] == request_id]
-            self.assertTrue(any(item["event_type"] == "not_helpful" and item["feedback_type"] == "not_helpful" for item in events))
+            events = [
+                item for item in list_query_events(limit=50) if item["request_id"] == request_id
+            ]
+            self.assertTrue(
+                any(
+                    item["event_type"] == "not_helpful" and item["feedback_type"] == "not_helpful"
+                    for item in events
+                )
+            )
 
             redo_request_id = f"m22-redo-{uuid4().hex[:6]}"
             retry = client.post(
@@ -1685,15 +1972,36 @@ class SmokeTestAdminOps(SmokeTestBase):
                 },
             )
             self.assertEqual(retry.status_code, 200)
-            retry_events = [item for item in list_query_events(limit=50) if item["request_id"] == redo_request_id]
-            self.assertTrue(any(item["event_type"] == "retry" and item["feedback_type"] == "redo_search" for item in retry_events))
+            retry_events = [
+                item
+                for item in list_query_events(limit=50)
+                if item["request_id"] == redo_request_id
+            ]
+            self.assertTrue(
+                any(
+                    item["event_type"] == "retry" and item["feedback_type"] == "redo_search"
+                    for item in retry_events
+                )
+            )
 
             admin_payload = client.get("/admin/feedback")
             self.assertEqual(admin_payload.status_code, 200)
             payload = admin_payload.json()
-            self.assertTrue(any(item["id"] == negative_feedback_id for item in payload["negative_feedback"]))
-            self.assertTrue(any(item["metadata_json"]["original_request_id"] == request_id for item in payload["retry_events"]))
-            self.assertTrue(any(item["negative_reason"] == "wrong_document" for item in payload["negative_feedback_reason_counts"]))
+            self.assertTrue(
+                any(item["id"] == negative_feedback_id for item in payload["negative_feedback"])
+            )
+            self.assertTrue(
+                any(
+                    item["metadata_json"]["original_request_id"] == request_id
+                    for item in payload["retry_events"]
+                )
+            )
+            self.assertTrue(
+                any(
+                    item["negative_reason"] == "wrong_document"
+                    for item in payload["negative_feedback_reason_counts"]
+                )
+            )
         finally:
             settings.AUTH_ENABLED = original_auth_enabled
             main_module.authenticate_request = original_authenticate
@@ -1709,8 +2017,12 @@ class SmokeTestAdminOps(SmokeTestBase):
         )
 
         run_migrations()
-        actor = AuthenticatedUser(user_id=f"user-gov-{uuid4().hex[:6]}", email="governance@example.com", roles=["user"])
-        admin = AuthenticatedUser(user_id="admin-gov", email="admin.gov@example.com", roles=["admin"])
+        actor = AuthenticatedUser(
+            user_id=f"user-gov-{uuid4().hex[:6]}", email="governance@example.com", roles=["user"]
+        )
+        admin = AuthenticatedUser(
+            user_id="admin-gov", email="admin.gov@example.com", roles=["admin"]
+        )
         question = f"restricted board pack {uuid4().hex}"
         for approver in ("first.approver@example.com", "second.approver@example.com"):
             create_access_request(
@@ -1720,7 +2032,9 @@ class SmokeTestAdminOps(SmokeTestBase):
                 metadata_json={"suggested_approver_email": approver},
             )
 
-        signals = evaluate_access_request_risk(actor=actor, question=question, suggested_approver_email="third.approver@example.com")
+        signals = evaluate_access_request_risk(
+            actor=actor, question=question, suggested_approver_email="third.approver@example.com"
+        )
         signal_types = {signal["signal_type"] for signal in signals}
         self.assertIn("repeated_similar_request", signal_types)
         self.assertIn("approver_swapping", signal_types)

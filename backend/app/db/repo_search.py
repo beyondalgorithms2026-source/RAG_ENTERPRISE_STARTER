@@ -2,14 +2,12 @@ import math
 import re
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, Dict, List, Optional
-
-from sqlalchemy import text
+from typing import Any
 
 from app.auth.access_strategy import source_access_sql
 from app.core_rag.retrieval_scoring import get_retrieval_scoring
 from app.db.db import engine
-
+from sqlalchemy import text
 
 _KEYWORD_STOPWORDS = {
     "about",
@@ -64,16 +62,18 @@ def keyword_vector_mode(mode: str):
         _keyword_vector_mode.reset(token)
 
 
-def _pgvector_literal(vec: List[float], decimals: int = 8) -> str:
+def _pgvector_literal(vec: list[float], decimals: int = 8) -> str:
     parts = []
     for value in vec:
-        if value is None or (isinstance(value, float) and (math.isnan(value) or math.isinf(value))):
+        if value is None or (
+            isinstance(value, float) and (math.isnan(value) or math.isinf(value))
+        ):
             value = 0.0
         parts.append(f"{float(value):.{decimals}f}")
     return "[" + ",".join(parts) + "]"
 
 
-def _row_to_result(row: Any, score_key: str, score_value: Optional[float]) -> Dict[str, Any]:
+def _row_to_result(row: Any, score_key: str, score_value: float | None) -> dict[str, Any]:
     return {
         "chunk_id": row[0],
         "source_id": row[1],
@@ -88,8 +88,8 @@ def _row_to_result(row: Any, score_key: str, score_value: Optional[float]) -> Di
     }
 
 
-def _keyword_anchors(query_text: str) -> List[str]:
-    anchors: List[str] = []
+def _keyword_anchors(query_text: str) -> list[str]:
+    anchors: list[str] = []
     seen: set[str] = set()
     for token in re.findall(r"[A-Za-z0-9]+", query_text.lower()):
         if token in seen or token in _KEYWORD_STOPWORDS:
@@ -101,12 +101,18 @@ def _keyword_anchors(query_text: str) -> List[str]:
     return anchors[:8]
 
 
-def _acl_clause(*, params: Dict[str, Any], source_alias: str = "s") -> str:
+def _acl_clause(*, params: dict[str, Any], source_alias: str = "s") -> str:
     return source_access_sql(params=params, source_alias=source_alias)
 
 
-def _structured_filter_clauses(*, metadata_filters: Optional[Dict[str, str]], params: Dict[str, Any], chunk_alias: str = "c", source_part_alias: str = "sp") -> List[str]:
-    clauses: List[str] = []
+def _structured_filter_clauses(
+    *,
+    metadata_filters: dict[str, str] | None,
+    params: dict[str, Any],
+    chunk_alias: str = "c",
+    source_part_alias: str = "sp",
+) -> list[str]:
+    clauses: list[str] = []
     for index, (raw_key, raw_value) in enumerate((metadata_filters or {}).items()):
         key = str(raw_key or "").strip()
         value = str(raw_value or "").strip()
@@ -131,13 +137,13 @@ def _soft_keyword_results(
     *,
     query_text: str,
     k: int,
-    source_type: Optional[str],
-    source_id: Optional[int],
-    source_ids: Optional[List[int]],
-    source_part_id: Optional[int],
-    locator_filter: Optional[str],
-    metadata_filters: Optional[Dict[str, str]],
-) -> List[Dict[str, Any]]:
+    source_type: str | None,
+    source_id: int | None,
+    source_ids: list[int] | None,
+    source_part_id: int | None,
+    locator_filter: str | None,
+    metadata_filters: dict[str, str] | None,
+) -> list[dict[str, Any]]:
     anchors = _keyword_anchors(query_text)
     if not anchors:
         return []
@@ -162,7 +168,7 @@ def _soft_keyword_results(
         WHERE {vector_sql} @@ to_tsquery('english', :soft_query)
     """
     conditions = []
-    params: Dict[str, Any] = {"soft_query": soft_query, "k": max(k * 3, 12)}
+    params: dict[str, Any] = {"soft_query": soft_query, "k": max(k * 3, 12)}
 
     if source_type:
         conditions.append("s.source_type = :source_type")
@@ -180,7 +186,9 @@ def _soft_keyword_results(
         params["source_part_id"] = source_part_id
 
     if locator_filter:
-        conditions.append("COALESCE(c.locator_json::text, sp.locator_json::text, '') ILIKE :locator_filter")
+        conditions.append(
+            "COALESCE(c.locator_json::text, sp.locator_json::text, '') ILIKE :locator_filter"
+        )
         params["locator_filter"] = f"%{locator_filter}%"
 
     conditions.extend(_structured_filter_clauses(metadata_filters=metadata_filters, params=params))
@@ -194,7 +202,7 @@ def _soft_keyword_results(
     with engine.connect() as conn:
         rows = conn.execute(text(sql_base), params).fetchall()
 
-    scored_results: List[Dict[str, Any]] = []
+    scored_results: list[dict[str, Any]] = []
     scoring = get_retrieval_scoring()
     for row in rows:
         item = _row_to_result(row, "rank_score", float(row[8]))
@@ -206,20 +214,22 @@ def _soft_keyword_results(
         item["distance"] = None
         scored_results.append(item)
 
-    scored_results.sort(key=lambda item: (-float(item.get("rank_score") or 0.0), item.get("chunk_index", 0)))
+    scored_results.sort(
+        key=lambda item: (-float(item.get("rank_score") or 0.0), item.get("chunk_index", 0))
+    )
     return scored_results[:k]
 
 
 def search_chunks(
-    query_vector: List[float],
+    query_vector: list[float],
     k: int = 10,
-    source_type: Optional[str] = None,
-    source_id: Optional[int] = None,
-    source_ids: Optional[List[int]] = None,
-    source_part_id: Optional[int] = None,
-    locator_filter: Optional[str] = None,
-    metadata_filters: Optional[Dict[str, str]] = None,
-) -> List[Dict[str, Any]]:
+    source_type: str | None = None,
+    source_id: int | None = None,
+    source_ids: list[int] | None = None,
+    source_part_id: int | None = None,
+    locator_filter: str | None = None,
+    metadata_filters: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
     sql_base = """
         SELECT
             c.id AS chunk_id,
@@ -238,7 +248,7 @@ def search_chunks(
         WHERE c.embedding IS NOT NULL
     """
     conditions = []
-    params: Dict[str, Any] = {"query_embedding": _pgvector_literal(query_vector), "k": k}
+    params: dict[str, Any] = {"query_embedding": _pgvector_literal(query_vector), "k": k}
 
     if source_type:
         conditions.append("s.source_type = :source_type")
@@ -256,7 +266,9 @@ def search_chunks(
         params["source_part_id"] = source_part_id
 
     if locator_filter:
-        conditions.append("COALESCE(c.locator_json::text, sp.locator_json::text, '') ILIKE :locator_filter")
+        conditions.append(
+            "COALESCE(c.locator_json::text, sp.locator_json::text, '') ILIKE :locator_filter"
+        )
         params["locator_filter"] = f"%{locator_filter}%"
 
     conditions.extend(_structured_filter_clauses(metadata_filters=metadata_filters, params=params))
@@ -276,13 +288,13 @@ def search_chunks(
 def search_chunks_keyword(
     query_text: str,
     k: int = 10,
-    source_type: Optional[str] = None,
-    source_id: Optional[int] = None,
-    source_ids: Optional[List[int]] = None,
-    source_part_id: Optional[int] = None,
-    locator_filter: Optional[str] = None,
-    metadata_filters: Optional[Dict[str, str]] = None,
-) -> List[Dict[str, Any]]:
+    source_type: str | None = None,
+    source_id: int | None = None,
+    source_ids: list[int] | None = None,
+    source_part_id: int | None = None,
+    locator_filter: str | None = None,
+    metadata_filters: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
     vector_sql = _keyword_vector_sql()
     sql_base = f"""
         SELECT
@@ -302,7 +314,7 @@ def search_chunks_keyword(
         WHERE {vector_sql} @@ websearch_to_tsquery('english', :query_text)
     """
     conditions = []
-    params: Dict[str, Any] = {"query_text": query_text, "k": k}
+    params: dict[str, Any] = {"query_text": query_text, "k": k}
 
     if source_type:
         conditions.append("s.source_type = :source_type")
@@ -320,7 +332,9 @@ def search_chunks_keyword(
         params["source_part_id"] = source_part_id
 
     if locator_filter:
-        conditions.append("COALESCE(c.locator_json::text, sp.locator_json::text, '') ILIKE :locator_filter")
+        conditions.append(
+            "COALESCE(c.locator_json::text, sp.locator_json::text, '') ILIKE :locator_filter"
+        )
         params["locator_filter"] = f"%{locator_filter}%"
 
     conditions.extend(_structured_filter_clauses(metadata_filters=metadata_filters, params=params))
@@ -359,7 +373,7 @@ def search_chunks_keyword(
     return results
 
 
-def fetch_chunks_by_ids(chunk_ids: List[int]) -> List[Dict[str, Any]]:
+def fetch_chunks_by_ids(chunk_ids: list[int]) -> list[dict[str, Any]]:
     if not chunk_ids:
         return []
 
@@ -386,7 +400,7 @@ def fetch_chunks_by_ids(chunk_ids: List[int]) -> List[Dict[str, Any]]:
         rows = conn.execute(text(sql), params).fetchall()
 
     row_by_chunk_id = {row[0]: row for row in rows}
-    ordered_results: List[Dict[str, Any]] = []
+    ordered_results: list[dict[str, Any]] = []
     for chunk_id in chunk_ids:
         row = row_by_chunk_id.get(chunk_id)
         if row is None:

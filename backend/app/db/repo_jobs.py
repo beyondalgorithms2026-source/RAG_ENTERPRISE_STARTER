@@ -1,44 +1,43 @@
 import json
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
-
-from sqlalchemy import text
+from typing import Any
 
 from app.db.db import engine
+from sqlalchemy import text
 
 
 @dataclass
 class IngestionJobRow:
     id: int
-    source_id: Optional[int]
+    source_id: int | None
     status: str
     stage: str
     priority: int
     triggered_by: str
-    owner_external_user_id: Optional[str]
-    owner_email: Optional[str]
-    owner_display_name: Optional[str]
-    error_message: Optional[str]
-    job_metadata_json: Dict
-    started_at: Optional[str]
-    completed_at: Optional[str]
-    created_at: Optional[str]
+    owner_external_user_id: str | None
+    owner_email: str | None
+    owner_display_name: str | None
+    error_message: str | None
+    job_metadata_json: dict
+    started_at: str | None
+    completed_at: str | None
+    created_at: str | None
 
 
 @dataclass
 class EnrichmentJobRow:
     id: int
-    source_id: Optional[int]
-    source_part_id: Optional[int]
+    source_id: int | None
+    source_part_id: int | None
     enrichment_type: str
-    artifact_version: Optional[str]
+    artifact_version: str | None
     status: str
     stage: str
-    error_message: Optional[str]
-    job_metadata_json: Dict
-    started_at: Optional[str]
-    completed_at: Optional[str]
-    created_at: Optional[str]
+    error_message: str | None
+    job_metadata_json: dict
+    started_at: str | None
+    completed_at: str | None
+    created_at: str | None
 
 
 def _jsonable(value: Any) -> Any:
@@ -53,15 +52,15 @@ def _row_to_ingestion_job(row) -> IngestionJobRow:
 
 def create_ingestion_job(
     *,
-    source_id: Optional[int],
+    source_id: int | None,
     status: str,
     stage: str = "queued",
     priority: int = 100,
     triggered_by: str = "system",
-    owner_external_user_id: Optional[str] = None,
-    owner_email: Optional[str] = None,
-    owner_display_name: Optional[str] = None,
-    job_metadata_json: Optional[Dict] = None,
+    owner_external_user_id: str | None = None,
+    owner_email: str | None = None,
+    owner_display_name: str | None = None,
+    job_metadata_json: dict | None = None,
 ) -> int:
     sql = text(
         """
@@ -93,7 +92,7 @@ def create_ingestion_job(
         ).scalar_one()
 
 
-def get_ingestion_job(job_id: int) -> Optional[IngestionJobRow]:
+def get_ingestion_job(job_id: int) -> IngestionJobRow | None:
     sql = text(
         """
         SELECT id, source_id, status, stage, priority, triggered_by,
@@ -110,7 +109,7 @@ def get_ingestion_job(job_id: int) -> Optional[IngestionJobRow]:
     return _row_to_ingestion_job(row)
 
 
-def list_ingestion_jobs(source_id: Optional[int] = None) -> List[IngestionJobRow]:
+def list_ingestion_jobs(source_id: int | None = None) -> list[IngestionJobRow]:
     sql = """
         SELECT id, source_id, status, stage, priority, triggered_by,
                owner_external_user_id, owner_email, owner_display_name,
@@ -128,7 +127,7 @@ def list_ingestion_jobs(source_id: Optional[int] = None) -> List[IngestionJobRow
     return [_row_to_ingestion_job(row) for row in rows]
 
 
-def claim_next_ingestion_job() -> Optional[IngestionJobRow]:
+def claim_next_ingestion_job() -> IngestionJobRow | None:
     sql = text(
         """
         WITH next_job AS (
@@ -161,18 +160,18 @@ def claim_next_ingestion_job() -> Optional[IngestionJobRow]:
 def update_ingestion_job(
     job_id: int,
     *,
-    status: Optional[str] = None,
-    stage: Optional[str] = None,
-    priority: Optional[int] = None,
-    error_message: Optional[str] = None,
+    status: str | None = None,
+    stage: str | None = None,
+    priority: int | None = None,
+    error_message: str | None = None,
     started_at_now: bool = False,
     completed_at_now: bool = False,
     clear_completed_at: bool = False,
     clear_started_at: bool = False,
-    job_metadata_json: Optional[Dict] = None,
+    job_metadata_json: dict | None = None,
 ) -> bool:
     updates = []
-    params: Dict[str, Any] = {"job_id": job_id}
+    params: dict[str, Any] = {"job_id": job_id}
     if status is not None:
         updates.append("status = :status")
         params["status"] = status
@@ -204,7 +203,7 @@ def update_ingestion_job(
     return result.rowcount > 0
 
 
-def list_recent_completed_ingestion_jobs(limit: int = 20) -> List[IngestionJobRow]:
+def list_recent_completed_ingestion_jobs(limit: int = 20) -> list[IngestionJobRow]:
     sql = text(
         """
         SELECT id, source_id, status, stage, priority, triggered_by,
@@ -223,7 +222,7 @@ def list_recent_completed_ingestion_jobs(limit: int = 20) -> List[IngestionJobRo
     return [_row_to_ingestion_job(row) for row in rows]
 
 
-def finish_ingestion_job(job_id: int, *, status: str, error_message: Optional[str] = None) -> None:
+def finish_ingestion_job(job_id: int, *, status: str, error_message: str | None = None) -> None:
     sql = text(
         """
         UPDATE ingestion_jobs
@@ -239,13 +238,13 @@ def finish_ingestion_job(job_id: int, *, status: str, error_message: Optional[st
 
 def create_enrichment_job(
     *,
-    source_id: Optional[int],
+    source_id: int | None,
     enrichment_type: str,
     status: str,
-    source_part_id: Optional[int] = None,
-    artifact_version: Optional[str] = None,
+    source_part_id: int | None = None,
+    artifact_version: str | None = None,
     stage: str = "queued",
-    job_metadata_json: Optional[Dict] = None,
+    job_metadata_json: dict | None = None,
 ) -> int:
     sql = text(
         """
@@ -274,7 +273,7 @@ def create_enrichment_job(
         ).scalar_one()
 
 
-def finish_enrichment_job(job_id: int, *, status: str, error_message: Optional[str] = None) -> None:
+def finish_enrichment_job(job_id: int, *, status: str, error_message: str | None = None) -> None:
     sql = text(
         """
         UPDATE enrichment_jobs
@@ -288,7 +287,7 @@ def finish_enrichment_job(job_id: int, *, status: str, error_message: Optional[s
         conn.execute(sql, {"job_id": job_id, "status": status, "error_message": error_message})
 
 
-def get_enrichment_job(job_id: int) -> Optional[EnrichmentJobRow]:
+def get_enrichment_job(job_id: int) -> EnrichmentJobRow | None:
     sql = text(
         """
         SELECT id, source_id, source_part_id, enrichment_type, artifact_version, status, stage, error_message, job_metadata_json,
@@ -304,7 +303,7 @@ def get_enrichment_job(job_id: int) -> Optional[EnrichmentJobRow]:
     return EnrichmentJobRow(*[_jsonable(value) for value in row])
 
 
-def list_enrichment_jobs(source_id: Optional[int] = None) -> List[EnrichmentJobRow]:
+def list_enrichment_jobs(source_id: int | None = None) -> list[EnrichmentJobRow]:
     sql = """
         SELECT id, source_id, source_part_id, enrichment_type, artifact_version, status, stage, error_message, job_metadata_json,
                started_at, completed_at, created_at
@@ -326,7 +325,7 @@ def create_attachment_link(
     parent_source_id: int,
     child_source_id: int,
     relationship_type: str = "attachment",
-    attachment_metadata_json: Optional[Dict] = None,
+    attachment_metadata_json: dict | None = None,
 ) -> int:
     sql = text(
         """
@@ -353,7 +352,7 @@ def create_attachment_link(
         ).scalar_one()
 
 
-def list_attachments(parent_source_id: int) -> List[Dict]:
+def list_attachments(parent_source_id: int) -> list[dict]:
     sql = text(
         """
         SELECT id, parent_source_id, child_source_id, relationship_type, attachment_metadata_json

@@ -11,6 +11,7 @@ The strict-JSON answer contract, repair passes, and approved-model registry are
 unchanged: providers only move bytes; `app.core_rag.answering` still parses,
 validates, repairs, and enforces citations on whatever text comes back.
 """
+
 from typing import Any
 
 
@@ -30,7 +31,16 @@ class LLMProvider:
     def headers(self, llm, base_headers: dict) -> dict:
         return base_headers
 
-    def build_payload(self, llm, system_prompt: str, user_prompt: str, *, json_mode: bool, temperature: float, max_tokens: Any) -> dict:  # pragma: no cover - interface
+    def build_payload(
+        self,
+        llm,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        json_mode: bool,
+        temperature: float,
+        max_tokens: Any,
+    ) -> dict:  # pragma: no cover - interface
         raise NotImplementedError
 
     def extract_content(self, data: dict) -> str:  # pragma: no cover - interface
@@ -57,7 +67,9 @@ class OpenAICompatibleProvider(LLMProvider):
     def models_url(self, base: str) -> str:
         return f"{base}/v1/models"
 
-    def build_payload(self, llm, system_prompt, user_prompt, *, json_mode, temperature, max_tokens):
+    def build_payload(
+        self, llm, system_prompt, user_prompt, *, json_mode, temperature, max_tokens
+    ):
         payload: dict[str, Any] = {
             "model": llm.model,
             "messages": [
@@ -105,7 +117,9 @@ class OllamaNativeProvider(LLMProvider):
     def models_url(self, base: str) -> str:
         return f"{base}/tags"
 
-    def build_payload(self, llm, system_prompt, user_prompt, *, json_mode, temperature, max_tokens):
+    def build_payload(
+        self, llm, system_prompt, user_prompt, *, json_mode, temperature, max_tokens
+    ):
         payload: dict[str, Any] = {
             "model": llm.model,
             "stream": False,
@@ -153,7 +167,9 @@ class AnthropicProvider(LLMProvider):
         headers["anthropic-version"] = "2023-06-01"
         return headers
 
-    def build_payload(self, llm, system_prompt, user_prompt, *, json_mode, temperature, max_tokens):
+    def build_payload(
+        self, llm, system_prompt, user_prompt, *, json_mode, temperature, max_tokens
+    ):
         return {
             "model": llm.model,
             "max_tokens": int(max_tokens or 1024),

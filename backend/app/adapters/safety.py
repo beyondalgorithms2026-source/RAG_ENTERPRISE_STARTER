@@ -3,7 +3,6 @@ from io import BytesIO
 
 from app.core.config import settings
 
-
 _ZIP_BACKED_TYPES = {"docx", "pptx", "xlsx"}
 _NESTED_ARCHIVE_EXTENSIONS = (".zip", ".7z", ".rar", ".tar", ".gz")
 
@@ -22,9 +21,17 @@ def validate_parser_input(source_type: str, content: bytes, file_name: str) -> N
                 raise ValueError(f"Unsafe archive: expanded size exceeds limit for {file_name}")
             ratio = expanded_bytes / max(compressed_bytes, 1)
             if ratio > settings.PARSER_MAX_COMPRESSION_RATIO:
-                raise ValueError(f"Unsafe archive: compression ratio exceeds limit for {file_name}")
-            nested = [info.filename for info in infos if info.filename.lower().endswith(_NESTED_ARCHIVE_EXTENSIONS)]
+                raise ValueError(
+                    f"Unsafe archive: compression ratio exceeds limit for {file_name}"
+                )
+            nested = [
+                info.filename
+                for info in infos
+                if info.filename.lower().endswith(_NESTED_ARCHIVE_EXTENSIONS)
+            ]
             if nested:
-                raise ValueError(f"Unsafe archive: nested archive entries are not allowed in {file_name}")
+                raise ValueError(
+                    f"Unsafe archive: nested archive entries are not allowed in {file_name}"
+                )
     except zipfile.BadZipFile as exc:
         raise ValueError(f"Invalid archive-backed document: {file_name}") from exc

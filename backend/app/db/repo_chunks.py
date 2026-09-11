@@ -1,17 +1,17 @@
 import json
 import math
-from typing import Dict, List, Optional
-
-from sqlalchemy import text
 
 from app.auth.access_strategy import source_access_sql
 from app.db.db import engine
+from sqlalchemy import text
 
 
-def _pgvector_literal(vec: List[float], decimals: int = 8) -> str:
+def _pgvector_literal(vec: list[float], decimals: int = 8) -> str:
     parts = []
     for value in vec:
-        if value is None or (isinstance(value, float) and (math.isnan(value) or math.isinf(value))):
+        if value is None or (
+            isinstance(value, float) and (math.isnan(value) or math.isinf(value))
+        ):
             value = 0.0
         parts.append(f"{float(value):.{decimals}f}")
     return "[" + ",".join(parts) + "]"
@@ -29,7 +29,7 @@ def delete_chunks_for_source(source_id: int) -> None:
         conn.execute(sql, {"source_id": source_id})
 
 
-def insert_chunks(source_id: int, chunks: List[Dict], source_part_id: Optional[int] = None) -> None:
+def insert_chunks(source_id: int, chunks: list[dict], source_part_id: int | None = None) -> None:
     sql = text(
         """
         INSERT INTO chunks (
@@ -68,9 +68,11 @@ def insert_chunks(source_id: int, chunks: List[Dict], source_part_id: Optional[i
             )
 
 
-def get_chunks_to_embed(force: bool = False, limit: Optional[int] = None, source_id: Optional[int] = None) -> List[Dict]:
+def get_chunks_to_embed(
+    force: bool = False, limit: int | None = None, source_id: int | None = None
+) -> list[dict]:
     conditions = []
-    params: Dict[str, object] = {}
+    params: dict[str, object] = {}
 
     if not force:
         conditions.append("embedding IS NULL")
@@ -106,7 +108,7 @@ def get_chunks_to_embed(force: bool = False, limit: Optional[int] = None, source
     ]
 
 
-def get_chunks_for_enrichment(source_id: int) -> List[Dict]:
+def get_chunks_for_enrichment(source_id: int) -> list[dict]:
     sql = text(
         """
         SELECT id, source_id, source_part_id, chunk_index, heading, chunk_text,
@@ -140,10 +142,10 @@ def get_chunks_for_enrichment(source_id: int) -> List[Dict]:
 def update_chunk_enrichment(
     *,
     chunk_id: int,
-    entities_json: List[Dict],
-    relations_json: List[Dict],
-    temporal_json: Dict,
-    provenance_json: Dict,
+    entities_json: list[dict],
+    relations_json: list[dict],
+    temporal_json: dict,
+    provenance_json: dict,
 ) -> None:
     sql = text(
         """
@@ -169,17 +171,21 @@ def update_chunk_enrichment(
         )
 
 
-def update_chunk_embeddings(chunk_embeddings: List[tuple[int, List[float]]]) -> None:
+def update_chunk_embeddings(chunk_embeddings: list[tuple[int, list[float]]]) -> None:
     if not chunk_embeddings:
         return
 
-    sql = text("UPDATE chunks SET embedding = CAST(:embedding AS vector), updated_at = now() WHERE id = :chunk_id")
+    sql = text(
+        "UPDATE chunks SET embedding = CAST(:embedding AS vector), updated_at = now() WHERE id = :chunk_id"
+    )
     with engine.begin() as conn:
         for chunk_id, embedding_vector in chunk_embeddings:
-            conn.execute(sql, {"chunk_id": chunk_id, "embedding": _pgvector_literal(embedding_vector)})
+            conn.execute(
+                sql, {"chunk_id": chunk_id, "embedding": _pgvector_literal(embedding_vector)}
+            )
 
 
-def fetch_chunk_embeddings(chunk_ids: List[int]) -> Dict[int, List[float]]:
+def fetch_chunk_embeddings(chunk_ids: list[int]) -> dict[int, list[float]]:
     if not chunk_ids:
         return {}
     params = {"chunk_ids": list(chunk_ids)}
@@ -198,7 +204,7 @@ def fetch_chunk_embeddings(chunk_ids: List[int]) -> Dict[int, List[float]]:
     return {int(row[0]): [float(value) for value in json.loads(row[1])] for row in rows}
 
 
-def fetch_neighbor_chunks(chunk_ids: List[int], radius: int = 1) -> List[Dict]:
+def fetch_neighbor_chunks(chunk_ids: list[int], radius: int = 1) -> list[dict]:
     if not chunk_ids or radius < 1:
         return []
 
@@ -245,7 +251,7 @@ def fetch_neighbor_chunks(chunk_ids: List[int], radius: int = 1) -> List[Dict]:
     ]
 
 
-def fetch_chunk_context(source_id: int, chunk_id: int, radius: int = 1) -> Dict:
+def fetch_chunk_context(source_id: int, chunk_id: int, radius: int = 1) -> dict:
     params = {"source_id": source_id, "chunk_id": chunk_id, "radius": max(1, int(radius or 1))}
     sql = text(
         f"""

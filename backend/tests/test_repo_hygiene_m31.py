@@ -2,7 +2,6 @@ import subprocess
 import unittest
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 README = REPO_ROOT / "README.md"
 GITIGNORE = REPO_ROOT / ".gitignore"

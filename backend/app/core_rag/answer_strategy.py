@@ -1,13 +1,23 @@
 import re
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from app.db.repo_source_parts import list_source_parts
 
-
 AGGREGATION_TERMS = ("total", "sum", "average", "avg", "count", "by ", "per ")
-TABLE_TERMS = ("sales", "revenue", "amount", "region", "spreadsheet", "excel", "xlsx", "sheet", "table", "rows")
+TABLE_TERMS = (
+    "sales",
+    "revenue",
+    "amount",
+    "region",
+    "spreadsheet",
+    "excel",
+    "xlsx",
+    "sheet",
+    "table",
+    "rows",
+)
 EMAIL_TERMS = ("email", "emails", "mail", "message", "messages")
 
 
@@ -29,7 +39,9 @@ class StructuredAggregationResult:
 
 def select_answer_strategy(question: str) -> AnswerStrategyDecision:
     normalized = _normalize(question)
-    has_aggregation = any(term in normalized for term in AGGREGATION_TERMS) and any(term in normalized for term in TABLE_TERMS)
+    has_aggregation = any(term in normalized for term in AGGREGATION_TERMS) and any(
+        term in normalized for term in TABLE_TERMS
+    )
     has_email = any(term in normalized for term in EMAIL_TERMS)
     if has_aggregation and has_email:
         return AnswerStrategyDecision(
@@ -46,7 +58,9 @@ def select_answer_strategy(question: str) -> AnswerStrategyDecision:
             reason="aggregation_table_signal",
             aggregation=True,
         )
-    return AnswerStrategyDecision(strategy="retrieval_answer", answer_safety="grounded", reason="default_retrieval")
+    return AnswerStrategyDecision(
+        strategy="retrieval_answer", answer_safety="grounded", reason="default_retrieval"
+    )
 
 
 def try_structured_aggregation(
@@ -54,7 +68,7 @@ def try_structured_aggregation(
     question: str,
     raw_chunks: list[Any],
     make_citation,
-) -> Optional[StructuredAggregationResult]:
+) -> StructuredAggregationResult | None:
     parsed_request = _parse_sum_by_request(question)
     source_ids = _xlsx_source_ids(raw_chunks)
     if not parsed_request or not source_ids:
@@ -62,7 +76,11 @@ def try_structured_aggregation(
 
     measure_hint, group_hint = parsed_request
     for source_id in source_ids:
-        parts = [part for part in list_source_parts(source_id) if part.part_type == "sheet" and (part.content_text or "").strip()]
+        parts = [
+            part
+            for part in list_source_parts(source_id)
+            if part.part_type == "sheet" and (part.content_text or "").strip()
+        ]
         for part in parts:
             parsed_sheet = _parse_sheet(part.content_text or "")
             if not parsed_sheet:
@@ -108,7 +126,10 @@ def _unsafe_aggregation_result(*, reason: str) -> StructuredAggregationResult:
     return StructuredAggregationResult(
         answer="I cannot safely calculate this from partial retrieved snippets. I need a complete structured spreadsheet/table with identifiable columns before answering.",
         citations=[],
-        debug={"answer_safety": "insufficient_evidence", "structured_aggregation": {"status": "refused", "reason": reason}},
+        debug={
+            "answer_safety": "insufficient_evidence",
+            "structured_aggregation": {"status": "refused", "reason": reason},
+        },
     )
 
 
@@ -116,7 +137,7 @@ def _normalize(value: str) -> str:
     return re.sub(r"\s+", " ", str(value or "").strip().lower())
 
 
-def _parse_sum_by_request(question: str) -> Optional[tuple[str, str]]:
+def _parse_sum_by_request(question: str) -> tuple[str, str] | None:
     normalized = _normalize(question)
     match = re.search(r"(?:total|sum) ([a-z0-9 _-]+?) by ([a-z0-9 _-]+?)(?:\?|$)", normalized)
     if match:
@@ -140,7 +161,7 @@ def _xlsx_source_ids(raw_chunks: list[Any]) -> list[int]:
     return source_ids
 
 
-def _parse_sheet(content_text: str) -> Optional[tuple[dict[str, str], list[dict[str, str]]]]:
+def _parse_sheet(content_text: str) -> tuple[dict[str, str], list[dict[str, str]]] | None:
     rows: list[dict[str, str]] = []
     for line in content_text.splitlines():
         row: dict[str, str] = {}
@@ -156,16 +177,20 @@ def _parse_sheet(content_text: str) -> Optional[tuple[dict[str, str], list[dict[
     return headers, rows[1:]
 
 
-def _match_header(headers: dict[str, str], hint: str) -> Optional[str]:
+def _match_header(headers: dict[str, str], hint: str) -> str | None:
     normalized_hint = _normalize(hint).replace("_", " ")
     for column, header in headers.items():
         normalized_header = _normalize(header).replace("_", " ")
-        if normalized_header == normalized_hint or normalized_hint in normalized_header or normalized_header in normalized_hint:
+        if (
+            normalized_header == normalized_hint
+            or normalized_hint in normalized_header
+            or normalized_header in normalized_hint
+        ):
             return column
     return None
 
 
-def _parse_number(value: str) -> Optional[float]:
+def _parse_number(value: str) -> float | None:
     cleaned = re.sub(r"[^0-9.\-]", "", str(value or ""))
     if not cleaned or cleaned in {"-", ".", "-."}:
         return None

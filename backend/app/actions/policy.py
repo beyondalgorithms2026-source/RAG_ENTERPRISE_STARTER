@@ -1,11 +1,10 @@
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 
 from app.auth.context import AuthenticatedUser
 from app.db.repo_acl import current_acl_context, list_access_summary
 
-
-TOOL_REGISTRY: Dict[str, Dict[str, Any]] = {
+TOOL_REGISTRY: dict[str, dict[str, Any]] = {
     "send_email": {
         "description": "Prepare an outbound email action.",
         "allowed_roles": ["admin", "approver"],
@@ -34,14 +33,18 @@ TOOL_REGISTRY: Dict[str, Dict[str, Any]] = {
 
 SENSITIVE_PATTERNS = {
     "compensation": re.compile(r"\b(salary|compensation|bonus|payroll|wage|equity grant)\b", re.I),
-    "personal_identifier": re.compile(r"\b(ssn|social security|passport|driver.?s license|dob|date of birth)\b", re.I),
+    "personal_identifier": re.compile(
+        r"\b(ssn|social security|passport|driver.?s license|dob|date of birth)\b", re.I
+    ),
     "secret": re.compile(r"\b(api key|password|secret|token|private key|credential)\b", re.I),
 }
 
 SENSITIVE_LABELS = {"confidential", "restricted", "secret", "high"}
 
 
-def evaluate_tool_policy(*, tool_name: str, actor: Optional[AuthenticatedUser], corpus_name: Optional[str]) -> tuple[bool, str]:
+def evaluate_tool_policy(
+    *, tool_name: str, actor: AuthenticatedUser | None, corpus_name: str | None
+) -> tuple[bool, str]:
     tool = TOOL_REGISTRY.get(tool_name)
     if tool is None:
         return False, "unknown_tool"
@@ -59,7 +62,9 @@ def detect_sensitive_text(text: str) -> list[str]:
     return [name for name, pattern in SENSITIVE_PATTERNS.items() if pattern.search(text or "")]
 
 
-def sensitivity_requires_approval(*, question: str, citations: list[Any]) -> tuple[bool, list[str]]:
+def sensitivity_requires_approval(
+    *, question: str, citations: list[Any]
+) -> tuple[bool, list[str]]:
     reasons = detect_sensitive_text(question)
     for citation in citations:
         label = ""
@@ -75,7 +80,7 @@ def sensitivity_requires_approval(*, question: str, citations: list[Any]) -> tup
 def clarification_contract(
     question: str,
     *,
-    answer_path: Optional[str],
+    answer_path: str | None,
     evidence_count: int,
     source_scoped: bool = False,
 ) -> dict[str, Any]:
@@ -91,17 +96,24 @@ def clarification_contract(
         suggestions.append("suggest_source_link_or_upload")
     acl_context = current_acl_context()
     access_limited_possible = False
-    if (answer_path == "not_found" or evidence_count == 0) and not acl_context.get("local_dev_full_access"):
+    if (answer_path == "not_found" or evidence_count == 0) and not acl_context.get(
+        "local_dev_full_access"
+    ):
         try:
             access_summary = list_access_summary().get("summary") or {}
         except Exception:
             access_summary = {}
         protected_source_count = int(access_summary.get("protected_source_count") or 0)
         exact_lookup_like = bool(
-            re.search(r"\b(find|where|show|invoice|salary|policy|contract|customer|case|order|latest|specific)\b", lowered)
+            re.search(
+                r"\b(find|where|show|invoice|salary|policy|contract|customer|case|order|latest|specific)\b",
+                lowered,
+            )
             or '"' in question
         )
-        access_limited_possible = protected_source_count > 0 and (source_scoped or exact_lookup_like)
+        access_limited_possible = protected_source_count > 0 and (
+            source_scoped or exact_lookup_like
+        )
     return {
         "clarification_needed": bool(suggestions),
         "suggestions": sorted(set(suggestions)),

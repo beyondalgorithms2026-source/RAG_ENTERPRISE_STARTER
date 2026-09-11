@@ -10,6 +10,7 @@ budget across strategies, and falls back to the original query (recording
 The LLM call is `app.llm.client.generate_transform_text`; tests pin the
 module-level `_generate` indirection to avoid network access.
 """
+
 import re
 import time
 from dataclasses import dataclass, field
@@ -42,12 +43,16 @@ class QueryTransformResult:
     variant_details: list[dict] = field(default_factory=list)
 
 
-def _generate(system_prompt: str, user_prompt: str, *, timeout_s: float, max_tokens: int = 256) -> dict:
+def _generate(
+    system_prompt: str, user_prompt: str, *, timeout_s: float, max_tokens: int = 256
+) -> dict:
     """Indirection over the LLM client so tests can pin transform behavior
     without network access. Returns {"success": bool, "content": str, ...}."""
     from app.llm.client import generate_transform_text
 
-    return generate_transform_text(system_prompt, user_prompt, timeout_s=timeout_s, max_tokens=max_tokens)
+    return generate_transform_text(
+        system_prompt, user_prompt, timeout_s=timeout_s, max_tokens=max_tokens
+    )
 
 
 def _normalize_query(question: str) -> str:
@@ -57,7 +62,9 @@ def _normalize_query(question: str) -> str:
 def _clean_variant(text: str) -> str:
     cleaned = _normalize_query(text)
     # Strip a leading label like "Query:" or surrounding quotes the model may add.
-    cleaned = re.sub(r'^(rewritten query|query|passage|answer)\s*[:\-]\s*', "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(
+        r"^(rewritten query|query|passage|answer)\s*[:\-]\s*", "", cleaned, flags=re.IGNORECASE
+    )
     return cleaned.strip().strip('"').strip()
 
 

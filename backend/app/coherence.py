@@ -7,7 +7,8 @@ and a migration ledger behind the code's plan. This module makes those
 states detectable (health checks) and, via the write-time validators,
 impossible to create through the API.
 """
-from typing import Any, Optional
+
+from typing import Any
 
 from sqlalchemy import text
 
@@ -22,7 +23,7 @@ def model_output_dimension(
     model_name: str,
     *,
     provider: str = "sentence_transformers",
-    declared_dimension: Optional[int] = None,
+    declared_dimension: int | None = None,
 ) -> int:
     """Return the provider output dimension.
 
@@ -74,7 +75,7 @@ def is_draft_profile_name(profile_name: str) -> bool:
     return str(profile_name or "").strip().lower().startswith("draft-")
 
 
-def index_vector_dimension() -> Optional[int]:
+def index_vector_dimension() -> int | None:
     with engine.connect() as conn:
         typmod = conn.execute(
             text(
@@ -127,7 +128,8 @@ def check_embedding_dimension(*, load_model: bool = False) -> dict[str, Any]:
     return _invariant(
         "embedding_dimension",
         True,
-        f"Declared dimension {declared} matches the index column" + (" and the model output." if load_model else "."),
+        f"Declared dimension {declared} matches the index column"
+        + (" and the model output." if load_model else "."),
         declared=declared,
         index_column=column,
         model=profile.model,
@@ -164,7 +166,14 @@ def check_embedding_registry_metadata(*, load_models: bool = False) -> dict[str,
             declared_dimension=int(dimension),
         )
         if int(dimension) != actual:
-            mismatches.append({"profile": name, "model": model, "declared": int(dimension), "model_output": actual})
+            mismatches.append(
+                {
+                    "profile": name,
+                    "model": model,
+                    "declared": int(dimension),
+                    "model_output": actual,
+                }
+            )
     if mismatches:
         return _invariant(
             "embedding_registry_metadata",
@@ -183,8 +192,12 @@ def check_embedding_registry_metadata(*, load_models: bool = False) -> dict[str,
 
 def check_active_profiles_promoted() -> dict[str, Any]:
     with engine.connect() as conn:
-        rows = conn.execute(text("SELECT profile_type, profile_name FROM active_profiles ORDER BY profile_type")).fetchall()
-    draft_active = [{"profile_type": pt, "profile_name": pn} for pt, pn in rows if is_draft_profile_name(pn)]
+        rows = conn.execute(
+            text("SELECT profile_type, profile_name FROM active_profiles ORDER BY profile_type")
+        ).fetchall()
+    draft_active = [
+        {"profile_type": pt, "profile_name": pn} for pt, pn in rows if is_draft_profile_name(pn)
+    ]
     if draft_active:
         return _invariant(
             "active_profiles_promoted",
@@ -192,7 +205,9 @@ def check_active_profiles_promoted() -> dict[str, Any]:
             "Unpromoted draft profile(s) are active as live configuration.",
             draft_active=draft_active,
         )
-    return _invariant("active_profiles_promoted", True, "No active profile is an unpromoted draft.")
+    return _invariant(
+        "active_profiles_promoted", True, "No active profile is an unpromoted draft."
+    )
 
 
 def vector_serving_state() -> dict[str, Any]:
@@ -207,7 +222,12 @@ def vector_serving_state() -> dict[str, Any]:
     declared = int(get_effective_embedding().dimension)
     column = index_vector_dimension()
     if column is None:
-        return {"serviceable": True, "reason": "no_vector_column", "profile_dimension": declared, "index_dimension": None}
+        return {
+            "serviceable": True,
+            "reason": "no_vector_column",
+            "profile_dimension": declared,
+            "index_dimension": None,
+        }
     if declared != column:
         return {
             "serviceable": False,
@@ -215,12 +235,21 @@ def vector_serving_state() -> dict[str, Any]:
             "profile_dimension": declared,
             "index_dimension": column,
         }
-    return {"serviceable": True, "reason": "ok", "profile_dimension": declared, "index_dimension": column}
+    return {
+        "serviceable": True,
+        "reason": "ok",
+        "profile_dimension": declared,
+        "index_dimension": column,
+    }
 
 
 def check_vector_serving() -> dict[str, Any]:
     state = vector_serving_state()
-    details = {"profile_dimension": state.get("profile_dimension"), "index_dimension": state.get("index_dimension"), "state": state["reason"]}
+    details = {
+        "profile_dimension": state.get("profile_dimension"),
+        "index_dimension": state.get("index_dimension"),
+        "state": state["reason"],
+    }
     if not state["serviceable"] and state["reason"] == "dimension_mismatch":
         return _invariant(
             "vector_serving",
@@ -229,7 +258,9 @@ def check_vector_serving() -> dict[str, Any]:
             "vector search is degraded to keyword-only until a reindex completes.",
             **details,
         )
-    return _invariant("vector_serving", True, "Vector search dimension matches the index.", **details)
+    return _invariant(
+        "vector_serving", True, "Vector search dimension matches the index.", **details
+    )
 
 
 def check_migration_ledger() -> dict[str, Any]:
@@ -267,8 +298,14 @@ def enforce_startup_coherence() -> dict[str, Any]:
     report = run_coherence_checks(deep=False)
     if report["status"] == "pass":
         return report
-    reasons = "; ".join(item["reason"] for item in report["invariants"] if item["status"] == "fail")
+    reasons = "; ".join(
+        item["reason"] for item in report["invariants"] if item["status"] == "fail"
+    )
     if (settings.APP_ENV or "local").strip().lower() in {"local", "dev"}:
-        logger.warning("Configuration coherence check failed (continuing in %s): %s", settings.APP_ENV, reasons)
+        logger.warning(
+            "Configuration coherence check failed (continuing in %s): %s",
+            settings.APP_ENV,
+            reasons,
+        )
         return report
     raise RuntimeError(f"Configuration coherence check failed: {reasons}")

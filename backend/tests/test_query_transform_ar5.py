@@ -1,10 +1,9 @@
-from tests.smoke_test_base import *
-
 import time
 
 import app.core_rag.query_transform as qt
 from app.core_rag.query_transform import transform_query
 from app.profiles.models import RetrievalProfileConfig
+from tests.smoke_test_base import *
 
 
 def _pin_generate(self, fn):
@@ -35,10 +34,22 @@ class QueryTransformLLMBackedAR5Tests(SmokeTestBase):
             qt._EXPANSION_SYSTEM: "fourth quarter, indemnity, responsibility",
             qt._HYDE_SYSTEM: "The quarterly review summarizes liability and indemnity obligations.",
         }
-        _pin_generate(self, lambda system_prompt, user_prompt, **_: {"success": True, "content": responses[system_prompt]})
+        _pin_generate(
+            self,
+            lambda system_prompt, user_prompt, **_: {
+                "success": True,
+                "content": responses[system_prompt],
+            },
+        )
         result = transform_query(
             "quarterly liability review",
-            RetrievalProfileConfig(query_transform_enabled=True, rewrite_enabled=True, expansion_enabled=True, hyde_enabled=True, transform_max_variants=4),
+            RetrievalProfileConfig(
+                query_transform_enabled=True,
+                rewrite_enabled=True,
+                expansion_enabled=True,
+                hyde_enabled=True,
+                transform_max_variants=4,
+            ),
         )
         self.assertEqual(result.trace["llm_calls"], 3)
         self.assertEqual(result.trace["variant_status"]["rewrite"], "generated")
@@ -46,16 +57,26 @@ class QueryTransformLLMBackedAR5Tests(SmokeTestBase):
         self.assertEqual(result.trace["variant_status"]["hyde"], "generated")
         self.assertEqual(len(result.generated_queries), 3)
         # Expansion appends terms to the original rather than replacing it.
-        expansion_variant = next(d["query"] for d in result.variant_details if d["strategy"] == "expansion")
+        expansion_variant = next(
+            d["query"] for d in result.variant_details if d["strategy"] == "expansion"
+        )
         self.assertIn("indemnity", expansion_variant)
         self.assertIsNone(result.trace["fallback_reason"])
 
     def test_llm_unavailable_falls_back_to_original(self):
         # DoD: with the LLM unreachable, the transform still completes via fallback.
-        _pin_generate(self, lambda system_prompt, user_prompt, **_: {"success": False, "error": "connection refused"})
+        _pin_generate(
+            self,
+            lambda system_prompt, user_prompt, **_: {
+                "success": False,
+                "error": "connection refused",
+            },
+        )
         result = transform_query(
             "termination clause obligations",
-            RetrievalProfileConfig(query_transform_enabled=True, rewrite_enabled=True, hyde_enabled=True),
+            RetrievalProfileConfig(
+                query_transform_enabled=True, rewrite_enabled=True, hyde_enabled=True
+            ),
         )
         self.assertEqual(result.effective_query, "termination clause obligations")
         self.assertEqual(result.generated_queries, [])
@@ -73,13 +94,27 @@ class QueryTransformLLMBackedAR5Tests(SmokeTestBase):
         _pin_generate(self, slow_then_unreached)
         result = transform_query(
             "budget query",
-            RetrievalProfileConfig(query_transform_enabled=True, rewrite_enabled=True, expansion_enabled=True, transform_timeout_ms=50),
+            RetrievalProfileConfig(
+                query_transform_enabled=True,
+                rewrite_enabled=True,
+                expansion_enabled=True,
+                transform_timeout_ms=50,
+            ),
         )
-        self.assertEqual(result.trace["variant_status"].get("expansion"), "skipped_budget_exhausted")
+        self.assertEqual(
+            result.trace["variant_status"].get("expansion"), "skipped_budget_exhausted"
+        )
         self.assertEqual(result.trace["fallback_reason"], "timeout_budget_exhausted")
 
     def test_timeout_result_records_fallback_reason(self):
-        _pin_generate(self, lambda system_prompt, user_prompt, **_: {"success": False, "error": "transform timeout (0.7s)", "timeout": True})
+        _pin_generate(
+            self,
+            lambda system_prompt, user_prompt, **_: {
+                "success": False,
+                "error": "transform timeout (0.7s)",
+                "timeout": True,
+            },
+        )
         result = transform_query(
             "indemnity scope",
             RetrievalProfileConfig(query_transform_enabled=True, rewrite_enabled=True),
@@ -108,20 +143,47 @@ class MultiQueryFanOutAR5Tests(SmokeTestBase):
                     RETURNING id
                     """
                 ),
-                {"f": f"ar5-mq-{suffix}.pdf", "p": f"tests/ar5-mq-{suffix}.pdf", "h": (suffix + "ar5") * 4},
+                {
+                    "f": f"ar5-mq-{suffix}.pdf",
+                    "p": f"tests/ar5-mq-{suffix}.pdf",
+                    "h": (suffix + "ar5") * 4,
+                },
             ).scalar_one()
         self.addCleanup(self._delete_retrieval_records, [source_id])
         insert_chunks(
             source_id,
             [
-                {"chunk_index": 0, "heading": "A", "section_path": "p:0", "chunk_text": f"{token_a} content about the first distinct subject.", "token_count": 8, "locator_json": {}, "provenance_json": {}},
-                {"chunk_index": 1, "heading": "B", "section_path": "p:1", "chunk_text": f"{token_b} content about a second unrelated subject.", "token_count": 8, "locator_json": {}, "provenance_json": {}},
+                {
+                    "chunk_index": 0,
+                    "heading": "A",
+                    "section_path": "p:0",
+                    "chunk_text": f"{token_a} content about the first distinct subject.",
+                    "token_count": 8,
+                    "locator_json": {},
+                    "provenance_json": {},
+                },
+                {
+                    "chunk_index": 1,
+                    "heading": "B",
+                    "section_path": "p:1",
+                    "chunk_text": f"{token_b} content about a second unrelated subject.",
+                    "token_count": 8,
+                    "locator_json": {},
+                    "provenance_json": {},
+                },
             ],
         )
         with engine.connect() as conn:
-            rows = conn.execute(text("SELECT id, chunk_index FROM chunks WHERE source_id = :s ORDER BY chunk_index"), {"s": source_id}).fetchall()
+            rows = conn.execute(
+                text(
+                    "SELECT id, chunk_index FROM chunks WHERE source_id = :s ORDER BY chunk_index"
+                ),
+                {"s": source_id},
+            ).fetchall()
         ids = {index: chunk_id for chunk_id, index in rows}
-        update_chunk_embeddings([(ids[0], basis_vector(1.0, 0.0)), (ids[1], basis_vector(0.0, 1.0))])
+        update_chunk_embeddings(
+            [(ids[0], basis_vector(1.0, 0.0)), (ids[1], basis_vector(0.0, 1.0))]
+        )
         return token_a, token_b, ids
 
     def _search_with_profile(self, *, profile, question):
@@ -139,7 +201,9 @@ class MultiQueryFanOutAR5Tests(SmokeTestBase):
     def test_multi_query_fan_out_fuses_variant_only_chunk(self):
         token_a, token_b, ids = self._seed_two_topic_corpus()
         # Rewrite variant points at the second topic; keyword mode keeps it deterministic.
-        _pin_generate(self, lambda system_prompt, user_prompt, **_: {"success": True, "content": token_b})
+        _pin_generate(
+            self, lambda system_prompt, user_prompt, **_: {"success": True, "content": token_b}
+        )
         profile = RetrievalProfileConfig(
             default_mode="keyword",
             query_transform_enabled=True,
@@ -157,8 +221,10 @@ class MultiQueryFanOutAR5Tests(SmokeTestBase):
         self.assertIn(ids[1], result_ids)
 
     def test_multi_query_disabled_does_not_fan_out(self):
-        token_a, token_b, ids = self._seed_two_topic_corpus()
-        _pin_generate(self, lambda system_prompt, user_prompt, **_: {"success": True, "content": token_b})
+        token_a, token_b, _ids = self._seed_two_topic_corpus()
+        _pin_generate(
+            self, lambda system_prompt, user_prompt, **_: {"success": True, "content": token_b}
+        )
         profile = RetrievalProfileConfig(
             default_mode="keyword",
             query_transform_enabled=True,

@@ -1,9 +1,7 @@
 import re
 from dataclasses import dataclass, field
-from typing import Dict, Optional
 
 from app.core.config import settings
-
 
 ONTOLOGY_ARTIFACT_VERSION = "m12-ontology-v1"
 _ORG_SUFFIXES = {"Corp", "Corporation", "Inc", "LLC", "Ltd", "Company", "Co"}
@@ -11,7 +9,7 @@ _ORG_SUFFIXES = {"Corp", "Corporation", "Inc", "LLC", "Ltd", "Company", "Co"}
 
 @dataclass(frozen=True)
 class OntologyResult:
-    canonical_name: Optional[str] = None
+    canonical_name: str | None = None
     aliases: list[str] = field(default_factory=list)
     entity_type: str = "entity"
     tags: list[str] = field(default_factory=list)
@@ -39,12 +37,14 @@ def _infer_entity_type(entity_name: str) -> str:
 
 def normalize_ontology_tags(
     *,
-    candidate_tags: Optional[list[str]] = None,
-    entity_name: Optional[str] = None,
-    alias_map: Optional[Dict[str, str]] = None,
+    candidate_tags: list[str] | None = None,
+    entity_name: str | None = None,
+    alias_map: dict[str, str] | None = None,
 ) -> OntologyResult:
     cleaned_name = _clean_entity_name(entity_name) if entity_name else None
-    canonical_name = alias_map.get(cleaned_name, cleaned_name) if cleaned_name and alias_map else cleaned_name
+    canonical_name = (
+        alias_map.get(cleaned_name, cleaned_name) if cleaned_name and alias_map else cleaned_name
+    )
     aliases = []
     if cleaned_name:
         aliases.append(cleaned_name)

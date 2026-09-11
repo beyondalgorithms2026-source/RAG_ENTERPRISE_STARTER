@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -26,45 +26,46 @@ from app.db.repo_admin_audit import insert_admin_audit_event
 from app.db.repo_governance import evaluate_access_request_risk, is_restricted
 from app.db.repo_sources import get_source_by_id
 
-
 router = APIRouter()
 
 
 class AccessRequestCreate(BaseModel):
     question: str
     business_reason: str = ""
-    source_hint: Optional[str] = None
-    suggested_approver_email: Optional[str] = None
-    suggested_approver_display_name: Optional[str] = None
-    requester_manager_email: Optional[str] = None
-    requester_manager_display_name: Optional[str] = None
-    requester_comment: Optional[str] = None
-    request_id: Optional[str] = None
-    answer_path: Optional[str] = None
+    source_hint: str | None = None
+    suggested_approver_email: str | None = None
+    suggested_approver_display_name: str | None = None
+    requester_manager_email: str | None = None
+    requester_manager_display_name: str | None = None
+    requester_comment: str | None = None
+    request_id: str | None = None
+    answer_path: str | None = None
     metadata_json: dict[str, Any] = Field(default_factory=dict)
 
 
 class RouteAccessRequestBody(BaseModel):
     source_ids: list[int] = Field(default_factory=list)
-    business_approver_external_user_id: Optional[str] = None
-    business_approver_email: Optional[str] = None
-    business_approver_display_name: Optional[str] = None
-    acl_manager_external_user_id: Optional[str] = None
-    acl_manager_email: Optional[str] = None
-    acl_manager_display_name: Optional[str] = None
-    requester_manager_external_user_id: Optional[str] = None
-    requester_manager_email: Optional[str] = None
-    requester_manager_display_name: Optional[str] = None
+    business_approver_external_user_id: str | None = None
+    business_approver_email: str | None = None
+    business_approver_display_name: str | None = None
+    acl_manager_external_user_id: str | None = None
+    acl_manager_email: str | None = None
+    acl_manager_display_name: str | None = None
+    requester_manager_external_user_id: str | None = None
+    requester_manager_email: str | None = None
+    requester_manager_display_name: str | None = None
     review_reason: str = ""
 
 
 class ApprovalDecisionBody(BaseModel):
-    decision: str = Field(pattern="^(approve_24h|approve_7d|approve_30d|deny|return_not_owner|return_not_relevant|return_reroute)$")
+    decision: str = Field(
+        pattern="^(approve_24h|approve_7d|approve_30d|deny|return_not_owner|return_not_relevant|return_reroute)$"
+    )
     decision_reason: str = ""
     selected_source_ids: list[int] = Field(default_factory=list)
-    alternate_business_approver_external_user_id: Optional[str] = None
-    alternate_business_approver_email: Optional[str] = None
-    alternate_business_approver_display_name: Optional[str] = None
+    alternate_business_approver_external_user_id: str | None = None
+    alternate_business_approver_email: str | None = None
+    alternate_business_approver_display_name: str | None = None
 
 
 class DenyAccessRequestBody(BaseModel):
@@ -80,17 +81,34 @@ def _request_payload(row) -> dict[str, Any]:
 
 
 @router.post("/access-requests")
-def create_access_request_endpoint(body: AccessRequestCreate, _user=Depends(require_authenticated_user)):
+def create_access_request_endpoint(
+    body: AccessRequestCreate, _user=Depends(require_authenticated_user)
+):
     actor = get_current_user()
     restriction = is_restricted(actor, {"access_request_block", "extra_review_required"})
     if restriction and restriction.get("restriction_type") == "access_request_block":
-        raise HTTPException(status_code=403, detail={"error": "access_request_blocked", "message": restriction.get("reason")})
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "access_request_blocked", "message": restriction.get("reason")},
+        )
     question = body.question.strip()
     business_reason = body.business_reason.strip()
     if not question:
-        raise HTTPException(status_code=400, detail={"error": "question_required", "message": "Question context is missing. Ask the question again and then request access."})
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "question_required",
+                "message": "Question context is missing. Ask the question again and then request access.",
+            },
+        )
     if not business_reason:
-        raise HTTPException(status_code=400, detail={"error": "business_reason_required", "message": "Add a business reason before requesting access."})
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "business_reason_required",
+                "message": "Add a business reason before requesting access.",
+            },
+        )
     risk_signals = evaluate_access_request_risk(
         actor=actor,
         question=question,
@@ -99,11 +117,15 @@ def create_access_request_endpoint(body: AccessRequestCreate, _user=Depends(requ
     metadata_json = dict(body.metadata_json or {})
     metadata_json.update(
         {
-            "suggested_approver_email": (body.suggested_approver_email or "").strip().lower() or None,
-            "suggested_approver_display_name": (body.suggested_approver_display_name or "").strip() or None,
+            "suggested_approver_email": (body.suggested_approver_email or "").strip().lower()
+            or None,
+            "suggested_approver_display_name": (body.suggested_approver_display_name or "").strip()
+            or None,
             "requester_comment": (body.requester_comment or "").strip() or None,
             "governance_risk_signals": risk_signals,
-            "extra_review_required": bool(restriction and restriction.get("restriction_type") == "extra_review_required"),
+            "extra_review_required": bool(
+                restriction and restriction.get("restriction_type") == "extra_review_required"
+            ),
         }
     )
     row = create_access_request(
@@ -150,7 +172,14 @@ def create_access_request_endpoint(body: AccessRequestCreate, _user=Depends(requ
 @router.get("/access-requests")
 def list_my_access_requests(_user=Depends(require_authenticated_user)):
     actor = get_current_user()
-    return {"access_requests": [_request_payload(row) for row in list_access_requests(requester_external_user_id=actor.user_id, actor_email=actor.email, limit=200)]}
+    return {
+        "access_requests": [
+            _request_payload(row)
+            for row in list_access_requests(
+                requester_external_user_id=actor.user_id, actor_email=actor.email, limit=200
+            )
+        ]
+    }
 
 
 @router.get("/access-requests/{access_request_id}")
@@ -160,7 +189,13 @@ def get_my_access_request(access_request_id: int, _user=Depends(require_authenti
     if row is None:
         raise HTTPException(status_code=404, detail={"error": "access_request_not_found"})
     routing = get_access_request_routing(access_request_id)
-    allowed = row.requester_external_user_id == actor.user_id or (routing and ((routing.business_approver_external_user_id == actor.user_id) or ((routing.business_approver_email or "").lower() == (actor.email or "").lower())))
+    allowed = row.requester_external_user_id == actor.user_id or (
+        routing
+        and (
+            (routing.business_approver_external_user_id == actor.user_id)
+            or ((routing.business_approver_email or "").lower() == (actor.email or "").lower())
+        )
+    )
     if not allowed and "admin" not in {role.lower() for role in actor.roles}:
         raise HTTPException(status_code=403, detail={"error": "access_request_not_visible"})
     return {"access_request": _request_payload(row)}
@@ -173,7 +208,9 @@ def list_my_approvals(_user=Depends(require_authenticated_user)):
 
 
 @router.post("/me/approvals/{inbox_item_id}/decision")
-def decide_my_approval(inbox_item_id: int, body: ApprovalDecisionBody, _user=Depends(require_authenticated_user)):
+def decide_my_approval(
+    inbox_item_id: int, body: ApprovalDecisionBody, _user=Depends(require_authenticated_user)
+):
     actor = get_current_user()
     row = decide_inbox_item(
         inbox_item_id=inbox_item_id,
@@ -186,11 +223,15 @@ def decide_my_approval(inbox_item_id: int, body: ApprovalDecisionBody, _user=Dep
             "contact_email": body.alternate_business_approver_email,
             "contact_display_name": body.alternate_business_approver_display_name,
         }
-        if body.alternate_business_approver_external_user_id or body.alternate_business_approver_email or body.alternate_business_approver_display_name
+        if body.alternate_business_approver_external_user_id
+        or body.alternate_business_approver_email
+        or body.alternate_business_approver_display_name
         else None,
     )
     if row is None:
-        raise HTTPException(status_code=400, detail={"error": "approval_inbox_item_not_actionable"})
+        raise HTTPException(
+            status_code=400, detail={"error": "approval_inbox_item_not_actionable"}
+        )
     insert_admin_audit_event(
         event_type="access_request",
         action="access_request.business_decision",
@@ -206,7 +247,9 @@ def decide_my_approval(inbox_item_id: int, body: ApprovalDecisionBody, _user=Dep
 @router.get("/me/notifications")
 def list_my_notifications(_user=Depends(require_authenticated_user)):
     actor = get_current_user()
-    return {"notifications": [row.__dict__ for row in list_notification_events(actor=actor, limit=200)]}
+    return {
+        "notifications": [row.__dict__ for row in list_notification_events(actor=actor, limit=200)]
+    }
 
 
 @router.post("/me/notifications/{notification_id}/read")
@@ -223,21 +266,35 @@ def list_admin_access_requests(_admin=Depends(require_admin_user)):
 
 
 @router.post("/admin/access-requests/{access_request_id}/route")
-def route_admin_access_request(access_request_id: int, body: RouteAccessRequestBody, _admin=Depends(require_admin_user)):
+def route_admin_access_request(
+    access_request_id: int, body: RouteAccessRequestBody, _admin=Depends(require_admin_user)
+):
     actor = get_current_user()
     request_row = get_access_request(access_request_id)
     if request_row is None:
         raise HTTPException(status_code=404, detail={"error": "access_request_not_found"})
     source_ids = [item for item in body.source_ids if item is not None]
     first_source_id = source_ids[0] if source_ids else None
-    default_contacts = resolve_source_contacts(first_source_id) if first_source_id is not None else {"business_approver": None, "acl_manager": None}
+    default_contacts = (
+        resolve_source_contacts(first_source_id)
+        if first_source_id is not None
+        else {"business_approver": None, "acl_manager": None}
+    )
     metadata = request_row.metadata_json or {}
     business_approver = {
-        "contact_external_user_id": body.business_approver_external_user_id or (default_contacts.get("business_approver") or {}).get("contact_external_user_id"),
-        "contact_email": body.business_approver_email or (metadata.get("suggested_approver_email")) or (default_contacts.get("business_approver") or {}).get("contact_email"),
-        "contact_display_name": body.business_approver_display_name or (metadata.get("suggested_approver_display_name")) or (default_contacts.get("business_approver") or {}).get("contact_display_name"),
+        "contact_external_user_id": body.business_approver_external_user_id
+        or (default_contacts.get("business_approver") or {}).get("contact_external_user_id"),
+        "contact_email": body.business_approver_email
+        or (metadata.get("suggested_approver_email"))
+        or (default_contacts.get("business_approver") or {}).get("contact_email"),
+        "contact_display_name": body.business_approver_display_name
+        or (metadata.get("suggested_approver_display_name"))
+        or (default_contacts.get("business_approver") or {}).get("contact_display_name"),
     }
-    if not business_approver["contact_email"] and not business_approver["contact_external_user_id"]:
+    if (
+        not business_approver["contact_email"]
+        and not business_approver["contact_external_user_id"]
+    ):
         raise HTTPException(status_code=400, detail={"error": "business_approver_required"})
     row = route_access_request(
         access_request_id=access_request_id,
@@ -245,15 +302,19 @@ def route_admin_access_request(access_request_id: int, body: RouteAccessRequestB
         admin_actor=actor,
         business_approver=business_approver,
         acl_manager={
-            "contact_external_user_id": body.acl_manager_external_user_id or (default_contacts.get("acl_manager") or {}).get("contact_external_user_id"),
-            "contact_email": body.acl_manager_email or (default_contacts.get("acl_manager") or {}).get("contact_email"),
-            "contact_display_name": body.acl_manager_display_name or (default_contacts.get("acl_manager") or {}).get("contact_display_name"),
+            "contact_external_user_id": body.acl_manager_external_user_id
+            or (default_contacts.get("acl_manager") or {}).get("contact_external_user_id"),
+            "contact_email": body.acl_manager_email
+            or (default_contacts.get("acl_manager") or {}).get("contact_email"),
+            "contact_display_name": body.acl_manager_display_name
+            or (default_contacts.get("acl_manager") or {}).get("contact_display_name"),
         },
         requester_manager=None,
         fallback_requester_manager={
             "contact_external_user_id": body.requester_manager_external_user_id,
             "contact_email": body.requester_manager_email or request_row.requester_manager_email,
-            "contact_display_name": body.requester_manager_display_name or request_row.requester_manager_display_name,
+            "contact_display_name": body.requester_manager_display_name
+            or request_row.requester_manager_display_name,
         },
         review_reason=body.review_reason.strip(),
     )
@@ -290,9 +351,13 @@ def grant_admin_access_request(access_request_id: int, _admin=Depends(require_ad
 
 
 @router.post("/admin/access-requests/{access_request_id}/deny")
-def deny_admin_access_request(access_request_id: int, body: DenyAccessRequestBody, _admin=Depends(require_admin_user)):
+def deny_admin_access_request(
+    access_request_id: int, body: DenyAccessRequestBody, _admin=Depends(require_admin_user)
+):
     actor = get_current_user()
-    row = deny_access_request(access_request_id=access_request_id, actor=actor, reason=body.reason.strip())
+    row = deny_access_request(
+        access_request_id=access_request_id, actor=actor, reason=body.reason.strip()
+    )
     if row is None:
         raise HTTPException(status_code=404, detail={"error": "access_request_not_found"})
     insert_admin_audit_event(

@@ -1,11 +1,10 @@
-from tests.smoke_test_base import *
-
 import app.coherence as coherence_module
 from app.coherence import (
     is_draft_profile_name,
     run_coherence_checks,
     validate_embedding_profile_dimension,
 )
+from tests.smoke_test_base import *
 
 
 class CoherenceAR2Tests(SmokeTestBase):
@@ -27,10 +26,9 @@ class CoherenceAR2Tests(SmokeTestBase):
         self.addCleanup(_delete)
 
     def _admin_client(self):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         original_auth_enabled = settings.AUTH_ENABLED
         original_authenticate = main_module.authenticate_request
@@ -54,7 +52,9 @@ class CoherenceAR2Tests(SmokeTestBase):
     def test_wrong_embedding_dimension_rejected_at_save(self):
         self._prime_model_dim("BAAI/bge-small-en-v1.5", 384)
         with self.assertRaises(ValueError):
-            validate_embedding_profile_dimension(model_name="BAAI/bge-small-en-v1.5", declared_dimension=768)
+            validate_embedding_profile_dimension(
+                model_name="BAAI/bge-small-en-v1.5", declared_dimension=768
+            )
 
         client = self._admin_client()
         response = client.post(
@@ -78,16 +78,27 @@ class CoherenceAR2Tests(SmokeTestBase):
                     "INSERT INTO profiles (profile_type, name, config_json, is_default) "
                     "VALUES ('embedding', :name, CAST(:cfg AS jsonb), false)"
                 ),
-                {"name": bad_name, "cfg": '{"model": "BAAI/bge-small-en-v1.5", "dimension": 768, "batch_size": 32}'},
+                {
+                    "name": bad_name,
+                    "cfg": '{"model": "BAAI/bge-small-en-v1.5", "dimension": 768, "batch_size": 32}',
+                },
             )
         self._delete_profile_on_cleanup("embedding", bad_name)
 
         client = self._admin_client()
-        payload = client.get("/admin/health/coherence", headers={"Authorization": "Bearer fake-token"}).json()
-        registry = next(item for item in payload["invariants"] if item["invariant"] == "embedding_registry_metadata")
+        payload = client.get(
+            "/admin/health/coherence", headers={"Authorization": "Bearer fake-token"}
+        ).json()
+        registry = next(
+            item
+            for item in payload["invariants"]
+            if item["invariant"] == "embedding_registry_metadata"
+        )
         self.assertEqual(payload["status"], "fail")
         self.assertEqual(registry["status"], "fail")
-        self.assertTrue(any(m.get("profile") == bad_name for m in registry["details"]["mismatches"]))
+        self.assertTrue(
+            any(m.get("profile") == bad_name for m in registry["details"]["mismatches"])
+        )
 
     # --- Audit state 2: draft profile active as live ---
 
@@ -122,8 +133,14 @@ class CoherenceAR2Tests(SmokeTestBase):
         # Harness tearDown restores the snapshotted active profiles.
 
         client = self._admin_client()
-        payload = client.get("/admin/health/coherence", headers={"Authorization": "Bearer fake-token"}).json()
-        promoted = next(item for item in payload["invariants"] if item["invariant"] == "active_profiles_promoted")
+        payload = client.get(
+            "/admin/health/coherence", headers={"Authorization": "Bearer fake-token"}
+        ).json()
+        promoted = next(
+            item
+            for item in payload["invariants"]
+            if item["invariant"] == "active_profiles_promoted"
+        )
         self.assertEqual(payload["status"], "fail")
         self.assertEqual(promoted["status"], "fail")
         self.assertIn("draft-ar2-injected-retrieval", str(promoted["details"]["draft_active"]))
@@ -150,8 +167,12 @@ class CoherenceAR2Tests(SmokeTestBase):
         self.addCleanup(run_migrations)
 
         client = self._admin_client()
-        payload = client.get("/admin/health/coherence", headers={"Authorization": "Bearer fake-token"}).json()
-        ledger = next(item for item in payload["invariants"] if item["invariant"] == "migration_ledger")
+        payload = client.get(
+            "/admin/health/coherence", headers={"Authorization": "Bearer fake-token"}
+        ).json()
+        ledger = next(
+            item for item in payload["invariants"] if item["invariant"] == "migration_ledger"
+        )
         self.assertEqual(payload["status"], "fail")
         self.assertEqual(ledger["status"], "fail")
         self.assertIn("MIG-P020", ledger["details"]["missing"])

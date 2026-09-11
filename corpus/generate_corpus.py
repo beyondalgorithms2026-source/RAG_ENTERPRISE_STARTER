@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from library import DOCUMENTS, EVAL_QUESTIONS, Document  # noqa: E402
+from library import DOCUMENTS, EVAL_QUESTIONS, Document
 
 VALID_CLASSIFICATIONS = {"public", "internal", "restricted"}
 VALID_OWNER_GROUPS = {"people-operations", "finance", "security", "legal", "operations"}
@@ -53,7 +53,9 @@ def check() -> list[str]:
     for question in EVAL_QUESTIONS:
         if question.expected_document is None:
             if question.expected_fact is not None:
-                problems.append(f"unanswerable question carries an expected_fact: {question.question!r}")
+                problems.append(
+                    f"unanswerable question carries an expected_fact: {question.question!r}"
+                )
             continue
         if question.expected_document not in known:
             problems.append(

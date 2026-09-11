@@ -1,8 +1,7 @@
-from tests.smoke_test_base import *
-
 import json
 
 from app.eval.pack_eval import DEGRADED_RETRIEVAL_OVERRIDES
+from tests.smoke_test_base import *
 
 
 class _Ar4Base(SmokeTestBase):
@@ -10,10 +9,9 @@ class _Ar4Base(SmokeTestBase):
     integration' — the promotion path never invoked evaluation)."""
 
     def _admin_client(self, *, user_suffix: str):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         run_migrations()
         client = TestClient(app)
@@ -45,7 +43,9 @@ class _Ar4Base(SmokeTestBase):
         from app.db.repo_tuning_configs import create_candidate_draft
 
         seed_default_profiles(settings)
-        actor = AuthenticatedUser(user_id="ar4-draft-author", email="ar4@example.com", roles=["admin"])
+        actor = AuthenticatedUser(
+            user_id="ar4-draft-author", email="ar4@example.com", roles=["admin"]
+        )
         selected_profiles = get_active_profile_map(["embedding", "reranker", "llm", "retrieval"])
         return create_candidate_draft(
             name=f"ar4-candidate-{uuid4().hex[:6]}",
@@ -73,7 +73,11 @@ class _Ar4Base(SmokeTestBase):
                     RETURNING id
                     """
                 ),
-                {"f": f"ar4-gate-{suffix}.pdf", "p": f"tests/ar4-gate-{suffix}.pdf", "h": (suffix + "ar4") * 4},
+                {
+                    "f": f"ar4-gate-{suffix}.pdf",
+                    "p": f"tests/ar4-gate-{suffix}.pdf",
+                    "h": (suffix + "ar4") * 4,
+                },
             ).scalar_one()
         self.addCleanup(self._delete_retrieval_records, [source_id])
         token = f"promotiontoken{suffix}"
@@ -94,13 +98,18 @@ class _Ar4Base(SmokeTestBase):
         )
         with engine.connect() as conn:
             chunk_rows = conn.execute(
-                text("SELECT id, chunk_index FROM chunks WHERE source_id = :s ORDER BY chunk_index"),
+                text(
+                    "SELECT id, chunk_index FROM chunks WHERE source_id = :s ORDER BY chunk_index"
+                ),
                 {"s": source_id},
             ).fetchall()
         similarities = [0.95, 0.9, 0.85, 0.8]
         update_chunk_embeddings(
             [
-                (chunk_id, basis_vector(similarities[index], (1 - similarities[index] ** 2) ** 0.5))
+                (
+                    chunk_id,
+                    basis_vector(similarities[index], (1 - similarities[index] ** 2) ** 0.5),
+                )
                 for chunk_id, index in chunk_rows
             ]
         )
@@ -120,7 +129,10 @@ class _Ar4Base(SmokeTestBase):
                             "question": f"{token} promotion evidence passage",
                             "provenance": "synthetic_chunk_grounded",
                             "review_status": "auto_labeled",
-                            "relevant": {str(chunk_id): (3 if index == 0 else 2) for chunk_id, index in chunk_rows},
+                            "relevant": {
+                                str(chunk_id): (3 if index == 0 else 2)
+                                for chunk_id, index in chunk_rows
+                            },
                         }
                     ],
                 }
@@ -187,7 +199,11 @@ class EvalBeforePromotionAR4Tests(_Ar4Base):
 
         promote_response = client.post(
             "/admin/tuning/promote",
-            json={"draft_id": draft["id"], "promotion_note": "Attempting degraded promote.", "eval_run_id": eval_run["id"]},
+            json={
+                "draft_id": draft["id"],
+                "promotion_note": "Attempting degraded promote.",
+                "eval_run_id": eval_run["id"],
+            },
             headers={"Authorization": "Bearer fake-token", "X-Admin-Approval": "approved"},
         )
         self.assertEqual(promote_response.status_code, 422, msg=promote_response.text)
@@ -216,13 +232,19 @@ class EvalBeforePromotionAR4Tests(_Ar4Base):
         )
         self.assertEqual(candidate_response.status_code, 200, msg=candidate_response.text)
         candidate_run = candidate_response.json()["eval_run"]
-        self.assertEqual(candidate_run["gate_status"], "pass", msg=str(candidate_run["gate_aggregates"]))
+        self.assertEqual(
+            candidate_run["gate_status"], "pass", msg=str(candidate_run["gate_aggregates"])
+        )
         self.assertIn("deltas_vs_live_baseline", candidate_run)
         self.assertIsNotNone(candidate_run["deltas_vs_live_baseline"]["recall_at_5"])
 
         promote_response = client.post(
             "/admin/tuning/promote",
-            json={"draft_id": draft["id"], "promotion_note": "Eval-gated promotion.", "eval_run_id": candidate_run["id"]},
+            json={
+                "draft_id": draft["id"],
+                "promotion_note": "Eval-gated promotion.",
+                "eval_run_id": candidate_run["id"],
+            },
             headers={"Authorization": "Bearer fake-token", "X-Admin-Approval": "approved"},
         )
         self.assertEqual(promote_response.status_code, 200, msg=promote_response.text)
@@ -237,31 +259,44 @@ class EvalBeforePromotionAR4Tests(_Ar4Base):
 
         rollback_response = client.post(
             "/admin/tuning/rollback",
-            json={"version_label": promoted_label, "reason": "AR4 round-trip rollback.", "eval_run_id": candidate_run["id"]},
+            json={
+                "version_label": promoted_label,
+                "reason": "AR4 round-trip rollback.",
+                "eval_run_id": candidate_run["id"],
+            },
             headers={"Authorization": "Bearer fake-token", "X-Admin-Approval": "approved"},
         )
         self.assertEqual(rollback_response.status_code, 200, msg=rollback_response.text)
-        self.assertEqual(rollback_response.json()["eval_evidence"]["eval_run_id"], candidate_run["id"])
+        self.assertEqual(
+            rollback_response.json()["eval_evidence"]["eval_run_id"], candidate_run["id"]
+        )
 
-        history = client.get("/admin/tuning/history", headers={"Authorization": "Bearer fake-token"}).json()
+        history = client.get(
+            "/admin/tuning/history", headers={"Authorization": "Bearer fake-token"}
+        ).json()
         promote_events = [
             event
             for event in history["promotion_events"]
-            if event["action"] == "promote" and (event.get("eval_evidence_json") or {}).get("eval_run_id") == candidate_run["id"]
+            if event["action"] == "promote"
+            and (event.get("eval_evidence_json") or {}).get("eval_run_id") == candidate_run["id"]
         ]
         self.assertTrue(promote_events, msg="promotion event must persist eval evidence")
         self.assertIn("deltas_vs_live_baseline", promote_events[0]["eval_evidence_json"])
         rollback_events = [
             event
             for event in history["promotion_events"]
-            if event["action"] == "rollback" and (event.get("eval_evidence_json") or {}).get("eval_run_id") == candidate_run["id"]
+            if event["action"] == "rollback"
+            and (event.get("eval_evidence_json") or {}).get("eval_run_id") == candidate_run["id"]
         ]
         self.assertTrue(rollback_events, msg="rollback event must link eval evidence")
 
         runs_response = client.get(
-            f"/admin/tuning/eval-runs?draft_id={draft['id']}", headers={"Authorization": "Bearer fake-token"}
+            f"/admin/tuning/eval-runs?draft_id={draft['id']}",
+            headers={"Authorization": "Bearer fake-token"},
         )
-        self.assertTrue(any(run["id"] == candidate_run["id"] for run in runs_response.json()["eval_runs"]))
+        self.assertTrue(
+            any(run["id"] == candidate_run["id"] for run in runs_response.json()["eval_runs"])
+        )
 
     def test_warn_mode_annotates_promotion_without_eval(self):
         self._pin_enforcement("warn")
@@ -269,7 +304,10 @@ class EvalBeforePromotionAR4Tests(_Ar4Base):
         draft = self._create_draft()
         response = client.post(
             "/admin/tuning/promote",
-            json={"draft_id": draft["id"], "promotion_note": "Warn-mode promotion without evidence."},
+            json={
+                "draft_id": draft["id"],
+                "promotion_note": "Warn-mode promotion without evidence.",
+            },
             headers={"Authorization": "Bearer fake-token", "X-Admin-Approval": "approved"},
         )
         self.assertEqual(response.status_code, 200, msg=response.text)
@@ -278,11 +316,14 @@ class EvalBeforePromotionAR4Tests(_Ar4Base):
         self.assertIn("promoted_without_eval", evidence["warnings"])
         self.assertIsNone(evidence["eval_run_id"])
 
-        history = client.get("/admin/tuning/history", headers={"Authorization": "Bearer fake-token"}).json()
+        history = client.get(
+            "/admin/tuning/history", headers={"Authorization": "Bearer fake-token"}
+        ).json()
         annotated = [
             event
             for event in history["promotion_events"]
-            if "promoted_without_eval" in ((event.get("eval_evidence_json") or {}).get("warnings") or [])
+            if "promoted_without_eval"
+            in ((event.get("eval_evidence_json") or {}).get("warnings") or [])
         ]
         self.assertTrue(annotated, msg="warn-mode promotion must be loudly annotated in history")
 
@@ -302,10 +343,16 @@ class EvalBeforePromotionAR4Tests(_Ar4Base):
         self.assertEqual(eval_response.status_code, 200, msg=eval_response.text)
         eval_run = eval_response.json()["eval_run"]
 
-        update_candidate_draft(draft["id"], description="Changed after the eval run; evidence is stale.")
+        update_candidate_draft(
+            draft["id"], description="Changed after the eval run; evidence is stale."
+        )
         promote_response = client.post(
             "/admin/tuning/promote",
-            json={"draft_id": draft["id"], "promotion_note": "Stale evidence.", "eval_run_id": eval_run["id"]},
+            json={
+                "draft_id": draft["id"],
+                "promotion_note": "Stale evidence.",
+                "eval_run_id": eval_run["id"],
+            },
             headers={"Authorization": "Bearer fake-token", "X-Admin-Approval": "approved"},
         )
         self.assertEqual(promote_response.status_code, 422, msg=promote_response.text)
@@ -326,7 +373,11 @@ class EvalBeforePromotionAR4Tests(_Ar4Base):
         self.assertEqual(eval_response.status_code, 200, msg=eval_response.text)
         promote_response = client.post(
             "/admin/tuning/promote",
-            json={"draft_id": draft_b["id"], "promotion_note": "Wrong draft evidence.", "eval_run_id": eval_response.json()["eval_run"]["id"]},
+            json={
+                "draft_id": draft_b["id"],
+                "promotion_note": "Wrong draft evidence.",
+                "eval_run_id": eval_response.json()["eval_run"]["id"],
+            },
             headers={"Authorization": "Bearer fake-token", "X-Admin-Approval": "approved"},
         )
         self.assertEqual(promote_response.status_code, 422, msg=promote_response.text)

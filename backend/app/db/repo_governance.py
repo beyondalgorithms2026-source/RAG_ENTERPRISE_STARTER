@@ -1,25 +1,25 @@
 import json
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
-
-from sqlalchemy import text
+from typing import Any
 
 from app.auth.context import AuthenticatedUser
 from app.db.db import engine
+from sqlalchemy import text
 
 
 def _normalize_question(question: str) -> str:
     return re.sub(r"\s+", " ", (question or "").strip().lower())
 
 
-def active_restrictions(actor: Optional[AuthenticatedUser]) -> list[dict[str, Any]]:
+def active_restrictions(actor: AuthenticatedUser | None) -> list[dict[str, Any]]:
     if actor is None:
         return []
     with engine.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
+        rows = (
+            conn.execute(
+                text(
+                    """
                 SELECT id, user_external_user_id, user_email, restriction_type, status,
                        reason, starts_at, expires_at, metadata_json, created_at
                 FROM user_governance_restrictions
@@ -31,13 +31,18 @@ def active_restrictions(actor: Optional[AuthenticatedUser]) -> list[dict[str, An
                   )
                 ORDER BY created_at DESC, id DESC
                 """
-            ),
-            {"user_id": actor.user_id, "email": actor.email or ""},
-        ).mappings().all()
+                ),
+                {"user_id": actor.user_id, "email": actor.email or ""},
+            )
+            .mappings()
+            .all()
+        )
     return [_jsonable(dict(row)) for row in rows]
 
 
-def is_restricted(actor: Optional[AuthenticatedUser], restriction_types: set[str]) -> Optional[dict[str, Any]]:
+def is_restricted(
+    actor: AuthenticatedUser | None, restriction_types: set[str]
+) -> dict[str, Any] | None:
     for restriction in active_restrictions(actor):
         if str(restriction.get("restriction_type")) in restriction_types:
             return restriction
@@ -46,19 +51,22 @@ def is_restricted(actor: Optional[AuthenticatedUser], restriction_types: set[str
 
 def create_restriction(
     *,
-    user_external_user_id: Optional[str],
-    user_email: Optional[str],
+    user_external_user_id: str | None,
+    user_email: str | None,
     restriction_type: str,
     reason: str,
-    actor: Optional[AuthenticatedUser],
-    duration_hours: Optional[int] = None,
-    metadata_json: Optional[dict[str, Any]] = None,
+    actor: AuthenticatedUser | None,
+    duration_hours: int | None = None,
+    metadata_json: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=duration_hours) if duration_hours else None
+    expires_at = (
+        datetime.now(timezone.utc) + timedelta(hours=duration_hours) if duration_hours else None
+    )
     with engine.begin() as conn:
-        row = conn.execute(
-            text(
-                """
+        row = (
+            conn.execute(
+                text(
+                    """
                 INSERT INTO user_governance_restrictions (
                     user_external_user_id, user_email, restriction_type, reason,
                     expires_at, created_by_external_user_id, created_by_email, metadata_json
@@ -70,18 +78,21 @@ def create_restriction(
                 RETURNING id, user_external_user_id, user_email, restriction_type, status,
                           reason, starts_at, expires_at, metadata_json, created_at
                 """
-            ),
-            {
-                "user_id": user_external_user_id,
-                "email": user_email,
-                "restriction_type": restriction_type,
-                "reason": reason,
-                "expires_at": expires_at,
-                "actor_id": actor.user_id if actor else None,
-                "actor_email": actor.email if actor else None,
-                "metadata_json": json.dumps(metadata_json or {}),
-            },
-        ).mappings().one()
+                ),
+                {
+                    "user_id": user_external_user_id,
+                    "email": user_email,
+                    "restriction_type": restriction_type,
+                    "reason": reason,
+                    "expires_at": expires_at,
+                    "actor_id": actor.user_id if actor else None,
+                    "actor_email": actor.email if actor else None,
+                    "metadata_json": json.dumps(metadata_json or {}),
+                },
+            )
+            .mappings()
+            .one()
+        )
         conn.execute(
             text(
                 """
@@ -108,11 +119,14 @@ def create_restriction(
     return _jsonable(dict(row))
 
 
-def lift_restriction(restriction_id: int, *, reason: str, actor: Optional[AuthenticatedUser]) -> dict[str, Any]:
+def lift_restriction(
+    restriction_id: int, *, reason: str, actor: AuthenticatedUser | None
+) -> dict[str, Any]:
     with engine.begin() as conn:
-        row = conn.execute(
-            text(
-                """
+        row = (
+            conn.execute(
+                text(
+                    """
                 UPDATE user_governance_restrictions
                 SET status = 'lifted',
                     lifted_reason = :reason,
@@ -123,9 +137,17 @@ def lift_restriction(restriction_id: int, *, reason: str, actor: Optional[Authen
                 RETURNING id, user_external_user_id, user_email, restriction_type, status,
                           reason, starts_at, expires_at, metadata_json, created_at
                 """
-            ),
-            {"restriction_id": restriction_id, "reason": reason, "actor_id": actor.user_id if actor else None, "actor_email": actor.email if actor else None},
-        ).mappings().first()
+                ),
+                {
+                    "restriction_id": restriction_id,
+                    "reason": reason,
+                    "actor_id": actor.user_id if actor else None,
+                    "actor_email": actor.email if actor else None,
+                },
+            )
+            .mappings()
+            .first()
+        )
         if not row:
             raise ValueError(f"Restriction {restriction_id} not found")
         conn.execute(
@@ -155,18 +177,19 @@ def lift_restriction(restriction_id: int, *, reason: str, actor: Optional[Authen
 
 def create_risk_signal(
     *,
-    requester_external_user_id: Optional[str],
-    requester_email: Optional[str],
+    requester_external_user_id: str | None,
+    requester_email: str | None,
     signal_type: str,
     severity: str,
-    question: Optional[str],
-    access_request_id: Optional[int],
-    evidence_json: Optional[dict[str, Any]] = None,
+    question: str | None,
+    access_request_id: int | None,
+    evidence_json: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     with engine.begin() as conn:
-        row = conn.execute(
-            text(
-                """
+        row = (
+            conn.execute(
+                text(
+                    """
                 INSERT INTO access_request_risk_signals (
                     requester_external_user_id, requester_email, signal_type, severity,
                     question, access_request_id, evidence_json
@@ -178,21 +201,29 @@ def create_risk_signal(
                 RETURNING id, requester_external_user_id, requester_email, signal_type,
                           severity, question, access_request_id, evidence_json, status, created_at
                 """
-            ),
-            {
-                "user_id": requester_external_user_id,
-                "email": requester_email,
-                "signal_type": signal_type,
-                "severity": severity,
-                "question": question,
-                "access_request_id": access_request_id,
-                "evidence_json": json.dumps(evidence_json or {}),
-            },
-        ).mappings().one()
+                ),
+                {
+                    "user_id": requester_external_user_id,
+                    "email": requester_email,
+                    "signal_type": signal_type,
+                    "severity": severity,
+                    "question": question,
+                    "access_request_id": access_request_id,
+                    "evidence_json": json.dumps(evidence_json or {}),
+                },
+            )
+            .mappings()
+            .one()
+        )
     return _jsonable(dict(row))
 
 
-def evaluate_access_request_risk(*, actor: Optional[AuthenticatedUser], question: str, suggested_approver_email: Optional[str] = None) -> list[dict[str, Any]]:
+def evaluate_access_request_risk(
+    *,
+    actor: AuthenticatedUser | None,
+    question: str,
+    suggested_approver_email: str | None = None,
+) -> list[dict[str, Any]]:
     if actor is None:
         return []
     normalized = _normalize_question(question)
@@ -254,35 +285,43 @@ def evaluate_access_request_risk(*, actor: Optional[AuthenticatedUser], question
 
 def list_risk_signals(limit: int = 100) -> list[dict[str, Any]]:
     with engine.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
+        rows = (
+            conn.execute(
+                text(
+                    """
                 SELECT id, requester_external_user_id, requester_email, signal_type,
                        severity, question, access_request_id, evidence_json, status, created_at
                 FROM access_request_risk_signals
                 ORDER BY created_at DESC, id DESC
                 LIMIT :limit
                 """
-            ),
-            {"limit": limit},
-        ).mappings().all()
+                ),
+                {"limit": limit},
+            )
+            .mappings()
+            .all()
+        )
     return [_jsonable(dict(row)) for row in rows]
 
 
 def list_restrictions(limit: int = 100) -> list[dict[str, Any]]:
     with engine.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
+        rows = (
+            conn.execute(
+                text(
+                    """
                 SELECT id, user_external_user_id, user_email, restriction_type, status,
                        reason, starts_at, expires_at, metadata_json, created_at
                 FROM user_governance_restrictions
                 ORDER BY created_at DESC, id DESC
                 LIMIT :limit
                 """
-            ),
-            {"limit": limit},
-        ).mappings().all()
+                ),
+                {"limit": limit},
+            )
+            .mappings()
+            .all()
+        )
     return [_jsonable(dict(row)) for row in rows]
 
 

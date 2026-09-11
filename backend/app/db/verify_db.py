@@ -1,9 +1,8 @@
 import sys
 
-from sqlalchemy import text
-
 from app.core.logging import logger
 from app.db.db import engine
+from sqlalchemy import text
 
 
 def _expected_embedding_dim():
@@ -43,16 +42,28 @@ def collect_db_checks() -> dict[str, bool]:
 
     try:
         with engine.connect() as conn:
-            if conn.execute(text("SELECT extname FROM pg_extension WHERE extname = 'vector';")).first():
+            if conn.execute(
+                text("SELECT extname FROM pg_extension WHERE extname = 'vector';")
+            ).first():
                 checks["pgvector extension exists"] = True
 
             for table_name in (
-                "sources", "source_parts", "chunks", "ingestion_jobs", "enrichment_jobs",
-                "attachments", "db_connectors", "connector_requests", "tool_invocations",
-                "approval_requests", "query_feedback",
+                "sources",
+                "source_parts",
+                "chunks",
+                "ingestion_jobs",
+                "enrichment_jobs",
+                "attachments",
+                "db_connectors",
+                "connector_requests",
+                "tool_invocations",
+                "approval_requests",
+                "query_feedback",
             ):
                 exists = conn.execute(
-                    text("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = :table_name;"),
+                    text(
+                        "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = :table_name;"
+                    ),
                     {"table_name": table_name},
                 ).first()
                 checks[f"{table_name} table exists"] = bool(exists)
@@ -85,7 +96,9 @@ def collect_db_checks() -> dict[str, bool]:
                     )
                 ).fetchall()
             }
-            checks["enrichment_jobs.artifact_version column exists"] = "artifact_version" in enrichment_job_columns
+            checks["enrichment_jobs.artifact_version column exists"] = (
+                "artifact_version" in enrichment_job_columns
+            )
 
             source_part_columns = {
                 row[0]
@@ -99,7 +112,9 @@ def collect_db_checks() -> dict[str, bool]:
                     )
                 ).fetchall()
             }
-            checks["source_parts.locator_json column exists"] = "locator_json" in source_part_columns
+            checks["source_parts.locator_json column exists"] = (
+                "locator_json" in source_part_columns
+            )
 
             if expected_dim is not None:
                 res = conn.execute(
@@ -112,7 +127,9 @@ def collect_db_checks() -> dict[str, bool]:
                         """
                     )
                 ).first()
-                checks["chunks.embedding dimension matches model"] = bool(res and res[0] == f"vector({expected_dim})")
+                checks["chunks.embedding dimension matches model"] = bool(
+                    res and res[0] == f"vector({expected_dim})"
+                )
 
             keyword_index = conn.execute(
                 text(

@@ -2,9 +2,6 @@ import json
 import unittest
 from uuid import uuid4
 
-from fastapi.testclient import TestClient
-from sqlalchemy import text
-
 import app.main as main_module
 from app.auth.access_strategy import clear_corpus_access_grants, grant_corpus_access
 from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
@@ -15,8 +12,8 @@ from app.db.migrate import run_migrations
 from app.db.repo_acl import assign_document_acl, sync_authenticated_user
 from app.db.repo_chunks import insert_chunks
 from app.main import app
-
-
+from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 
 def setUpModule():
@@ -24,6 +21,7 @@ def setUpModule():
     from tests.db_guard import require_database
 
     require_database()
+
 
 class AccessStrategyM28Tests(unittest.TestCase):
     def setUp(self):
@@ -42,13 +40,17 @@ class AccessStrategyM28Tests(unittest.TestCase):
     def tearDown(self):
         for source_id in self.created_source_ids:
             with engine.begin() as conn:
-                conn.execute(text("DELETE FROM sources WHERE id = :source_id"), {"source_id": source_id})
+                conn.execute(
+                    text("DELETE FROM sources WHERE id = :source_id"), {"source_id": source_id}
+                )
         for key, value in self.original.items():
             setattr(settings, key, value)
         main_module.authenticate_request = self.original_authenticate
         main_module.sync_authenticated_user = self.original_sync
 
-    def _seed_source(self, *, corpus: str, token_text: str, sensitivity_label: str = "internal") -> int:
+    def _seed_source(
+        self, *, corpus: str, token_text: str, sensitivity_label: str = "internal"
+    ) -> int:
         suffix = uuid4().hex[:8]
         with engine.begin() as conn:
             source_id = conn.execute(
@@ -117,13 +119,19 @@ class AccessStrategyM28Tests(unittest.TestCase):
         settings.AUTH_MODE = "dev"
         source_id = self._seed_source(corpus="employees", token_text="m28employeeonly")
 
-        no_user_response = perform_search(SearchRequest(question="m28employeeonly", k=5, mode="keyword"))
+        no_user_response = perform_search(
+            SearchRequest(question="m28employeeonly", k=5, mode="keyword")
+        )
         self.assertFalse(any(item.source_id == source_id for item in no_user_response.results))
 
-        actor = AuthenticatedUser(user_id="m28-employee", email="m28-employee@example.test", roles=["user"], groups=[])
+        actor = AuthenticatedUser(
+            user_id="m28-employee", email="m28-employee@example.test", roles=["user"], groups=[]
+        )
         token = set_current_user(actor)
         try:
-            user_response = perform_search(SearchRequest(question="m28employeeonly", k=5, mode="keyword"))
+            user_response = perform_search(
+                SearchRequest(question="m28employeeonly", k=5, mode="keyword")
+            )
         finally:
             reset_current_user(token)
 
@@ -135,7 +143,12 @@ class AccessStrategyM28Tests(unittest.TestCase):
         settings.AUTH_MODE = "dev"
         allowed_source = self._seed_source(corpus="finance-m28", token_text="m28financeonly")
         blocked_source = self._seed_source(corpus="legal-m28", token_text="m28legalonly")
-        actor = AuthenticatedUser(user_id="m28-corpus-user", email="m28-corpus@example.test", roles=["user"], groups=["finance-team"])
+        actor = AuthenticatedUser(
+            user_id="m28-corpus-user",
+            email="m28-corpus@example.test",
+            roles=["user"],
+            groups=["finance-team"],
+        )
         sync_authenticated_user(actor)
         clear_corpus_access_grants("finance-m28")
         grant_corpus_access(corpus_name="finance-m28", group_name="finance-team")
@@ -171,7 +184,9 @@ class AccessStrategyM28Tests(unittest.TestCase):
         settings.ACCESS_STRATEGY = "document_acl"
         settings.AUTH_MODE = "dev"
         source_id = self._seed_source(corpus="direct-m28", token_text="m28directonly")
-        actor = AuthenticatedUser(user_id="m28-direct-user", email="m28-direct@example.test", roles=["user"], groups=[])
+        actor = AuthenticatedUser(
+            user_id="m28-direct-user", email="m28-direct@example.test", roles=["user"], groups=[]
+        )
         sync_authenticated_user(actor)
         self._grant_direct_source(source_id, actor)
 
@@ -188,13 +203,20 @@ class AccessStrategyM28Tests(unittest.TestCase):
         settings.ACCESS_STRATEGY = "document_acl_with_time_bound_grants"
         settings.AUTH_MODE = "dev"
         source_id = self._seed_source(corpus="direct-m28", token_text="m28directgrantonly")
-        actor = AuthenticatedUser(user_id="m28-direct-grant-user", email="m28-direct-grant@example.test", roles=["user"], groups=[])
+        actor = AuthenticatedUser(
+            user_id="m28-direct-grant-user",
+            email="m28-direct-grant@example.test",
+            roles=["user"],
+            groups=[],
+        )
         sync_authenticated_user(actor)
         self._grant_direct_source(source_id, actor)
 
         token = set_current_user(actor)
         try:
-            response = perform_search(SearchRequest(question="m28directgrantonly", k=5, mode="keyword"))
+            response = perform_search(
+                SearchRequest(question="m28directgrantonly", k=5, mode="keyword")
+            )
         finally:
             reset_current_user(token)
 
@@ -208,7 +230,12 @@ class AccessStrategyM28Tests(unittest.TestCase):
         blocked_source = self._seed_source(corpus="beta-m28", token_text="m28betaonly")
         assign_document_acl(source_id=allowed_source, group_names=["alpha-m28"])
         assign_document_acl(source_id=blocked_source, group_names=["beta-m28"])
-        actor = AuthenticatedUser(user_id="m28-alpha-user", email="m28-alpha@example.test", roles=["user"], groups=["alpha-m28"])
+        actor = AuthenticatedUser(
+            user_id="m28-alpha-user",
+            email="m28-alpha@example.test",
+            roles=["user"],
+            groups=["alpha-m28"],
+        )
         sync_authenticated_user(actor)
 
         token = set_current_user(actor)
@@ -223,7 +250,12 @@ class AccessStrategyM28Tests(unittest.TestCase):
 
     def _chunk_id_for_source(self, source_id: int) -> int:
         with engine.connect() as conn:
-            return int(conn.execute(text("SELECT id FROM chunks WHERE source_id = :source_id LIMIT 1"), {"source_id": source_id}).scalar_one())
+            return int(
+                conn.execute(
+                    text("SELECT id FROM chunks WHERE source_id = :source_id LIMIT 1"),
+                    {"source_id": source_id},
+                ).scalar_one()
+            )
 
     def _grant_direct_source(self, source_id: int, actor: AuthenticatedUser) -> None:
         with engine.begin() as conn:

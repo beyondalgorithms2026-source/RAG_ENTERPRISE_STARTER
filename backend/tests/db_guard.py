@@ -28,14 +28,13 @@ def database_status() -> tuple[bool, str]:
         return _status
 
     try:
-        from sqlalchemy import text
-
         from app.db.db import engine
+        from sqlalchemy import text
 
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
         _status = (True, "")
-    except Exception as exc:  # noqa: BLE001 - any failure means unavailable
+    except Exception as exc:
         _status = (False, f"{type(exc).__name__}: {str(exc).splitlines()[0][:160]}")
     return _status
 
@@ -46,9 +45,7 @@ def require_database() -> None:
     if available:
         return
     if os.environ.get("RAG_REQUIRE_DB") == "1":
-        raise AssertionError(
-            f"RAG_REQUIRE_DB=1 but the database is unreachable: {reason}"
-        )
+        raise AssertionError(f"RAG_REQUIRE_DB=1 but the database is unreachable: {reason}")
     raise unittest.SkipTest(
         f"requires a live migrated Postgres (start it with `docker compose up -d` "
         f"and run `python -m app.db.migrate`). Probe failed: {reason}"

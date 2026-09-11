@@ -1,16 +1,17 @@
+from collections.abc import Iterator
 from io import BytesIO
-from typing import Iterator, Tuple
 
 from docx import Document
 from docx.document import Document as DocumentObject
-from docx.oxml.text.paragraph import CT_P
 from docx.oxml.table import CT_Tbl
+from docx.oxml.text.paragraph import CT_P
 from docx.table import Table
 from docx.text.paragraph import Paragraph
+
 from app.adapters.models import ParsedSourceDocument, ParsedSourcePart
 
 
-def _iter_block_items(document: DocumentObject) -> Iterator[Tuple[str, object]]:
+def _iter_block_items(document: DocumentObject) -> Iterator[tuple[str, object]]:
     body = document.element.body
     for child in body.iterchildren():
         if isinstance(child, CT_P):
@@ -38,7 +39,11 @@ def parse_docx_bytes(content: bytes, file_name: str) -> ParsedSourceDocument:
                     part_type="section" if is_heading else "paragraph",
                     part_index=part_index,
                     title=paragraph_text if is_heading else None,
-                    locator_json={"block": part_index + 1, "paragraph": paragraph_count + 1, "style": style_name},
+                    locator_json={
+                        "block": part_index + 1,
+                        "paragraph": paragraph_count + 1,
+                        "style": style_name,
+                    },
                     content_text=paragraph_text,
                     provenance_json={"parser": "python-docx", "file_name": file_name},
                 )

@@ -1,19 +1,29 @@
 import argparse
 import json
-from contextlib import contextmanager
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any
 
 from app.api.ask import ask_endpoint
 from app.core.config import settings
 from app.core.logging import logger
 from app.core_rag.answering import AskRequest
-from app.core_rag.retrieval import DeepLookupRequest, SearchFilters, SearchRequest, perform_deep_lookup, perform_search
+from app.core_rag.retrieval import (
+    DeepLookupRequest,
+    SearchFilters,
+    SearchRequest,
+    perform_deep_lookup,
+    perform_search,
+)
 from app.eval.retrieval_eval import PROJECT_ROOT, write_eval_report
 from app.profiles.models import RerankerProfileConfig, RetrievalProfileConfig
-from app.profiles.resolver import get_active_profile_snapshot, get_effective_reranker, get_effective_retrieval
-
+from app.profiles.resolver import (
+    get_active_profile_snapshot,
+    get_effective_reranker,
+    get_effective_retrieval,
+)
 
 EVAL_FIXTURE_DIR = PROJECT_ROOT / "backend" / "tests" / "fixtures" / "eval"
 BENCHMARK_CASES_FILE = EVAL_FIXTURE_DIR / "benchmark_cases.json"
@@ -22,19 +32,19 @@ SUPPORTED_BENCHMARK_MODES = ("vector", "keyword", "hybrid", "graph_hybrid", "ful
 SUPPORTED_FUSION_METHODS = ("linear", "rrf")
 
 
-def load_benchmark_cases(path: Optional[Path] = None) -> List[Dict[str, Any]]:
+def load_benchmark_cases(path: Path | None = None) -> list[dict[str, Any]]:
     case_path = path or BENCHMARK_CASES_FILE
     if not case_path.exists():
         logger.error("Benchmark case file not found at %s", case_path)
         return []
 
-    with open(case_path, "r", encoding="utf-8") as handle:
+    with open(case_path, encoding="utf-8") as handle:
         data = json.load(handle)
 
     return data if isinstance(data, list) else []
 
 
-def _resolve_runtime_bindings(value: Any, bindings: Dict[str, Any]) -> Any:
+def _resolve_runtime_bindings(value: Any, bindings: dict[str, Any]) -> Any:
     if isinstance(value, dict):
         return {key: _resolve_runtime_bindings(item, bindings) for key, item in value.items()}
     if isinstance(value, list):
@@ -55,7 +65,7 @@ def _temporary_value(target: Any, attr_name: str, value: Any) -> Iterator[None]:
 
 
 @contextmanager
-def _temporary_settings(overrides: Optional[Dict[str, Any]]) -> Iterator[None]:
+def _temporary_settings(overrides: dict[str, Any] | None) -> Iterator[None]:
     overrides = overrides or {}
     originals = {key: getattr(settings, key) for key in overrides}
     for key, value in overrides.items():
@@ -67,14 +77,14 @@ def _temporary_settings(overrides: Optional[Dict[str, Any]]) -> Iterator[None]:
             setattr(settings, key, value)
 
 
-def _build_filters(filters_payload: Optional[Dict[str, Any]]) -> Optional[SearchFilters]:
+def _build_filters(filters_payload: dict[str, Any] | None) -> SearchFilters | None:
     if not filters_payload:
         return None
     return SearchFilters(**filters_payload)
 
 
 @contextmanager
-def _temporary_retrieval_profile(overrides: Optional[Dict[str, Any]]) -> Iterator[None]:
+def _temporary_retrieval_profile(overrides: dict[str, Any] | None) -> Iterator[None]:
     if not overrides:
         yield
         return
@@ -91,7 +101,7 @@ def _temporary_retrieval_profile(overrides: Optional[Dict[str, Any]]) -> Iterato
 
 
 @contextmanager
-def _temporary_reranker_profile(overrides: Optional[Dict[str, Any]]) -> Iterator[None]:
+def _temporary_reranker_profile(overrides: dict[str, Any] | None) -> Iterator[None]:
     if not overrides:
         yield
         return
@@ -105,18 +115,22 @@ def _temporary_reranker_profile(overrides: Optional[Dict[str, Any]]) -> Iterator
     current_module = sys.modules[__name__]
     with _temporary_value(resolver_module, "get_effective_reranker", lambda: patched_config):
         with _temporary_value(retrieval_module, "get_effective_reranker", lambda: patched_config):
-            with _temporary_value(current_module, "get_effective_reranker", lambda: patched_config):
+            with _temporary_value(
+                current_module, "get_effective_reranker", lambda: patched_config
+            ):
                 yield
 
 
-def _mock_llm_content(case: Dict[str, Any], mode: str) -> Optional[str]:
+def _mock_llm_content(case: dict[str, Any], mode: str) -> str | None:
     per_mode = case.get("mock_llm_content_by_mode") or {}
     if mode in per_mode:
         return per_mode[mode]
     return case.get("mock_llm_content")
 
 
-def _evaluate_retrieval_summary(*, results: List[Dict[str, Any]], expected: Dict[str, Any]) -> Dict[str, Any]:
+def _evaluate_retrieval_summary(
+    *, results: list[dict[str, Any]], expected: dict[str, Any]
+) -> dict[str, Any]:
     expected = expected or {}
     headings_any = [item.lower() for item in expected.get("headings_any", [])]
     snippet_keywords_any = [item.lower() for item in expected.get("snippet_keywords_any", [])]
@@ -136,8 +150,12 @@ def _evaluate_retrieval_summary(*, results: List[Dict[str, Any]], expected: Dict
         combined_text = f"{heading} {snippet}"
 
         heading_ok = not headings_any or any(token in heading for token in headings_any)
-        keyword_any_ok = not snippet_keywords_any or any(token in combined_text for token in snippet_keywords_any)
-        keyword_all_ok = not snippet_keywords_all or all(token in combined_text for token in snippet_keywords_all)
+        keyword_any_ok = not snippet_keywords_any or any(
+            token in combined_text for token in snippet_keywords_any
+        )
+        keyword_all_ok = not snippet_keywords_all or all(
+            token in combined_text for token in snippet_keywords_all
+        )
         source_type_ok = not source_types_any or source_type in source_types_any
 
         if heading_ok and keyword_any_ok and keyword_all_ok and source_type_ok:
@@ -146,7 +164,11 @@ def _evaluate_retrieval_summary(*, results: List[Dict[str, Any]], expected: Dict
             matched_heading = result.get("heading")
             matched_source_type = result.get("source_type")
             matched_keywords = sorted(
-                {token for token in snippet_keywords_any + snippet_keywords_all if token in combined_text}
+                {
+                    token
+                    for token in snippet_keywords_any + snippet_keywords_all
+                    if token in combined_text
+                }
             )
             break
 
@@ -167,7 +189,9 @@ def _evaluate_retrieval_summary(*, results: List[Dict[str, Any]], expected: Dict
     }
 
 
-def _evaluate_citation_quality(*, payload: Dict[str, Any], expected: Dict[str, Any]) -> Dict[str, Any]:
+def _evaluate_citation_quality(
+    *, payload: dict[str, Any], expected: dict[str, Any]
+) -> dict[str, Any]:
     expected = expected or {}
     citations = payload.get("citations", []) or []
     citation_count = len(citations)
@@ -191,7 +215,9 @@ def _evaluate_citation_quality(*, payload: Dict[str, Any], expected: Dict[str, A
     }
 
 
-def _evaluate_answer_clarity(*, payload: Dict[str, Any], expected: Dict[str, Any]) -> Dict[str, Any]:
+def _evaluate_answer_clarity(
+    *, payload: dict[str, Any], expected: dict[str, Any]
+) -> dict[str, Any]:
     expected = expected or {}
     answer_text = payload.get("answer") or ""
     answer_lower = answer_text.lower()
@@ -221,7 +247,12 @@ def _evaluate_answer_clarity(*, payload: Dict[str, Any], expected: Dict[str, Any
     }
 
 
-def _mode_failure_note(*, search_error: Optional[str], ask_error: Optional[str], answer_payload: Optional[Dict[str, Any]]) -> str:
+def _mode_failure_note(
+    *,
+    search_error: str | None,
+    ask_error: str | None,
+    answer_payload: dict[str, Any] | None,
+) -> str:
     if search_error:
         return f"search_error:{search_error}"
     if ask_error:
@@ -236,13 +267,13 @@ def _mode_failure_note(*, search_error: Optional[str], ask_error: Optional[str],
 
 
 def _run_mode(
-    case: Dict[str, Any],
+    case: dict[str, Any],
     *,
     mode: str,
-    retrieval_profile_overrides: Optional[Dict[str, Any]] = None,
-    reranker_profile_overrides: Optional[Dict[str, Any]] = None,
+    retrieval_profile_overrides: dict[str, Any] | None = None,
+    reranker_profile_overrides: dict[str, Any] | None = None,
     rerank_variant: str = "profile_default",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     import app.api.ask as ask_api_module
     import app.core_rag.answering as answering_module
 
@@ -266,11 +297,17 @@ def _run_mode(
                 if mode == "deep_lookup":
                     source_ids = list(
                         request_payload.get("source_ids")
-                        or ([] if not filters or filters.source_id is None else [filters.source_id])
+                        or (
+                            [] if not filters or filters.source_id is None else [filters.source_id]
+                        )
                     )
-                    search_response = perform_deep_lookup(DeepLookupRequest(question=question, k=k, source_ids=source_ids))
+                    search_response = perform_deep_lookup(
+                        DeepLookupRequest(question=question, k=k, source_ids=source_ids)
+                    )
                 else:
-                    search_response = perform_search(SearchRequest(question=question, k=k, filters=filters, mode=mode))
+                    search_response = perform_search(
+                        SearchRequest(question=question, k=k, filters=filters, mode=mode)
+                    )
                 raw_results = [item.model_dump() for item in search_response.results]
                 search_latency_ms = search_response.latency_ms
                 search_mode = search_response.mode
@@ -284,7 +321,9 @@ def _run_mode(
     llm_content = _mock_llm_content(case, mode)
     ask_request = None
     if mode != "deep_lookup":
-        ask_request = AskRequest(question=question, k_chunks=k_chunks, filters=filters, mode=mode, dry_run=False)
+        ask_request = AskRequest(
+            question=question, k_chunks=k_chunks, filters=filters, mode=mode, dry_run=False
+        )
     if search_error is None and mode != "deep_lookup":
         try:
             with _temporary_retrieval_profile(retrieval_profile_overrides):
@@ -296,7 +335,10 @@ def _run_mode(
                             with _temporary_value(
                                 answering_module,
                                 "generate_answer",
-                                lambda system_prompt, user_prompt: {"success": True, "content": llm_content},
+                                lambda system_prompt, user_prompt: {
+                                    "success": True,
+                                    "content": llm_content,
+                                },
                             ):
                                 ask_response = ask_endpoint(ask_request)
             answer_payload = ask_response.model_dump()
@@ -307,7 +349,9 @@ def _run_mode(
             ask_error = str(exc)
 
     expected = dict(case.get("expected", {}))
-    retrieval_summary = _evaluate_retrieval_summary(results=raw_results, expected=expected.get("retrieval", {}))
+    retrieval_summary = _evaluate_retrieval_summary(
+        results=raw_results, expected=expected.get("retrieval", {})
+    )
     if mode == "deep_lookup":
         citation_quality = {
             "passed": retrieval_summary["passed"],
@@ -324,16 +368,32 @@ def _run_mode(
         failure_mode = "retrieval_only_mode"
         passed = not search_error and retrieval_summary["passed"]
     else:
-        citation_quality = _evaluate_citation_quality(payload=answer_payload or {}, expected=expected.get("citations", {}))
-        answer_clarity = _evaluate_answer_clarity(payload=answer_payload or {}, expected=expected.get("answer", {}))
-        failure_mode = _mode_failure_note(search_error=search_error, ask_error=ask_error, answer_payload=answer_payload)
-        passed = not search_error and not ask_error and retrieval_summary["passed"] and citation_quality["passed"] and answer_clarity["passed"]
+        citation_quality = _evaluate_citation_quality(
+            payload=answer_payload or {}, expected=expected.get("citations", {})
+        )
+        answer_clarity = _evaluate_answer_clarity(
+            payload=answer_payload or {}, expected=expected.get("answer", {})
+        )
+        failure_mode = _mode_failure_note(
+            search_error=search_error, ask_error=ask_error, answer_payload=answer_payload
+        )
+        passed = (
+            not search_error
+            and not ask_error
+            and retrieval_summary["passed"]
+            and citation_quality["passed"]
+            and answer_clarity["passed"]
+        )
 
     return {
         "mode": mode,
         "rerank_variant": rerank_variant,
-        "rerank_enabled": bool(((ask_trace or search_trace).get("rerank_policy") or {}).get("enabled")),
-        "fusion_method": ((ask_trace or search_trace).get("fusion") or {}).get("method") or (retrieval_profile_overrides or {}).get("fusion_method") or "linear",
+        "rerank_enabled": bool(
+            ((ask_trace or search_trace).get("rerank_policy") or {}).get("enabled")
+        ),
+        "fusion_method": ((ask_trace or search_trace).get("fusion") or {}).get("method")
+        or (retrieval_profile_overrides or {}).get("fusion_method")
+        or "linear",
         "status": "PASS" if passed else "FAIL",
         "resolved_search_mode": search_mode,
         "latency_ms": {
@@ -374,7 +434,7 @@ def _run_mode(
     }
 
 
-def _build_rerank_latency_report(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _build_rerank_latency_report(results: list[dict[str, Any]]) -> dict[str, Any]:
     grouped: dict[str, dict[str, Any]] = {}
     for case in results:
         for mode_result in case.get("modes", []):
@@ -395,7 +455,9 @@ def _build_rerank_latency_report(results: List[Dict[str, Any]]) -> Dict[str, Any
             )
             entry["runs"] += 1
             entry["passed"] += 1 if mode_result.get("status") == "PASS" else 0
-            entry["rerank_enabled"] = entry["rerank_enabled"] or bool(mode_result.get("rerank_enabled"))
+            entry["rerank_enabled"] = entry["rerank_enabled"] or bool(
+                mode_result.get("rerank_enabled")
+            )
             rerank_policy = (mode_result.get("trace") or {}).get("rerank_policy") or {}
             entry["rerank_applied_runs"] += 1 if rerank_policy.get("applied") else 0
             latency_ms = mode_result.get("latency_ms") or {}
@@ -432,38 +494,58 @@ def _build_rerank_latency_report(results: List[Dict[str, Any]]) -> Dict[str, Any
                 {
                     "baseline_variant": baseline["rerank_variant"],
                     "target_variant": item["rerank_variant"],
-                    "delta_avg_total_latency_ms": round(item["avg_total_latency_ms"] - baseline["avg_total_latency_ms"], 2),
-                    "delta_avg_rerank_latency_ms": round(item["avg_rerank_latency_ms"] - baseline["avg_rerank_latency_ms"], 2),
-                    "delta_pass_rate_percent": round(item["pass_rate_percent"] - baseline["pass_rate_percent"], 2),
+                    "delta_avg_total_latency_ms": round(
+                        item["avg_total_latency_ms"] - baseline["avg_total_latency_ms"], 2
+                    ),
+                    "delta_avg_rerank_latency_ms": round(
+                        item["avg_rerank_latency_ms"] - baseline["avg_rerank_latency_ms"], 2
+                    ),
+                    "delta_pass_rate_percent": round(
+                        item["pass_rate_percent"] - baseline["pass_rate_percent"], 2
+                    ),
                 }
             )
 
     return {"variants": variants, "deltas": deltas}
 
 
-def evaluate_benchmark_case(case: Dict[str, Any], *, bindings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def evaluate_benchmark_case(
+    case: dict[str, Any], *, bindings: dict[str, Any] | None = None
+) -> dict[str, Any]:
     bindings = bindings or {}
     resolved_case = _resolve_runtime_bindings(case, bindings)
     request_payload = dict(resolved_case.get("request", {}))
     if "question" not in request_payload and "question" in resolved_case:
         request_payload["question"] = resolved_case["question"]
     if "question" not in request_payload:
-        return {"id": resolved_case.get("id", "unknown"), "status": "FAIL", "error": "missing_question"}
+        return {
+            "id": resolved_case.get("id", "unknown"),
+            "status": "FAIL",
+            "error": "missing_question",
+        }
 
     resolved_case["request"] = request_payload
-    modes = [mode for mode in resolved_case.get("modes", list(SUPPORTED_BENCHMARK_MODES)) if mode in SUPPORTED_BENCHMARK_MODES]
+    modes = [
+        mode
+        for mode in resolved_case.get("modes", list(SUPPORTED_BENCHMARK_MODES))
+        if mode in SUPPORTED_BENCHMARK_MODES
+    ]
     fusion_methods = [
         fusion_method
         for fusion_method in resolved_case.get("fusion_methods", ["linear"])
         if fusion_method in SUPPORTED_FUSION_METHODS
     ] or ["linear"]
-    rerank_variants = resolved_case.get("rerank_variants") or [{"label": "profile_default", "overrides": {}}]
+    rerank_variants = resolved_case.get("rerank_variants") or [
+        {"label": "profile_default", "overrides": {}}
+    ]
 
     with _temporary_settings(resolved_case.get("settings_overrides")):
         mode_results = []
         for fusion_method in fusion_methods:
             for rerank_variant in rerank_variants:
-                retrieval_profile_overrides = dict(resolved_case.get("retrieval_profile_overrides") or {})
+                retrieval_profile_overrides = dict(
+                    resolved_case.get("retrieval_profile_overrides") or {}
+                )
                 retrieval_profile_overrides["fusion_method"] = fusion_method
                 reranker_profile_overrides = dict((rerank_variant or {}).get("overrides") or {})
                 rerank_label = (rerank_variant or {}).get("label") or "profile_default"
@@ -492,17 +574,31 @@ def evaluate_benchmark_case(case: Dict[str, Any], *, bindings: Optional[Dict[str
 
 def run_mode_benchmark(
     *,
-    cases: List[Dict[str, Any]],
-    bindings: Optional[Dict[str, Any]] = None,
-    report_path: Optional[Path] = None,
-) -> Dict[str, Any]:
+    cases: list[dict[str, Any]],
+    bindings: dict[str, Any] | None = None,
+    report_path: Path | None = None,
+) -> dict[str, Any]:
     results = [evaluate_benchmark_case(case, bindings=bindings) for case in cases]
     failures = [item for item in results if item["status"] == "FAIL"]
     total = len(results)
     passed = total - len(failures)
-    evaluated_modes = sorted({mode_result["mode"] for case in results for mode_result in case.get("modes", [])})
-    evaluated_fusion_methods = sorted({mode_result.get("fusion_method", "linear") for case in results for mode_result in case.get("modes", [])})
-    evaluated_rerank_variants = sorted({mode_result.get("rerank_variant", "profile_default") for case in results for mode_result in case.get("modes", [])})
+    evaluated_modes = sorted(
+        {mode_result["mode"] for case in results for mode_result in case.get("modes", [])}
+    )
+    evaluated_fusion_methods = sorted(
+        {
+            mode_result.get("fusion_method", "linear")
+            for case in results
+            for mode_result in case.get("modes", [])
+        }
+    )
+    evaluated_rerank_variants = sorted(
+        {
+            mode_result.get("rerank_variant", "profile_default")
+            for case in results
+            for mode_result in case.get("modes", [])
+        }
+    )
     report = {
         "summary": {
             "kind": "mode_benchmark",
@@ -528,8 +624,8 @@ def run_mode_benchmark(
     return report
 
 
-def _parse_bindings(raw_bindings: Optional[List[str]]) -> Dict[str, Any]:
-    bindings: Dict[str, Any] = {}
+def _parse_bindings(raw_bindings: list[str] | None) -> dict[str, Any]:
+    bindings: dict[str, Any] = {}
     for item in raw_bindings or []:
         if "=" not in item:
             continue
@@ -554,7 +650,9 @@ def main() -> None:
     args = parser.parse_args()
 
     cases = load_benchmark_cases(args.cases)
-    report = run_mode_benchmark(cases=cases, bindings=_parse_bindings(args.bind), report_path=args.report)
+    report = run_mode_benchmark(
+        cases=cases, bindings=_parse_bindings(args.bind), report_path=args.report
+    )
     print(json.dumps(report["summary"], indent=2))
     print(f"report_path={report['report_path']}")
 

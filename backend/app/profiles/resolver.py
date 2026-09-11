@@ -1,7 +1,8 @@
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, Iterator, Optional
+from typing import Any
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -19,7 +20,7 @@ _cache: dict[str, tuple[float, Any]] = {}
 # per asyncio task, so a candidate bundle applied during a sandbox compare or
 # candidate eval cannot bleed into a concurrent live request — unlike the prior
 # module-global monkeypatching the audit flagged as a correctness hazard.
-_override_ctx: ContextVar[Optional[dict]] = ContextVar("profile_overrides", default=None)
+_override_ctx: ContextVar[dict | None] = ContextVar("profile_overrides", default=None)
 
 
 def current_profile_overrides() -> dict:
@@ -29,11 +30,11 @@ def current_profile_overrides() -> dict:
 @contextmanager
 def profile_overrides(
     *,
-    retrieval: Optional[RetrievalProfileConfig] = None,
-    reranker: Optional[RerankerProfileConfig] = None,
-    llm: Optional[LLMProfileConfig] = None,
-    embedding: Optional[EmbeddingProfileConfig] = None,
-    chunk_cap: Optional[int] = None,
+    retrieval: RetrievalProfileConfig | None = None,
+    reranker: RerankerProfileConfig | None = None,
+    llm: LLMProfileConfig | None = None,
+    embedding: EmbeddingProfileConfig | None = None,
+    chunk_cap: int | None = None,
 ) -> Iterator[None]:
     """Apply profile/chunk-cap overrides for the current execution context only."""
     base = dict(_override_ctx.get() or {})
@@ -53,7 +54,7 @@ def profile_overrides(
         _override_ctx.reset(token)
 
 
-def _get_cached(profile_type: str) -> Optional[dict]:
+def _get_cached(profile_type: str) -> dict | None:
     entry = _cache.get(profile_type)
     if entry and (time.monotonic() - entry[0]) < _CACHE_TTL_S:
         return entry[1]
@@ -64,19 +65,20 @@ def _set_cached(profile_type: str, config: dict) -> None:
     _cache[profile_type] = (time.monotonic(), config)
 
 
-def invalidate_cache(profile_type: Optional[str] = None) -> None:
+def invalidate_cache(profile_type: str | None = None) -> None:
     if profile_type:
         _cache.pop(profile_type, None)
     else:
         _cache.clear()
 
 
-def _load_active_config(profile_type: str) -> Optional[dict]:
+def _load_active_config(profile_type: str) -> dict | None:
     cached = _get_cached(profile_type)
     if cached is not None:
         return cached
     try:
         from app.db.repo_profiles import get_active_profile_config
+
         config = get_active_profile_config(profile_type)
     except Exception as exc:
         logger.debug("Could not load active %s profile from DB: %s", profile_type, exc)
@@ -142,7 +144,9 @@ def get_effective_llm() -> LLMProfileConfig:
         timeout_s=settings.LLM_TIMEOUT_S,
         temperature=0.0,
         max_tokens=settings.LLM_MAX_TOKENS,
-        structured_output_mode="prompt_json_only" if settings.LLM_MODEL == "gpt-oss:20b-cloud" else "native_json",
+        structured_output_mode="prompt_json_only"
+        if settings.LLM_MODEL == "gpt-oss:20b-cloud"
+        else "native_json",
         reasoning_effort="none" if settings.LLM_MODEL == "gpt-oss:20b-cloud" else None,
     )
 

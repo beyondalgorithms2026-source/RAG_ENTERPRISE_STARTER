@@ -1,9 +1,8 @@
-from tests.smoke_test_base import *
-
 import app.llm.client as llm_client
 from app.llm.pricing import cost_usd, estimate_tokens, usage_from_counts, usage_from_texts
 from app.llm.providers import AnthropicProvider, OpenAICompatibleProvider
 from app.llm.usage import add_usage, current_usage, reset_usage
+from tests.smoke_test_base import *
 
 
 class PricingAR11Tests(SmokeTestBase):
@@ -19,7 +18,9 @@ class PricingAR11Tests(SmokeTestBase):
         self.assertEqual(usage["completion_tokens"], 1)
 
     def test_reported_usage_is_not_flagged(self):
-        usage = usage_from_counts("gpt-4o", prompt_tokens=100, completion_tokens=50, estimated=False)
+        usage = usage_from_counts(
+            "gpt-4o", prompt_tokens=100, completion_tokens=50, estimated=False
+        )
         self.assertFalse(usage["estimated"])
         self.assertEqual(usage["total_tokens"], 150)
 
@@ -27,12 +28,17 @@ class PricingAR11Tests(SmokeTestBase):
 class ProviderUsageExtractionAR11Tests(SmokeTestBase):
     def test_openai_usage_parsed_when_present(self):
         provider = OpenAICompatibleProvider()
-        self.assertEqual(provider.extract_usage({"usage": {"prompt_tokens": 12, "completion_tokens": 7}}), (12, 7))
+        self.assertEqual(
+            provider.extract_usage({"usage": {"prompt_tokens": 12, "completion_tokens": 7}}),
+            (12, 7),
+        )
         self.assertIsNone(provider.extract_usage({"choices": []}))
 
     def test_anthropic_usage_parsed(self):
         provider = AnthropicProvider()
-        self.assertEqual(provider.extract_usage({"usage": {"input_tokens": 30, "output_tokens": 9}}), (30, 9))
+        self.assertEqual(
+            provider.extract_usage({"usage": {"input_tokens": 30, "output_tokens": 9}}), (30, 9)
+        )
 
 
 class UsageAccumulatorAR11Tests(SmokeTestBase):
@@ -86,11 +92,23 @@ class GenerateAnswerUsageAR11Tests(SmokeTestBase):
         from app.profiles.models import LLMProfileConfig
 
         reset_usage()
-        httpx, _ = self._fake_httpx({"choices": [{"message": {"content": "{}"}}], "usage": {"prompt_tokens": 20, "completion_tokens": 8}})
+        httpx, _ = self._fake_httpx(
+            {
+                "choices": [{"message": {"content": "{}"}}],
+                "usage": {"prompt_tokens": 20, "completion_tokens": 8},
+            }
+        )
         original = llm_client._get_httpx
         llm_client._get_httpx = lambda: httpx
         self.addCleanup(lambda: setattr(llm_client, "_get_httpx", original))
-        self._pin_llm(LLMProfileConfig(provider="openai", model="gpt-4o-mini", base_url="https://api.openai.example", api_key="k"))
+        self._pin_llm(
+            LLMProfileConfig(
+                provider="openai",
+                model="gpt-4o-mini",
+                base_url="https://api.openai.example",
+                api_key="k",
+            )
+        )
         result = llm_client.generate_answer("sys", "user")
         self.assertTrue(result["success"])
         self.assertFalse(result["usage"]["estimated"])
@@ -105,7 +123,9 @@ class GenerateAnswerUsageAR11Tests(SmokeTestBase):
         original = llm_client._get_httpx
         llm_client._get_httpx = lambda: httpx
         self.addCleanup(lambda: setattr(llm_client, "_get_httpx", original))
-        self._pin_llm(LLMProfileConfig(provider="vllm", model="mistral", base_url="http://vllm.local"))
+        self._pin_llm(
+            LLMProfileConfig(provider="vllm", model="mistral", base_url="http://vllm.local")
+        )
         result = llm_client.generate_answer("system prompt", "user prompt")
         self.assertTrue(result["usage"]["estimated"])
         self.assertGreater(result["usage"]["total_tokens"], 0)
@@ -120,7 +140,10 @@ class CostSummaryAndBudgetAR11Tests(SmokeTestBase):
     def _cleanup(self):
         if self._seeded_ids:
             with engine.begin() as conn:
-                conn.execute(text("DELETE FROM generation_usage_events WHERE id = ANY(:ids)"), {"ids": self._seeded_ids})
+                conn.execute(
+                    text("DELETE FROM generation_usage_events WHERE id = ANY(:ids)"),
+                    {"ids": self._seeded_ids},
+                )
 
     def _seed(self, *, mode, model, cost, over_budget=False):
         from app.db.repo_generation_usage import record_generation_usage_event
@@ -154,7 +177,10 @@ class CostSummaryAndBudgetAR11Tests(SmokeTestBase):
         buckets = {b["bucket"]: b for b in summary["buckets"]}
         self.assertIn("deep_research", buckets)
         self.assertIn("hybrid", buckets)
-        self.assertGreater(float(buckets["deep_research"]["total_cost_usd"]), float(buckets["hybrid"]["total_cost_usd"]))
+        self.assertGreater(
+            float(buckets["deep_research"]["total_cost_usd"]),
+            float(buckets["hybrid"]["total_cost_usd"]),
+        )
         self.assertEqual(int(buckets["deep_research"]["request_count"]), 2)
 
     def test_budget_alert_flag_recorded(self):

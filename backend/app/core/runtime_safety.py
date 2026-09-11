@@ -8,8 +8,8 @@ queue wakeups and rate limits without any error. Rather than pretend to be
 multi-worker safe, the app refuses to start with >1 worker unless the operator
 explicitly opts in after addressing these.
 """
+
 import os
-from typing import Optional
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -23,7 +23,7 @@ SINGLE_PROCESS_ASSUMPTIONS = (
 )
 
 
-def configured_worker_count(env: Optional[dict] = None) -> int:
+def configured_worker_count(env: dict | None = None) -> int:
     source = env if env is not None else os.environ
     counts = []
     for name in _WORKER_ENV_VARS:
@@ -33,7 +33,7 @@ def configured_worker_count(env: Optional[dict] = None) -> int:
     return max(counts) if counts else 1
 
 
-def assert_worker_safety(env: Optional[dict] = None) -> int:
+def assert_worker_safety(env: dict | None = None) -> int:
     """Refuse to run multi-worker unless explicitly allowed. Returns the worker
     count when safe; raises RuntimeError otherwise."""
     workers = configured_worker_count(env)

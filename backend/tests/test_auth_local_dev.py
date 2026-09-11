@@ -1,15 +1,17 @@
 import unittest
 
-from fastapi.testclient import TestClient
-
 from app.auth.context import AuthenticatedUser
-from app.core_rag.answering import AskRequest
-from app.auth.service import authenticate_local_dev_user, issue_local_dev_token, resolve_post_login_path, validate_local_dev_token
+from app.auth.service import (
+    authenticate_local_dev_user,
+    issue_local_dev_token,
+    resolve_post_login_path,
+    validate_local_dev_token,
+)
 from app.core.config import settings
+from app.core_rag.answering import AskRequest
 from app.db.repo_acl import local_dev_acl_bypass_enabled
 from app.main import app
-
-
+from fastapi.testclient import TestClient
 
 
 def setUpModule():
@@ -17,6 +19,7 @@ def setUpModule():
     from tests.db_guard import require_database
 
     require_database()
+
 
 class DevAuthTests(unittest.TestCase):
     def setUp(self):
@@ -44,7 +47,10 @@ class DevAuthTests(unittest.TestCase):
         admin = authenticate_local_dev_user("test-admin@ragenterprise.local", "password123")
         self.assertEqual(resolve_post_login_path(user), "/console/workspace/chat")
         self.assertEqual(resolve_post_login_path(admin), "/console/admin")
-        self.assertEqual(resolve_post_login_path(user, "/console/workspace/sources"), "/console/workspace/sources")
+        self.assertEqual(
+            resolve_post_login_path(user, "/console/workspace/sources"),
+            "/console/workspace/sources",
+        )
 
     def test_local_dev_login_endpoint_sets_cookie(self):
         client = TestClient(app)
@@ -80,7 +86,9 @@ class DevAuthTests(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["redirect_path"], "/console/workspace/requests")
         self.assertEqual(payload["user"]["email"], "requester@ragenterprise.local")
-        self.assertEqual(payload["user"]["raw_claims"]["manager_email"], "manager@ragenterprise.local")
+        self.assertEqual(
+            payload["user"]["raw_claims"]["manager_email"], "manager@ragenterprise.local"
+        )
         self.assertIn(settings.AUTH_COOKIE_NAME, response.headers.get("set-cookie", ""))
 
     def test_local_dev_assume_supports_seeded_executive_identity(self):
@@ -147,14 +155,31 @@ class DevAuthTests(unittest.TestCase):
 
     def test_auth_login_redirects_back_to_frontend_login_when_local_dev_only(self):
         client = TestClient(app)
-        response = client.get("/auth/login", params={"next_path": "/console/admin"}, follow_redirects=False)
+        response = client.get(
+            "/auth/login", params={"next_path": "/console/admin"}, follow_redirects=False
+        )
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login?next=%2Fconsole%2Fadmin&dev_login=1", response.headers["location"])
 
     def test_dev_test_identities_enable_local_dev_acl_bypass(self):
-        test_user = AuthenticatedUser(user_id="dev-test-user", email="test-user@ragenterprise.local", roles=["user"], groups=["dev-users"])
-        test_admin = AuthenticatedUser(user_id="dev-test-admin", email="test-admin@ragenterprise.local", roles=["admin", "user"], groups=["dev-admins"])
-        regular_user = AuthenticatedUser(user_id="someone-else", email="someone@example.com", roles=["user"], groups=["dev-users"])
+        test_user = AuthenticatedUser(
+            user_id="dev-test-user",
+            email="test-user@ragenterprise.local",
+            roles=["user"],
+            groups=["dev-users"],
+        )
+        test_admin = AuthenticatedUser(
+            user_id="dev-test-admin",
+            email="test-admin@ragenterprise.local",
+            roles=["admin", "user"],
+            groups=["dev-admins"],
+        )
+        regular_user = AuthenticatedUser(
+            user_id="someone-else",
+            email="someone@example.com",
+            roles=["user"],
+            groups=["dev-users"],
+        )
         self.assertTrue(local_dev_acl_bypass_enabled(test_user))
         self.assertTrue(local_dev_acl_bypass_enabled(test_admin))
         self.assertFalse(local_dev_acl_bypass_enabled(regular_user))
@@ -179,7 +204,9 @@ class DevAuthTests(unittest.TestCase):
             observed["groups"] = list(user.groups) if user else []
             if progress_callback:
                 progress_callback(42, "Checked auth context")
-            return ask_module.AskResponse(answer="ok", citations=[], used_chunks_count=0, latency_ms=1, mode="hybrid")
+            return ask_module.AskResponse(
+                answer="ok", citations=[], used_chunks_count=0, latency_ms=1, mode="hybrid"
+            )
 
         ask_module.perform_ask = fake_perform
         ask_module.verify_llm_ready = lambda: True

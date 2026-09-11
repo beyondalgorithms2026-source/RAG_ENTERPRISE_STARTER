@@ -3,7 +3,6 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from sqlalchemy import text
-
 from tests.smoke_test_base import SmokeTestBase
 
 
@@ -12,12 +11,19 @@ class ConnectorOperationsAR13Tests(SmokeTestBase):
         from app.db.db import engine
 
         with engine.begin() as conn:
-            conn.execute(text("DELETE FROM db_connectors WHERE id = :connector_id"), {"connector_id": connector_id})
+            conn.execute(
+                text("DELETE FROM db_connectors WHERE id = :connector_id"),
+                {"connector_id": connector_id},
+            )
 
     def test_unreachable_upstream_degrades_health_and_persists_backoff(self):
         from app.connectors.runtime import retry_delay_seconds, run_connector_sync
         from app.core.config import settings
-        from app.db.repo_connectors import get_db_connector, list_connector_sync_runs, upsert_db_connector
+        from app.db.repo_connectors import (
+            get_db_connector,
+            list_connector_sync_runs,
+            upsert_db_connector,
+        )
 
         connector_id = upsert_db_connector(
             name=f"ar13-unreachable-{uuid4().hex[:8]}",
@@ -141,7 +147,9 @@ class ConnectorOperationsAR13Tests(SmokeTestBase):
             self.assertEqual(refreshed[0].freshness["status"], "stale")
         finally:
             with engine.begin() as conn:
-                conn.execute(text("DELETE FROM sources WHERE id = :source_id"), {"source_id": source_id})
+                conn.execute(
+                    text("DELETE FROM sources WHERE id = :source_id"), {"source_id": source_id}
+                )
 
     def test_source_status_updates_persist_lifecycle_timestamps(self):
         from app.db.db import engine
@@ -166,13 +174,17 @@ class ConnectorOperationsAR13Tests(SmokeTestBase):
                 },
             ).scalar_one()
         try:
-            update_source_status(source_id, ingestion_status="embedded", enrichment_status="completed")
+            update_source_status(
+                source_id, ingestion_status="embedded", enrichment_status="completed"
+            )
             source = get_source_by_id(source_id)
             self.assertIsNotNone(source.last_ingested_at)
             self.assertIsNotNone(source.last_enriched_at)
         finally:
             with engine.begin() as conn:
-                conn.execute(text("DELETE FROM sources WHERE id = :source_id"), {"source_id": source_id})
+                conn.execute(
+                    text("DELETE FROM sources WHERE id = :source_id"), {"source_id": source_id}
+                )
 
 
 if __name__ == "__main__":

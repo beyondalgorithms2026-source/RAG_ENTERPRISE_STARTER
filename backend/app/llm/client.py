@@ -1,7 +1,6 @@
 from app.core.config import settings
 from app.core.logging import logger
 
-
 _llm_ready = False
 
 
@@ -18,7 +17,11 @@ def _get_httpx():
 
 
 def _auth_headers(api_key: str = "") -> dict:
-    key = api_key or getattr(settings, "OLLAMA_API_KEY", None) or getattr(settings, "LLM_API_KEY", None)
+    key = (
+        api_key
+        or getattr(settings, "OLLAMA_API_KEY", None)
+        or getattr(settings, "LLM_API_KEY", None)
+    )
     if not key:
         return {"Content-Type": "application/json"}
     return {"Content-Type": "application/json", "Authorization": f"Bearer {key}"}
@@ -26,8 +29,8 @@ def _auth_headers(api_key: str = "") -> dict:
 
 def verify_llm_connection(*, update_global: bool = True) -> dict:
     global _llm_ready
-    from app.profiles.resolver import get_effective_llm
     from app.llm.providers import get_provider
+    from app.profiles.resolver import get_effective_llm
 
     llm = get_effective_llm()
     httpx = _get_httpx()
@@ -42,7 +45,10 @@ def verify_llm_connection(*, update_global: bool = True) -> dict:
         provider = get_provider(llm.provider)
         base = llm.base_url.rstrip("/")
         with httpx.Client(timeout=10.0) as client:
-            response = client.get(provider.models_url(base), headers=provider.headers(llm, _auth_headers(llm.api_key)))
+            response = client.get(
+                provider.models_url(base),
+                headers=provider.headers(llm, _auth_headers(llm.api_key)),
+            )
             if response.status_code != 200:
                 reason = f"Model listing returned HTTP {response.status_code}"
                 logger.error("LLM preflight at %s: %s", base, reason)
@@ -70,7 +76,16 @@ def verify_llm_ready():
     return bool(verify_llm_connection(update_global=True)["ready"])
 
 
-def _provider_generate(llm, system_prompt: str, user_prompt: str, *, json_mode: bool, temperature: float, max_tokens, timeout_s: float) -> dict:
+def _provider_generate(
+    llm,
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    json_mode: bool,
+    temperature: float,
+    max_tokens,
+    timeout_s: float,
+) -> dict:
     """Single provider-dispatched completion path used by both answer and
     transform generation (AR9)."""
     from app.llm.providers import get_provider
@@ -86,7 +101,12 @@ def _provider_generate(llm, system_prompt: str, user_prompt: str, *, json_mode: 
     headers = provider.headers(llm, _auth_headers(llm.api_key))
     effective_json = json_mode and provider.supports_native_json
     payload = provider.build_payload(
-        llm, system_prompt, user_prompt, json_mode=effective_json, temperature=temperature, max_tokens=max_tokens
+        llm,
+        system_prompt,
+        user_prompt,
+        json_mode=effective_json,
+        temperature=temperature,
+        max_tokens=max_tokens,
     )
     try:
         with httpx.Client(timeout=timeout_s) as client:
@@ -97,7 +117,11 @@ def _provider_generate(llm, system_prompt: str, user_prompt: str, *, json_mode: 
             usage = _build_usage(provider, data, llm.model, system_prompt, user_prompt, content)
             return {"success": True, "content": content, "usage": usage}
     except httpx.TimeoutException:
-        return {"success": False, "error": f"LLM provider timeout ({timeout_s}s).", "timeout": True}
+        return {
+            "success": False,
+            "error": f"LLM provider timeout ({timeout_s}s).",
+            "timeout": True,
+        }
     except Exception as exc:
         logger.error(f"LLM generation failed (provider {llm.provider}): {exc}")
         return {"success": False, "error": str(exc)}
@@ -111,14 +135,20 @@ def _build_usage(provider, data, model, system_prompt, user_prompt, content) -> 
 
     reported = provider.extract_usage(data)
     if reported is not None:
-        usage = usage_from_counts(model, prompt_tokens=reported[0], completion_tokens=reported[1], estimated=False)
+        usage = usage_from_counts(
+            model, prompt_tokens=reported[0], completion_tokens=reported[1], estimated=False
+        )
     else:
-        usage = usage_from_texts(model, prompt_text=f"{system_prompt}\n{user_prompt}", completion_text=content)
+        usage = usage_from_texts(
+            model, prompt_text=f"{system_prompt}\n{user_prompt}", completion_text=content
+        )
     add_usage(usage)
     return usage
 
 
-def generate_transform_text(system_prompt: str, user_prompt: str, *, timeout_s: float, max_tokens: int = 1024 ) -> dict:
+def generate_transform_text(
+    system_prompt: str, user_prompt: str, *, timeout_s: float, max_tokens: int = 1024
+) -> dict:
     """Short-timeout, plain-text completion for query transformation (AR5).
 
     Unlike generate_answer (which floors the timeout at 300s for answer
@@ -130,7 +160,13 @@ def generate_transform_text(system_prompt: str, user_prompt: str, *, timeout_s: 
 
     llm = get_effective_llm()
     return _provider_generate(
-        llm, system_prompt, user_prompt, json_mode=False, temperature=0.0, max_tokens=max_tokens, timeout_s=max(0.05, float(timeout_s))
+        llm,
+        system_prompt,
+        user_prompt,
+        json_mode=False,
+        temperature=0.0,
+        max_tokens=max_tokens,
+        timeout_s=max(0.05, float(timeout_s)),
     )
 
 

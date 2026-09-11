@@ -21,13 +21,13 @@ The column resize and re-embedding are real; the heavy steps go through the
 module-level `_resize_vector_column` and `_reembed_pending` indirections so the
 unit tests can drive the state machine without re-embedding a whole corpus.
 """
-from typing import Any, Optional
 
-from sqlalchemy import text
+from typing import Any
 
 from app.auth.context import AuthenticatedUser
 from app.core.logging import logger
 from app.db.db import engine
+from sqlalchemy import text
 
 _RUN_COLUMNS = """
     id, target_profile_name, basis_profile_name, target_model, target_dimension,
@@ -58,14 +58,22 @@ def _embedding_profile(profile_name: str) -> dict[str, Any]:
 
 def _chunk_counts() -> tuple[int, int]:
     with engine.connect() as conn:
-        total = conn.execute(text("SELECT COUNT(*) FROM chunks WHERE COALESCE(TRIM(chunk_text), '') <> ''")).scalar_one()
-        embedded = conn.execute(text("SELECT COUNT(*) FROM chunks WHERE embedding IS NOT NULL")).scalar_one()
+        total = conn.execute(
+            text("SELECT COUNT(*) FROM chunks WHERE COALESCE(TRIM(chunk_text), '') <> ''")
+        ).scalar_one()
+        embedded = conn.execute(
+            text("SELECT COUNT(*) FROM chunks WHERE embedding IS NOT NULL")
+        ).scalar_one()
     return int(total), int(embedded)
 
 
 def plan_embedding_swap(*, target_profile_name: str) -> dict[str, Any]:
     """Validate the target profile and report what a swap would entail. Pure read."""
-    from app.coherence import index_vector_dimension, model_output_dimension, validate_embedding_profile_dimension
+    from app.coherence import (
+        index_vector_dimension,
+        model_output_dimension,
+        validate_embedding_profile_dimension,
+    )
 
     profile = _embedding_profile(target_profile_name)
     config = profile["config_json"] or {}
@@ -75,9 +83,7 @@ def plan_embedding_swap(*, target_profile_name: str) -> dict[str, Any]:
     validate_embedding_profile_dimension(
         provider=provider, model_name=model, declared_dimension=declared
     )
-    actual = model_output_dimension(
-        model, provider=provider, declared_dimension=declared
-    )
+    actual = model_output_dimension(model, provider=provider, declared_dimension=declared)
     index_dim = index_vector_dimension()
     total, embedded = _chunk_counts()
     return {
@@ -92,17 +98,25 @@ def plan_embedding_swap(*, target_profile_name: str) -> dict[str, Any]:
     }
 
 
-def begin_embedding_swap(*, target_profile_name: str, actor: Optional[AuthenticatedUser] = None) -> dict[str, Any]:
+def begin_embedding_swap(
+    *, target_profile_name: str, actor: AuthenticatedUser | None = None
+) -> dict[str, Any]:
     from app.db.repo_profiles import get_active_profile_name
 
     plan = plan_embedding_swap(target_profile_name=target_profile_name)
     with engine.begin() as conn:
-        active = conn.execute(text("SELECT id FROM embedding_swap_runs WHERE status = ANY(:s)"), {"s": list(ACTIVE_STATUSES)}).first()
+        active = conn.execute(
+            text("SELECT id FROM embedding_swap_runs WHERE status = ANY(:s)"),
+            {"s": list(ACTIVE_STATUSES)},
+        ).first()
         if active:
-            raise ValueError(f"An embedding swap is already in progress (run {int(active[0])}); finish or abort it first.")
-        row = conn.execute(
-            text(
-                f"""
+            raise ValueError(
+                f"An embedding swap is already in progress (run {int(active[0])}); finish or abort it first."
+            )
+        row = (
+            conn.execute(
+                text(
+                    f"""
                 INSERT INTO embedding_swap_runs (
                     target_profile_name, basis_profile_name, target_model, target_dimension,
                     source_dimension, requires_reindex, status, total_chunks, embedded_chunks,
@@ -115,31 +129,50 @@ def begin_embedding_swap(*, target_profile_name: str, actor: Optional[Authentica
                 )
                 RETURNING {_RUN_COLUMNS}
                 """
-            ),
-            {
-                "target_profile_name": target_profile_name,
-                "basis": get_active_profile_name("embedding"),
-                "target_model": plan["target_model"],
-                "target_dimension": plan["target_dimension"],
-                "source_dimension": plan["source_dimension"],
-                "requires_reindex": plan["requires_reindex"],
-                "total_chunks": plan["total_chunks"],
-                "actor_id": actor.user_id if actor else None,
-                "actor_email": actor.email if actor else None,
-            },
-        ).mappings().one()
+                ),
+                {
+                    "target_profile_name": target_profile_name,
+                    "basis": get_active_profile_name("embedding"),
+                    "target_model": plan["target_model"],
+                    "target_dimension": plan["target_dimension"],
+                    "source_dimension": plan["source_dimension"],
+                    "requires_reindex": plan["requires_reindex"],
+                    "total_chunks": plan["total_chunks"],
+                    "actor_id": actor.user_id if actor else None,
+                    "actor_email": actor.email if actor else None,
+                },
+            )
+            .mappings()
+            .one()
+        )
     return _serialize(row)
 
 
-def get_swap_run(run_id: int) -> Optional[dict[str, Any]]:
+def get_swap_run(run_id: int) -> dict[str, Any] | None:
     with engine.connect() as conn:
-        row = conn.execute(text(f"SELECT {_RUN_COLUMNS} FROM embedding_swap_runs WHERE id = :id"), {"id": run_id}).mappings().first()
+        row = (
+            conn.execute(
+                text(f"SELECT {_RUN_COLUMNS} FROM embedding_swap_runs WHERE id = :id"),
+                {"id": run_id},
+            )
+            .mappings()
+            .first()
+        )
     return _serialize(row) if row else None
 
 
 def list_swap_runs(limit: int = 50) -> list[dict[str, Any]]:
     with engine.connect() as conn:
-        rows = conn.execute(text(f"SELECT {_RUN_COLUMNS} FROM embedding_swap_runs ORDER BY created_at DESC, id DESC LIMIT :l"), {"l": limit}).mappings().all()
+        rows = (
+            conn.execute(
+                text(
+                    f"SELECT {_RUN_COLUMNS} FROM embedding_swap_runs ORDER BY created_at DESC, id DESC LIMIT :l"
+                ),
+                {"l": limit},
+            )
+            .mappings()
+            .all()
+        )
     return [_serialize(row) for row in rows]
 
 
@@ -147,10 +180,16 @@ def _update_run(run_id: int, **fields: Any) -> dict[str, Any]:
     assignments = ", ".join(f"{key} = :{key}" for key in fields)
     fields["id"] = run_id
     with engine.begin() as conn:
-        row = conn.execute(
-            text(f"UPDATE embedding_swap_runs SET {assignments}, updated_at = now() WHERE id = :id RETURNING {_RUN_COLUMNS}"),
-            fields,
-        ).mappings().one()
+        row = (
+            conn.execute(
+                text(
+                    f"UPDATE embedding_swap_runs SET {assignments}, updated_at = now() WHERE id = :id RETURNING {_RUN_COLUMNS}"
+                ),
+                fields,
+            )
+            .mappings()
+            .one()
+        )
     return _serialize(row)
 
 
@@ -161,10 +200,12 @@ def _resize_vector_column(dimension: int) -> None:
         conn.execute(text("DROP INDEX IF EXISTS chunks_embedding_hnsw;"))
         conn.execute(text("DROP INDEX IF EXISTS chunks_embedding_ivfflat;"))
         conn.execute(text("UPDATE chunks SET embedding = NULL WHERE embedding IS NOT NULL;"))
-        conn.execute(text(f"ALTER TABLE chunks ALTER COLUMN embedding TYPE vector({int(dimension)});"))
+        conn.execute(
+            text(f"ALTER TABLE chunks ALTER COLUMN embedding TYPE vector({int(dimension)});")
+        )
 
 
-def _reembed_pending(batch_limit: Optional[int] = None) -> dict[str, Any]:
+def _reembed_pending(batch_limit: int | None = None) -> dict[str, Any]:
     from app.embedding.process import process_embeddings
 
     return process_embeddings(force=False, limit=batch_limit)
@@ -176,7 +217,7 @@ def _rebuild_vector_index() -> None:
     _create_vector_index()
 
 
-def run_embedding_swap(*, run_id: int, batch_limit: Optional[int] = None) -> dict[str, Any]:
+def run_embedding_swap(*, run_id: int, batch_limit: int | None = None) -> dict[str, Any]:
     """Advance a swap run: activate the target profile, (re)size the column on
     first entry, re-embed pending chunks (resumable across calls), then move to
     verifying once every chunk is embedded."""
@@ -235,18 +276,22 @@ def verify_embedding_swap(*, run_id: int, sample_size: int = 10) -> dict[str, An
     total, embedded = _chunk_counts()
     counts_ok = embedded >= total and total > 0
     with engine.connect() as conn:
-        sample = conn.execute(
-            text(
-                "SELECT id, chunk_text, embedding::text AS emb FROM chunks "
-                "WHERE embedding IS NOT NULL AND COALESCE(TRIM(chunk_text), '') <> '' "
-                "ORDER BY id LIMIT :n"
-            ),
-            {"n": sample_size},
-        ).mappings().all()
+        sample = (
+            conn.execute(
+                text(
+                    "SELECT id, chunk_text, embedding::text AS emb FROM chunks "
+                    "WHERE embedding IS NOT NULL AND COALESCE(TRIM(chunk_text), '') <> '' "
+                    "ORDER BY id LIMIT :n"
+                ),
+                {"n": sample_size},
+            )
+            .mappings()
+            .all()
+        )
     distances: list[float] = []
     if sample:
         re_embedded = embed_texts([row["chunk_text"] for row in sample])
-        for row, fresh in zip(sample, re_embedded):
+        for row, fresh in zip(sample, re_embedded, strict=False):
             stored = [float(v) for v in str(row["emb"]).strip("[]").split(",") if v.strip()]
             distances.append(_cosine(stored, fresh))
     min_similarity = round(min(distances), 4) if distances else None
@@ -260,7 +305,12 @@ def verify_embedding_swap(*, run_id: int, sample_size: int = 10) -> dict[str, An
         "sample_ok": sample_ok,
     }
     if counts_ok and sample_ok:
-        return _update_run(run_id, status="completed", verification_json=__import__("json").dumps(verification), error=None)
+        return _update_run(
+            run_id,
+            status="completed",
+            verification_json=__import__("json").dumps(verification),
+            error=None,
+        )
     return _update_run(
         run_id,
         status="failed",

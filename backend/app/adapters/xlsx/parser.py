@@ -1,8 +1,8 @@
 from io import BytesIO
-from typing import List
 
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
+
 from app.adapters.models import ParsedSourceDocument, ParsedSourcePart
 
 
@@ -18,7 +18,7 @@ def parse_xlsx_bytes(content: bytes, file_name: str) -> ParsedSourceDocument:
     workbook = load_workbook(BytesIO(content), read_only=True, data_only=True)
     for part_index, sheet_name in enumerate(workbook.sheetnames):
         worksheet = workbook[sheet_name]
-        lines: List[str] = []
+        lines: list[str] = []
         non_empty_cells = 0
         min_row = None
         max_row = None
@@ -42,8 +42,15 @@ def parse_xlsx_bytes(content: bytes, file_name: str) -> ParsedSourceDocument:
         if not lines:
             continue
         range_ref = None
-        if min_row is not None and max_row is not None and min_col is not None and max_col is not None:
-            range_ref = f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{max_row}"
+        if (
+            min_row is not None
+            and max_row is not None
+            and min_col is not None
+            and max_col is not None
+        ):
+            range_ref = (
+                f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{max_row}"
+            )
         parts.append(
             ParsedSourcePart(
                 part_type="sheet",
@@ -51,7 +58,11 @@ def parse_xlsx_bytes(content: bytes, file_name: str) -> ParsedSourceDocument:
                 title=sheet_name,
                 locator_json={"sheet": sheet_name, "range": range_ref},
                 content_text="\n".join(lines),
-                provenance_json={"parser": "openpyxl", "file_name": file_name, "non_empty_cells": non_empty_cells},
+                provenance_json={
+                    "parser": "openpyxl",
+                    "file_name": file_name,
+                    "non_empty_cells": non_empty_cells,
+                },
             )
         )
 
@@ -61,7 +72,11 @@ def parse_xlsx_bytes(content: bytes, file_name: str) -> ParsedSourceDocument:
     return ParsedSourceDocument(
         source_type="xlsx",
         title=file_name,
-        metadata={"file_name": file_name, "sheet_count": len(workbook.sheetnames), "sheet_names": list(workbook.sheetnames)},
+        metadata={
+            "file_name": file_name,
+            "sheet_count": len(workbook.sheetnames),
+            "sheet_names": list(workbook.sheetnames),
+        },
         parts=parts,
         warnings=warnings,
     )

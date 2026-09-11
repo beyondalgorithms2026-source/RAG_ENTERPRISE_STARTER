@@ -3,13 +3,13 @@
 The audit's biggest missed integration: the promotion path never invoked
 evaluation. Rows here are the evidence objects promotion/rollback events link.
 """
-import json
-from typing import Any, Optional
 
-from sqlalchemy import text
+import json
+from typing import Any
 
 from app.auth.context import AuthenticatedUser
 from app.db.db import engine
+from sqlalchemy import text
 
 _COLUMNS = """
     id, run_label, draft_id, config_fingerprint, gate_status,
@@ -34,16 +34,16 @@ def _payload(row: Any, *, include_report: bool = False) -> dict[str, Any]:
 def insert_eval_run(
     *,
     run_label: str,
-    draft_id: Optional[int],
+    draft_id: int | None,
     config_fingerprint: str,
     gate_status: str,
     gate_aggregates: dict[str, Any],
     thresholds: dict[str, Any],
     selected_profiles: dict[str, str],
     report: dict[str, Any],
-    sample_size: Optional[int],
-    duration_s: Optional[float],
-    actor: Optional[AuthenticatedUser] = None,
+    sample_size: int | None,
+    duration_s: float | None,
+    actor: AuthenticatedUser | None = None,
 ) -> dict[str, Any]:
     sql = text(
         f"""
@@ -62,55 +62,75 @@ def insert_eval_run(
         """
     )
     with engine.begin() as conn:
-        row = conn.execute(
-            sql,
-            {
-                "run_label": run_label,
-                "draft_id": draft_id,
-                "config_fingerprint": config_fingerprint,
-                "gate_status": gate_status,
-                "gate_aggregates": json.dumps(gate_aggregates),
-                "thresholds": json.dumps(thresholds),
-                "selected_profiles": json.dumps(selected_profiles),
-                "report": json.dumps(report),
-                "sample_size": sample_size,
-                "duration_s": duration_s,
-                "actor_id": actor.user_id if actor else None,
-                "actor_email": actor.email if actor else None,
-            },
-        ).mappings().one()
+        row = (
+            conn.execute(
+                sql,
+                {
+                    "run_label": run_label,
+                    "draft_id": draft_id,
+                    "config_fingerprint": config_fingerprint,
+                    "gate_status": gate_status,
+                    "gate_aggregates": json.dumps(gate_aggregates),
+                    "thresholds": json.dumps(thresholds),
+                    "selected_profiles": json.dumps(selected_profiles),
+                    "report": json.dumps(report),
+                    "sample_size": sample_size,
+                    "duration_s": duration_s,
+                    "actor_id": actor.user_id if actor else None,
+                    "actor_email": actor.email if actor else None,
+                },
+            )
+            .mappings()
+            .one()
+        )
     return _payload(row)
 
 
-def get_eval_run(eval_run_id: int, *, include_report: bool = False) -> Optional[dict[str, Any]]:
+def get_eval_run(eval_run_id: int, *, include_report: bool = False) -> dict[str, Any] | None:
     with engine.connect() as conn:
-        row = conn.execute(
-            text(f"SELECT {_COLUMNS} FROM tuning_eval_runs WHERE id = :id"),
-            {"id": eval_run_id},
-        ).mappings().first()
+        row = (
+            conn.execute(
+                text(f"SELECT {_COLUMNS} FROM tuning_eval_runs WHERE id = :id"),
+                {"id": eval_run_id},
+            )
+            .mappings()
+            .first()
+        )
     return _payload(row, include_report=include_report) if row else None
 
 
-def list_eval_runs(*, draft_id: Optional[int] = None, limit: int = 50) -> list[dict[str, Any]]:
+def list_eval_runs(*, draft_id: int | None = None, limit: int = 50) -> list[dict[str, Any]]:
     clause = "WHERE draft_id = :draft_id" if draft_id is not None else ""
     with engine.connect() as conn:
-        rows = conn.execute(
-            text(f"SELECT {_COLUMNS} FROM tuning_eval_runs {clause} ORDER BY created_at DESC, id DESC LIMIT :limit"),
-            {"draft_id": draft_id, "limit": limit} if draft_id is not None else {"limit": limit},
-        ).mappings().all()
+        rows = (
+            conn.execute(
+                text(
+                    f"SELECT {_COLUMNS} FROM tuning_eval_runs {clause} ORDER BY created_at DESC, id DESC LIMIT :limit"
+                ),
+                {"draft_id": draft_id, "limit": limit}
+                if draft_id is not None
+                else {"limit": limit},
+            )
+            .mappings()
+            .all()
+        )
     return [_payload(row) for row in rows]
 
 
-def latest_live_baseline_run() -> Optional[dict[str, Any]]:
+def latest_live_baseline_run() -> dict[str, Any] | None:
     """Most recent eval run of the live configuration (no draft attached)."""
     with engine.connect() as conn:
-        row = conn.execute(
-            text(
-                f"""
+        row = (
+            conn.execute(
+                text(
+                    f"""
                 SELECT {_COLUMNS} FROM tuning_eval_runs
                 WHERE draft_id IS NULL AND run_label = 'live'
                 ORDER BY created_at DESC, id DESC LIMIT 1
                 """
+                )
             )
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
     return _payload(row) if row else None

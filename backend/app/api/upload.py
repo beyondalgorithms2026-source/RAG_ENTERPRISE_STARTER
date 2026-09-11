@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
@@ -8,7 +8,6 @@ from app.auth.dependencies import require_upload_user
 from app.core.config import settings
 from app.core.rate_limit import enforce_rate_limit
 from app.ingestion.jobs import process_upload, process_upload_batch
-
 
 router = APIRouter()
 
@@ -21,12 +20,12 @@ class UploadResponse(BaseModel):
     source_type: str
     hash_sha256: str
     storage_path: str
-    reupload_of_source_id: Optional[int] = None
+    reupload_of_source_id: int | None = None
 
 
 class BatchUploadResponse(BaseModel):
     uploaded_count: int
-    items: List[UploadResponse]
+    items: list[UploadResponse]
 
 
 @router.post("/upload", response_model=UploadResponse)
@@ -36,19 +35,25 @@ async def upload_endpoint(
     file: UploadFile = File(...),
     _user: AuthenticatedUser | None = Depends(require_upload_user),
 ):
-    enforce_rate_limit(request, scope="upload", limit_per_minute=settings.RATE_LIMIT_UPLOAD_PER_MINUTE)
+    enforce_rate_limit(
+        request, scope="upload", limit_per_minute=settings.RATE_LIMIT_UPLOAD_PER_MINUTE
+    )
     _reject_oversized_request(request)
-    result = await process_upload(file, wait_for_completion=False, background_tasks=background_tasks)
+    result = await process_upload(
+        file, wait_for_completion=False, background_tasks=background_tasks
+    )
     return UploadResponse(**result)
 
 
 @router.post("/upload/batch", response_model=BatchUploadResponse)
 async def upload_batch_endpoint(
     request: Request,
-    files: List[UploadFile] = File(...),
+    files: list[UploadFile] = File(...),
     _user: AuthenticatedUser | None = Depends(require_upload_user),
 ):
-    enforce_rate_limit(request, scope="upload_batch", limit_per_minute=settings.RATE_LIMIT_UPLOAD_PER_MINUTE)
+    enforce_rate_limit(
+        request, scope="upload_batch", limit_per_minute=settings.RATE_LIMIT_UPLOAD_PER_MINUTE
+    )
     _reject_oversized_request(request)
     results = await process_upload_batch(files)
     return BatchUploadResponse(

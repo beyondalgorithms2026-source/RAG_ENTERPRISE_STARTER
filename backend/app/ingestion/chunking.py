@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
-from typing import Any, Dict, Iterable, List, Optional
+from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import Any
 
 from app.adapters.models import ParsedSourceDocument, ParsedSourcePart
 from app.corpus_policies import CorpusPolicy, get_corpus_policy
-
 
 MIN_WORDS = 120
 TARGET_WORDS = 320
@@ -17,15 +17,15 @@ PDF_CROSS_PAGE_BRIDGE_WORDS = 140
 @dataclass
 class ChunkRecord:
     chunk_index: int
-    source_part_id: Optional[int]
+    source_part_id: int | None
     heading: str
     section_path: str
     chunk_text: str
     token_count: int
-    locator_json: Dict[str, Any]
-    provenance_json: Dict[str, Any]
+    locator_json: dict[str, Any]
+    provenance_json: dict[str, Any]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "chunk_index": self.chunk_index,
             "source_part_id": self.source_part_id,
@@ -48,14 +48,16 @@ def _normalize_text(value: str) -> str:
     return cleaned
 
 
-def _split_word_windows(text: str, *, target_words: int = TARGET_WORDS, overlap_words: int = OVERLAP_WORDS) -> List[str]:
+def _split_word_windows(
+    text: str, *, target_words: int = TARGET_WORDS, overlap_words: int = OVERLAP_WORDS
+) -> list[str]:
     words = text.split()
     if not words:
         return []
     if len(words) <= target_words:
         return [" ".join(words)]
 
-    windows: List[str] = []
+    windows: list[str] = []
     start = 0
     while start < len(words):
         end = min(start + target_words, len(words))
@@ -66,14 +68,14 @@ def _split_word_windows(text: str, *, target_words: int = TARGET_WORDS, overlap_
     return windows
 
 
-def _transcript_metadata(text: str) -> Dict[str, Any]:
-    speakers: List[str] = []
+def _transcript_metadata(text: str) -> dict[str, Any]:
+    speakers: list[str] = []
     for speaker in re.findall(r"(?:^|\s)([A-Z][A-Za-z0-9 .'-]{1,40}):", text):
         normalized = speaker.strip()
         if normalized not in speakers:
             speakers.append(normalized)
     timestamps = re.findall(r"\b\d{1,2}:\d{2}(?::\d{2})?\b", text)
-    metadata: Dict[str, Any] = {}
+    metadata: dict[str, Any] = {}
     if speakers:
         metadata["speakers"] = speakers
         metadata["speaker"] = speakers[0]
@@ -113,7 +115,7 @@ def _section_heading(part: ParsedSourcePart) -> str:
     return part.part_type.replace("_", " ").title()
 
 
-def _base_locator(part: ParsedSourcePart) -> Dict[str, Any]:
+def _base_locator(part: ParsedSourcePart) -> dict[str, Any]:
     return dict(part.locator_json)
 
 
@@ -124,7 +126,7 @@ def _build_chunk(
     heading: str,
     section_path: str,
     chunk_text: str,
-    locator_json: Dict[str, Any],
+    locator_json: dict[str, Any],
     chunk_strategy: str,
 ) -> ChunkRecord:
     provenance = dict(part.provenance_json)
@@ -154,7 +156,7 @@ def _chunk_single_part(
     section_path: str,
     chunk_strategy: str,
     policy: CorpusPolicy,
-) -> List[ChunkRecord]:
+) -> list[ChunkRecord]:
     text = _normalize_text(part.content_text)
     if not text:
         return []
@@ -164,7 +166,7 @@ def _chunk_single_part(
         target_words=policy.chunk_target_words,
         overlap_words=policy.chunk_overlap_words,
     )
-    chunks: List[ChunkRecord] = []
+    chunks: list[ChunkRecord] = []
     for offset, window in enumerate(windows):
         locator = _base_locator(part)
         if len(windows) > 1:
@@ -186,9 +188,9 @@ def _chunk_single_part(
     return chunks
 
 
-def _chunk_pdf(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> List[ChunkRecord]:
-    chunks: List[ChunkRecord] = []
-    page_chunks: List[tuple[ParsedSourcePart, List[ChunkRecord]]] = []
+def _chunk_pdf(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> list[ChunkRecord]:
+    chunks: list[ChunkRecord] = []
+    page_chunks: list[tuple[ParsedSourcePart, list[ChunkRecord]]] = []
     next_index = 0
     for part in parts:
         part_chunks = _chunk_single_part(
@@ -202,7 +204,7 @@ def _chunk_pdf(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> Li
         page_chunks.append((part, part_chunks))
         next_index += len(part_chunks)
 
-    stitched_chunks: List[ChunkRecord] = []
+    stitched_chunks: list[ChunkRecord] = []
     for current_index in range(1, len(page_chunks)):
         previous_part, previous_chunks = page_chunks[current_index - 1]
         current_part, current_chunks = page_chunks[current_index]
@@ -237,7 +239,10 @@ def _chunk_pdf(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> Li
                 "source_part_indices": [previous_part.part_index, current_part.part_index],
                 "source_part_types": [previous_part.part_type, current_part.part_type],
                 "stitched_from_pages": [previous_page, current_page],
-                "stitched_from_chunk_indices": [previous_chunks[-1].chunk_index, current_chunks[0].chunk_index],
+                "stitched_from_chunk_indices": [
+                    previous_chunks[-1].chunk_index,
+                    current_chunks[0].chunk_index,
+                ],
             }
         )
         stitched_chunks.append(
@@ -258,8 +263,8 @@ def _chunk_pdf(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> Li
     return chunks
 
 
-def _chunk_pptx(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> List[ChunkRecord]:
-    chunks: List[ChunkRecord] = []
+def _chunk_pptx(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> list[ChunkRecord]:
+    chunks: list[ChunkRecord] = []
     next_index = 0
     for part in parts:
         slide_number = part.locator_json.get("slide", part.part_index + 1)
@@ -275,8 +280,8 @@ def _chunk_pptx(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> L
     return chunks
 
 
-def _chunk_xlsx(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> List[ChunkRecord]:
-    chunks: List[ChunkRecord] = []
+def _chunk_xlsx(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> list[ChunkRecord]:
+    chunks: list[ChunkRecord] = []
     next_index = 0
     for part in parts:
         lines = [line.strip() for line in part.content_text.splitlines() if line.strip()]
@@ -284,8 +289,8 @@ def _chunk_xlsx(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> L
             continue
         heading = _section_heading(part)
         sheet_name = part.locator_json.get("sheet", heading)
-        batch: List[str] = []
-        batch_rows: List[int] = []
+        batch: list[str] = []
+        batch_rows: list[int] = []
         for line in lines:
             batch.append(line)
             if line.startswith("Row "):
@@ -334,15 +339,19 @@ def _chunk_xlsx(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> L
 
 def _flush_docx_buffer(
     *,
-    chunks: List[ChunkRecord],
+    chunks: list[ChunkRecord],
     next_index: int,
     section_heading: str,
-    buffer_parts: List[ParsedSourcePart],
+    buffer_parts: list[ParsedSourcePart],
     policy: CorpusPolicy,
 ) -> int:
     if not buffer_parts:
         return next_index
-    combined = "\n\n".join(_normalize_text(part.content_text) for part in buffer_parts if _normalize_text(part.content_text)).strip()
+    combined = "\n\n".join(
+        _normalize_text(part.content_text)
+        for part in buffer_parts
+        if _normalize_text(part.content_text)
+    ).strip()
     if not combined:
         return next_index
 
@@ -374,11 +383,11 @@ def _flush_docx_buffer(
     return next_index + len(windows)
 
 
-def _chunk_docx(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> List[ChunkRecord]:
-    chunks: List[ChunkRecord] = []
+def _chunk_docx(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> list[ChunkRecord]:
+    chunks: list[ChunkRecord] = []
     next_index = 0
     current_heading = "Document Start"
-    buffer_parts: List[ParsedSourcePart] = []
+    buffer_parts: list[ParsedSourcePart] = []
 
     for part in parts:
         if part.part_type == "section":
@@ -423,8 +432,8 @@ def _chunk_docx(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> L
     return chunks
 
 
-def _chunk_email(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> List[ChunkRecord]:
-    chunks: List[ChunkRecord] = []
+def _chunk_email(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> list[ChunkRecord]:
+    chunks: list[ChunkRecord] = []
     next_index = 0
     for part in parts:
         section = part.locator_json.get("section", part.part_type)
@@ -441,8 +450,10 @@ def _chunk_email(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> 
     return chunks
 
 
-def _chunk_text_parts(parts: Iterable[ParsedSourcePart], *, source_type: str, policy: CorpusPolicy) -> List[ChunkRecord]:
-    chunks: List[ChunkRecord] = []
+def _chunk_text_parts(
+    parts: Iterable[ParsedSourcePart], *, source_type: str, policy: CorpusPolicy
+) -> list[ChunkRecord]:
+    chunks: list[ChunkRecord] = []
     next_index = 0
     for part in parts:
         if source_type == "txt":
@@ -464,8 +475,10 @@ def _chunk_text_parts(parts: Iterable[ParsedSourcePart], *, source_type: str, po
     return chunks
 
 
-def _chunk_db_rows(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -> List[ChunkRecord]:
-    chunks: List[ChunkRecord] = []
+def _chunk_db_rows(
+    parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy
+) -> list[ChunkRecord]:
+    chunks: list[ChunkRecord] = []
     next_index = 0
     for part in parts:
         table_name = part.locator_json.get("table", "table")
@@ -482,7 +495,9 @@ def _chunk_db_rows(parts: Iterable[ParsedSourcePart], *, policy: CorpusPolicy) -
     return chunks
 
 
-def chunk_parsed_document(parsed: ParsedSourceDocument, *, policy_name: Optional[str] = None) -> List[Dict[str, Any]]:
+def chunk_parsed_document(
+    parsed: ParsedSourceDocument, *, policy_name: str | None = None
+) -> list[dict[str, Any]]:
     parts = list(parsed.parts)
     resolved_policy = get_corpus_policy(policy_name or parsed.metadata.get("corpus_policy"))
     if parsed.source_type == "pdf":

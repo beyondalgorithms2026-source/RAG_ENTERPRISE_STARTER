@@ -1,6 +1,7 @@
 from io import BytesIO
 
 from pypdf import PdfReader
+
 from app.adapters.models import ParsedSourceDocument, ParsedSourcePart
 
 

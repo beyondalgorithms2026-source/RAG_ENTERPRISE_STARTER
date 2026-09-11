@@ -6,10 +6,10 @@ one aggregated cost/token figure per request and attach it to the trace, rather
 than losing per-call usage. ContextVar-scoped (like AR8 profile overrides), so
 concurrent requests never mix usage.
 """
-from contextvars import ContextVar
-from typing import Optional
 
-_usage_ctx: ContextVar[Optional[list]] = ContextVar("generation_usage", default=None)
+from contextvars import ContextVar
+
+_usage_ctx: ContextVar[list | None] = ContextVar("generation_usage", default=None)
 
 
 def reset_usage() -> None:

@@ -4,7 +4,6 @@ from pathlib import Path
 from uuid import uuid4
 
 from sqlalchemy import text
-
 from tests.smoke_test_base import SmokeTestBase, basis_vector
 
 
@@ -61,7 +60,9 @@ class RetrievalEnhancementsAR14Tests(SmokeTestBase):
             chunk_ids = [
                 int(row[0])
                 for row in conn.execute(
-                    text("SELECT id FROM chunks WHERE source_id = :source_id ORDER BY chunk_index"),
+                    text(
+                        "SELECT id FROM chunks WHERE source_id = :source_id ORDER BY chunk_index"
+                    ),
                     {"source_id": source_id},
                 ).fetchall()
             ]
@@ -120,8 +121,14 @@ class RetrievalEnhancementsAR14Tests(SmokeTestBase):
             self.assertEqual(weighted_results[0]["chunk_id"], chunk_ids[0], weighted_results)
 
             with engine.begin() as conn:
-                conn.execute(text("UPDATE chunks SET heading = 'Omega Policy' WHERE id = :id"), {"id": chunk_ids[0]})
-            self.assertEqual(search_chunks_keyword("omega", k=1, source_id=source_id)[0]["chunk_id"], chunk_ids[0])
+                conn.execute(
+                    text("UPDATE chunks SET heading = 'Omega Policy' WHERE id = :id"),
+                    {"id": chunk_ids[0]},
+                )
+            self.assertEqual(
+                search_chunks_keyword("omega", k=1, source_id=source_id)[0]["chunk_id"],
+                chunk_ids[0],
+            )
         finally:
             self._delete_retrieval_records([source_id])
 
@@ -156,9 +163,12 @@ class RetrievalEnhancementsAR14Tests(SmokeTestBase):
             self._delete_retrieval_records([allowed_source, blocked_source])
 
     def test_scoring_overrides_are_request_scoped_and_causal_vocabulary_is_gone(self):
-        import app.core_rag.retrieval as retrieval
         import app.core_rag.reranker as reranker
-        from app.core_rag.retrieval_scoring import get_retrieval_scoring, retrieval_scoring_overrides
+        import app.core_rag.retrieval as retrieval
+        from app.core_rag.retrieval_scoring import (
+            get_retrieval_scoring,
+            retrieval_scoring_overrides,
+        )
 
         baseline = get_retrieval_scoring().graph_existing_weight
         with retrieval_scoring_overrides(graph_existing_weight=0.0):
@@ -176,8 +186,13 @@ class RetrievalEnhancementsAR14Tests(SmokeTestBase):
         self.assertTrue(CASES_PATH.exists())
         report = build_report()
         self.assertEqual(report["decision_policy"]["minimum_gain"], 0.01)
-        self.assertTrue(all(item["verdict"] in {"adopted", "retired"} for item in report["evidence"]))
-        self.assertEqual(next(item for item in report["evidence"] if item["feature"] == "mmr")["chosen"], "lambda_0_5")
+        self.assertTrue(
+            all(item["verdict"] in {"adopted", "retired"} for item in report["evidence"])
+        )
+        self.assertEqual(
+            next(item for item in report["evidence"] if item["feature"] == "mmr")["chosen"],
+            "lambda_0_5",
+        )
         self.assertEqual(report["adopted_scoring"]["graph_existing_weight"], 0.20)
         self.assertEqual(report["adopted_scoring"]["temporal_weight"], 0.10)
         self.assertIn("demo_causal_terms_vocabulary", report["removed"])

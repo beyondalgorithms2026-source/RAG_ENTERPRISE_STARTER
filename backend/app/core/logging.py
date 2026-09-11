@@ -2,9 +2,9 @@ import json
 import logging
 import sys
 from typing import Any
-from dotenv import load_dotenv
 
 from app.auth.context import get_current_user
+from dotenv import load_dotenv
 
 # Load .env file so os.getenv() can access variables
 load_dotenv()

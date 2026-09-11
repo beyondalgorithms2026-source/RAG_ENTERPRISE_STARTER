@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.adapters.models import ParsedAttachment, ParsedSourceDocument, ParsedSourcePart
 
@@ -7,24 +7,24 @@ from app.adapters.models import ParsedAttachment, ParsedSourceDocument, ParsedSo
 @dataclass
 class EmailAttachmentRecord:
     file_name: str
-    content_type: Optional[str] = None
+    content_type: str | None = None
     content_bytes: bytes = b""
-    content_id: Optional[str] = None
+    content_id: str | None = None
 
 
 @dataclass
 class EmailMessageRecord:
     subject: str
     body_text: str
-    from_email: Optional[str] = None
-    to_email: Optional[str] = None
-    cc_email: Optional[str] = None
-    sent_at: Optional[str] = None
-    message_id: Optional[str] = None
-    mailbox: Optional[str] = None
-    folder: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    attachments: List[EmailAttachmentRecord] = field(default_factory=list)
+    from_email: str | None = None
+    to_email: str | None = None
+    cc_email: str | None = None
+    sent_at: str | None = None
+    message_id: str | None = None
+    mailbox: str | None = None
+    folder: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    attachments: list[EmailAttachmentRecord] = field(default_factory=list)
 
 
 def parsed_document_from_email_record(record: EmailMessageRecord) -> ParsedSourceDocument:
@@ -38,15 +38,21 @@ def parsed_document_from_email_record(record: EmailMessageRecord) -> ParsedSourc
         "Mailbox": record.mailbox,
         "Folder": record.folder,
     }
-    header_text = "\n".join(f"{key}: {value}" for key, value in header_fields.items() if value).strip()
-    parts: List[ParsedSourcePart] = []
+    header_text = "\n".join(
+        f"{key}: {value}" for key, value in header_fields.items() if value
+    ).strip()
+    parts: list[ParsedSourcePart] = []
     if header_text:
         parts.append(
             ParsedSourcePart(
                 part_type="email_header",
                 part_index=0,
                 title=record.subject,
-                locator_json={"section": "headers", "mailbox": record.mailbox, "folder": record.folder},
+                locator_json={
+                    "section": "headers",
+                    "mailbox": record.mailbox,
+                    "folder": record.folder,
+                },
                 content_text=header_text,
                 provenance_json={"parser": "email_connector", "message_id": record.message_id},
             )
@@ -57,7 +63,11 @@ def parsed_document_from_email_record(record: EmailMessageRecord) -> ParsedSourc
                 part_type="email_body",
                 part_index=1,
                 title="Email Body",
-                locator_json={"section": "body", "mailbox": record.mailbox, "folder": record.folder},
+                locator_json={
+                    "section": "body",
+                    "mailbox": record.mailbox,
+                    "folder": record.folder,
+                },
                 content_text=record.body_text.strip(),
                 provenance_json={"parser": "email_connector", "message_id": record.message_id},
             )

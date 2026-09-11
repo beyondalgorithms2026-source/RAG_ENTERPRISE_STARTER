@@ -3,21 +3,23 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-from fastapi import HTTPException, UploadFile
-from sqlalchemy import text
+from typing import Any
 
 from app.adapters import ParsedSourceDocument, parse_source_bytes
-from app.corpus_policies import get_corpus_policy, resolve_policy_name_from_source_metadata
-from app.core.config import REPO_ROOT, settings
-from app.core.logging import log_event, logger
-from app.core.security_text import log_prompt_injection_signals
 from app.auth.context import get_current_user
-from app.db.db import engine
+from app.core.config import REPO_ROOT, settings
+from app.core.logging import log_event
+from app.core.security_text import log_prompt_injection_signals
+from app.corpus_policies import get_corpus_policy, resolve_policy_name_from_source_metadata
 from app.db.repo_acl import assign_document_acl, list_source_acl_map
 from app.db.repo_chunks import check_chunks_exist, delete_chunks_for_source, insert_chunks
-from app.db.repo_jobs import create_attachment_link, create_ingestion_job, finish_ingestion_job, get_ingestion_job, update_ingestion_job
+from app.db.repo_jobs import (
+    create_attachment_link,
+    create_ingestion_job,
+    finish_ingestion_job,
+    get_ingestion_job,
+    update_ingestion_job,
+)
 from app.db.repo_source_parts import delete_source_parts_for_source, insert_source_part
 from app.db.repo_sources import (
     delete_source,
@@ -31,7 +33,7 @@ from app.db.repo_sources import (
 from app.embedding.process import process_embeddings
 from app.ingestion.chunking import chunk_parsed_document
 from app.ingestion.enrichment import run_post_ingestion_enrichment
-
+from fastapi import HTTPException, UploadFile
 
 NUL_CHARACTER = "\x00"
 
@@ -59,7 +61,9 @@ def _sanitize_text_value(value: Any) -> Any:
     if isinstance(value, tuple):
         return tuple(_sanitize_text_value(item) for item in value)
     if isinstance(value, dict):
-        return {_sanitize_text_value(key): _sanitize_text_value(item) for key, item in value.items()}
+        return {
+            _sanitize_text_value(key): _sanitize_text_value(item) for key, item in value.items()
+        }
     return value
 
 
@@ -80,12 +84,18 @@ def _sanitize_parsed_document(parsed: ParsedSourceDocument) -> ParsedSourceDocum
     return parsed
 
 
-def _log_ingested_prompt_injection_signals(*, parsed: ParsedSourceDocument, source_id: Optional[int] = None) -> None:
+def _log_ingested_prompt_injection_signals(
+    *, parsed: ParsedSourceDocument, source_id: int | None = None
+) -> None:
     for part in parsed.parts:
         log_prompt_injection_signals(
             stage="ingestion",
             text_value=part.content_text,
-            metadata={"source_id": source_id, "source_part_index": part.part_index, "source_type": parsed.source_type},
+            metadata={
+                "source_id": source_id,
+                "source_part_index": part.part_index,
+                "source_type": parsed.source_type,
+            },
         )
 
 
@@ -101,7 +111,7 @@ def _compute_sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def _source_type_from_attachment(file_name: str, content_type: Optional[str]) -> Optional[str]:
+def _source_type_from_attachment(file_name: str, content_type: str | None) -> str | None:
     extension = _file_extension(file_name)
     if extension not in settings.ALLOWED_UPLOAD_EXTENSIONS:
         return None
@@ -120,18 +130,24 @@ def _ensure_upload_dir() -> Path:
 def _detect_source_type(file_name: str) -> str:
     extension = _file_extension(file_name)
     if extension not in settings.ALLOWED_UPLOAD_EXTENSIONS:
-        raise HTTPException(status_code=400, detail={"error": "unsupported_file_type", "file_name": file_name})
+        raise HTTPException(
+            status_code=400, detail={"error": "unsupported_file_type", "file_name": file_name}
+        )
     return extension
 
 
-def _validate_mime(source_type: str, content_type: Optional[str]) -> None:
+def _validate_mime(source_type: str, content_type: str | None) -> None:
     if not content_type:
         return
     allowed = _EXTENSION_TO_MIME.get(source_type, set())
     if allowed and content_type not in allowed:
         raise HTTPException(
             status_code=400,
-            detail={"error": "unsupported_mime_type", "source_type": source_type, "content_type": content_type},
+            detail={
+                "error": "unsupported_mime_type",
+                "source_type": source_type,
+                "content_type": content_type,
+            },
         )
 
 
@@ -142,11 +158,17 @@ def _storage_path_for(file_name: str, hash_sha256: str) -> str:
 
 def _ensure_valid_upload_content(*, content: bytes, file_name: str) -> None:
     if not content:
-        raise HTTPException(status_code=400, detail={"error": "empty_upload", "file_name": file_name})
+        raise HTTPException(
+            status_code=400, detail={"error": "empty_upload", "file_name": file_name}
+        )
     if len(content) > settings.MAX_UPLOAD_SIZE_BYTES:
         raise HTTPException(
             status_code=400,
-            detail={"error": "file_too_large", "file_name": file_name, "max_bytes": settings.MAX_UPLOAD_SIZE_BYTES},
+            detail={
+                "error": "file_too_large",
+                "file_name": file_name,
+                "max_bytes": settings.MAX_UPLOAD_SIZE_BYTES,
+            },
         )
 
 
@@ -161,13 +183,17 @@ async def _read_upload_limited(upload: UploadFile, *, file_name: str) -> bytes:
         if total > settings.MAX_UPLOAD_SIZE_BYTES:
             raise HTTPException(
                 status_code=413,
-                detail={"error": "file_too_large", "file_name": file_name, "max_bytes": settings.MAX_UPLOAD_SIZE_BYTES},
+                detail={
+                    "error": "file_too_large",
+                    "file_name": file_name,
+                    "max_bytes": settings.MAX_UPLOAD_SIZE_BYTES,
+                },
             )
         chunks.append(chunk)
     return b"".join(chunks)
 
 
-def _existing_upload_skip_result(*, file_name: str, hash_sha256: str) -> Optional[Dict[str, Any]]:
+def _existing_upload_skip_result(*, file_name: str, hash_sha256: str) -> dict[str, Any] | None:
     existing_same = find_source_by_name_and_hash(file_name, hash_sha256)
     if not existing_same:
         return None
@@ -206,13 +232,17 @@ def _persist_upload_bytes(*, storage_path: str, content: bytes) -> Path:
     return absolute_path
 
 
-def _build_upload_metadata(*, file_name: str, source_type: str, content_type: Optional[str], hash_sha256: str) -> Dict[str, Any]:
+def _build_upload_metadata(
+    *, file_name: str, source_type: str, content_type: str | None, hash_sha256: str
+) -> dict[str, Any]:
     previous_source = get_latest_source_by_name(file_name)
     actor = get_current_user()
     metadata = {
         "original_file_name": file_name,
         "upload_content_type": content_type,
-        "reupload_of_source_id": previous_source.id if previous_source and previous_source.hash_sha256 != hash_sha256 else None,
+        "reupload_of_source_id": previous_source.id
+        if previous_source and previous_source.hash_sha256 != hash_sha256
+        else None,
         "uploaded_by_external_user_id": actor.user_id if actor else None,
         "uploaded_by_email": actor.email if actor else None,
         "uploaded_by_display_name": actor.name if actor else None,
@@ -228,10 +258,10 @@ def _queue_upload_source(
     file_name: str,
     source_type: str,
     hash_sha256: str,
-    content_type: Optional[str],
+    content_type: str | None,
     file_size_bytes: int,
     storage_path: str,
-    metadata: Dict[str, Any],
+    metadata: dict[str, Any],
 ) -> tuple[int, int]:
     actor = get_current_user()
     source_id = upsert_source(
@@ -275,7 +305,9 @@ def _chunk_preview_path(storage_path: str) -> Path:
     return Path(REPO_ROOT) / "data" / "extracted" / f"{source_name}.chunks.json"
 
 
-def _update_ingestion_job_stage(job_id: int, *, status: str, stage: str, error_message: Optional[str] = None) -> None:
+def _update_ingestion_job_stage(
+    job_id: int, *, status: str, stage: str, error_message: str | None = None
+) -> None:
     current = get_ingestion_job(job_id)
     next_metadata = dict(current.job_metadata_json or {}) if current else {}
     next_metadata["queue_stage_label"] = stage
@@ -288,7 +320,7 @@ def _update_ingestion_job_stage(job_id: int, *, status: str, stage: str, error_m
     )
 
 
-def _merge_ingestion_job_metadata(job_id: int, patch: Dict[str, Any]) -> None:
+def _merge_ingestion_job_metadata(job_id: int, patch: dict[str, Any]) -> None:
     current = get_ingestion_job(job_id)
     if current is None:
         return
@@ -307,10 +339,14 @@ def _assert_source_file_exists(storage_path: str) -> None:
         raise FileNotFoundError(f"Source file not found at {absolute_path}")
 
 
-def _persist_source_parts(source_id: int, parsed: ParsedSourceDocument) -> Dict[int, int]:
-    source_part_ids: Dict[int, int] = {}
+def _persist_source_parts(source_id: int, parsed: ParsedSourceDocument) -> dict[int, int]:
+    source_part_ids: dict[int, int] = {}
     for part in parsed.parts:
-        parent_part_id = source_part_ids.get(part.parent_part_index) if part.parent_part_index is not None else None
+        parent_part_id = (
+            source_part_ids.get(part.parent_part_index)
+            if part.parent_part_index is not None
+            else None
+        )
         source_part_ids[part.part_index] = insert_source_part(
             source_id=source_id,
             part_type=part.part_type,
@@ -324,8 +360,10 @@ def _persist_source_parts(source_id: int, parsed: ParsedSourceDocument) -> Dict[
     return source_part_ids
 
 
-def _link_chunks_to_source_parts(chunks: list[Dict[str, Any]], source_part_ids: Dict[int, int]) -> list[Dict[str, Any]]:
-    linked_chunks: list[Dict[str, Any]] = []
+def _link_chunks_to_source_parts(
+    chunks: list[dict[str, Any]], source_part_ids: dict[int, int]
+) -> list[dict[str, Any]]:
+    linked_chunks: list[dict[str, Any]] = []
     for chunk in chunks:
         chunk_copy = dict(chunk)
         source_part_index = (chunk_copy.get("provenance_json") or {}).get("source_part_index")
@@ -335,7 +373,9 @@ def _link_chunks_to_source_parts(chunks: list[Dict[str, Any]], source_part_ids: 
     return linked_chunks
 
 
-def _ingest_email_attachment_children(*, parent_source_id: int, parsed: ParsedSourceDocument, job_id: int) -> Dict[str, Any]:
+def _ingest_email_attachment_children(
+    *, parent_source_id: int, parsed: ParsedSourceDocument, job_id: int
+) -> dict[str, Any]:
     if parsed.source_type not in {"eml", "email_message"}:
         return {"attachment_count": len(parsed.attachments), "child_source_ids": []}
 
@@ -348,7 +388,9 @@ def _ingest_email_attachment_children(*, parent_source_id: int, parsed: ParsedSo
             continue
 
         hash_sha256 = _compute_sha256_bytes(content)
-        storage_path = _storage_path_for(f"attachment-{parent_source_id}-{attachment.file_name}", hash_sha256)
+        storage_path = _storage_path_for(
+            f"attachment-{parent_source_id}-{attachment.file_name}", hash_sha256
+        )
         _persist_upload_bytes(storage_path=storage_path, content=content)
         metadata = {
             "parent_source_id": parent_source_id,
@@ -372,7 +414,9 @@ def _ingest_email_attachment_children(*, parent_source_id: int, parsed: ParsedSo
         )
         if parent_acl_groups:
             assign_document_acl(source_id=source_id, group_names=parent_acl_groups)
-        child_parsed = _sanitize_parsed_document(parse_source_bytes(source_type, content, attachment.file_name))
+        child_parsed = _sanitize_parsed_document(
+            parse_source_bytes(source_type, content, attachment.file_name)
+        )
         delete_source_parts_for_source(source_id)
         child_part_ids = _persist_source_parts(source_id, child_parsed)
         chunks = chunk_parsed_document(child_parsed, policy_name="email_casework")
@@ -400,12 +444,22 @@ def _ingest_email_attachment_children(*, parent_source_id: int, parsed: ParsedSo
     return {"attachment_count": len(parsed.attachments), "child_source_ids": child_source_ids}
 
 
-def _ingest_uploaded_source(*, source_id: int, source_type: str, file_name: str, storage_path: str, job_id: int) -> Dict[str, Any]:
+def _ingest_uploaded_source(
+    *, source_id: int, source_type: str, file_name: str, storage_path: str, job_id: int
+) -> dict[str, Any]:
     try:
         update_source_status(source_id, ingestion_status="processing")
-        log_event("upload.ingestion.started", source_id=source_id, job_id=job_id, stage="ingestion", status="processing")
+        log_event(
+            "upload.ingestion.started",
+            source_id=source_id,
+            job_id=job_id,
+            stage="ingestion",
+            status="processing",
+        )
         _update_ingestion_job_stage(job_id, status="processing", stage="parsing")
-        log_event("parse.started", source_id=source_id, job_id=job_id, stage="parse", status="processing")
+        log_event(
+            "parse.started", source_id=source_id, job_id=job_id, stage="parse", status="processing"
+        )
         parsed = parse_uploaded_source_file(
             source_type=source_type,
             file_name=file_name,
@@ -413,9 +467,17 @@ def _ingest_uploaded_source(*, source_id: int, source_type: str, file_name: str,
             persist_debug_artifact=False,
         )
         _log_ingested_prompt_injection_signals(parsed=parsed, source_id=source_id)
-        log_event("parse.completed", source_id=source_id, job_id=job_id, stage="parse", status="completed")
+        log_event(
+            "parse.completed",
+            source_id=source_id,
+            job_id=job_id,
+            stage="parse",
+            status="completed",
+        )
         _merge_ingestion_job_metadata(job_id, {"parsed_part_count": len(parsed.parts)})
-        attachment_stats = _ingest_email_attachment_children(parent_source_id=source_id, parsed=parsed, job_id=job_id)
+        attachment_stats = _ingest_email_attachment_children(
+            parent_source_id=source_id, parsed=parsed, job_id=job_id
+        )
         if attachment_stats["child_source_ids"]:
             log_event(
                 "email.attachments.completed",
@@ -438,9 +500,13 @@ def _ingest_uploaded_source(*, source_id: int, source_type: str, file_name: str,
         )
 
         _update_ingestion_job_stage(job_id, status="processing", stage="chunking")
-        log_event("chunk.started", source_id=source_id, job_id=job_id, stage="chunk", status="processing")
+        log_event(
+            "chunk.started", source_id=source_id, job_id=job_id, stage="chunk", status="processing"
+        )
         source = get_source_by_id(source_id)
-        policy_name = resolve_policy_name_from_source_metadata(source.source_metadata_json if source else {})
+        policy_name = resolve_policy_name_from_source_metadata(
+            source.source_metadata_json if source else {}
+        )
         chunks = chunk_parsed_document(parsed, policy_name=policy_name)
         linked_chunks = _link_chunks_to_source_parts(chunks, source_part_ids)
         if check_chunks_exist(source_id):
@@ -466,7 +532,9 @@ def _ingest_uploaded_source(*, source_id: int, source_type: str, file_name: str,
         )
 
         _update_ingestion_job_stage(job_id, status="processing", stage="embedding")
-        log_event("embed.started", source_id=source_id, job_id=job_id, stage="embed", status="processing")
+        log_event(
+            "embed.started", source_id=source_id, job_id=job_id, stage="embed", status="processing"
+        )
         embed_stats = process_embeddings(force=False, source_id=source_id)
         if embed_stats["chunks_embedded"] < len(linked_chunks):
             raise RuntimeError(
@@ -490,20 +558,41 @@ def _ingest_uploaded_source(*, source_id: int, source_type: str, file_name: str,
         )
         finish_ingestion_job(job_id, status="completed")
         _update_ingestion_job_stage(job_id, status="completed", stage="embedded")
-        log_event("upload.ingestion.completed", source_id=source_id, job_id=job_id, stage="ingestion", status="completed")
+        log_event(
+            "upload.ingestion.completed",
+            source_id=source_id,
+            job_id=job_id,
+            stage="ingestion",
+            status="completed",
+        )
         from app.db.repo_semantic_cache import bump_cache_revision
 
         refreshed_source = get_source_by_id(source_id)
-        corpus_name = str(((refreshed_source.source_metadata_json if refreshed_source else {}) or {}).get("corpus") or "").strip().lower()
-        bump_cache_revision(scope_type="source", scope_key=str(source_id), reason="ingestion_completed")
+        corpus_name = (
+            str(
+                ((refreshed_source.source_metadata_json if refreshed_source else {}) or {}).get(
+                    "corpus"
+                )
+                or ""
+            )
+            .strip()
+            .lower()
+        )
+        bump_cache_revision(
+            scope_type="source", scope_key=str(source_id), reason="ingestion_completed"
+        )
         bump_cache_revision(scope_type="content", reason="ingestion_completed")
         if corpus_name:
-            bump_cache_revision(scope_type="corpus", scope_key=corpus_name, reason="ingestion_completed")
+            bump_cache_revision(
+                scope_type="corpus", scope_key=corpus_name, reason="ingestion_completed"
+            )
         return {"chunk_count": len(linked_chunks), "source_part_count": len(source_part_ids)}
     except Exception as exc:
         update_source_status(source_id, ingestion_status="failed")
         finish_ingestion_job(job_id, status="failed", error_message=str(exc))
-        _update_ingestion_job_stage(job_id, status="failed", stage="failed", error_message=str(exc))
+        _update_ingestion_job_stage(
+            job_id, status="failed", stage="failed", error_message=str(exc)
+        )
         log_event(
             "upload.ingestion.failed",
             level=40,
@@ -539,7 +628,7 @@ def chunk_uploaded_source_file(
     file_name: str,
     storage_path: str,
     persist_chunk_preview: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     parsed = parse_uploaded_source_file(
         source_type=source_type,
         file_name=file_name,
@@ -559,7 +648,9 @@ def chunk_uploaded_source_file(
     }
 
 
-def _run_ingestion_job(*, source_id: int, source_type: str, file_name: str, storage_path: str, job_id: int) -> None:
+def _run_ingestion_job(
+    *, source_id: int, source_type: str, file_name: str, storage_path: str, job_id: int
+) -> None:
     _ingest_uploaded_source(
         source_id=source_id,
         source_type=source_type,
@@ -574,7 +665,7 @@ async def process_upload(
     *,
     wait_for_completion: bool = True,
     background_tasks: Any | None = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     file_name = upload.filename or "upload.bin"
     log_event("upload.received", stage="upload", status="received", reason=file_name)
     source_type = _detect_source_type(file_name)
@@ -591,7 +682,12 @@ async def process_upload(
     storage_path = _storage_path_for(file_name, hash_sha256)
     _persist_upload_bytes(storage_path=storage_path, content=content)
 
-    metadata = _build_upload_metadata(file_name=file_name, source_type=source_type, content_type=upload.content_type, hash_sha256=hash_sha256)
+    metadata = _build_upload_metadata(
+        file_name=file_name,
+        source_type=source_type,
+        content_type=upload.content_type,
+        hash_sha256=hash_sha256,
+    )
     source_id, job_id = _queue_upload_source(
         file_name=file_name,
         source_type=source_type,
@@ -601,7 +697,9 @@ async def process_upload(
         storage_path=storage_path,
         metadata=metadata,
     )
-    log_event("upload.accepted", source_id=source_id, job_id=job_id, stage="upload", status="accepted")
+    log_event(
+        "upload.accepted", source_id=source_id, job_id=job_id, stage="upload", status="accepted"
+    )
     if wait_for_completion:
         _run_ingestion_job(
             source_id=source_id,
@@ -626,14 +724,14 @@ async def process_upload(
     }
 
 
-async def process_upload_batch(uploads: List[UploadFile]) -> List[Dict[str, Any]]:
-    results: List[Dict[str, Any]] = []
+async def process_upload_batch(uploads: list[UploadFile]) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
     for upload in uploads:
         results.append(await process_upload(upload))
     return results
 
 
-def delete_uploaded_source(*, source_id: int, delete_file: bool = True) -> Dict[str, Any]:
+def delete_uploaded_source(*, source_id: int, delete_file: bool = True) -> dict[str, Any]:
     source = get_source_by_id(source_id)
     if source is None:
         raise ValueError(f"Source {source_id} not found")
@@ -675,15 +773,23 @@ def _reset_source_for_reindex(source_id: int) -> None:
     update_source_status(source_id, ingestion_status="queued", enrichment_status="not_started")
 
 
-def admin_reindex_source(*, source_id: int, force: bool = False) -> Dict[str, Any]:
+def admin_reindex_source(*, source_id: int, force: bool = False) -> dict[str, Any]:
     source = get_source_by_id(source_id)
     if source is None:
         raise ValueError(f"Source {source_id} not found")
     if source.ingestion_status == "processing" and not force:
-        raise ValueError(f"Source {source_id} is currently processing; rerun with force to override")
+        raise ValueError(
+            f"Source {source_id} is currently processing; rerun with force to override"
+        )
 
     _assert_source_file_exists(source.storage_path)
-    log_event("admin.reindex.started", source_id=source_id, stage="admin_reindex", status="processing", reason=source.ingestion_status)
+    log_event(
+        "admin.reindex.started",
+        source_id=source_id,
+        stage="admin_reindex",
+        status="processing",
+        reason=source.ingestion_status,
+    )
     _reset_source_for_reindex(source_id)
     job_id = create_ingestion_job(
         source_id=source_id,
@@ -705,7 +811,13 @@ def admin_reindex_source(*, source_id: int, force: bool = False) -> Dict[str, An
     from app.ingestion.queue_runtime import poke_ingestion_queue
 
     poke_ingestion_queue()
-    log_event("admin.reindex.queued", source_id=source_id, job_id=job_id, stage="admin_reindex", status="queued")
+    log_event(
+        "admin.reindex.queued",
+        source_id=source_id,
+        job_id=job_id,
+        stage="admin_reindex",
+        status="queued",
+    )
     return {
         "status": "queued",
         "source_id": source_id,

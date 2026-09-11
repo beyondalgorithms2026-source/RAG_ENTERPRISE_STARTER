@@ -4,17 +4,32 @@ from pathlib import Path
 
 from app.auth.admin_modules import ADMIN_MODULES, SCENARIO_ADMIN_MODULE_PRESETS
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCENARIOS_DIR = REPO_ROOT / "scenarios"
 RUNBOOKS_DIR = REPO_ROOT / "docs" / "runbooks"
 
 
 EXPECTED_ENV = {
-    "research_no_auth": {"AUTH_MODE": "none", "ACCESS_STRATEGY": "none", "SCENARIO_PROFILE": "research_no_auth"},
-    "employee_wide_rag": {"AUTH_MODE": "dev", "ACCESS_STRATEGY": "employee_all", "SCENARIO_PROFILE": "employee_wide_rag"},
-    "small_enterprise_corpus_acl": {"AUTH_MODE": "dev", "ACCESS_STRATEGY": "corpus_level", "SCENARIO_PROFILE": "small_enterprise_corpus_acl"},
-    "enterprise_oidc_acl": {"AUTH_MODE": "oidc", "ACCESS_STRATEGY": "document_acl_with_time_bound_grants", "SCENARIO_PROFILE": "enterprise_oidc_acl"},
+    "research_no_auth": {
+        "AUTH_MODE": "none",
+        "ACCESS_STRATEGY": "none",
+        "SCENARIO_PROFILE": "research_no_auth",
+    },
+    "employee_wide_rag": {
+        "AUTH_MODE": "dev",
+        "ACCESS_STRATEGY": "employee_all",
+        "SCENARIO_PROFILE": "employee_wide_rag",
+    },
+    "small_enterprise_corpus_acl": {
+        "AUTH_MODE": "dev",
+        "ACCESS_STRATEGY": "corpus_level",
+        "SCENARIO_PROFILE": "small_enterprise_corpus_acl",
+    },
+    "enterprise_oidc_acl": {
+        "AUTH_MODE": "oidc",
+        "ACCESS_STRATEGY": "document_acl_with_time_bound_grants",
+        "SCENARIO_PROFILE": "enterprise_oidc_acl",
+    },
 }
 
 
@@ -34,7 +49,13 @@ class ScenarioBuildPacksM30Tests(unittest.TestCase):
             with self.subTest(scenario=scenario):
                 scenario_dir = SCENARIOS_DIR / scenario
                 self.assertTrue(scenario_dir.exists())
-                for filename in ("README.md", "validation.md", "backend.env.example", "web.env.example", "admin_modules.json"):
+                for filename in (
+                    "README.md",
+                    "validation.md",
+                    "backend.env.example",
+                    "web.env.example",
+                    "admin_modules.json",
+                ):
                     self.assertTrue((scenario_dir / filename).exists(), f"{scenario}/{filename}")
 
     def test_scenario_env_samples_match_expected_auth_and_access_strategy(self):
@@ -48,7 +69,9 @@ class ScenarioBuildPacksM30Tests(unittest.TestCase):
         all_modules = set(ADMIN_MODULES)
         for scenario in EXPECTED_ENV:
             with self.subTest(scenario=scenario):
-                payload = json.loads((SCENARIOS_DIR / scenario / "admin_modules.json").read_text(encoding="utf-8"))
+                payload = json.loads(
+                    (SCENARIOS_DIR / scenario / "admin_modules.json").read_text(encoding="utf-8")
+                )
                 enabled = set(payload["enabled_modules"])
                 disabled = set(payload["disabled_modules"])
                 self.assertEqual(enabled, SCENARIO_ADMIN_MODULE_PRESETS[scenario])

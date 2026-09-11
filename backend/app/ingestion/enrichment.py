@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from app.core.config import settings
-from app.core.logging import log_event, logger
+from app.core.logging import log_event
 from app.db.repo_chunks import get_chunks_for_enrichment, update_chunk_enrichment
 from app.db.repo_jobs import create_enrichment_job, finish_enrichment_job
 from app.db.repo_sources import (
@@ -14,12 +14,15 @@ from app.db.repo_sources import (
     update_source_status,
     update_source_temporal_metadata,
 )
+from app.graph.extractor import EXTRACTOR_ARTIFACT_VERSION, run_enrichment_extractors
 from app.graph.graph_index import GRAPH_INDEX_ARTIFACT_VERSION, ensure_graph_artifacts
 from app.graph.graph_store import get_graph_store
-from app.graph.extractor import EXTRACTOR_ARTIFACT_VERSION, run_enrichment_extractors
 from app.graph.ontology import ONTOLOGY_ARTIFACT_VERSION
-from app.graph.temporal import TEMPORAL_ARTIFACT_VERSION, analyze_temporal_metadata, summarize_temporal_metadata
-
+from app.graph.temporal import (
+    TEMPORAL_ARTIFACT_VERSION,
+    analyze_temporal_metadata,
+    summarize_temporal_metadata,
+)
 
 GRAPH_ARTIFACT_VERSION = GRAPH_INDEX_ARTIFACT_VERSION
 
@@ -35,19 +38,19 @@ class EnrichmentRunResult:
     entities_extracted: int = 0
     relations_extracted: int = 0
     debug_summary: dict[str, Any] = field(default_factory=dict)
-    job_id: Optional[int] = None
+    job_id: int | None = None
 
 
 @dataclass(frozen=True)
 class LazyEnrichmentResult:
-    source_id: Optional[int]
+    source_id: int | None
     requested_mode: str
     attempted: bool = False
     triggered: bool = False
     wrote_job: bool = False
     artifacts_current: bool = False
     reason: str = "lazy_enrichment_disabled"
-    job_id: Optional[int] = None
+    job_id: int | None = None
     debug_summary: dict[str, Any] = field(default_factory=dict)
 
 
@@ -60,11 +63,17 @@ def get_enrichment_artifact_versions() -> dict[str, str]:
     }
 
 
-def _artifact_current(*, artifact_metadata: Any, expected_version: str, source_hash: Optional[str]) -> bool:
+def _artifact_current(
+    *, artifact_metadata: Any, expected_version: str, source_hash: str | None
+) -> bool:
     if not isinstance(artifact_metadata, dict) or not artifact_metadata:
         return False
-    artifact_version = artifact_metadata.get("artifact_version") or artifact_metadata.get("provenance", {}).get("artifact_version")
-    built_from_source_hash = artifact_metadata.get("built_from_source_hash") or artifact_metadata.get("provenance", {}).get("built_from_source_hash")
+    artifact_version = artifact_metadata.get("artifact_version") or artifact_metadata.get(
+        "provenance", {}
+    ).get("artifact_version")
+    built_from_source_hash = artifact_metadata.get(
+        "built_from_source_hash"
+    ) or artifact_metadata.get("provenance", {}).get("built_from_source_hash")
     if artifact_version != expected_version:
         return False
     if source_hash and built_from_source_hash and built_from_source_hash != source_hash:
@@ -72,7 +81,9 @@ def _artifact_current(*, artifact_metadata: Any, expected_version: str, source_h
     return True
 
 
-def _build_lazy_trace(*, source_hash: Optional[str], requested_mode: str = "full", **extra: Any) -> dict[str, Any]:
+def _build_lazy_trace(
+    *, source_hash: str | None, requested_mode: str = "full", **extra: Any
+) -> dict[str, Any]:
     trace = {
         "requested_mode": requested_mode,
         "source_hash": source_hash,
@@ -84,15 +95,15 @@ def _build_lazy_trace(*, source_hash: Optional[str], requested_mode: str = "full
 
 def _record_lazy_result(
     *,
-    source_id: Optional[int],
-    source_hash: Optional[str],
+    source_id: int | None,
+    source_hash: str | None,
     reason: str,
     attempted: bool,
     triggered: bool,
     wrote_job: bool = False,
     artifacts_current: bool = False,
-    job_id: Optional[int] = None,
-    extra_debug: Optional[dict[str, Any]] = None,
+    job_id: int | None = None,
+    extra_debug: dict[str, Any] | None = None,
 ) -> LazyEnrichmentResult:
     trace = _build_lazy_trace(
         source_hash=source_hash,
@@ -129,7 +140,7 @@ def _lazy_feature_requirements() -> tuple[bool, bool]:
 def _artifact_currentness_for_source(
     *,
     metadata: dict[str, Any],
-    source_hash: Optional[str],
+    source_hash: str | None,
     artifact_versions: dict[str, str],
     needs_graph: bool,
     needs_temporal: bool,
@@ -151,7 +162,13 @@ def _artifact_currentness_for_source(
     return graph_current, temporal_current
 
 
-def _build_chunk_debug_entry(*, chunk_id: int, entities_json: list[dict[str, Any]], relations_json: list[dict[str, Any]], temporal_metadata: dict[str, Any]) -> dict[str, Any]:
+def _build_chunk_debug_entry(
+    *,
+    chunk_id: int,
+    entities_json: list[dict[str, Any]],
+    relations_json: list[dict[str, Any]],
+    temporal_metadata: dict[str, Any],
+) -> dict[str, Any]:
     return {
         "chunk_id": chunk_id,
         "entity_count": len(entities_json),
@@ -162,7 +179,13 @@ def _build_chunk_debug_entry(*, chunk_id: int, entities_json: list[dict[str, Any
     }
 
 
-def _build_graph_input_chunk(*, chunk: dict[str, Any], entities_json: list[dict[str, Any]], relations_json: list[dict[str, Any]], merged_provenance: dict[str, Any]) -> dict[str, Any]:
+def _build_graph_input_chunk(
+    *,
+    chunk: dict[str, Any],
+    entities_json: list[dict[str, Any]],
+    relations_json: list[dict[str, Any]],
+    merged_provenance: dict[str, Any],
+) -> dict[str, Any]:
     return {
         "id": chunk["id"],
         "source_id": chunk["source_id"],
@@ -175,8 +198,16 @@ def _build_graph_input_chunk(*, chunk: dict[str, Any], entities_json: list[dict[
     }
 
 
-def _persist_source_temporal_summary(*, source_id: int, source_hash: Optional[str], temporal_enabled: bool, temporal_summaries: list[dict[str, Any]]) -> dict[str, Any]:
-    source_temporal_summary = summarize_temporal_metadata(chunk_temporal_metadata=temporal_summaries)
+def _persist_source_temporal_summary(
+    *,
+    source_id: int,
+    source_hash: str | None,
+    temporal_enabled: bool,
+    temporal_summaries: list[dict[str, Any]],
+) -> dict[str, Any]:
+    source_temporal_summary = summarize_temporal_metadata(
+        chunk_temporal_metadata=temporal_summaries
+    )
     if temporal_enabled:
         source_temporal_summary["built_from_source_hash"] = source_hash
         source_temporal_summary["build_status"] = (
@@ -186,7 +217,16 @@ def _persist_source_temporal_summary(*, source_id: int, source_hash: Optional[st
     return source_temporal_summary
 
 
-def _build_graph_metadata(*, source_id: int, source_hash: Optional[str], source_part_count: int, chunk_count: int, artifact_versions: dict[str, str], graph_status: Any, graph_store: Any) -> dict[str, Any]:
+def _build_graph_metadata(
+    *,
+    source_id: int,
+    source_hash: str | None,
+    source_part_count: int,
+    chunk_count: int,
+    artifact_versions: dict[str, str],
+    graph_status: Any,
+    graph_store: Any,
+) -> dict[str, Any]:
     graph_metadata = graph_store.compact_artifact(graph_status=graph_status)
     graph_metadata["built_from_source_hash"] = source_hash
     graph_metadata["build_status"] = "built" if graph_status.available else "skipped"
@@ -203,7 +243,7 @@ def _build_graph_metadata(*, source_id: int, source_hash: Optional[str], source_
     return graph_metadata
 
 
-def ensure_lazy_full_mode_readiness(*, source_id: Optional[int]) -> LazyEnrichmentResult:
+def ensure_lazy_full_mode_readiness(*, source_id: int | None) -> LazyEnrichmentResult:
     artifact_versions = get_enrichment_artifact_versions()
     if not settings.ALLOW_LAZY_ENRICHMENT:
         return _record_lazy_result(
@@ -267,7 +307,9 @@ def ensure_lazy_full_mode_readiness(*, source_id: Optional[int]) -> LazyEnrichme
         )
 
     chunks = get_chunks_for_enrichment(source_id)
-    source_part_ids = {chunk.get("source_part_id") for chunk in chunks if chunk.get("source_part_id") is not None}
+    source_part_ids = {
+        chunk.get("source_part_id") for chunk in chunks if chunk.get("source_part_id") is not None
+    }
     base_trace = {
         "graph_needed": needs_graph,
         "temporal_needed": needs_temporal,
@@ -300,8 +342,12 @@ def ensure_lazy_full_mode_readiness(*, source_id: Optional[int]) -> LazyEnrichme
             job_id=result.job_id,
             extra_debug={
                 **base_trace,
-                "graph_artifact_available_after": result.debug_summary.get("graph_artifact_available", False),
-                "temporal_metadata_produced_after": result.debug_summary.get("temporal_metadata_produced", False),
+                "graph_artifact_available_after": result.debug_summary.get(
+                    "graph_artifact_available", False
+                ),
+                "temporal_metadata_produced_after": result.debug_summary.get(
+                    "temporal_metadata_produced", False
+                ),
             },
         )
     except Exception as exc:
@@ -346,8 +392,21 @@ def run_post_ingestion_enrichment(
     source = get_source_by_id(source_id)
     source_hash = source.hash_sha256 if source is not None else None
     if not enrichment_features_enabled():
-        log_event("build_graph.skipped", source_id=source_id, job_id=None, stage="build_graph", status="skipped", reason="enrichment_flags_disabled")
-        log_event("enrich.skipped", source_id=source_id, stage="enrich", status="skipped", reason="enrichment_flags_disabled")
+        log_event(
+            "build_graph.skipped",
+            source_id=source_id,
+            job_id=None,
+            stage="build_graph",
+            status="skipped",
+            reason="enrichment_flags_disabled",
+        )
+        log_event(
+            "enrich.skipped",
+            source_id=source_id,
+            stage="enrich",
+            status="skipped",
+            reason="enrichment_flags_disabled",
+        )
         return EnrichmentRunResult(
             attempted=False,
             wrote_job=False,
@@ -358,8 +417,21 @@ def run_post_ingestion_enrichment(
 
     chunks = get_chunks_for_enrichment(source_id)
     if not chunks:
-        log_event("build_graph.skipped", source_id=source_id, job_id=None, stage="build_graph", status="skipped", reason="no_chunks_found")
-        log_event("enrich.skipped", source_id=source_id, stage="enrich", status="skipped", reason="no_chunks_found")
+        log_event(
+            "build_graph.skipped",
+            source_id=source_id,
+            job_id=None,
+            stage="build_graph",
+            status="skipped",
+            reason="no_chunks_found",
+        )
+        log_event(
+            "enrich.skipped",
+            source_id=source_id,
+            stage="enrich",
+            status="skipped",
+            reason="no_chunks_found",
+        )
         return EnrichmentRunResult(
             attempted=False,
             wrote_job=False,
@@ -388,8 +460,16 @@ def run_post_ingestion_enrichment(
             },
         )
     try:
-        log_event("enrich.started", source_id=source_id, job_id=job_id, stage="enrich", status="processing")
-        extraction_enabled = bool(settings.EXTRACT_ENTITIES or settings.EXTRACT_RELATIONS or settings.ENABLE_ONTOLOGY)
+        log_event(
+            "enrich.started",
+            source_id=source_id,
+            job_id=job_id,
+            stage="enrich",
+            status="processing",
+        )
+        extraction_enabled = bool(
+            settings.EXTRACT_ENTITIES or settings.EXTRACT_RELATIONS or settings.ENABLE_ONTOLOGY
+        )
         temporal_enabled = bool(settings.ENABLE_TEMPORAL or settings.EXTRACT_TEMPORAL_METADATA)
         graph_build_enabled = bool(settings.ENABLE_GRAPH and settings.BUILD_GRAPH_ON_INGEST)
         graph_store = get_graph_store()
@@ -406,7 +486,7 @@ def run_post_ingestion_enrichment(
             entities_json = list(chunk.get("entities_json") or [])
             relations_json = list(chunk.get("relations_json") or [])
             temporal_metadata = dict(chunk.get("temporal_json") or {})
-            ontology_tags = sorted({tag for entity in entities_json for tag in entity.get("ontology_tags", [])})
+            sorted({tag for entity in entities_json for tag in entity.get("ontology_tags", [])})
 
             if extraction_enabled:
                 artifacts = run_enrichment_extractors(
@@ -416,7 +496,6 @@ def run_post_ingestion_enrichment(
                 )
                 entities_json = artifacts.entities
                 relations_json = artifacts.relations
-                ontology_tags = artifacts.ontology_tags
                 merged_provenance["enrichment"] = {
                     "artifact_version": artifact_versions["extractor"],
                     "reason": artifacts.provenance.get("reason"),
@@ -435,8 +514,13 @@ def run_post_ingestion_enrichment(
                     "confidence": temporal_metadata.get("confidence"),
                     "fallback_reason": temporal_metadata.get("fallback_reason"),
                     "expression_count": len(temporal_metadata.get("expressions", [])),
-                    "version_reference_count": len(temporal_metadata.get("document_version_refs", [])),
-                    "evidence": [item.get("evidence") for item in temporal_metadata.get("expressions", [])[:3]],
+                    "version_reference_count": len(
+                        temporal_metadata.get("document_version_refs", [])
+                    ),
+                    "evidence": [
+                        item.get("evidence")
+                        for item in temporal_metadata.get("expressions", [])[:3]
+                    ],
                 }
 
             if extraction_enabled or temporal_enabled:
@@ -455,7 +539,9 @@ def run_post_ingestion_enrichment(
             if temporal_metadata:
                 if temporal_metadata.get("fallback_reason"):
                     temporal_fallback_chunks += 1
-                elif temporal_metadata.get("expressions") or temporal_metadata.get("document_version_refs"):
+                elif temporal_metadata.get("expressions") or temporal_metadata.get(
+                    "document_version_refs"
+                ):
                     temporal_chunks_with_metadata += 1
             graph_input_chunks.append(
                 _build_graph_input_chunk(
@@ -484,7 +570,13 @@ def run_post_ingestion_enrichment(
         graph_status = None
         graph_store_invoked = False
         if graph_build_enabled:
-            log_event("build_graph.started", source_id=source_id, job_id=job_id, stage="build_graph", status="processing")
+            log_event(
+                "build_graph.started",
+                source_id=source_id,
+                job_id=job_id,
+                stage="build_graph",
+                status="processing",
+            )
             graph_status = ensure_graph_artifacts(source_id=source_id, chunks=graph_input_chunks)
             graph_store_invoked = graph_store.status().enabled
             graph_metadata = _build_graph_metadata(
@@ -506,7 +598,14 @@ def run_post_ingestion_enrichment(
                 reason=graph_status.reason,
             )
         else:
-            log_event("build_graph.skipped", source_id=source_id, job_id=job_id, stage="build_graph", status="skipped", reason="graph_build_disabled")
+            log_event(
+                "build_graph.skipped",
+                source_id=source_id,
+                job_id=job_id,
+                stage="build_graph",
+                status="skipped",
+                reason="graph_build_disabled",
+            )
 
         debug_summary = {
             "source_part_count": source_part_count,
@@ -517,13 +616,18 @@ def run_post_ingestion_enrichment(
             "temporal_chunks_with_metadata": temporal_chunks_with_metadata,
             "temporal_fallback_chunks": temporal_fallback_chunks,
             "source_temporal_summary": source_temporal_summary,
-            "graph_artifact_available": bool(graph_status.available) if graph_status is not None else False,
-            "graph_artifact_reason": graph_status.reason if graph_status is not None else "graph_build_disabled",
+            "graph_artifact_available": bool(graph_status.available)
+            if graph_status is not None
+            else False,
+            "graph_artifact_reason": graph_status.reason
+            if graph_status is not None
+            else "graph_build_disabled",
             "graph_artifact_stats": graph_status.stats if graph_status is not None else {},
             "chunk_debug": debug_chunks,
             "graph_index_invoked": graph_build_enabled,
             "graph_store_invoked": graph_store_invoked,
-            "temporal_metadata_produced": temporal_chunks_with_metadata > 0 or temporal_fallback_chunks > 0,
+            "temporal_metadata_produced": temporal_chunks_with_metadata > 0
+            or temporal_fallback_chunks > 0,
         }
         log_event(
             "enrich.completed",
@@ -573,7 +677,9 @@ def admin_rerun_enrichment(*, source_id: int, force: bool = False) -> Enrichment
     if source is None:
         raise ValueError(f"Source {source_id} not found")
     if source.enrichment_status == "processing" and not force:
-        raise ValueError(f"Source {source_id} enrichment is already processing; rerun with force to override")
+        raise ValueError(
+            f"Source {source_id} enrichment is already processing; rerun with force to override"
+        )
     if source.ingestion_status not in {"chunked", "embedded"}:
         raise ValueError(f"Source {source_id} must be chunked or embedded before enrichment rerun")
 
@@ -581,10 +687,14 @@ def admin_rerun_enrichment(*, source_id: int, force: bool = False) -> Enrichment
     if not chunks:
         raise ValueError(f"Source {source_id} has no chunks available for enrichment rerun")
 
-    source_part_ids = {chunk.get("source_part_id") for chunk in chunks if chunk.get("source_part_id") is not None}
+    source_part_ids = {
+        chunk.get("source_part_id") for chunk in chunks if chunk.get("source_part_id") is not None
+    }
     remove_source_metadata_sections(source_id, ["graph", "temporal"])
     update_source_status(source_id, enrichment_status="processing")
-    log_event("admin.enrich.started", source_id=source_id, stage="admin_enrich", status="processing")
+    log_event(
+        "admin.enrich.started", source_id=source_id, stage="admin_enrich", status="processing"
+    )
     try:
         result = run_post_ingestion_enrichment(
             source_id=source_id,
@@ -604,5 +714,11 @@ def admin_rerun_enrichment(*, source_id: int, force: bool = False) -> Enrichment
         return result
     except Exception:
         update_source_status(source_id, enrichment_status="failed")
-        log_event("admin.enrich.failed", level=40, source_id=source_id, stage="admin_enrich", status="failed")
+        log_event(
+            "admin.enrich.failed",
+            level=40,
+            source_id=source_id,
+            stage="admin_enrich",
+            status="failed",
+        )
         raise

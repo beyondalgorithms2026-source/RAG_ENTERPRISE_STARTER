@@ -33,10 +33,19 @@ class SmokeTestEnrichment(SmokeTestBase):
         self.assertIn("International Business Machines", canonical_names)
         self.assertIn("Acme Corp", canonical_names)
         self.assertIn("Jane Doe", canonical_names)
-        relation_pairs = {(item["relation_type"], item["subject"], item["object"]) for item in artifacts.relations}
-        self.assertIn(("works_with", "International Business Machines", "Acme Corp"), relation_pairs)
-        self.assertIn(("reports_to", "Jane Doe", "International Business Machines"), relation_pairs)
-        ibm_entity = next(entity for entity in artifacts.entities if entity["surface_text"] == "IBM")
+        relation_pairs = {
+            (item["relation_type"], item["subject"], item["object"])
+            for item in artifacts.relations
+        }
+        self.assertIn(
+            ("works_with", "International Business Machines", "Acme Corp"), relation_pairs
+        )
+        self.assertIn(
+            ("reports_to", "Jane Doe", "International Business Machines"), relation_pairs
+        )
+        ibm_entity = next(
+            entity for entity in artifacts.entities if entity["surface_text"] == "IBM"
+        )
         self.assertIn("IBM", ibm_entity["aliases"])
         self.assertEqual(artifacts.temporal_metadata, {})
 
@@ -70,7 +79,9 @@ class SmokeTestEnrichment(SmokeTestBase):
         original_embed_texts = retrieval_module.embed_texts
         retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
-            response = perform_search(SearchRequest(question="keywordbanana alpha", k=5, mode="graph_hybrid", debug=True))
+            response = perform_search(
+                SearchRequest(question="keywordbanana alpha", k=5, mode="graph_hybrid", debug=True)
+            )
         finally:
             retrieval_module.embed_texts = original_embed_texts
             self._delete_retrieval_records(seeded.values())
@@ -157,7 +168,9 @@ class SmokeTestEnrichment(SmokeTestBase):
         )
         with engine.connect() as conn:
             chunk_rows = conn.execute(
-                text("SELECT id, chunk_index FROM chunks WHERE source_id = :source_id ORDER BY chunk_index ASC"),
+                text(
+                    "SELECT id, chunk_index FROM chunks WHERE source_id = :source_id ORDER BY chunk_index ASC"
+                ),
                 {"source_id": source_id},
             ).fetchall()
         chunk_id_by_index = {row[1]: row[0] for row in chunk_rows}
@@ -177,7 +190,15 @@ class SmokeTestEnrichment(SmokeTestBase):
                 ),
                 {
                     "source_id": source_id,
-                    "node_refs": json.dumps([{"chunk_id": chunk_id_by_index[1], "chunk_index": 1, "locator": {"page": 2}}]),
+                    "node_refs": json.dumps(
+                        [
+                            {
+                                "chunk_id": chunk_id_by_index[1],
+                                "chunk_index": 1,
+                                "locator": {"page": 2},
+                            }
+                        ]
+                    ),
                 },
             )
             conn.execute(
@@ -195,7 +216,15 @@ class SmokeTestEnrichment(SmokeTestBase):
                 ),
                 {
                     "source_id": source_id,
-                    "edge_refs": json.dumps([{"chunk_id": chunk_id_by_index[1], "chunk_index": 1, "locator": {"page": 2}}]),
+                    "edge_refs": json.dumps(
+                        [
+                            {
+                                "chunk_id": chunk_id_by_index[1],
+                                "chunk_index": 1,
+                                "locator": {"page": 2},
+                            }
+                        ]
+                    ),
                 },
             )
         update_chunk_embeddings(
@@ -238,7 +267,9 @@ class SmokeTestEnrichment(SmokeTestBase):
         original_embed_texts = retrieval_module.embed_texts
         retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
-            response = perform_search(SearchRequest(question="keywordbanana alpha", k=5, mode="full", debug=True))
+            response = perform_search(
+                SearchRequest(question="keywordbanana alpha", k=5, mode="full", debug=True)
+            )
         finally:
             retrieval_module.embed_texts = original_embed_texts
             self._delete_retrieval_records(seeded.values())
@@ -448,8 +479,12 @@ class SmokeTestEnrichment(SmokeTestBase):
         self.assertEqual(len(job_rows), 1)
         self.assertEqual(job_rows[0][0], "graph_artifact_build")
         self.assertEqual(job_rows[0][1], "completed")
-        self.assertEqual(source_metadata_json["graph"]["built_from_source_hash"], (suffix + "g") * 4)
-        self.assertEqual(source_metadata_json["temporal"]["built_from_source_hash"], (suffix + "g") * 4)
+        self.assertEqual(
+            source_metadata_json["graph"]["built_from_source_hash"], (suffix + "g") * 4
+        )
+        self.assertEqual(
+            source_metadata_json["temporal"]["built_from_source_hash"], (suffix + "g") * 4
+        )
         self.assertTrue(source_metadata_json["lazy_enrichment"]["triggered"])
 
     def test_m15_full_mode_skips_rerun_when_artifacts_are_current(self):
@@ -564,7 +599,9 @@ class SmokeTestEnrichment(SmokeTestBase):
         original_enable_temporal = settings.ENABLE_TEMPORAL
         original_extract_temporal = settings.EXTRACT_TEMPORAL_METADATA
         original_run_post = enrichment_module.run_post_ingestion_enrichment
-        enrichment_module.run_post_ingestion_enrichment = lambda **kwargs: (_ for _ in ()).throw(RuntimeError("boom"))
+        enrichment_module.run_post_ingestion_enrichment = lambda **kwargs: (_ for _ in ()).throw(
+            RuntimeError("boom")
+        )
         try:
             settings.ALLOW_LAZY_ENRICHMENT = True
             settings.ENABLE_GRAPH = True
@@ -665,7 +702,9 @@ class SmokeTestEnrichment(SmokeTestBase):
         settings.EXTRACT_ENTITIES = True
         settings.EXTRACT_RELATIONS = True
         settings.ENABLE_ONTOLOGY = True
-        enrichment_module.ensure_graph_artifacts = lambda **kwargs: (_ for _ in ()).throw(AssertionError("graph index should remain unused in M12"))
+        enrichment_module.ensure_graph_artifacts = lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("graph index should remain unused in M12")
+        )
         try:
             result = run_post_ingestion_enrichment(
                 source_id=source_id,
@@ -708,7 +747,9 @@ class SmokeTestEnrichment(SmokeTestBase):
         self.assertTrue(relations_json)
         self.assertEqual(temporal_json, {})
         self.assertIn("enrichment", provenance_json)
-        self.assertEqual(provenance_json["enrichment"]["artifact_version"], "m12-rule-based-extractor-v1")
+        self.assertEqual(
+            provenance_json["enrichment"]["artifact_version"], "m12-rule-based-extractor-v1"
+        )
         canonical_names = {entity["canonical_name"] for entity in entities_json}
         self.assertIn("International Business Machines", canonical_names)
         self.assertIn("Acme Corp", canonical_names)
@@ -806,7 +847,9 @@ class SmokeTestEnrichment(SmokeTestBase):
         self.assertEqual(temporal_json["effective_window"]["end"], "2024-12-31")
         self.assertTrue(temporal_json["document_version_refs"])
         self.assertIn("temporal", provenance_json)
-        self.assertEqual(provenance_json["temporal"]["artifact_version"], "m13-rule-based-temporal-v1")
+        self.assertEqual(
+            provenance_json["temporal"]["artifact_version"], "m13-rule-based-temporal-v1"
+        )
         self.assertIn("temporal", source_metadata_json)
         self.assertEqual(source_metadata_json["temporal"]["date_bounds"]["earliest"], "2024-01-15")
         self.assertEqual(source_metadata_json["temporal"]["date_bounds"]["latest"], "2024-12-31")
@@ -888,8 +931,12 @@ class SmokeTestEnrichment(SmokeTestBase):
         self.assertEqual(result.reason, "m13_rule_based_temporal_complete")
         self.assertEqual(temporal_json["fallback_reason"], "no_reliable_temporal_metadata")
         self.assertEqual(temporal_json["expressions"], [])
-        self.assertEqual(provenance_json["temporal"]["fallback_reason"], "no_reliable_temporal_metadata")
-        self.assertEqual(source_metadata_json["temporal"]["fallback_reason"], "no_reliable_temporal_metadata")
+        self.assertEqual(
+            provenance_json["temporal"]["fallback_reason"], "no_reliable_temporal_metadata"
+        )
+        self.assertEqual(
+            source_metadata_json["temporal"]["fallback_reason"], "no_reliable_temporal_metadata"
+        )
 
     def test_m14_graph_artifact_builds_from_enriched_chunks_without_retrieval_changes(self):
         suffix = uuid4().hex[:8]
@@ -1173,5 +1220,10 @@ class SmokeTestEnrichment(SmokeTestBase):
         finally:
             self._delete_seed_source(source_id)
 
-        self.assertEqual(updated.source_metadata_json["graph"]["artifact_version"], "m14-graph-artifact-v1")
-        self.assertEqual(updated.source_metadata_json["temporal"]["artifact_version"], "m13-rule-based-temporal-v1")
+        self.assertEqual(
+            updated.source_metadata_json["graph"]["artifact_version"], "m14-graph-artifact-v1"
+        )
+        self.assertEqual(
+            updated.source_metadata_json["temporal"]["artifact_version"],
+            "m13-rule-based-temporal-v1",
+        )

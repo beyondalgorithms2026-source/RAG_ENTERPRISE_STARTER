@@ -59,19 +59,24 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         original_get_effective_reranker = retrieval_module.get_effective_reranker
         original_resolver_get_effective_reranker = resolver_module.get_effective_reranker
         original_run_hybrid_baseline = retrieval_module._run_hybrid_baseline
-        original_apply_graph_and_temporal_layers = retrieval_module._apply_graph_and_temporal_layers
+        original_apply_graph_and_temporal_layers = (
+            retrieval_module._apply_graph_and_temporal_layers
+        )
         original_get_sources_by_ids = retrieval_module.get_sources_by_ids
         original_rerank = reranker_module.rerank
         original_fetch_embeddings = None
         try:
-            patched_reranker_profile = lambda: RerankerProfileConfig(
-                enabled=True,
-                enabled_modes=["hybrid"],
-                enabled_corpora=["ops"],
-                min_candidate_count=2,
-                latency_budget_ms=100,
-                mmr_enabled=True,
-            )
+
+            def patched_reranker_profile():
+                return RerankerProfileConfig(
+                    enabled=True,
+                    enabled_modes=["hybrid"],
+                    enabled_corpora=["ops"],
+                    min_candidate_count=2,
+                    latency_budget_ms=100,
+                    mmr_enabled=True,
+                )
+
             retrieval_module.get_effective_reranker = patched_reranker_profile
             resolver_module.get_effective_reranker = patched_reranker_profile
             retrieval_module._run_hybrid_baseline = lambda **kwargs: (
@@ -114,11 +119,20 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
             retrieval_module._apply_graph_and_temporal_layers = lambda **kwargs: (
                 kwargs["raw_results"],
                 kwargs["resolved_mode"],
-                {"graph_used": False, "graph_reason": "not_requested", "temporal_used": False, "temporal_reason": "not_requested"},
+                {
+                    "graph_used": False,
+                    "graph_reason": "not_requested",
+                    "temporal_used": False,
+                    "temporal_reason": "not_requested",
+                },
             )
             retrieval_module.get_sources_by_ids = lambda ids: {
-                101: SimpleNamespace(id=101, sensitivity_label="public", source_metadata_json={"corpus": "ops"}),
-                102: SimpleNamespace(id=102, sensitivity_label="public", source_metadata_json={"corpus": "ops"}),
+                101: SimpleNamespace(
+                    id=101, sensitivity_label="public", source_metadata_json={"corpus": "ops"}
+                ),
+                102: SimpleNamespace(
+                    id=102, sensitivity_label="public", source_metadata_json={"corpus": "ops"}
+                ),
             }
             reranker_module.rerank = lambda question, chunks: [
                 {**chunk, "rerank_score": 0.95 - (index * 0.1)}
@@ -129,12 +143,16 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
             original_fetch_embeddings = repo_chunks.fetch_chunk_embeddings
             repo_chunks.fetch_chunk_embeddings = lambda ids: {11: [1.0, 0.0], 12: [0.0, 1.0]}
 
-            response = perform_search(SearchRequest(question="ops policy", k=2, mode="hybrid", debug=True))
+            response = perform_search(
+                SearchRequest(question="ops policy", k=2, mode="hybrid", debug=True)
+            )
         finally:
             retrieval_module.get_effective_reranker = original_get_effective_reranker
             resolver_module.get_effective_reranker = original_resolver_get_effective_reranker
             retrieval_module._run_hybrid_baseline = original_run_hybrid_baseline
-            retrieval_module._apply_graph_and_temporal_layers = original_apply_graph_and_temporal_layers
+            retrieval_module._apply_graph_and_temporal_layers = (
+                original_apply_graph_and_temporal_layers
+            )
             retrieval_module.get_sources_by_ids = original_get_sources_by_ids
             reranker_module.rerank = original_rerank
             if original_fetch_embeddings is not None:
@@ -148,7 +166,9 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         self.assertEqual(response.debug_info["rerank_policy"]["observed_corpora"], ["ops"])
         self.assertTrue(response.debug_info["rerank_policy"]["mmr"]["enabled"])
         self.assertTrue(response.debug_info["rerank_policy"]["mmr"]["applied"])
-        self.assertEqual(response.debug_info["rerank_policy"]["mmr"]["reason"], "eval_proven_diversity")
+        self.assertEqual(
+            response.debug_info["rerank_policy"]["mmr"]["reason"], "eval_proven_diversity"
+        )
         self.assertEqual(response.debug_info["latency_ms"]["rerank"], 0)
 
     def test_m7_router_selects_keyword_for_quote_like_lookup(self):
@@ -185,7 +205,9 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         self.assertEqual(decision.reason, "identifier_lookup_signal")
         self.assertTrue(decision.reason_details["identifier_like"])
 
-    def test_m7_router_routes_date_heavy_lexical_queries_keyword_first_without_temporal_artifacts(self):
+    def test_m7_router_routes_date_heavy_lexical_queries_keyword_first_without_temporal_artifacts(
+        self,
+    ):
         original_use_router = settings.USE_QUERY_ROUTER
         try:
             settings.USE_QUERY_ROUTER = True
@@ -230,7 +252,9 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
             settings.USE_QUERY_ROUTER = True
-            response = perform_search(SearchRequest(question="Who reports to IBM?", k=5, mode="vector", debug=True))
+            response = perform_search(
+                SearchRequest(question="Who reports to IBM?", k=5, mode="vector", debug=True)
+            )
         finally:
             settings.USE_QUERY_ROUTER = original_use_router
             retrieval_module.embed_texts = original_embed_texts
@@ -440,7 +464,9 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         )
         with engine.connect() as conn:
             chunk_rows = conn.execute(
-                text("SELECT id, chunk_index FROM chunks WHERE source_id = :source_id ORDER BY chunk_index ASC"),
+                text(
+                    "SELECT id, chunk_index FROM chunks WHERE source_id = :source_id ORDER BY chunk_index ASC"
+                ),
                 {"source_id": source_id},
             ).fetchall()
         chunk_id_by_index = {row[1]: row[0] for row in chunk_rows}
@@ -460,7 +486,15 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
                 ),
                 {
                     "source_id": source_id,
-                    "node_refs": json.dumps([{"chunk_id": chunk_id_by_index[1], "chunk_index": 1, "locator": {"page": 2}}]),
+                    "node_refs": json.dumps(
+                        [
+                            {
+                                "chunk_id": chunk_id_by_index[1],
+                                "chunk_index": 1,
+                                "locator": {"page": 2},
+                            }
+                        ]
+                    ),
                 },
             )
             conn.execute(
@@ -478,7 +512,15 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
                 ),
                 {
                     "source_id": source_id,
-                    "edge_refs": json.dumps([{"chunk_id": chunk_id_by_index[1], "chunk_index": 1, "locator": {"page": 2}}]),
+                    "edge_refs": json.dumps(
+                        [
+                            {
+                                "chunk_id": chunk_id_by_index[1],
+                                "chunk_index": 1,
+                                "locator": {"page": 2},
+                            }
+                        ]
+                    ),
                 },
             )
         update_chunk_embeddings(
@@ -613,7 +655,9 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         self.assertIn("user_prompt", payload["debug_info"])
 
     def test_m18_compare_requires_explicit_source_scope(self):
-        response = compare_endpoint(CompareRequest(question="Compare these", source_ids=[1], dry_run=True))
+        response = compare_endpoint(
+            CompareRequest(question="Compare these", source_ids=[1], dry_run=True)
+        )
         self.assertEqual(response.answer, "Not found in provided sources.")
         self.assertEqual(response.sources, [])
         self.assertEqual(response.debug_info["error"], "compare_requires_at_least_two_source_ids")
@@ -740,7 +784,9 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
     def test_m18_baseline_ask_remains_unchanged_when_compare_not_requested(self):
         seeded = self._seed_retrieval_records()
         try:
-            response = ask_endpoint(AskRequest(question='"keywordbanana"', mode="keyword", dry_run=True))
+            response = ask_endpoint(
+                AskRequest(question='"keywordbanana"', mode="keyword", dry_run=True)
+            )
         finally:
             self._delete_retrieval_records(seeded.values())
 
@@ -753,7 +799,10 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         answer_cases = load_answer_cases(EVAL_FIXTURE_DIR / "answer_cases.json")
         compare_cases = load_compare_cases(EVAL_FIXTURE_DIR / "compare_cases.json")
 
-        self.assertEqual({case["request"]["mode"] for case in retrieval_cases if case["request"].get("mode")}, {"vector", "keyword", "hybrid", "graph_hybrid", "full"})
+        self.assertEqual(
+            {case["request"]["mode"] for case in retrieval_cases if case["request"].get("mode")},
+            {"vector", "keyword", "hybrid", "graph_hybrid", "full"},
+        )
         self.assertTrue(any(case.get("surface") == "deep_lookup" for case in retrieval_cases))
         self.assertTrue(answer_cases)
         self.assertTrue(compare_cases)
@@ -886,11 +935,25 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
                     "locator_json": {"page": 1},
                     "provenance_json": {"test": "m19"},
                     "entities_json": [
-                        {"canonical_name": "International Business Machines", "entity_type": "organization", "ontology_tags": ["organization"], "aliases": ["IBM", "International Business Machines"]},
-                        {"canonical_name": "Acme Corp", "entity_type": "organization", "ontology_tags": ["organization"], "aliases": ["Acme Corp"]},
+                        {
+                            "canonical_name": "International Business Machines",
+                            "entity_type": "organization",
+                            "ontology_tags": ["organization"],
+                            "aliases": ["IBM", "International Business Machines"],
+                        },
+                        {
+                            "canonical_name": "Acme Corp",
+                            "entity_type": "organization",
+                            "ontology_tags": ["organization"],
+                            "aliases": ["Acme Corp"],
+                        },
                     ],
                     "relations_json": [
-                        {"relation_type": "works_with", "subject": "International Business Machines", "object": "Acme Corp"}
+                        {
+                            "relation_type": "works_with",
+                            "subject": "International Business Machines",
+                            "object": "Acme Corp",
+                        }
                     ],
                 }
             ],
@@ -975,7 +1038,10 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
                 elif binding == "deep_lookup_docx_source_ids":
                     case["request"]["source_ids"] = [retrieval_seeded["docx_source_id"]]
                 elif binding == "deep_lookup_pair_source_ids":
-                    case["request"]["source_ids"] = [retrieval_seeded["pdf_source_id"], retrieval_seeded["docx_source_id"]]
+                    case["request"]["source_ids"] = [
+                        retrieval_seeded["pdf_source_id"],
+                        retrieval_seeded["docx_source_id"],
+                    ]
 
             with TemporaryDirectory() as tmpdir:
                 report = run_retrieval_eval(
@@ -996,7 +1062,10 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
 
         self.assertEqual(report["summary"]["kind"], "retrieval")
         self.assertEqual(report["summary"]["failed"], 0)
-        self.assertEqual(set(report["summary"]["evaluated_modes"]), {"vector", "keyword", "hybrid", "graph_hybrid", "full", "deep_lookup"})
+        self.assertEqual(
+            set(report["summary"]["evaluated_modes"]),
+            {"vector", "keyword", "hybrid", "graph_hybrid", "full", "deep_lookup"},
+        )
         self.assertIn("report_metadata", report)
         self.assertIn("active_profiles", report["report_metadata"])
         self.assertIn("retrieval_settings", report["report_metadata"])
@@ -1004,13 +1073,15 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         self.assertTrue(report_path_exists)
 
     def test_m26_deep_lookup_bypasses_router_and_stays_source_scoped(self):
+        import app.core_rag.retrieval as retrieval_module
         from app.api.deep_lookup import deep_lookup_endpoint
         from app.core_rag.retrieval import DeepLookupRequest
-        import app.core_rag.retrieval as retrieval_module
 
         seeded = self._seed_retrieval_records()
         original_route_query = retrieval_module.route_query
-        retrieval_module.route_query = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("router should not run"))
+        retrieval_module.route_query = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("router should not run")
+        )
         try:
             response = deep_lookup_endpoint(
                 DeepLookupRequest(
@@ -1025,7 +1096,9 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
 
         self.assertEqual(response.mode, "deep_lookup")
         self.assertTrue(response.results)
-        self.assertTrue(all(item.source_id == seeded["docx_source_id"] for item in response.results))
+        self.assertTrue(
+            all(item.source_id == seeded["docx_source_id"] for item in response.results)
+        )
 
     def test_m26_ask_fallback_remains_unchanged(self):
         import app.api.ask as ask_api_module
@@ -1034,7 +1107,9 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         original_verify_llm_ready = ask_api_module.verify_llm_ready
         original_perform_search = answering_module.perform_search
         ask_api_module.verify_llm_ready = lambda: True
-        answering_module.perform_search = lambda request: SearchResponse(results=[], latency_ms=1, mode="hybrid")
+        answering_module.perform_search = lambda request: SearchResponse(
+            results=[], latency_ms=1, mode="hybrid"
+        )
         try:
             response = ask_endpoint(
                 AskRequest(
@@ -1051,7 +1126,9 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         self.assertEqual(response.answer, "Not found in provided sources.")
 
     def test_m26_compare_remains_explicit_and_separate(self):
-        response = compare_endpoint(CompareRequest(question="Compare these", source_ids=[1], dry_run=True))
+        response = compare_endpoint(
+            CompareRequest(question="Compare these", source_ids=[1], dry_run=True)
+        )
         self.assertEqual(response.answer, "Not found in provided sources.")
         self.assertEqual(response.debug_info["error"], "compare_requires_at_least_two_source_ids")
 
@@ -1062,12 +1139,21 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
             compare_cases = load_compare_cases(EVAL_FIXTURE_DIR / "compare_cases.json")
             for case in compare_cases:
                 if case.get("binding") == "compare_source_ids":
-                    case["request"]["source_ids"] = [seeded["pdf_source_id"], seeded["docx_source_id"]]
+                    case["request"]["source_ids"] = [
+                        seeded["pdf_source_id"],
+                        seeded["docx_source_id"],
+                    ]
                     expected = case.get("expected", {})
                     if case["id"] == "compare_citation_grounding":
-                        expected["grouped_source_ids"] = [seeded["pdf_source_id"], seeded["docx_source_id"]]
+                        expected["grouped_source_ids"] = [
+                            seeded["pdf_source_id"],
+                            seeded["docx_source_id"],
+                        ]
                     if case["id"] == "compare_explicit_hybrid_dry_run":
-                        expected["grouped_source_ids"] = [seeded["pdf_source_id"], seeded["docx_source_id"]]
+                        expected["grouped_source_ids"] = [
+                            seeded["pdf_source_id"],
+                            seeded["docx_source_id"],
+                        ]
 
             with TemporaryDirectory() as tmpdir:
                 report = run_enriched_eval(
@@ -1197,7 +1283,9 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
                 ),
                 {
                     "source_id": source_id,
-                    "node_refs": json.dumps([{"chunk_id": chunk_id, "chunk_index": 0, "locator": {"page": 1}}]),
+                    "node_refs": json.dumps(
+                        [{"chunk_id": chunk_id, "chunk_index": 0, "locator": {"page": 1}}]
+                    ),
                 },
             )
             conn.execute(
@@ -1215,7 +1303,9 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
                 ),
                 {
                     "source_id": source_id,
-                    "edge_refs": json.dumps([{"chunk_id": chunk_id, "chunk_index": 0, "locator": {"page": 1}}]),
+                    "edge_refs": json.dumps(
+                        [{"chunk_id": chunk_id, "chunk_index": 0, "locator": {"page": 1}}]
+                    ),
                 },
             )
         update_chunk_embeddings([(chunk_id, basis_vector(1.0))])
@@ -1225,7 +1315,9 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         original_enable_graph = settings.ENABLE_GRAPH
         original_enable_temporal = settings.ENABLE_TEMPORAL
         original_embed_texts = retrieval_module.embed_texts
-        tmp_report = self._track_temp_cleanup_path(EVAL_FIXTURE_DIR / "benchmarks" / "tmp_smoke_benchmark_report.json")
+        tmp_report = self._track_temp_cleanup_path(
+            EVAL_FIXTURE_DIR / "benchmarks" / "tmp_smoke_benchmark_report.json"
+        )
         benchmark_case = {
             "id": "m20_smoke_case",
             "category": "relationship_heavy",
@@ -1250,7 +1342,7 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
                     "not_found_allowed": False,
                 },
             },
-            "mock_llm_content": "{\"answer\":\"IBM and 2024 are both supported in the benchmark chunk [S1]\",\"citations\":[\"S1\"]}",
+            "mock_llm_content": '{"answer":"IBM and 2024 are both supported in the benchmark chunk [S1]","citations":["S1"]}',
             "settings_overrides": {"ENABLE_GRAPH": True, "ENABLE_TEMPORAL": True},
         }
         try:
@@ -1275,7 +1367,9 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
         self.assertIn("active_profiles", report["report_metadata"])
         self.assertIn("retrieval_settings", report["report_metadata"])
         mode_names = [item["mode"] for item in report["results"][0]["modes"]]
-        self.assertEqual(mode_names, ["vector", "keyword", "hybrid", "graph_hybrid", "full", "deep_lookup"])
+        self.assertEqual(
+            mode_names, ["vector", "keyword", "hybrid", "graph_hybrid", "full", "deep_lookup"]
+        )
         for item in report["results"][0]["modes"]:
             self.assertIn("retrieval_relevance", item)
             self.assertIn("citation_quality", item)
@@ -1314,14 +1408,20 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
                     "candidate_counts": {"pre_rerank": 3, "post_rerank": 1},
                     "latency_ms": {
                         "search": 12,
-                        "rerank": 14 if compare_eval_module.get_effective_reranker().enabled else 0,
-                        "total": 26 if compare_eval_module.get_effective_reranker().enabled else 12,
+                        "rerank": 14
+                        if compare_eval_module.get_effective_reranker().enabled
+                        else 0,
+                        "total": 26
+                        if compare_eval_module.get_effective_reranker().enabled
+                        else 12,
                     },
                     "rerank_policy": {
                         "enabled": compare_eval_module.get_effective_reranker().enabled,
                         "eligible": True,
                         "applied": compare_eval_module.get_effective_reranker().enabled,
-                        "reason": "eligible_policy_match" if compare_eval_module.get_effective_reranker().enabled else "reranker_disabled",
+                        "reason": "eligible_policy_match"
+                        if compare_eval_module.get_effective_reranker().enabled
+                        else "reranker_disabled",
                     },
                 },
             )
@@ -1351,14 +1451,20 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
                         "candidate_counts": {"pre_rerank": 3, "post_rerank": 1},
                         "latency_ms": {
                             "search": 12,
-                            "rerank": 14 if compare_eval_module.get_effective_reranker().enabled else 0,
-                            "total": 26 if compare_eval_module.get_effective_reranker().enabled else 12,
+                            "rerank": 14
+                            if compare_eval_module.get_effective_reranker().enabled
+                            else 0,
+                            "total": 26
+                            if compare_eval_module.get_effective_reranker().enabled
+                            else 12,
                         },
                         "rerank_policy": {
                             "enabled": compare_eval_module.get_effective_reranker().enabled,
                             "eligible": True,
                             "applied": compare_eval_module.get_effective_reranker().enabled,
-                            "reason": "eligible_policy_match" if compare_eval_module.get_effective_reranker().enabled else "reranker_disabled",
+                            "reason": "eligible_policy_match"
+                            if compare_eval_module.get_effective_reranker().enabled
+                            else "reranker_disabled",
                         },
                     },
                 },
@@ -1370,14 +1476,28 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
                         "id": "m8_rerank_ab",
                         "category": "rerank_ab",
                         "question": "What is the rerank benchmark result?",
-                        "request": {"question": "What is the rerank benchmark result?", "k": 3, "k_chunks": 2},
+                        "request": {
+                            "question": "What is the rerank benchmark result?",
+                            "k": 3,
+                            "k_chunks": 2,
+                        },
                         "modes": ["hybrid"],
                         "rerank_variants": [
                             {"label": "rerank_off", "overrides": {"enabled": False}},
-                            {"label": "rerank_on", "overrides": {"enabled": True, "enabled_modes": ["hybrid"], "min_candidate_count": 1}},
+                            {
+                                "label": "rerank_on",
+                                "overrides": {
+                                    "enabled": True,
+                                    "enabled_modes": ["hybrid"],
+                                    "min_candidate_count": 1,
+                                },
+                            },
                         ],
                         "expected": {
-                            "retrieval": {"headings_any": ["Ops Benchmark"], "source_types_any": ["pdf"]},
+                            "retrieval": {
+                                "headings_any": ["Ops Benchmark"],
+                                "source_types_any": ["pdf"],
+                            },
                             "citations": {"min_citations": 1, "source_ids": [10]},
                             "answer": {"contains_any": ["Supported"], "not_found_allowed": False},
                         },
@@ -1388,8 +1508,15 @@ class SmokeTestRouterCompareEval(SmokeTestBase):
             compare_eval_module.perform_search = original_perform_search
             compare_eval_module.ask_endpoint = original_ask_endpoint
 
-        self.assertEqual(report["summary"]["evaluated_rerank_variants"], ["rerank_off", "rerank_on"])
+        self.assertEqual(
+            report["summary"]["evaluated_rerank_variants"], ["rerank_off", "rerank_on"]
+        )
         self.assertIn("rerank_latency_report", report["summary"])
         self.assertEqual(len(report["summary"]["rerank_latency_report"]["variants"]), 2)
-        self.assertEqual(report["summary"]["rerank_latency_report"]["deltas"][0]["target_variant"], "rerank_on")
-        self.assertEqual(report["summary"]["rerank_latency_report"]["deltas"][0]["delta_avg_rerank_latency_ms"], 14.0)
+        self.assertEqual(
+            report["summary"]["rerank_latency_report"]["deltas"][0]["target_variant"], "rerank_on"
+        )
+        self.assertEqual(
+            report["summary"]["rerank_latency_report"]["deltas"][0]["delta_avg_rerank_latency_ms"],
+            14.0,
+        )

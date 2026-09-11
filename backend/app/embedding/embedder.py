@@ -29,9 +29,7 @@ class _SentenceTransformerProvider:
         self._model = SentenceTransformer(profile.model)
         dimension = self._model.get_sentence_embedding_dimension()
         if dimension is None:
-            dimension = len(
-                self._model.encode(["dimension probe"], normalize_embeddings=True)[0]
-            )
+            dimension = len(self._model.encode(["dimension probe"], normalize_embeddings=True)[0])
         self._dimension = int(dimension)
         if self._dimension != int(profile.dimension):
             raise RuntimeError(
@@ -56,9 +54,7 @@ class _SentenceTransformerProvider:
 class _OpenAIEmbeddingProvider:
     def __init__(self, profile: EmbeddingProfileConfig):
         if not settings.EMBEDDING_API_KEY:
-            raise RuntimeError(
-                "EMBEDDING_API_KEY is required for EMBEDDING_PROVIDER=openai."
-            )
+            raise RuntimeError("EMBEDDING_API_KEY is required for EMBEDDING_PROVIDER=openai.")
         if not profile.model.startswith("text-embedding-3-"):
             raise RuntimeError(
                 "The configured OpenAI embedding model must support the dimensions parameter "
@@ -138,6 +134,7 @@ def _build_provider(profile: EmbeddingProfileConfig) -> _EmbeddingProvider:
 def get_model():
     global _model, _EXPECTED_DIM, _loaded_profile_key
     from app.profiles.resolver import get_effective_embedding
+
     profile = get_effective_embedding()
     profile_key = (
         _provider_name(profile.provider),

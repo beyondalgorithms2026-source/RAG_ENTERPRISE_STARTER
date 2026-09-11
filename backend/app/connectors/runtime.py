@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Any, Optional
+from typing import Any
 
 from app.core.config import settings
 from app.core.logging import log_event, logger
@@ -19,7 +19,7 @@ class ConnectorSyncConflict(RuntimeError):
     pass
 
 
-_scheduler_thread: Optional[threading.Thread] = None
+_scheduler_thread: threading.Thread | None = None
 _scheduler_lock = threading.Lock()
 _scheduler_wakeup = threading.Event()
 
@@ -32,7 +32,9 @@ def retry_delay_seconds(consecutive_failures: int) -> int:
     )
 
 
-def _execute_claimed_sync(connector: DbConnectorRow, *, trigger_type: str, row_limit: int) -> dict[str, Any]:
+def _execute_claimed_sync(
+    connector: DbConnectorRow, *, trigger_type: str, row_limit: int
+) -> dict[str, Any]:
     from app.connectors.db import _ingest_db_connector_rows
 
     attempt_number = int(connector.consecutive_failures or 0) + 1
@@ -51,7 +53,9 @@ def _execute_claimed_sync(connector: DbConnectorRow, *, trigger_type: str, row_l
             source_ids=list(result["source_ids"]),
             run_id=run_id,
         )
-        return {key: value for key, value in result.items() if not key.startswith("last_cursor_")} | {"run_id": run_id}
+        return {
+            key: value for key, value in result.items() if not key.startswith("last_cursor_")
+        } | {"run_id": run_id}
     except Exception as exc:
         delay = retry_delay_seconds(connector.consecutive_failures)
         mark_db_connector_sync_failed(
@@ -70,7 +74,9 @@ def _execute_claimed_sync(connector: DbConnectorRow, *, trigger_type: str, row_l
         raise
 
 
-def run_connector_sync(connector_id: int, *, trigger_type: str, row_limit: int = 200) -> dict[str, Any]:
+def run_connector_sync(
+    connector_id: int, *, trigger_type: str, row_limit: int = 200
+) -> dict[str, Any]:
     connector = claim_db_connector(connector_id, lease_seconds=settings.CONNECTOR_LEASE_SECONDS)
     if connector is None:
         from app.db.repo_connectors import get_db_connector
@@ -81,7 +87,7 @@ def run_connector_sync(connector_id: int, *, trigger_type: str, row_limit: int =
     return _execute_claimed_sync(connector, trigger_type=trigger_type, row_limit=row_limit)
 
 
-def run_due_connector_once(*, row_limit: int = 200) -> Optional[dict[str, Any]]:
+def run_due_connector_once(*, row_limit: int = 200) -> dict[str, Any] | None:
     connector = claim_due_db_connector(lease_seconds=settings.CONNECTOR_LEASE_SECONDS)
     if connector is None:
         return None

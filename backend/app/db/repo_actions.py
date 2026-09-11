@@ -1,11 +1,10 @@
 import json
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
-
-from sqlalchemy import text
+from typing import Any
 
 from app.auth.context import AuthenticatedUser
 from app.db.db import engine
+from sqlalchemy import text
 
 
 @dataclass
@@ -13,16 +12,16 @@ class ToolInvocationRow:
     id: int
     tool_name: str
     status: str
-    actor_external_user_id: Optional[str]
-    actor_email: Optional[str]
-    actor_roles_json: List[str]
-    corpus_name: Optional[str]
-    request_payload_json: Dict[str, Any]
-    result_payload_json: Dict[str, Any]
-    denial_reason: Optional[str]
-    approval_request_id: Optional[int]
-    created_at: Optional[str]
-    completed_at: Optional[str]
+    actor_external_user_id: str | None
+    actor_email: str | None
+    actor_roles_json: list[str]
+    corpus_name: str | None
+    request_payload_json: dict[str, Any]
+    result_payload_json: dict[str, Any]
+    denial_reason: str | None
+    approval_request_id: int | None
+    created_at: str | None
+    completed_at: str | None
 
 
 @dataclass
@@ -31,16 +30,16 @@ class ApprovalRequestRow:
     approval_type: str
     status: str
     reason: str
-    requester_external_user_id: Optional[str]
-    requester_email: Optional[str]
-    requester_display_name: Optional[str]
-    requested_payload_json: Dict[str, Any]
-    response_payload_json: Dict[str, Any]
-    reviewed_by_external_user_id: Optional[str]
-    reviewed_by_email: Optional[str]
-    review_reason: Optional[str]
-    created_at: Optional[str]
-    reviewed_at: Optional[str]
+    requester_external_user_id: str | None
+    requester_email: str | None
+    requester_display_name: str | None
+    requested_payload_json: dict[str, Any]
+    response_payload_json: dict[str, Any]
+    reviewed_by_external_user_id: str | None
+    reviewed_by_email: str | None
+    review_reason: str | None
+    created_at: str | None
+    reviewed_at: str | None
 
 
 @dataclass
@@ -48,15 +47,15 @@ class QueryFeedbackRow:
     id: int
     question: str
     feedback_type: str
-    rating: Optional[str]
+    rating: str | None
     reason: str
-    suggested_source: Optional[str]
-    request_id: Optional[str]
-    answer_path: Optional[str]
-    actor_external_user_id: Optional[str]
-    actor_email: Optional[str]
-    metadata_json: Dict[str, Any]
-    created_at: Optional[str]
+    suggested_source: str | None
+    request_id: str | None
+    answer_path: str | None
+    actor_external_user_id: str | None
+    actor_email: str | None
+    metadata_json: dict[str, Any]
+    created_at: str | None
 
 
 @dataclass
@@ -66,20 +65,20 @@ class NegativeFeedbackEventRow:
     answer_text: str
     negative_reason: str
     note: str
-    request_id: Optional[str]
-    answer_path: Optional[str]
+    request_id: str | None
+    answer_path: str | None
     used_chunks_count: int
-    actor_external_user_id: Optional[str]
-    actor_email: Optional[str]
-    citations_json: List[Dict[str, Any]]
-    cited_source_ids_json: List[int]
-    cited_chunk_ids_json: List[int]
-    active_profile_snapshot_json: Dict[str, Any]
-    metadata_json: Dict[str, Any]
-    created_at: Optional[str]
+    actor_external_user_id: str | None
+    actor_email: str | None
+    citations_json: list[dict[str, Any]]
+    cited_source_ids_json: list[int]
+    cited_chunk_ids_json: list[int]
+    active_profile_snapshot_json: dict[str, Any]
+    metadata_json: dict[str, Any]
+    created_at: str | None
 
 
-def _actor_payload(actor: Optional[AuthenticatedUser]) -> Dict[str, Any]:
+def _actor_payload(actor: AuthenticatedUser | None) -> dict[str, Any]:
     return {
         "actor_external_user_id": actor.user_id if actor else None,
         "actor_email": actor.email if actor else None,
@@ -109,12 +108,12 @@ def create_tool_invocation(
     *,
     tool_name: str,
     status: str,
-    actor: Optional[AuthenticatedUser],
-    corpus_name: Optional[str],
-    request_payload_json: Dict[str, Any],
-    result_payload_json: Optional[Dict[str, Any]] = None,
-    denial_reason: Optional[str] = None,
-    approval_request_id: Optional[int] = None,
+    actor: AuthenticatedUser | None,
+    corpus_name: str | None,
+    request_payload_json: dict[str, Any],
+    result_payload_json: dict[str, Any] | None = None,
+    denial_reason: str | None = None,
+    approval_request_id: int | None = None,
 ) -> int:
     sql = text(
         """
@@ -149,7 +148,7 @@ def create_tool_invocation(
         return int(conn.execute(sql, params).scalar_one())
 
 
-def list_tool_invocations(limit: int = 100) -> List[ToolInvocationRow]:
+def list_tool_invocations(limit: int = 100) -> list[ToolInvocationRow]:
     sql = text(
         """
         SELECT id, tool_name, status, actor_external_user_id, actor_email, actor_roles_json,
@@ -187,9 +186,9 @@ def create_approval_request(
     *,
     approval_type: str,
     reason: str,
-    actor: Optional[AuthenticatedUser],
-    requested_payload_json: Dict[str, Any],
-    response_payload_json: Optional[Dict[str, Any]] = None,
+    actor: AuthenticatedUser | None,
+    requested_payload_json: dict[str, Any],
+    response_payload_json: dict[str, Any] | None = None,
 ) -> int:
     sql = text(
         """
@@ -222,7 +221,7 @@ def create_approval_request(
         )
 
 
-def get_approval_request(approval_id: int) -> Optional[ApprovalRequestRow]:
+def get_approval_request(approval_id: int) -> ApprovalRequestRow | None:
     sql = text(
         """
         SELECT id, approval_type, status, reason, requester_external_user_id, requester_email,
@@ -237,9 +236,11 @@ def get_approval_request(approval_id: int) -> Optional[ApprovalRequestRow]:
     return _row_to_approval(row) if row else None
 
 
-def list_approval_requests(*, requester_external_user_id: Optional[str] = None, limit: int = 100) -> List[ApprovalRequestRow]:
+def list_approval_requests(
+    *, requester_external_user_id: str | None = None, limit: int = 100
+) -> list[ApprovalRequestRow]:
     conditions = []
-    params: Dict[str, Any] = {"limit": limit}
+    params: dict[str, Any] = {"limit": limit}
     if requester_external_user_id:
         conditions.append("requester_external_user_id = :requester_external_user_id")
         params["requester_external_user_id"] = requester_external_user_id
@@ -264,8 +265,8 @@ def review_approval_request(
     approval_id: int,
     status: str,
     review_reason: str,
-    reviewer: Optional[AuthenticatedUser],
-) -> Optional[ApprovalRequestRow]:
+    reviewer: AuthenticatedUser | None,
+) -> ApprovalRequestRow | None:
     sql = text(
         """
         UPDATE approval_requests
@@ -336,13 +337,13 @@ def create_query_feedback(
     *,
     question: str,
     feedback_type: str,
-    rating: Optional[str],
+    rating: str | None,
     reason: str,
-    suggested_source: Optional[str],
-    request_id: Optional[str],
-    answer_path: Optional[str],
-    actor: Optional[AuthenticatedUser],
-    metadata_json: Optional[Dict[str, Any]] = None,
+    suggested_source: str | None,
+    request_id: str | None,
+    answer_path: str | None,
+    actor: AuthenticatedUser | None,
+    metadata_json: dict[str, Any] | None = None,
 ) -> int:
     sql = text(
         """
@@ -383,15 +384,15 @@ def create_negative_feedback_event(
     answer_text: str,
     negative_reason: str,
     note: str,
-    request_id: Optional[str],
-    answer_path: Optional[str],
+    request_id: str | None,
+    answer_path: str | None,
     used_chunks_count: int,
-    actor: Optional[AuthenticatedUser],
-    citations_json: List[Dict[str, Any]],
-    cited_source_ids_json: List[int],
-    cited_chunk_ids_json: List[int],
-    active_profile_snapshot_json: Optional[Dict[str, Any]] = None,
-    metadata_json: Optional[Dict[str, Any]] = None,
+    actor: AuthenticatedUser | None,
+    citations_json: list[dict[str, Any]],
+    cited_source_ids_json: list[int],
+    cited_chunk_ids_json: list[int],
+    active_profile_snapshot_json: dict[str, Any] | None = None,
+    metadata_json: dict[str, Any] | None = None,
 ) -> int:
     sql = text(
         """
@@ -435,7 +436,7 @@ def create_negative_feedback_event(
         )
 
 
-def list_query_feedback(limit: int = 100) -> List[QueryFeedbackRow]:
+def list_query_feedback(limit: int = 100) -> list[QueryFeedbackRow]:
     sql = text(
         """
         SELECT id, question, feedback_type, rating, reason, suggested_source, request_id,
@@ -449,7 +450,7 @@ def list_query_feedback(limit: int = 100) -> List[QueryFeedbackRow]:
         return [_row_to_feedback(row) for row in conn.execute(sql, {"limit": limit}).fetchall()]
 
 
-def list_negative_feedback_events(limit: int = 100) -> List[NegativeFeedbackEventRow]:
+def list_negative_feedback_events(limit: int = 100) -> list[NegativeFeedbackEventRow]:
     sql = text(
         """
         SELECT id, question, answer_text, negative_reason, note, request_id, answer_path,
@@ -462,10 +463,13 @@ def list_negative_feedback_events(limit: int = 100) -> List[NegativeFeedbackEven
         """
     )
     with engine.connect() as conn:
-        return [_row_to_negative_feedback(row) for row in conn.execute(sql, {"limit": limit}).fetchall()]
+        return [
+            _row_to_negative_feedback(row)
+            for row in conn.execute(sql, {"limit": limit}).fetchall()
+        ]
 
 
-def negative_feedback_reason_counts(limit: int = 20) -> List[Dict[str, Any]]:
+def negative_feedback_reason_counts(limit: int = 20) -> list[dict[str, Any]]:
     sql = text(
         """
         SELECT negative_reason, COUNT(*)::bigint AS count, MAX(created_at) AS latest_at
@@ -477,12 +481,16 @@ def negative_feedback_reason_counts(limit: int = 20) -> List[Dict[str, Any]]:
     )
     with engine.connect() as conn:
         return [
-            {"negative_reason": row[0], "count": int(row[1]), "latest_at": str(row[2]) if row[2] else None}
+            {
+                "negative_reason": row[0],
+                "count": int(row[1]),
+                "latest_at": str(row[2]) if row[2] else None,
+            }
             for row in conn.execute(sql, {"limit": limit}).fetchall()
         ]
 
 
-def top_failed_queries(limit: int = 10) -> List[Dict[str, Any]]:
+def top_failed_queries(limit: int = 10) -> list[dict[str, Any]]:
     sql = text(
         """
         SELECT question, COUNT(*)::bigint AS count, MAX(created_at) AS latest_at
@@ -496,6 +504,10 @@ def top_failed_queries(limit: int = 10) -> List[Dict[str, Any]]:
     )
     with engine.connect() as conn:
         return [
-            {"question": row[0], "count": int(row[1]), "latest_at": str(row[2]) if row[2] else None}
+            {
+                "question": row[0],
+                "count": int(row[1]),
+                "latest_at": str(row[2]) if row[2] else None,
+            }
             for row in conn.execute(sql, {"limit": limit}).fetchall()
         ]

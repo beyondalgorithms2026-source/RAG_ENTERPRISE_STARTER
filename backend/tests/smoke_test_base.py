@@ -1,62 +1,12 @@
-import asyncio
-import json
 import unittest
-from io import BytesIO
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from uuid import uuid4
 
-from fastapi import HTTPException, UploadFile
-from app.adapters import get_adapter, parse_source_bytes
-from app.api.ask import ask_endpoint
-from app.api.compare import compare_endpoint
-from app.api.search import search_endpoint
-from app.core.config import REPO_ROOT, settings
-from app.core.logging import logger
-from app.main import app
-from app.db.migrate import run_migrations
-from app.db.repo_jobs import get_ingestion_job
-from app.db.repo_sources import get_source_by_id
-from app.db.verify_db import collect_db_checks
-from app.graph import (
-    analyze_temporal_metadata,
-    ensure_graph_artifacts,
-    explain_graph_result,
-    get_graph_store,
-    normalize_ontology_tags,
-    retrieve_graph_candidates,
-    run_enrichment_extractors,
-)
-from app.core_rag.answering import AskRequest, AskResponse, CitationItem, CompareRequest, CompareResponse
-from app.core_rag.query_router import route_query
-from app.core_rag.retrieval import SearchFilters, SearchRequest, SearchResponse, SearchResultItem, perform_search
+from app.core.config import settings
 from app.db.db import engine
-from app.db.repo_chunks import get_chunks_to_embed, insert_chunks, update_chunk_embeddings
-from app.db.repo_search import search_chunks, search_chunks_keyword
-from app.embedding.embedder import embed_texts, get_expected_dim, get_model
-from app.embedding.process import process_embeddings
-from app.eval.retrieval_eval import evaluate_question, parse_demo_questions
-from app.eval.enriched_eval import (
-    evaluate_answer_case,
-    evaluate_compare_case,
-    load_answer_cases,
-    load_compare_cases,
-    run_enriched_eval,
-)
-from app.eval.retrieval_eval import load_eval_cases, run_retrieval_eval
-from app.ingestion.chunking import chunk_parsed_document
-from app.ingestion.enrichment import get_enrichment_artifact_versions, run_post_ingestion_enrichment
-from app.ingestion.jobs import (
-    chunk_uploaded_source_file,
-    delete_uploaded_source,
-    parse_uploaded_source_file,
-    process_upload,
-    process_upload_batch,
-)
-from app.llm.client import generate_answer, is_llm_ready, verify_llm_ready
-from app.llm.prompts import REPAIR_PROMPT, SECOND_PASS_PROMPT, SYSTEM_PROMPT, generate_second_pass_prompt, generate_user_prompt
+from app.db.repo_chunks import insert_chunks, update_chunk_embeddings
+from app.embedding.embedder import get_expected_dim
 from sqlalchemy import text
-
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
 EVAL_FIXTURE_DIR = FIXTURE_DIR / "eval"
@@ -107,7 +57,12 @@ class SmokeTestBase(unittest.TestCase):
         # AR1: pin the runtime posture the smoke tests are written against so
         # results do not depend on the developer's .env (access strategy,
         # auth mode, or app env). ACL-specific tests override these locally.
-        self._orig_posture = (settings.APP_ENV, settings.AUTH_MODE, settings.ACCESS_STRATEGY, settings.AUTH_ENABLED)
+        self._orig_posture = (
+            settings.APP_ENV,
+            settings.AUTH_MODE,
+            settings.ACCESS_STRATEGY,
+            settings.AUTH_ENABLED,
+        )
         settings.APP_ENV = "local"
         settings.AUTH_MODE = "dev"
         settings.ACCESS_STRATEGY = "document_acl_with_time_bound_grants"
@@ -133,7 +88,9 @@ class SmokeTestBase(unittest.TestCase):
         with engine.connect() as conn:
             self._active_profiles_snapshot = {
                 row[0]: row[1]
-                for row in conn.execute(text("SELECT profile_type, profile_name FROM active_profiles")).fetchall()
+                for row in conn.execute(
+                    text("SELECT profile_type, profile_name FROM active_profiles")
+                ).fetchall()
             }
 
     def _restore_active_profiles(self):
@@ -143,7 +100,9 @@ class SmokeTestBase(unittest.TestCase):
         with engine.connect() as conn:
             current = {
                 row[0]: row[1]
-                for row in conn.execute(text("SELECT profile_type, profile_name FROM active_profiles")).fetchall()
+                for row in conn.execute(
+                    text("SELECT profile_type, profile_name FROM active_profiles")
+                ).fetchall()
             }
         changed = False
         for profile_type, profile_name in self._active_profiles_snapshot.items():
@@ -166,7 +125,11 @@ class SmokeTestBase(unittest.TestCase):
         import app.eval.compare_eval as compare_eval_module
         import app.eval.retrieval_eval as retrieval_eval_module
         import app.profiles.resolver as resolver_module
-        from app.profiles.models import LLMProfileConfig, RerankerProfileConfig, RetrievalProfileConfig
+        from app.profiles.models import (
+            LLMProfileConfig,
+            RerankerProfileConfig,
+            RetrievalProfileConfig,
+        )
 
         test_retrieval = RetrievalProfileConfig()
         test_reranker = RerankerProfileConfig()
@@ -206,7 +169,9 @@ class SmokeTestBase(unittest.TestCase):
             setattr(target, attr_name, original)
         self._restore_active_profiles()
         reset_current_user(self._auth_context_token)
-        settings.APP_ENV, settings.AUTH_MODE, settings.ACCESS_STRATEGY, settings.AUTH_ENABLED = self._orig_posture
+        settings.APP_ENV, settings.AUTH_MODE, settings.ACCESS_STRATEGY, settings.AUTH_ENABLED = (
+            self._orig_posture
+        )
         for path in self._temp_cleanup_paths:
             if path.exists():
                 path.unlink()
@@ -218,7 +183,9 @@ class SmokeTestBase(unittest.TestCase):
     def _chunk_id_for_source(self, source_id: int) -> int:
         with engine.connect() as conn:
             return conn.execute(
-                text("SELECT id FROM chunks WHERE source_id = :source_id ORDER BY chunk_index ASC LIMIT 1"),
+                text(
+                    "SELECT id FROM chunks WHERE source_id = :source_id ORDER BY chunk_index ASC LIMIT 1"
+                ),
                 {"source_id": source_id},
             ).scalar_one()
 
@@ -274,7 +241,9 @@ class SmokeTestBase(unittest.TestCase):
 
     def _delete_seed_source(self, source_id: int):
         with engine.begin() as conn:
-            conn.execute(text("DELETE FROM sources WHERE id = :source_id"), {"source_id": source_id})
+            conn.execute(
+                text("DELETE FROM sources WHERE id = :source_id"), {"source_id": source_id}
+            )
 
     def _seed_retrieval_records(self):
         suffix = uuid4().hex[:8]
@@ -474,7 +443,9 @@ class SmokeTestBase(unittest.TestCase):
 
         with engine.connect() as conn:
             rows = conn.execute(
-                text("SELECT id, chunk_index, provenance_json FROM chunks WHERE source_id = :source_id ORDER BY chunk_index ASC"),
+                text(
+                    "SELECT id, chunk_index, provenance_json FROM chunks WHERE source_id = :source_id ORDER BY chunk_index ASC"
+                ),
                 {"source_id": source_id},
             ).fetchall()
 
@@ -485,14 +456,17 @@ class SmokeTestBase(unittest.TestCase):
             name = provenance["name"]
             chunk_ids[name] = row[0]
             similarity = similarity_by_name[name]
-            embeddings.append((row[0], basis_vector(similarity, (1 - (similarity ** 2)) ** 0.5)))
+            embeddings.append((row[0], basis_vector(similarity, (1 - (similarity**2)) ** 0.5)))
 
         update_chunk_embeddings(embeddings)
         return {"source_id": source_id, "chunk_ids": chunk_ids}
 
     def _source_chunk_count(self, source_id: int) -> int:
         with engine.connect() as conn:
-            return conn.execute(text("SELECT COUNT(*) FROM chunks WHERE source_id = :source_id"), {"source_id": source_id}).scalar_one()
+            return conn.execute(
+                text("SELECT COUNT(*) FROM chunks WHERE source_id = :source_id"),
+                {"source_id": source_id},
+            ).scalar_one()
 
     def _source_part_count(self, source_id: int) -> int:
         with engine.connect() as conn:

@@ -1,8 +1,6 @@
 import re
-from typing import List, Optional
 
 from app.adapters.models import ParsedSourceDocument, ParsedSourcePart
-
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 
@@ -12,11 +10,11 @@ def _decode_text(content: bytes) -> str:
 
 
 def _append_part(
-    parts: List[ParsedSourcePart],
+    parts: list[ParsedSourcePart],
     *,
-    title: Optional[str],
-    heading_level: Optional[int],
-    lines: List[str],
+    title: str | None,
+    heading_level: int | None,
+    lines: list[str],
     file_name: str,
 ) -> None:
     body_text = "\n".join(lines).strip()
@@ -39,10 +37,10 @@ def _append_part(
 
 def parse_md_bytes(content: bytes, file_name: str) -> ParsedSourceDocument:
     text = _decode_text(content)
-    parts: List[ParsedSourcePart] = []
-    current_title: Optional[str] = None
-    current_level: Optional[int] = None
-    current_lines: List[str] = []
+    parts: list[ParsedSourcePart] = []
+    current_title: str | None = None
+    current_level: int | None = None
+    current_lines: list[str] = []
 
     for raw_line in text.split("\n"):
         heading_match = _HEADING_RE.match(raw_line)
@@ -76,7 +74,11 @@ def parse_md_bytes(content: bytes, file_name: str) -> ParsedSourceDocument:
     return ParsedSourceDocument(
         source_type="md",
         title=file_name,
-        metadata={"file_name": file_name, "heading_count": heading_count, "part_count": len(parts)},
+        metadata={
+            "file_name": file_name,
+            "heading_count": heading_count,
+            "part_count": len(parts),
+        },
         parts=parts,
         warnings=warnings,
     )

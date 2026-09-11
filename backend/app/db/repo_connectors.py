@@ -1,10 +1,9 @@
 import json
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
-
-from sqlalchemy import text
+from typing import Any
 
 from app.db.db import engine
+from sqlalchemy import text
 
 
 @dataclass
@@ -16,23 +15,23 @@ class DbConnectorRow:
     table_name: str
     id_column: str
     updated_at_column: str
-    text_columns_json: List[str]
-    metadata_columns_json: List[str]
-    corpus_name: Optional[str]
-    acl_group_names_json: List[str]
+    text_columns_json: list[str]
+    metadata_columns_json: list[str]
+    corpus_name: str | None
+    acl_group_names_json: list[str]
     status: str
-    last_cursor_updated_at: Optional[str]
-    last_cursor_id: Optional[str]
-    last_run_at: Optional[str]
-    last_error: Optional[str]
-    connector_metadata_json: Dict[str, Any]
+    last_cursor_updated_at: str | None
+    last_cursor_id: str | None
+    last_run_at: str | None
+    last_error: str | None
+    connector_metadata_json: dict[str, Any]
     schedule_enabled: bool = False
     sync_interval_minutes: int = 60
-    next_run_at: Optional[str] = None
+    next_run_at: str | None = None
     consecutive_failures: int = 0
-    retry_at: Optional[str] = None
-    last_success_at: Optional[str] = None
-    lease_expires_at: Optional[str] = None
+    retry_at: str | None = None
+    last_success_at: str | None = None
+    lease_expires_at: str | None = None
 
 
 @dataclass
@@ -43,11 +42,11 @@ class ConnectorSyncRunRow:
     status: str
     attempt_number: int
     rows_ingested: int
-    source_ids_json: List[int]
-    error_message: Optional[str]
-    retry_at: Optional[str]
-    started_at: Optional[str]
-    completed_at: Optional[str]
+    source_ids_json: list[int]
+    error_message: str | None
+    retry_at: str | None
+    started_at: str | None
+    completed_at: str | None
 
 
 @dataclass
@@ -56,16 +55,16 @@ class ConnectorRequestRow:
     connector_type: str
     requested_system: str
     business_reason: str
-    requested_scope_json: Dict[str, Any]
+    requested_scope_json: dict[str, Any]
     status: str
-    review_reason: Optional[str]
-    requester_external_user_id: Optional[str]
-    requester_email: Optional[str]
-    requester_display_name: Optional[str]
-    reviewed_by_external_user_id: Optional[str]
-    reviewed_by_email: Optional[str]
-    reviewed_at: Optional[str]
-    created_at: Optional[str]
+    review_reason: str | None
+    requester_external_user_id: str | None
+    requester_email: str | None
+    requester_display_name: str | None
+    reviewed_by_external_user_id: str | None
+    reviewed_by_email: str | None
+    reviewed_at: str | None
+    created_at: str | None
 
 
 def _row_to_connector(row) -> DbConnectorRow:
@@ -105,11 +104,11 @@ def upsert_db_connector(
     table_name: str,
     id_column: str,
     updated_at_column: str,
-    text_columns: List[str],
-    metadata_columns: List[str],
-    corpus_name: Optional[str],
-    acl_group_names: List[str],
-    connector_metadata_json: Optional[Dict[str, Any]] = None,
+    text_columns: list[str],
+    metadata_columns: list[str],
+    corpus_name: str | None,
+    acl_group_names: list[str],
+    connector_metadata_json: dict[str, Any] | None = None,
     schedule_enabled: bool = False,
     sync_interval_minutes: int = 60,
 ) -> int:
@@ -174,7 +173,7 @@ def upsert_db_connector(
         ).scalar_one()
 
 
-def get_db_connector(connector_id: int) -> Optional[DbConnectorRow]:
+def get_db_connector(connector_id: int) -> DbConnectorRow | None:
     sql = text(
         """
         SELECT id, name, connector_type, db_url, table_name, id_column, updated_at_column,
@@ -191,7 +190,7 @@ def get_db_connector(connector_id: int) -> Optional[DbConnectorRow]:
     return _row_to_connector(row) if row else None
 
 
-def list_db_connectors() -> List[DbConnectorRow]:
+def list_db_connectors() -> list[DbConnectorRow]:
     sql = text(
         """
         SELECT id, name, connector_type, db_url, table_name, id_column, updated_at_column,
@@ -208,7 +207,7 @@ def list_db_connectors() -> List[DbConnectorRow]:
     return [_row_to_connector(row) for row in rows]
 
 
-def claim_db_connector(connector_id: int, *, lease_seconds: int) -> Optional[DbConnectorRow]:
+def claim_db_connector(connector_id: int, *, lease_seconds: int) -> DbConnectorRow | None:
     with engine.begin() as conn:
         row = conn.execute(
             text(
@@ -232,7 +231,7 @@ def claim_db_connector(connector_id: int, *, lease_seconds: int) -> Optional[DbC
     return _row_to_connector(row) if row else None
 
 
-def claim_due_db_connector(*, lease_seconds: int) -> Optional[DbConnectorRow]:
+def claim_due_db_connector(*, lease_seconds: int) -> DbConnectorRow | None:
     with engine.begin() as conn:
         row = conn.execute(
             text(
@@ -315,7 +314,11 @@ def mark_db_connector_sync_failed(
                 WHERE id = :connector_id
                 """
             ),
-            {"connector_id": connector_id, "last_error": error_message[:1000], "retry_at": retry_at},
+            {
+                "connector_id": connector_id,
+                "last_error": error_message[:1000],
+                "retry_at": retry_at,
+            },
         )
         conn.execute(
             text(
@@ -333,10 +336,10 @@ def mark_db_connector_sync_failed(
 def mark_db_connector_sync_completed(
     *,
     connector_id: int,
-    last_cursor_updated_at: Optional[str],
-    last_cursor_id: Optional[str],
+    last_cursor_updated_at: str | None,
+    last_cursor_id: str | None,
     rows_ingested: int,
-    source_ids: List[int],
+    source_ids: list[int],
     run_id: int,
 ) -> None:
     with engine.begin() as conn:
@@ -391,7 +394,9 @@ def mark_db_connector_sync_completed(
         )
 
 
-def update_db_connector_schedule(*, connector_id: int, schedule_enabled: bool, sync_interval_minutes: int) -> Optional[DbConnectorRow]:
+def update_db_connector_schedule(
+    *, connector_id: int, schedule_enabled: bool, sync_interval_minutes: int
+) -> DbConnectorRow | None:
     with engine.begin() as conn:
         row = conn.execute(
             text(
@@ -435,7 +440,7 @@ def _row_to_sync_run(row) -> ConnectorSyncRunRow:
     )
 
 
-def list_connector_sync_runs(connector_id: int, *, limit: int = 50) -> List[ConnectorSyncRunRow]:
+def list_connector_sync_runs(connector_id: int, *, limit: int = 50) -> list[ConnectorSyncRunRow]:
     with engine.connect() as conn:
         rows = conn.execute(
             text(
@@ -477,10 +482,10 @@ def create_connector_request(
     connector_type: str,
     requested_system: str,
     business_reason: str,
-    requested_scope_json: Optional[Dict[str, Any]],
-    requester_external_user_id: Optional[str],
-    requester_email: Optional[str],
-    requester_display_name: Optional[str],
+    requested_scope_json: dict[str, Any] | None,
+    requester_external_user_id: str | None,
+    requester_email: str | None,
+    requester_display_name: str | None,
 ) -> int:
     sql = text(
         """
@@ -512,9 +517,11 @@ def create_connector_request(
         )
 
 
-def list_connector_requests(*, requester_external_user_id: Optional[str] = None, limit: int = 200) -> List[ConnectorRequestRow]:
+def list_connector_requests(
+    *, requester_external_user_id: str | None = None, limit: int = 200
+) -> list[ConnectorRequestRow]:
     conditions = []
-    params: Dict[str, Any] = {"limit": limit}
+    params: dict[str, Any] = {"limit": limit}
     if requester_external_user_id:
         conditions.append("requester_external_user_id = :requester_external_user_id")
         params["requester_external_user_id"] = requester_external_user_id
@@ -541,9 +548,9 @@ def update_connector_request_review(
     request_id: int,
     status: str,
     review_reason: str,
-    reviewed_by_external_user_id: Optional[str],
-    reviewed_by_email: Optional[str],
-) -> Optional[ConnectorRequestRow]:
+    reviewed_by_external_user_id: str | None,
+    reviewed_by_email: str | None,
+) -> ConnectorRequestRow | None:
     sql = text(
         """
         UPDATE connector_requests

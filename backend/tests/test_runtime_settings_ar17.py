@@ -17,15 +17,20 @@ class RuntimeSettingsAR17Tests(SmokeTestBase):
 
     def _clear(self):
         with engine.begin() as conn:
-            conn.execute(text("DELETE FROM runtime_settings WHERE key = ANY(:k)"), {"k": ["llm_cost_alert_usd", "llm_price_table", "tuning_eval_enforcement"]})
+            conn.execute(
+                text("DELETE FROM runtime_settings WHERE key = ANY(:k)"),
+                {"k": ["llm_cost_alert_usd", "llm_price_table", "tuning_eval_enforcement"]},
+            )
             if self._profile_names:
-                conn.execute(text("DELETE FROM profiles WHERE name = ANY(:names)"), {"names": self._profile_names})
+                conn.execute(
+                    text("DELETE FROM profiles WHERE name = ANY(:names)"),
+                    {"names": self._profile_names},
+                )
 
     def _client(self):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         original_auth = settings.AUTH_ENABLED
         original_fn = main_module.authenticate_request
@@ -91,16 +96,28 @@ class RuntimeSettingsAR17Tests(SmokeTestBase):
     def test_endpoints_get_and_patch_with_audit(self):
         client, restore = self._client()
         try:
-            patch = client.patch("/admin/runtime-settings", json={"key": "llm_cost_alert_usd", "value": 0.5}, headers={"Authorization": "Bearer t"})
+            patch = client.patch(
+                "/admin/runtime-settings",
+                json={"key": "llm_cost_alert_usd", "value": 0.5},
+                headers={"Authorization": "Bearer t"},
+            )
             self.assertEqual(patch.status_code, 200, msg=patch.text)
             get = client.get("/admin/runtime-settings", headers={"Authorization": "Bearer t"})
             self.assertEqual(get.status_code, 200, msg=get.text)
             setting = get.json()["settings"]["llm_cost_alert_usd"]
             self.assertAlmostEqual(setting["effective"], 0.5)
             self.assertEqual(setting["source"], "runtime")
-            bad = client.patch("/admin/runtime-settings", json={"key": "APP_ENV", "value": "x"}, headers={"Authorization": "Bearer t"})
+            bad = client.patch(
+                "/admin/runtime-settings",
+                json={"key": "APP_ENV", "value": "x"},
+                headers={"Authorization": "Bearer t"},
+            )
             self.assertEqual(bad.status_code, 422)
-            reset = client.patch("/admin/runtime-settings", json={"key": "llm_cost_alert_usd", "value": None}, headers={"Authorization": "Bearer t"})
+            reset = client.patch(
+                "/admin/runtime-settings",
+                json={"key": "llm_cost_alert_usd", "value": None},
+                headers={"Authorization": "Bearer t"},
+            )
             self.assertEqual(reset.status_code, 200, msg=reset.text)
             self.assertIsNone(reset.json()["settings"]["llm_cost_alert_usd"]["override"])
         finally:
@@ -126,7 +143,9 @@ class RuntimeSettingsAR17Tests(SmokeTestBase):
             self.assertEqual(allowed.status_code, 200, msg=allowed.text)
             with engine.connect() as conn:
                 event = conn.execute(
-                    text("SELECT event_json FROM admin_audit_events WHERE action = 'runtime_settings.update' ORDER BY id DESC LIMIT 1")
+                    text(
+                        "SELECT event_json FROM admin_audit_events WHERE action = 'runtime_settings.update' ORDER BY id DESC LIMIT 1"
+                    )
                 ).scalar_one()
             self.assertEqual(event["approval_actor"], "approver-2")
         finally:
@@ -140,7 +159,11 @@ class RuntimeSettingsAR17Tests(SmokeTestBase):
         try:
             resp = client.post(
                 "/admin/profiles",
-                json={"profile_type": "llm", "profile_name": name, "config": {"provider": "not-a-provider", "model": "x", "base_url": "http://x"}},
+                json={
+                    "profile_type": "llm",
+                    "profile_name": name,
+                    "config": {"provider": "not-a-provider", "model": "x", "base_url": "http://x"},
+                },
                 headers={"Authorization": "Bearer t"},
             )
             self.assertEqual(resp.status_code, 422, msg=resp.text)
@@ -154,7 +177,9 @@ class RuntimeSettingsAR17Tests(SmokeTestBase):
         client, restore = self._client()
         name = f"ar17-legacy-{uuid4().hex[:6]}"
         self._profile_names.append(name)
-        upsert_profile("llm", name, {"provider": "removed-provider", "model": "x", "base_url": "http://x"})
+        upsert_profile(
+            "llm", name, {"provider": "removed-provider", "model": "x", "base_url": "http://x"}
+        )
         try:
             resp = client.post(
                 "/admin/profiles/active",
@@ -187,7 +212,13 @@ class RuntimeSettingsAR17Tests(SmokeTestBase):
             client_module.verify_llm_connection = fake_verify
             resp = client.post(
                 "/admin/llm/verify",
-                json={"config": {"provider": "openai", "model": "gpt-4o-mini", "base_url": "http://x"}},
+                json={
+                    "config": {
+                        "provider": "openai",
+                        "model": "gpt-4o-mini",
+                        "base_url": "http://x",
+                    }
+                },
                 headers={"Authorization": "Bearer t"},
             )
             self.assertEqual(resp.status_code, 200, msg=resp.text)
@@ -212,7 +243,12 @@ class RuntimeSettingsAR17Tests(SmokeTestBase):
                 json={
                     "profile_type": "llm",
                     "profile_name": name,
-                    "config": {"provider": "openai", "model": "gpt-4o-mini", "base_url": "https://example.invalid", "api_key": secret},
+                    "config": {
+                        "provider": "openai",
+                        "model": "gpt-4o-mini",
+                        "base_url": "https://example.invalid",
+                        "api_key": secret,
+                    },
                 },
                 headers={"Authorization": "Bearer t"},
             )
@@ -222,14 +258,23 @@ class RuntimeSettingsAR17Tests(SmokeTestBase):
             self.assertEqual(config["api_key"], "")
             self.assertTrue(config["api_key_configured"])
 
-            listed = client.get("/admin/profiles?profile_type=llm", headers={"Authorization": "Bearer t"})
+            listed = client.get(
+                "/admin/profiles?profile_type=llm", headers={"Authorization": "Bearer t"}
+            )
             self.assertNotIn(secret, listed.text)
-            tuning = client.get("/admin/tuning/configurations", headers={"Authorization": "Bearer t"})
+            tuning = client.get(
+                "/admin/tuning/configurations", headers={"Authorization": "Bearer t"}
+            )
             self.assertNotIn(secret, tuning.text)
             with engine.connect() as conn:
-                stored = conn.execute(text("SELECT config_json->>'api_key' FROM profiles WHERE name = :name"), {"name": name}).scalar_one()
+                stored = conn.execute(
+                    text("SELECT config_json->>'api_key' FROM profiles WHERE name = :name"),
+                    {"name": name},
+                ).scalar_one()
                 audit = conn.execute(
-                    text("SELECT before_json, after_json, event_json FROM admin_audit_events WHERE resource_id = :resource ORDER BY id"),
+                    text(
+                        "SELECT before_json, after_json, event_json FROM admin_audit_events WHERE resource_id = :resource ORDER BY id"
+                    ),
                     {"resource": f"llm:{name}"},
                 ).fetchall()
             self.assertEqual(stored, secret)
@@ -248,7 +293,12 @@ class RuntimeSettingsAR17Tests(SmokeTestBase):
                 json={
                     "profile_type": "llm",
                     "profile_name": name,
-                    "config": {"provider": "openai", "model": "old", "base_url": "https://example.invalid", "api_key": secret},
+                    "config": {
+                        "provider": "openai",
+                        "model": "old",
+                        "base_url": "https://example.invalid",
+                        "api_key": secret,
+                    },
                 },
                 headers={"Authorization": "Bearer t"},
             )
@@ -260,7 +310,9 @@ class RuntimeSettingsAR17Tests(SmokeTestBase):
             )
             self.assertEqual(updated.status_code, 200, msg=updated.text)
             with engine.connect() as conn:
-                stored = conn.execute(text("SELECT config_json FROM profiles WHERE name = :name"), {"name": name}).scalar_one()
+                stored = conn.execute(
+                    text("SELECT config_json FROM profiles WHERE name = :name"), {"name": name}
+                ).scalar_one()
             self.assertEqual(stored["api_key"], secret)
             self.assertEqual(stored["model"], "new")
         finally:
@@ -279,18 +331,31 @@ class RuntimeSettingsAR17Tests(SmokeTestBase):
             set_setting("llm_price_table", {"gpt-4o-mini": [1.0, 1.0]})
             reset_usage()
             add_usage(usage_from_counts("gpt-4o-mini", prompt_tokens=100, completion_tokens=100))
-            _attach_generation_usage({}, request_id=request_id, retrieval_mode="hybrid", answer_path="llm", ask_latency_ms=5)
-            summary = client.get("/admin/cost/summary?group_by=model", headers={"Authorization": "Bearer t"})
+            _attach_generation_usage(
+                {},
+                request_id=request_id,
+                retrieval_mode="hybrid",
+                answer_path="llm",
+                ask_latency_ms=5,
+            )
+            summary = client.get(
+                "/admin/cost/summary?group_by=model", headers={"Authorization": "Bearer t"}
+            )
             self.assertEqual(summary.status_code, 200, msg=summary.text)
             governance = summary.json()["governance"]
             self.assertEqual(governance["llm_cost_alert_usd"]["source"], "runtime")
             self.assertEqual(governance["llm_price_table"]["effective"]["gpt-4o-mini"], [1.0, 1.0])
             with engine.connect() as conn:
                 over_budget = conn.execute(
-                    text("SELECT over_budget FROM generation_usage_events WHERE request_id = :request_id"), {"request_id": request_id}
+                    text(
+                        "SELECT over_budget FROM generation_usage_events WHERE request_id = :request_id"
+                    ),
+                    {"request_id": request_id},
                 ).scalar_one()
                 alert = conn.execute(
-                    text("SELECT event_json FROM admin_audit_events WHERE action = 'cost.budget_exceeded' AND resource_id = :request_id"),
+                    text(
+                        "SELECT event_json FROM admin_audit_events WHERE action = 'cost.budget_exceeded' AND resource_id = :request_id"
+                    ),
                     {"request_id": request_id},
                 ).scalar_one()
             self.assertTrue(over_budget)
@@ -298,5 +363,8 @@ class RuntimeSettingsAR17Tests(SmokeTestBase):
         finally:
             reset_usage()
             with engine.begin() as conn:
-                conn.execute(text("DELETE FROM generation_usage_events WHERE request_id = :request_id"), {"request_id": request_id})
+                conn.execute(
+                    text("DELETE FROM generation_usage_events WHERE request_id = :request_id"),
+                    {"request_id": request_id},
+                )
             restore()

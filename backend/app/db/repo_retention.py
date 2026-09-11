@@ -1,11 +1,9 @@
 import json
 from typing import Any
 
-from sqlalchemy import text
-
 from app.core.config import settings
 from app.db.db import engine
-
+from sqlalchemy import text
 
 _REDACTED = "[redacted by retention policy]"
 
@@ -29,7 +27,11 @@ def run_retention_policy() -> dict[str, Any]:
                           AND question <> :redacted
                         """
                     ),
-                    {"redacted": _REDACTED, "metadata": json.dumps({"retention_redacted": True}), "days": _days(settings.RETENTION_QUERY_EVENTS_DAYS)},
+                    {
+                        "redacted": _REDACTED,
+                        "metadata": json.dumps({"retention_redacted": True}),
+                        "days": _days(settings.RETENTION_QUERY_EVENTS_DAYS),
+                    },
                 ).rowcount
                 or 0
             )
@@ -46,7 +48,11 @@ def run_retention_policy() -> dict[str, Any]:
                           AND question <> :redacted
                         """
                     ),
-                    {"redacted": _REDACTED, "metadata": json.dumps({"retention_redacted": True}), "days": _days(settings.RETENTION_FEEDBACK_DAYS)},
+                    {
+                        "redacted": _REDACTED,
+                        "metadata": json.dumps({"retention_redacted": True}),
+                        "days": _days(settings.RETENTION_FEEDBACK_DAYS),
+                    },
                 ).rowcount
                 or 0
             )
@@ -63,7 +69,11 @@ def run_retention_policy() -> dict[str, Any]:
                           AND question <> :redacted
                         """
                     ),
-                    {"redacted": _REDACTED, "metadata": json.dumps({"retention_redacted": True}), "days": _days(settings.RETENTION_FEEDBACK_DAYS)},
+                    {
+                        "redacted": _REDACTED,
+                        "metadata": json.dumps({"retention_redacted": True}),
+                        "days": _days(settings.RETENTION_FEEDBACK_DAYS),
+                    },
                 ).rowcount
                 or 0
             )
@@ -78,7 +88,11 @@ def run_retention_policy() -> dict[str, Any]:
                           AND question <> :redacted
                         """
                     ),
-                    {"redacted": _REDACTED, "metadata": json.dumps({"retention_redacted": True}), "days": _days(settings.RETENTION_TRACES_DAYS)},
+                    {
+                        "redacted": _REDACTED,
+                        "metadata": json.dumps({"retention_redacted": True}),
+                        "days": _days(settings.RETENTION_TRACES_DAYS),
+                    },
                 ).rowcount
                 or 0
             )
@@ -93,7 +107,10 @@ def run_retention_policy() -> dict[str, Any]:
                       AND invalidated_at IS NULL
                     """
                 ),
-                {"metadata": json.dumps({"retention_invalidated": True}), "days": _days(settings.RETENTION_SEMANTIC_CACHE_DAYS)},
+                {
+                    "metadata": json.dumps({"retention_invalidated": True}),
+                    "days": _days(settings.RETENTION_SEMANTIC_CACHE_DAYS),
+                },
             ).rowcount
             or 0
         )
@@ -107,7 +124,10 @@ def run_retention_policy() -> dict[str, Any]:
                       AND NOT (integrity_metadata_json ? 'retention_reviewed')
                     """
                 ),
-                {"metadata": json.dumps({"retention_reviewed": True}), "days": _days(settings.RETENTION_AUDIT_EXPORT_DAYS)},
+                {
+                    "metadata": json.dumps({"retention_reviewed": True}),
+                    "days": _days(settings.RETENTION_AUDIT_EXPORT_DAYS),
+                },
             ).rowcount
             or 0
         )

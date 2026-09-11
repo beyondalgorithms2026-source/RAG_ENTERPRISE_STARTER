@@ -1,13 +1,11 @@
 import json
 import re
 from datetime import datetime
-from typing import Any, Optional
-
-from sqlalchemy import text
+from typing import Any
 
 from app.auth.context import AuthenticatedUser
 from app.db.db import engine
-
+from sqlalchemy import text
 
 MANDATORY_SAFETY = {
     "require_grounded_answer": True,
@@ -76,7 +74,9 @@ def validate_policy_config(config: dict[str, Any]) -> dict[str, Any]:
         "allow_groups": allow_groups,
         "deny_groups": _normalized_tokens(list(config.get("deny_groups") or [])),
         "allow_questions": allow_questions,
-        "deny_questions": _normalized_tokens(list(config.get("deny_questions") or []), questions=True),
+        "deny_questions": _normalized_tokens(
+            list(config.get("deny_questions") or []), questions=True
+        ),
         "safety": dict(MANDATORY_SAFETY),
     }
 
@@ -92,7 +92,9 @@ def _version_payload(row: Any) -> dict[str, Any]:
         "deny_questions_json",
         "safety_json",
     ):
-        payload[key.removesuffix("_json")] = payload.pop(key, None) or ([] if key != "safety_json" else {})
+        payload[key.removesuffix("_json")] = payload.pop(key, None) or (
+            [] if key != "safety_json" else {}
+        )
     return _jsonable(payload)
 
 
@@ -168,20 +170,31 @@ LEFT JOIN semantic_cache_policy_versions v ON v.id = p.active_version_id
 
 def list_policies() -> list[dict[str, Any]]:
     with engine.connect() as conn:
-        rows = conn.execute(text(f"{_POLICY_SELECT} ORDER BY p.updated_at DESC, p.id DESC")).mappings().all()
+        rows = (
+            conn.execute(text(f"{_POLICY_SELECT} ORDER BY p.updated_at DESC, p.id DESC"))
+            .mappings()
+            .all()
+        )
     return [get_policy(int(row["id"])) or _policy_payload(row) for row in rows]
 
 
-def get_policy(policy_id: int) -> Optional[dict[str, Any]]:
+def get_policy(policy_id: int) -> dict[str, Any] | None:
     with engine.connect() as conn:
-        row = conn.execute(text(f"{_POLICY_SELECT} WHERE p.id = :policy_id"), {"policy_id": policy_id}).mappings().first()
+        row = (
+            conn.execute(
+                text(f"{_POLICY_SELECT} WHERE p.id = :policy_id"), {"policy_id": policy_id}
+            )
+            .mappings()
+            .first()
+        )
     if not row:
         return None
     payload = _policy_payload(row)
     with engine.connect() as conn:
-        versions = conn.execute(
-            text(
-                """
+        versions = (
+            conn.execute(
+                text(
+                    """
                 SELECT id, policy_id, version_number, cache_namespace, status, enabled, match_mode,
                        similarity_threshold,
                        ttl_seconds, max_active_entries, allow_corpora_json, deny_corpora_json,
@@ -193,19 +206,25 @@ def get_policy(policy_id: int) -> Optional[dict[str, Any]]:
                 WHERE policy_id = :policy_id
                 ORDER BY version_number DESC
                 """
-            ),
-            {"policy_id": policy_id},
-        ).mappings().all()
+                ),
+                {"policy_id": policy_id},
+            )
+            .mappings()
+            .all()
+        )
     payload["versions"] = [_version_payload(item) for item in versions]
-    payload["draft_version"] = next((item for item in payload["versions"] if item["status"] == "draft"), None)
+    payload["draft_version"] = next(
+        (item for item in payload["versions"] if item["status"] == "draft"), None
+    )
     return payload
 
 
-def get_active_policy_version() -> Optional[dict[str, Any]]:
+def get_active_policy_version() -> dict[str, Any] | None:
     with engine.connect() as conn:
-        row = conn.execute(
-            text(
-                """
+        row = (
+            conn.execute(
+                text(
+                    """
                 SELECT v.*, p.name AS policy_name, p.justification, p.owner, p.review_at
                 FROM semantic_cache_policy_versions v
                 JOIN semantic_cache_policies p ON p.id = v.policy_id
@@ -214,8 +233,11 @@ def get_active_policy_version() -> Optional[dict[str, Any]]:
                 ORDER BY v.activated_at DESC, v.id DESC
                 LIMIT 1
                 """
+                )
             )
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
     return _version_payload(row) if row else None
 
 
@@ -224,9 +246,9 @@ def create_policy(
     name: str,
     justification: str,
     owner: str,
-    review_at: Optional[datetime],
+    review_at: datetime | None,
     config: dict[str, Any],
-    actor: Optional[AuthenticatedUser],
+    actor: AuthenticatedUser | None,
 ) -> dict[str, Any]:
     policy_name = str(name or "").strip()
     if not policy_name:
@@ -257,7 +279,13 @@ def create_policy(
     return get_policy(int(policy)) or {}
 
 
-def _insert_version(conn, policy_id: int, version_number: int, config: dict[str, Any], actor: Optional[AuthenticatedUser]) -> int:
+def _insert_version(
+    conn,
+    policy_id: int,
+    version_number: int,
+    config: dict[str, Any],
+    actor: AuthenticatedUser | None,
+) -> int:
     namespace = f"policy:{policy_id}:v{version_number}"
     return int(
         conn.execute(
@@ -308,9 +336,9 @@ def update_policy(
     name: str,
     justification: str,
     owner: str,
-    review_at: Optional[datetime],
+    review_at: datetime | None,
     config: dict[str, Any],
-    actor: Optional[AuthenticatedUser],
+    actor: AuthenticatedUser | None,
 ) -> dict[str, Any]:
     existing = get_policy(policy_id)
     if not existing:
@@ -319,7 +347,9 @@ def update_policy(
     if not policy_name:
         raise ValueError("Policy name is required")
     validated = validate_policy_config(config)
-    latest_number = max([int(item["version_number"]) for item in existing.get("versions", [])] or [0])
+    latest_number = max(
+        [int(item["version_number"]) for item in existing.get("versions", [])] or [0]
+    )
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -339,14 +369,18 @@ def update_policy(
             },
         )
         conn.execute(
-            text("UPDATE semantic_cache_policy_versions SET status = 'superseded' WHERE policy_id = :policy_id AND status = 'draft'"),
+            text(
+                "UPDATE semantic_cache_policy_versions SET status = 'superseded' WHERE policy_id = :policy_id AND status = 'draft'"
+            ),
             {"policy_id": policy_id},
         )
         _insert_version(conn, policy_id, latest_number + 1, validated, actor)
     return get_policy(policy_id) or {}
 
 
-def activate_policy(policy_id: int, *, confirmation: str, actor: Optional[AuthenticatedUser]) -> dict[str, Any]:
+def activate_policy(
+    policy_id: int, *, confirmation: str, actor: AuthenticatedUser | None
+) -> dict[str, Any]:
     policy = get_policy(policy_id)
     if not policy:
         raise ValueError(f"Cache policy {policy_id} not found")
@@ -357,8 +391,16 @@ def activate_policy(policy_id: int, *, confirmation: str, actor: Optional[Authen
         raise ValueError("Cache policy has no draft version to activate")
     validate_policy_config({**draft, "enabled": True})
     with engine.begin() as conn:
-        conn.execute(text("UPDATE semantic_cache_policy_versions SET status = 'rolled_back', enabled = FALSE WHERE status = 'active'"))
-        conn.execute(text("UPDATE semantic_cache_policies SET status = 'disabled', active_version_id = NULL WHERE status = 'active'"))
+        conn.execute(
+            text(
+                "UPDATE semantic_cache_policy_versions SET status = 'rolled_back', enabled = FALSE WHERE status = 'active'"
+            )
+        )
+        conn.execute(
+            text(
+                "UPDATE semantic_cache_policies SET status = 'disabled', active_version_id = NULL WHERE status = 'active'"
+            )
+        )
         conn.execute(
             text(
                 """
@@ -375,7 +417,9 @@ def activate_policy(policy_id: int, *, confirmation: str, actor: Optional[Authen
             },
         )
         conn.execute(
-            text("UPDATE semantic_cache_policies SET status = 'active', active_version_id = :version_id, updated_at = now() WHERE id = :policy_id"),
+            text(
+                "UPDATE semantic_cache_policies SET status = 'active', active_version_id = :version_id, updated_at = now() WHERE id = :policy_id"
+            ),
             {"version_id": draft["id"], "policy_id": policy_id},
         )
     return get_policy(policy_id) or {}
@@ -387,26 +431,42 @@ def disable_policy(policy_id: int) -> dict[str, Any]:
         raise ValueError(f"Cache policy {policy_id} not found")
     with engine.begin() as conn:
         conn.execute(
-            text("UPDATE semantic_cache_policy_versions SET status = 'disabled', enabled = FALSE WHERE policy_id = :policy_id AND status = 'active'"),
+            text(
+                "UPDATE semantic_cache_policy_versions SET status = 'disabled', enabled = FALSE WHERE policy_id = :policy_id AND status = 'active'"
+            ),
             {"policy_id": policy_id},
         )
         conn.execute(
-            text("UPDATE semantic_cache_policies SET status = 'disabled', active_version_id = NULL, updated_at = now() WHERE id = :policy_id"),
+            text(
+                "UPDATE semantic_cache_policies SET status = 'disabled', active_version_id = NULL, updated_at = now() WHERE id = :policy_id"
+            ),
             {"policy_id": policy_id},
         )
     return get_policy(policy_id) or {}
 
 
-def rollback_policy(policy_id: int, *, version_id: int, actor: Optional[AuthenticatedUser]) -> dict[str, Any]:
+def rollback_policy(
+    policy_id: int, *, version_id: int, actor: AuthenticatedUser | None
+) -> dict[str, Any]:
     policy = get_policy(policy_id)
     if not policy:
         raise ValueError(f"Cache policy {policy_id} not found")
-    target = next((item for item in policy.get("versions", []) if int(item["id"]) == int(version_id)), None)
+    target = next(
+        (item for item in policy.get("versions", []) if int(item["id"]) == int(version_id)), None
+    )
     if not target:
         raise ValueError(f"Cache policy version {version_id} not found")
     with engine.begin() as conn:
-        conn.execute(text("UPDATE semantic_cache_policy_versions SET status = 'rolled_back', enabled = FALSE WHERE status = 'active'"))
-        conn.execute(text("UPDATE semantic_cache_policies SET status = 'disabled', active_version_id = NULL WHERE status = 'active'"))
+        conn.execute(
+            text(
+                "UPDATE semantic_cache_policy_versions SET status = 'rolled_back', enabled = FALSE WHERE status = 'active'"
+            )
+        )
+        conn.execute(
+            text(
+                "UPDATE semantic_cache_policies SET status = 'disabled', active_version_id = NULL WHERE status = 'active'"
+            )
+        )
         conn.execute(
             text(
                 """
@@ -423,7 +483,9 @@ def rollback_policy(policy_id: int, *, version_id: int, actor: Optional[Authenti
             },
         )
         conn.execute(
-            text("UPDATE semantic_cache_policies SET status = 'active', active_version_id = :version_id, updated_at = now() WHERE id = :policy_id"),
+            text(
+                "UPDATE semantic_cache_policies SET status = 'active', active_version_id = :version_id, updated_at = now() WHERE id = :policy_id"
+            ),
             {"version_id": version_id, "policy_id": policy_id},
         )
     return get_policy(policy_id) or {}
@@ -433,12 +495,12 @@ def record_policy_event(
     *,
     event_type: str,
     reason: str,
-    policy_version_id: Optional[int] = None,
-    cache_entry_id: Optional[int] = None,
-    latency_saved_ms: Optional[int] = None,
+    policy_version_id: int | None = None,
+    cache_entry_id: int | None = None,
+    latency_saved_ms: int | None = None,
     estimated_cost_saved_usd: float = 0.0,
-    actor: Optional[AuthenticatedUser] = None,
-    metadata_json: Optional[dict[str, Any]] = None,
+    actor: AuthenticatedUser | None = None,
+    metadata_json: dict[str, Any] | None = None,
 ) -> int:
     with engine.begin() as conn:
         return int(
@@ -475,28 +537,36 @@ def record_policy_event(
 
 def policy_metrics() -> dict[str, Any]:
     with engine.connect() as conn:
-        counts = conn.execute(
-            text(
-                """
+        counts = (
+            conn.execute(
+                text(
+                    """
                 SELECT event_type, COUNT(*)::bigint AS count,
                        COALESCE(SUM(latency_saved_ms), 0)::bigint AS latency_saved_ms,
                        COALESCE(SUM(estimated_cost_saved_usd), 0)::numeric AS estimated_cost_saved_usd
                 FROM semantic_cache_policy_events
                 GROUP BY event_type
                 """
+                )
             )
-        ).mappings().all()
-        reasons = conn.execute(
-            text(
-                """
+            .mappings()
+            .all()
+        )
+        reasons = (
+            conn.execute(
+                text(
+                    """
                 SELECT COALESCE(reason, 'unspecified') AS reason, COUNT(*)::bigint AS count
                 FROM semantic_cache_policy_events
                 GROUP BY COALESCE(reason, 'unspecified')
                 ORDER BY count DESC, reason
                 LIMIT 30
                 """
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
     by_type = {str(row["event_type"]): int(row["count"]) for row in counts}
     return {
         "event_counts": by_type,
@@ -506,6 +576,8 @@ def policy_metrics() -> dict[str, Any]:
         "reauthorization_miss_count": by_type.get("reauthorization_miss", 0),
         "materially_changed_refresh_count": by_type.get("refresh_changed", 0),
         "latency_saved_ms": sum(int(row["latency_saved_ms"] or 0) for row in counts),
-        "estimated_cost_saved_usd": float(sum(row["estimated_cost_saved_usd"] or 0 for row in counts)),
+        "estimated_cost_saved_usd": float(
+            sum(row["estimated_cost_saved_usd"] or 0 for row in counts)
+        ),
         "reasons": [_jsonable(dict(row)) for row in reasons],
     }

@@ -69,8 +69,12 @@ def generate_user_prompt(question: str, context_blocks: list) -> str:
     return prompt
 
 
-def generate_json_repair_prompt(*, question: str, context_blocks: list, invalid_content: str) -> str:
-    valid_ids = [str(block.get("citation_id") or "") for block in context_blocks if block.get("citation_id")]
+def generate_json_repair_prompt(
+    *, question: str, context_blocks: list, invalid_content: str
+) -> str:
+    valid_ids = [
+        str(block.get("citation_id") or "") for block in context_blocks if block.get("citation_id")
+    ]
     prompt = (
         f"{REPAIR_PROMPT}\n\n"
         f"QUESTION: {question}\n"
@@ -83,11 +87,15 @@ def generate_json_repair_prompt(*, question: str, context_blocks: list, invalid_
             f"{block.get('heading', '')} | {block.get('locator') or ''}\n"
             f"<untrusted_source_text>\n{block.get('snippet', '')}\n</untrusted_source_text>\n\n"
         )
-    prompt += f"INVALID RESPONSE TO REPAIR:\n{invalid_content}\n\nReturn the corrected JSON object now."
+    prompt += (
+        f"INVALID RESPONSE TO REPAIR:\n{invalid_content}\n\nReturn the corrected JSON object now."
+    )
     return prompt
 
 
-def generate_second_pass_prompt(*, question: str, context_blocks: list, prior_answer: str, fallback_reason: str) -> str:
+def generate_second_pass_prompt(
+    *, question: str, context_blocks: list, prior_answer: str, fallback_reason: str
+) -> str:
     prompt = (
         f"QUESTION: {question}\n\n"
         f"PRIOR ANSWER TO REPAIR:\n{prior_answer or '(empty)'}\n\n"

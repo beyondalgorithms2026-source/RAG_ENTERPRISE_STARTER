@@ -1,13 +1,10 @@
 import time
 from collections import defaultdict, deque
-from typing import Deque
-
-from fastapi import HTTPException, Request
 
 from app.core.config import settings
+from fastapi import HTTPException, Request
 
-
-_buckets: dict[str, Deque[float]] = defaultdict(deque)
+_buckets: dict[str, deque[float]] = defaultdict(deque)
 
 
 def _actor_key(request: Request, scope: str) -> str:
@@ -43,16 +40,26 @@ def rate_limit_ask(request: Request) -> None:
 
 
 def rate_limit_ask_stream(request: Request) -> None:
-    enforce_rate_limit(request, scope="ask_stream", limit_per_minute=settings.RATE_LIMIT_ASK_PER_MINUTE)
+    enforce_rate_limit(
+        request, scope="ask_stream", limit_per_minute=settings.RATE_LIMIT_ASK_PER_MINUTE
+    )
 
 
 def rate_limit_compare(request: Request) -> None:
-    enforce_rate_limit(request, scope="compare", limit_per_minute=settings.RATE_LIMIT_ASK_PER_MINUTE)
+    enforce_rate_limit(
+        request, scope="compare", limit_per_minute=settings.RATE_LIMIT_ASK_PER_MINUTE
+    )
 
 
 def rate_limit_search(request: Request) -> None:
-    enforce_rate_limit(request, scope="search", limit_per_minute=settings.RATE_LIMIT_SEARCH_PER_MINUTE)
+    enforce_rate_limit(
+        request, scope="search", limit_per_minute=settings.RATE_LIMIT_SEARCH_PER_MINUTE
+    )
 
 
 def rate_limit_admin_expensive(request: Request) -> None:
-    enforce_rate_limit(request, scope="admin_expensive", limit_per_minute=settings.RATE_LIMIT_ADMIN_EXPENSIVE_PER_MINUTE)
+    enforce_rate_limit(
+        request,
+        scope="admin_expensive",
+        limit_per_minute=settings.RATE_LIMIT_ADMIN_EXPENSIVE_PER_MINUTE,
+    )

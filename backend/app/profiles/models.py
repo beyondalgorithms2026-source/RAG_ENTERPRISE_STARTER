@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import BaseModel
 
 
@@ -13,13 +11,13 @@ class EmbeddingProfileConfig(BaseModel):
 class RerankerProfileConfig(BaseModel):
     enabled: bool = False
     model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-    top_n: Optional[int] = None
-    score_threshold: Optional[float] = None
+    top_n: int | None = None
+    score_threshold: float | None = None
     enabled_modes: list[str] = []
     enabled_corpora: list[str] = []
     min_candidate_count: int = 0
-    max_candidate_count: Optional[int] = None
-    latency_budget_ms: Optional[int] = None
+    max_candidate_count: int | None = None
+    latency_budget_ms: int | None = None
     mmr_enabled: bool = False
     mmr_lambda: float = 0.5
 
@@ -32,9 +30,9 @@ class LLMProfileConfig(BaseModel):
     timeout_s: int = 60
     temperature: float = 0.0
     top_p: float = 1.0
-    max_tokens: Optional[int] = None
+    max_tokens: int | None = None
     structured_output_mode: str = "native_json"
-    reasoning_effort: Optional[str] = None
+    reasoning_effort: str | None = None
 
 
 class RetrievalProfileConfig(BaseModel):

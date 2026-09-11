@@ -11,9 +11,9 @@ usage, token counts are approximated as ceil(len(text) / CHARS_PER_TOKEN) with
 CHARS_PER_TOKEN = 4 — the common English heuristic. Estimated usage is always
 flagged `estimated: true` so rollups never present a guess as a measurement.
 """
+
 import json
 import math
-from typing import Optional
 
 from app.core.config import settings
 
@@ -31,7 +31,7 @@ _DEFAULT_PRICES: dict[str, tuple[float, float]] = {
 
 
 def estimate_tokens(text: str) -> int:
-    return int(math.ceil(len(str(text or "")) / CHARS_PER_TOKEN))
+    return math.ceil(len(str(text or "")) / CHARS_PER_TOKEN)
 
 
 def _runtime_setting(key: str):
@@ -104,7 +104,9 @@ def price_for(model: str) -> tuple[float, float]:
 
 def cost_usd(model: str, prompt_tokens: int, completion_tokens: int) -> float:
     input_rate, output_rate = price_for(model)
-    return round((prompt_tokens / 1000.0) * input_rate + (completion_tokens / 1000.0) * output_rate, 6)
+    return round(
+        (prompt_tokens / 1000.0) * input_rate + (completion_tokens / 1000.0) * output_rate, 6
+    )
 
 
 def usage_from_texts(model: str, *, prompt_text: str, completion_text: str) -> dict:
@@ -120,7 +122,9 @@ def usage_from_texts(model: str, *, prompt_text: str, completion_text: str) -> d
     }
 
 
-def usage_from_counts(model: str, *, prompt_tokens: int, completion_tokens: int, estimated: bool = False) -> dict:
+def usage_from_counts(
+    model: str, *, prompt_tokens: int, completion_tokens: int, estimated: bool = False
+) -> dict:
     return {
         "prompt_tokens": int(prompt_tokens),
         "completion_tokens": int(completion_tokens),

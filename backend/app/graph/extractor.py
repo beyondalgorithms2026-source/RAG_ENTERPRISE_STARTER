@@ -1,20 +1,44 @@
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 from app.core.config import settings
 from app.graph.ontology import normalize_ontology_tags
-
 
 EXTRACTOR_ARTIFACT_VERSION = "m12-rule-based-extractor-v1"
 _PAREN_ALIAS_PATTERN = re.compile(r"([A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+)+)\s+\(([A-Z]{2,8})\)")
 _ENTITY_PATTERN = re.compile(r"\b(?:[A-Z]{2,8}|[A-Z][a-z]+(?: [A-Z][A-Za-z]+){0,3})\b")
 _RELATION_PATTERNS = (
-    ("reports_to", re.compile(r"(?P<subject>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8}) reports to (?P<object>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8})")),
-    ("works_with", re.compile(r"(?P<subject>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8}) works with (?P<object>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8})")),
-    ("manages", re.compile(r"(?P<subject>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8}) manages (?P<object>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8})")),
-    ("owns", re.compile(r"(?P<subject>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8}) owns (?P<object>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8})")),
-    ("supports", re.compile(r"(?P<subject>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8}) supports (?P<object>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8})")),
+    (
+        "reports_to",
+        re.compile(
+            r"(?P<subject>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8}) reports to (?P<object>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8})"
+        ),
+    ),
+    (
+        "works_with",
+        re.compile(
+            r"(?P<subject>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8}) works with (?P<object>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8})"
+        ),
+    ),
+    (
+        "manages",
+        re.compile(
+            r"(?P<subject>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8}) manages (?P<object>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8})"
+        ),
+    ),
+    (
+        "owns",
+        re.compile(
+            r"(?P<subject>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8}) owns (?P<object>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8})"
+        ),
+    ),
+    (
+        "supports",
+        re.compile(
+            r"(?P<subject>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8}) supports (?P<object>[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+){0,3}|[A-Z]{2,8})"
+        ),
+    ),
 )
 _ENTITY_STOPWORDS = {"Page", "Section", "Text", "Match", "One", "Two"}
 
@@ -40,8 +64,8 @@ def _dedupe_names(names: list[str]) -> list[str]:
     return ordered
 
 
-def _build_alias_map(chunk_text: str) -> Dict[str, str]:
-    alias_map: Dict[str, str] = {}
+def _build_alias_map(chunk_text: str) -> dict[str, str]:
+    alias_map: dict[str, str] = {}
     for full_name, alias in _PAREN_ALIAS_PATTERN.findall(chunk_text):
         cleaned_full = re.sub(r"\s+", " ", full_name).strip()
         alias_map[alias.strip()] = cleaned_full
@@ -62,7 +86,7 @@ def _extract_candidate_entities(chunk_text: str) -> list[str]:
     return _dedupe_names(candidates)
 
 
-def _extract_entities(chunk_text: str, alias_map: Dict[str, str]) -> list[dict[str, Any]]:
+def _extract_entities(chunk_text: str, alias_map: dict[str, str]) -> list[dict[str, Any]]:
     entities = []
     for surface_text in _extract_candidate_entities(chunk_text):
         ontology = normalize_ontology_tags(entity_name=surface_text, alias_map=alias_map)
@@ -82,13 +106,17 @@ def _extract_entities(chunk_text: str, alias_map: Dict[str, str]) -> list[dict[s
     return entities
 
 
-def _extract_relations(chunk_text: str, alias_map: Dict[str, str]) -> list[dict[str, Any]]:
+def _extract_relations(chunk_text: str, alias_map: dict[str, str]) -> list[dict[str, Any]]:
     relation_text = _PAREN_ALIAS_PATTERN.sub(r"\1", chunk_text)
     relations = []
     for relation_type, pattern in _RELATION_PATTERNS:
         for match in pattern.finditer(relation_text):
-            subject_ontology = normalize_ontology_tags(entity_name=match.group("subject"), alias_map=alias_map)
-            object_ontology = normalize_ontology_tags(entity_name=match.group("object"), alias_map=alias_map)
+            subject_ontology = normalize_ontology_tags(
+                entity_name=match.group("subject"), alias_map=alias_map
+            )
+            object_ontology = normalize_ontology_tags(
+                entity_name=match.group("object"), alias_map=alias_map
+            )
             subject_name = subject_ontology.canonical_name or match.group("subject")
             object_name = object_ontology.canonical_name or match.group("object")
             if subject_name == object_name:
@@ -113,10 +141,12 @@ def _extract_relations(chunk_text: str, alias_map: Dict[str, str]) -> list[dict[
 def run_enrichment_extractors(
     *,
     chunk_text: str,
-    source_id: Optional[int] = None,
-    chunk_id: Optional[int] = None,
+    source_id: int | None = None,
+    chunk_id: int | None = None,
 ) -> EnrichmentArtifacts:
-    extraction_enabled = bool(settings.EXTRACT_ENTITIES or settings.EXTRACT_RELATIONS or settings.ENABLE_ONTOLOGY)
+    extraction_enabled = bool(
+        settings.EXTRACT_ENTITIES or settings.EXTRACT_RELATIONS or settings.ENABLE_ONTOLOGY
+    )
     if not extraction_enabled:
         return EnrichmentArtifacts(
             provenance={
@@ -151,5 +181,5 @@ def run_enrichment_extractors(
                 "relation_count": len(relations),
                 "ontology_tag_count": len(ontology_tags),
             },
-        }
+        },
     )

@@ -7,7 +7,6 @@ from app.core.rate_limit import rate_limit_compare
 from app.core_rag.answering import CompareRequest, CompareResponse, perform_compare
 from app.llm.client import verify_llm_ready
 
-
 router = APIRouter()
 
 

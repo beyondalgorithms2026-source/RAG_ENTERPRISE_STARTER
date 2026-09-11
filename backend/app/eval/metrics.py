@@ -5,15 +5,19 @@ graded relevance, no recall@k / MRR / nDCG, no faithfulness scoring. These
 functions operate on a ranked list of chunk ids and a graded relevance map
 ({chunk_id: grade}, grades 0-3; grade >= min_grade counts as relevant).
 """
+
 import math
-from typing import Any, Iterable, Optional, Sequence
+from collections.abc import Iterable, Sequence
+from typing import Any
 
 
 def _relevant_ids(relevant_grades: dict[int, int], min_grade: int = 1) -> set[int]:
     return {chunk_id for chunk_id, grade in relevant_grades.items() if int(grade) >= min_grade}
 
 
-def recall_at_k(ranked_ids: Sequence[int], relevant_grades: dict[int, int], k: int, *, min_grade: int = 1) -> Optional[float]:
+def recall_at_k(
+    ranked_ids: Sequence[int], relevant_grades: dict[int, int], k: int, *, min_grade: int = 1
+) -> float | None:
     relevant = _relevant_ids(relevant_grades, min_grade)
     if not relevant:
         return None
@@ -21,7 +25,9 @@ def recall_at_k(ranked_ids: Sequence[int], relevant_grades: dict[int, int], k: i
     return hits / len(relevant)
 
 
-def reciprocal_rank(ranked_ids: Sequence[int], relevant_grades: dict[int, int], *, min_grade: int = 1) -> Optional[float]:
+def reciprocal_rank(
+    ranked_ids: Sequence[int], relevant_grades: dict[int, int], *, min_grade: int = 1
+) -> float | None:
     relevant = _relevant_ids(relevant_grades, min_grade)
     if not relevant:
         return None
@@ -31,7 +37,7 @@ def reciprocal_rank(ranked_ids: Sequence[int], relevant_grades: dict[int, int], 
     return 0.0
 
 
-def ndcg_at_k(ranked_ids: Sequence[int], relevant_grades: dict[int, int], k: int) -> Optional[float]:
+def ndcg_at_k(ranked_ids: Sequence[int], relevant_grades: dict[int, int], k: int) -> float | None:
     if not _relevant_ids(relevant_grades, 1):
         return None
 
@@ -43,8 +49,12 @@ def ndcg_at_k(ranked_ids: Sequence[int], relevant_grades: dict[int, int], k: int
         grade = int(relevant_grades.get(chunk_id, 0))
         if grade > 0:
             dcg += gain(grade) / math.log2(rank + 1)
-    ideal_grades = sorted((int(g) for g in relevant_grades.values() if int(g) > 0), reverse=True)[:k]
-    idcg = sum(gain(grade) / math.log2(rank + 1) for rank, grade in enumerate(ideal_grades, start=1))
+    ideal_grades = sorted((int(g) for g in relevant_grades.values() if int(g) > 0), reverse=True)[
+        :k
+    ]
+    idcg = sum(
+        gain(grade) / math.log2(rank + 1) for rank, grade in enumerate(ideal_grades, start=1)
+    )
     if idcg == 0:
         return None
     return dcg / idcg
@@ -56,7 +66,7 @@ def citation_faithfulness(
     relevant_grades: dict[int, int],
     answered_not_found: bool,
     min_grade: int = 1,
-) -> Optional[float]:
+) -> float | None:
     """Fraction of citations that point at labeled-relevant evidence.
 
     A truthful "not found" on a case with no labeled relevant evidence scores
@@ -74,7 +84,9 @@ def citation_faithfulness(
     return sum(1 for chunk_id in cited if chunk_id in relevant) / len(cited)
 
 
-def evaluate_ranking(ranked_ids: Sequence[int], relevant_grades: dict[int, int], *, ks: Sequence[int] = (5, 10)) -> dict[str, Any]:
+def evaluate_ranking(
+    ranked_ids: Sequence[int], relevant_grades: dict[int, int], *, ks: Sequence[int] = (5, 10)
+) -> dict[str, Any]:
     result: dict[str, Any] = {"mrr": reciprocal_rank(ranked_ids, relevant_grades)}
     for k in ks:
         result[f"recall_at_{k}"] = recall_at_k(ranked_ids, relevant_grades, k)
@@ -82,21 +94,28 @@ def evaluate_ranking(ranked_ids: Sequence[int], relevant_grades: dict[int, int],
     return result
 
 
-def aggregate_metric(values: Iterable[Optional[float]]) -> Optional[float]:
+def aggregate_metric(values: Iterable[float | None]) -> float | None:
     present = [value for value in values if value is not None]
     if not present:
         return None
     return sum(present) / len(present)
 
 
-def aggregate_case_metrics(case_metrics: Sequence[dict[str, Any]]) -> dict[str, Optional[float]]:
+def aggregate_case_metrics(case_metrics: Sequence[dict[str, Any]]) -> dict[str, float | None]:
     if not case_metrics:
         return {}
-    keys = sorted({key for metrics in case_metrics for key in metrics if isinstance(metrics.get(key), (int, float)) or metrics.get(key) is None})
+    keys = sorted(
+        {
+            key
+            for metrics in case_metrics
+            for key in metrics
+            if isinstance(metrics.get(key), (int, float)) or metrics.get(key) is None
+        }
+    )
     return {key: aggregate_metric(metrics.get(key) for metrics in case_metrics) for key in keys}
 
 
-def intra_list_diversity(similarities: Sequence[float]) -> Optional[float]:
+def intra_list_diversity(similarities: Sequence[float]) -> float | None:
     values = [min(1.0, max(-1.0, float(value))) for value in similarities]
     if not values:
         return None

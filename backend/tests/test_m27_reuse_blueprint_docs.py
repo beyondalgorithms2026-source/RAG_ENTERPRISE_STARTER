@@ -1,7 +1,6 @@
 import unittest
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BLUEPRINT = REPO_ROOT / "docs" / "scenario_profiles_and_reuse_blueprint.md"
 DIAGRAM = REPO_ROOT / "docs" / "diagrams" / "m27_module_selection_map.mmd"

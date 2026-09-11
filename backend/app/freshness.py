@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from app.core.config import settings
 
 
-def _as_utc(value: Any) -> Optional[datetime]:
+def _as_utc(value: Any) -> datetime | None:
     if value is None or value == "":
         return None
     if isinstance(value, datetime):
@@ -18,7 +18,7 @@ def _as_utc(value: Any) -> Optional[datetime]:
     return parsed.astimezone(timezone.utc)
 
 
-def source_freshness(source: Any, *, now: Optional[datetime] = None) -> dict[str, Any]:
+def source_freshness(source: Any, *, now: datetime | None = None) -> dict[str, Any]:
     current = _as_utc(now) or datetime.now(timezone.utc)
     metadata = dict(getattr(source, "source_metadata_json", {}) or {})
     source_type = str(getattr(source, "source_type", "") or "")
@@ -27,7 +27,9 @@ def source_freshness(source: Any, *, now: Optional[datetime] = None) -> dict[str
     last_enriched = _as_utc(getattr(source, "last_enriched_at", None))
     observed = last_synced if source_type == "db_row" else last_ingested
 
-    threshold_hours = int(metadata.get("freshness_threshold_hours") or settings.SOURCE_STALE_AFTER_HOURS)
+    threshold_hours = int(
+        metadata.get("freshness_threshold_hours") or settings.SOURCE_STALE_AFTER_HOURS
+    )
     threshold_hours = max(1, threshold_hours)
     if observed is None:
         status = "unknown"
@@ -52,4 +54,7 @@ def freshness_by_source_ids(source_ids: list[int]) -> dict[int, dict[str, Any]]:
         return {}
     from app.db.repo_sources import get_sources_by_ids
 
-    return {source_id: source_freshness(source) for source_id, source in get_sources_by_ids(source_ids).items()}
+    return {
+        source_id: source_freshness(source)
+        for source_id, source in get_sources_by_ids(source_ids).items()
+    }

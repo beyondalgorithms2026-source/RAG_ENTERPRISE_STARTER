@@ -1,20 +1,16 @@
 import json
 from datetime import datetime, timezone
-from typing import Any, Optional
-
-from sqlalchemy import text
+from typing import Any
 
 from app.auth.access_strategy import (
-    active_direct_grant_fingerprint,
-    can_current_user_access_source,
     current_access_context,
-    local_dev_acl_bypass_enabled,
 )
 from app.auth.context import AuthenticatedUser
 from app.db.db import engine
+from sqlalchemy import text
 
 
-def sync_authenticated_user(user: Optional[AuthenticatedUser]) -> None:
+def sync_authenticated_user(user: AuthenticatedUser | None) -> None:
     if user is None:
         return
 
@@ -42,9 +38,12 @@ def sync_authenticated_user(user: Optional[AuthenticatedUser]) -> None:
                     {
                         "roles": user.roles,
                         "groups": user.groups,
-                        "manager_email": user.raw_claims.get("manager_email") or user.raw_claims.get("managerEmail"),
-                        "manager_display_name": user.raw_claims.get("manager_display_name") or user.raw_claims.get("manager_name"),
-                        "manager_external_user_id": user.raw_claims.get("manager_external_user_id") or user.raw_claims.get("manager_id"),
+                        "manager_email": user.raw_claims.get("manager_email")
+                        or user.raw_claims.get("managerEmail"),
+                        "manager_display_name": user.raw_claims.get("manager_display_name")
+                        or user.raw_claims.get("manager_name"),
+                        "manager_external_user_id": user.raw_claims.get("manager_external_user_id")
+                        or user.raw_claims.get("manager_id"),
                     }
                 ),
             },
@@ -65,7 +64,10 @@ def sync_authenticated_user(user: Optional[AuthenticatedUser]) -> None:
             ).scalar_one()
             group_ids.append(int(group_id))
 
-        conn.execute(text("DELETE FROM user_group_memberships WHERE user_id = :user_id"), {"user_id": principal_id})
+        conn.execute(
+            text("DELETE FROM user_group_memberships WHERE user_id = :user_id"),
+            {"user_id": principal_id},
+        )
         for group_id in group_ids:
             conn.execute(
                 text(
@@ -86,10 +88,10 @@ def current_acl_context() -> dict[str, Any]:
 def upsert_auth_user(
     *,
     external_user_id: str,
-    email: Optional[str] = None,
-    display_name: Optional[str] = None,
-    provider_issuer: Optional[str] = None,
-    user_metadata_json: Optional[dict[str, Any]] = None,
+    email: str | None = None,
+    display_name: str | None = None,
+    provider_issuer: str | None = None,
+    user_metadata_json: dict[str, Any] | None = None,
 ) -> int:
     with engine.begin() as conn:
         return int(
@@ -142,7 +144,10 @@ def replace_user_memberships(*, external_user_id: str, group_names: list[str]) -
     principal_id = upsert_auth_user(external_user_id=external_user_id)
     cleaned_group_names = sorted({item.strip() for item in group_names if item and item.strip()})
     with engine.begin() as conn:
-        conn.execute(text("DELETE FROM user_group_memberships WHERE user_id = :user_id"), {"user_id": principal_id})
+        conn.execute(
+            text("DELETE FROM user_group_memberships WHERE user_id = :user_id"),
+            {"user_id": principal_id},
+        )
         for group_name in cleaned_group_names:
             group_id = ensure_group(group_name)
             conn.execute(
@@ -162,7 +167,9 @@ def replace_user_memberships(*, external_user_id: str, group_names: list[str]) -
 
 def assign_document_acl(*, source_id: int, group_names: list[str]) -> None:
     with engine.begin() as conn:
-        conn.execute(text("DELETE FROM document_acl WHERE source_id = :source_id"), {"source_id": source_id})
+        conn.execute(
+            text("DELETE FROM document_acl WHERE source_id = :source_id"), {"source_id": source_id}
+        )
         for group_name in sorted({item.strip() for item in group_names if item and item.strip()}):
             group_id = ensure_group(group_name)
             conn.execute(
@@ -231,7 +238,11 @@ def list_direct_access_grants() -> list[dict[str, Any]]:
             "starts_at": row.starts_at.isoformat() if row.starts_at else None,
             "expires_at": row.expires_at.isoformat() if row.expires_at else None,
             "revoked_at": row.revoked_at.isoformat() if row.revoked_at else None,
-            "active": bool(row.expires_at and row.expires_at > datetime.now(timezone.utc) and row.revoked_at is None),
+            "active": bool(
+                row.expires_at
+                and row.expires_at > datetime.now(timezone.utc)
+                and row.revoked_at is None
+            ),
         }
         for row in rows
     ]
@@ -413,7 +424,11 @@ def explain_user_access(external_user_id: str) -> dict[str, Any]:
 
 
 def list_access_summary() -> dict[str, Any]:
-    from app.db.repo_access_requests import get_active_grant_counts, list_access_requests, list_source_access_contacts
+    from app.db.repo_access_requests import (
+        get_active_grant_counts,
+        list_access_requests,
+        list_source_access_contacts,
+    )
 
     users_sql = text(
         """
@@ -525,8 +540,12 @@ def list_access_summary() -> dict[str, Any]:
     grant_summary = get_active_grant_counts()
     source_contacts = []
     for item in source_acl:
-        source_contacts.extend([row.__dict__ for row in list_source_access_contacts(item["source_id"])])
-    seed_user_count = sum(1 for user in users if (user.get("user_metadata_json") or {}).get("seed_pack"))
+        source_contacts.extend(
+            [row.__dict__ for row in list_source_access_contacts(item["source_id"])]
+        )
+    seed_user_count = sum(
+        1 for user in users if (user.get("user_metadata_json") or {}).get("seed_pack")
+    )
     return {
         "users": users,
         "groups": groups,

@@ -2,7 +2,6 @@ import re
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 WEB_COMPONENTS = ROOT / "web" / "components"
 
@@ -24,7 +23,12 @@ class AdminFormSystemAR19Tests(unittest.TestCase):
     def test_profiles_panel_is_composed_from_bounded_subpanels(self):
         composer = (WEB_COMPONENTS / "admin-profiles-panel.tsx").read_text()
         self.assertLessEqual(len(composer.splitlines()), 100)
-        for name in ("TuningLabPanel", "EvalEvidencePanel", "QueryMiningPanel", "GovernanceOpsPanel"):
+        for name in (
+            "TuningLabPanel",
+            "EvalEvidencePanel",
+            "QueryMiningPanel",
+            "GovernanceOpsPanel",
+        ):
             self.assertIn(f"<{name} />", composer)
             panel = WEB_COMPONENTS / "admin-profiles" / f"{name}.tsx"
             self.assertLessEqual(len(panel.read_text().splitlines()), 400, name)
@@ -42,10 +46,15 @@ class AdminFormSystemAR19Tests(unittest.TestCase):
             "admin-modules-panel.tsx",
             "admin-providers-panel.tsx",
         ]
-        files.extend(str(path.relative_to(WEB_COMPONENTS)) for path in (WEB_COMPONENTS / "admin-profiles").glob("*.tsx"))
+        files.extend(
+            str(path.relative_to(WEB_COMPONENTS))
+            for path in (WEB_COMPONENTS / "admin-profiles").glob("*.tsx")
+        )
         raw_control = re.compile(r"<(?:input|select|textarea)\b")
         for relative in files:
-            self.assertIsNone(raw_control.search((WEB_COMPONENTS / relative).read_text()), relative)
+            self.assertIsNone(
+                raw_control.search((WEB_COMPONENTS / relative).read_text()), relative
+            )
 
     def test_profile_endpoint_contract_is_preserved(self):
         endpoints = (WEB_COMPONENTS / "admin-profiles" / "endpoints.ts").read_text()

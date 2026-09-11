@@ -1,12 +1,10 @@
 import json
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
-
-from sqlalchemy import text
+from typing import Any
 
 from app.auth.access_strategy import source_access_sql
 from app.db.db import engine
-
+from sqlalchemy import text
 
 _RESERVED_METADATA_SECTIONS = {"graph", "temporal", "lazy_enrichment"}
 
@@ -17,23 +15,23 @@ class SourceRow:
     file_name: str
     storage_path: str
     source_type: str
-    mime_type: Optional[str]
+    mime_type: str | None
     hash_sha256: str
     sensitivity_label: str
-    file_size_bytes: Optional[int]
+    file_size_bytes: int | None
     ingestion_status: str
     enrichment_status: str
-    source_metadata_json: Dict
-    last_ingested_at: Optional[str] = None
-    last_synced_at: Optional[str] = None
-    last_enriched_at: Optional[str] = None
+    source_metadata_json: dict
+    last_ingested_at: str | None = None
+    last_synced_at: str | None = None
+    last_enriched_at: str | None = None
 
 
 def _row_to_source(row) -> SourceRow:
     return SourceRow(*row)
 
 
-def get_source_by_storage_path(storage_path: str) -> Optional[SourceRow]:
+def get_source_by_storage_path(storage_path: str) -> SourceRow | None:
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
@@ -50,7 +48,7 @@ def get_source_by_storage_path(storage_path: str) -> Optional[SourceRow]:
     return _row_to_source(row)
 
 
-def get_source_by_id(source_id: int) -> Optional[SourceRow]:
+def get_source_by_id(source_id: int) -> SourceRow | None:
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
@@ -67,7 +65,7 @@ def get_source_by_id(source_id: int) -> Optional[SourceRow]:
     return _row_to_source(row)
 
 
-def get_accessible_source_by_id(source_id: int) -> Optional[SourceRow]:
+def get_accessible_source_by_id(source_id: int) -> SourceRow | None:
     params: dict[str, Any] = {"source_id": source_id}
     sql = text(
         f"""
@@ -86,7 +84,7 @@ def get_accessible_source_by_id(source_id: int) -> Optional[SourceRow]:
     return _row_to_source(row)
 
 
-def get_sources_by_ids(source_ids: List[int]) -> Dict[int, SourceRow]:
+def get_sources_by_ids(source_ids: list[int]) -> dict[int, SourceRow]:
     if not source_ids:
         return {}
 
@@ -104,7 +102,7 @@ def get_sources_by_ids(source_ids: List[int]) -> Dict[int, SourceRow]:
     return {row[0]: _row_to_source(row) for row in rows}
 
 
-def find_source_by_name_and_hash(file_name: str, hash_sha256: str) -> Optional[SourceRow]:
+def find_source_by_name_and_hash(file_name: str, hash_sha256: str) -> SourceRow | None:
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
@@ -123,7 +121,7 @@ def find_source_by_name_and_hash(file_name: str, hash_sha256: str) -> Optional[S
     return _row_to_source(row)
 
 
-def get_latest_source_by_name(file_name: str) -> Optional[SourceRow]:
+def get_latest_source_by_name(file_name: str) -> SourceRow | None:
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
@@ -148,12 +146,12 @@ def upsert_source(
     file_name: str,
     source_type: str,
     hash_sha256: str,
-    mime_type: Optional[str] = None,
+    mime_type: str | None = None,
     sensitivity_label: str = "internal",
-    file_size_bytes: Optional[int] = None,
+    file_size_bytes: int | None = None,
     ingestion_status: str = "pending",
     enrichment_status: str = "not_started",
-    source_metadata_json: Optional[Dict] = None,
+    source_metadata_json: dict | None = None,
 ) -> int:
     sql = text(
         """
@@ -195,7 +193,7 @@ def upsert_source(
         return conn.execute(sql, params).scalar_one()
 
 
-def list_sources() -> List[SourceRow]:
+def list_sources() -> list[SourceRow]:
     sql = text(
         """
         SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
@@ -210,7 +208,7 @@ def list_sources() -> List[SourceRow]:
     return [_row_to_source(row) for row in rows]
 
 
-def list_accessible_sources() -> List[SourceRow]:
+def list_accessible_sources() -> list[SourceRow]:
     params: dict[str, Any] = {}
     sql = text(
         f"""
@@ -230,12 +228,12 @@ def list_accessible_sources() -> List[SourceRow]:
 def update_source_admin_fields(
     source_id: int,
     *,
-    file_name: Optional[str] = None,
-    sensitivity_label: Optional[str] = None,
-    source_metadata_json: Optional[Dict] = None,
+    file_name: str | None = None,
+    sensitivity_label: str | None = None,
+    source_metadata_json: dict | None = None,
 ) -> bool:
     updates = []
-    params: Dict[str, Any] = {"source_id": source_id}
+    params: dict[str, Any] = {"source_id": source_id}
     if file_name is not None:
         updates.append("file_name = :file_name")
         params["file_name"] = file_name
@@ -262,7 +260,12 @@ def delete_source(source_id: int) -> bool:
     return result.rowcount > 0
 
 
-def update_source_status(source_id: int, *, ingestion_status: Optional[str] = None, enrichment_status: Optional[str] = None) -> None:
+def update_source_status(
+    source_id: int,
+    *,
+    ingestion_status: str | None = None,
+    enrichment_status: str | None = None,
+) -> None:
     updates = []
     params = {"source_id": source_id}
     if ingestion_status is not None:
@@ -284,12 +287,14 @@ def update_source_status(source_id: int, *, ingestion_status: Optional[str] = No
         conn.execute(sql, params)
 
 
-def mark_sources_synced(source_ids: List[int]) -> None:
+def mark_sources_synced(source_ids: list[int]) -> None:
     if not source_ids:
         return
     with engine.begin() as conn:
         conn.execute(
-            text("UPDATE sources SET last_synced_at = now(), updated_at = now() WHERE id = ANY(:source_ids)"),
+            text(
+                "UPDATE sources SET last_synced_at = now(), updated_at = now() WHERE id = ANY(:source_ids)"
+            ),
             {"source_ids": list(source_ids)},
         )
 
@@ -303,11 +308,11 @@ def _deep_merge_metadata(current_value: Any, patch_value: Any) -> Any:
     return patch_value
 
 
-def _normalize_source_metadata(value: Any) -> Dict[str, Any]:
+def _normalize_source_metadata(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
 
 
-def _validate_metadata_patch(metadata_patch: Dict[str, Any]) -> None:
+def _validate_metadata_patch(metadata_patch: dict[str, Any]) -> None:
     if not isinstance(metadata_patch, dict):
         raise TypeError("source metadata patch must be a dict")
 
@@ -316,13 +321,15 @@ def _validate_metadata_patch(metadata_patch: Dict[str, Any]) -> None:
             raise ValueError(f"source metadata section '{section_name}' must be a dict")
 
 
-def _merge_source_metadata(current_metadata: Any, metadata_patch: Dict[str, Any]) -> Dict[str, Any]:
+def _merge_source_metadata(
+    current_metadata: Any, metadata_patch: dict[str, Any]
+) -> dict[str, Any]:
     _validate_metadata_patch(metadata_patch)
     current = _normalize_source_metadata(current_metadata)
     return _deep_merge_metadata(current, metadata_patch)
 
 
-def merge_source_metadata(source_id: int, metadata_patch: Dict) -> None:
+def merge_source_metadata(source_id: int, metadata_patch: dict) -> None:
     current = get_source_by_id(source_id)
     if current is None:
         return
@@ -348,7 +355,7 @@ def merge_source_metadata(source_id: int, metadata_patch: Dict) -> None:
         )
 
 
-def remove_source_metadata_sections(source_id: int, section_names: List[str]) -> None:
+def remove_source_metadata_sections(source_id: int, section_names: list[str]) -> None:
     current = get_source_by_id(source_id)
     if current is None:
         return
@@ -372,13 +379,13 @@ def remove_source_metadata_sections(source_id: int, section_names: List[str]) ->
         )
 
 
-def update_source_graph_metadata(source_id: int, graph_metadata: Dict) -> None:
+def update_source_graph_metadata(source_id: int, graph_metadata: dict) -> None:
     merge_source_metadata(source_id, {"graph": graph_metadata})
 
 
-def update_source_temporal_metadata(source_id: int, temporal_metadata: Dict) -> None:
+def update_source_temporal_metadata(source_id: int, temporal_metadata: dict) -> None:
     merge_source_metadata(source_id, {"temporal": temporal_metadata})
 
 
-def record_lazy_enrichment_trace(source_id: int, trace_metadata: Dict) -> None:
+def record_lazy_enrichment_trace(source_id: int, trace_metadata: dict) -> None:
     merge_source_metadata(source_id, {"lazy_enrichment": trace_metadata})

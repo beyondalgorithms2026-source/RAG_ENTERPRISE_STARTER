@@ -13,17 +13,17 @@ pass-rate trends are read back from the AR4 eval-run history. The quarantine is
 the guardrail — noisy feedback can never poison the gate, because the AR3 gate
 excludes unreviewed cases until a human reviews them.
 """
+
 import json
 import time
 from pathlib import Path
-from typing import Any, Optional
-
-from sqlalchemy import text
+from typing import Any
 
 from app.auth.context import AuthenticatedUser
 from app.db.db import engine
 from app.db.repo_query_mining import normalize_question
 from app.eval.pack_builder import PACKS_DIR
+from sqlalchemy import text
 
 PROVENANCE = "feedback_derived"
 
@@ -79,10 +79,16 @@ def _evidence_for_question(conn, normalized: str) -> tuple[dict[str, int], list[
 def propose_cases_from_cluster(cluster_id: int) -> dict[str, Any]:
     """Propose (do not persist) quarantined eval cases from a failure cluster."""
     with engine.connect() as conn:
-        cluster = conn.execute(
-            text("SELECT id, label, sample_questions_json FROM query_failure_clusters WHERE id = :id"),
-            {"id": cluster_id},
-        ).mappings().first()
+        cluster = (
+            conn.execute(
+                text(
+                    "SELECT id, label, sample_questions_json FROM query_failure_clusters WHERE id = :id"
+                ),
+                {"id": cluster_id},
+            )
+            .mappings()
+            .first()
+        )
         if not cluster:
             raise ValueError(f"Cluster {cluster_id} not found")
         questions = list(cluster["sample_questions_json"] or [])
@@ -111,7 +117,9 @@ def propose_cases_from_cluster(cluster_id: int) -> dict[str, Any]:
     return {"cluster_id": cluster_id, "label": cluster["label"], "proposed_cases": cases}
 
 
-def append_cases_to_pack(pack_name: str, cases: list[dict[str, Any]], *, actor: Optional[AuthenticatedUser] = None) -> dict[str, Any]:
+def append_cases_to_pack(
+    pack_name: str, cases: list[dict[str, Any]], *, actor: AuthenticatedUser | None = None
+) -> dict[str, Any]:
     """Append proposed cases to an AR3 pack as quarantined (unreviewed) cases.
     Deduplicated by normalized question; existing cases are never overwritten."""
     pack = load_pack(pack_name)
@@ -131,7 +139,12 @@ def append_cases_to_pack(pack_name: str, cases: list[dict[str, Any]], *, actor: 
         added.append(entry["id"])
     pack["case_counts"] = _recount(pack["cases"])
     _write_pack(pack, pack_name)
-    return {"pack": pack_name, "added": added, "added_count": len(added), "total": len(pack["cases"])}
+    return {
+        "pack": pack_name,
+        "added": added,
+        "added_count": len(added),
+        "total": len(pack["cases"]),
+    }
 
 
 def review_pack_case(
@@ -140,7 +153,7 @@ def review_pack_case(
     *,
     relevant: dict[str, int],
     review_status: str = "reviewed",
-    reviewer: Optional[str] = None,
+    reviewer: str | None = None,
 ) -> dict[str, Any]:
     """Label a quarantined case and flip it to reviewed so it gates the next run.
     A reviewed case must carry a non-empty graded relevance map."""
@@ -163,7 +176,9 @@ def review_pack_case(
 def _recount(cases: list[dict[str, Any]]) -> dict[str, Any]:
     counts: dict[str, int] = {"total": len(cases)}
     for case in cases:
-        counts[case.get("provenance", "unknown")] = counts.get(case.get("provenance", "unknown"), 0) + 1
+        counts[case.get("provenance", "unknown")] = (
+            counts.get(case.get("provenance", "unknown"), 0) + 1
+        )
         status_key = f"review_{case.get('review_status', 'unreviewed')}"
         counts[status_key] = counts.get(status_key, 0) + 1
     return counts
@@ -193,17 +208,21 @@ def pack_passrate_trend(*, limit: int = 50) -> dict[str, Any]:
     """Pack pass-rate over time, read from the AR4 eval-run history. Each point
     is a recorded eval run with its gate status and headline metrics."""
     with engine.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
+        rows = (
+            conn.execute(
+                text(
+                    """
                 SELECT id, run_label, gate_status, gate_aggregates_json, created_at
                 FROM tuning_eval_runs
                 ORDER BY created_at ASC, id ASC
                 LIMIT :limit
                 """
-            ),
-            {"limit": limit},
-        ).mappings().all()
+                ),
+                {"limit": limit},
+            )
+            .mappings()
+            .all()
+        )
     points = []
     passes = 0
     for index, row in enumerate(rows, start=1):
@@ -217,8 +236,14 @@ def pack_passrate_trend(*, limit: int = 50) -> dict[str, Any]:
                 "gate_status": row["gate_status"],
                 "recall_at_5": aggregates.get("recall_at_5"),
                 "mrr": aggregates.get("mrr"),
-                "created_at": row["created_at"].isoformat() if hasattr(row["created_at"], "isoformat") else row["created_at"],
+                "created_at": row["created_at"].isoformat()
+                if hasattr(row["created_at"], "isoformat")
+                else row["created_at"],
                 "cumulative_pass_rate": round(passes / index, 4),
             }
         )
-    return {"points": points, "run_count": len(points), "overall_pass_rate": round(passes / len(points), 4) if points else None}
+    return {
+        "points": points,
+        "run_count": len(points),
+        "overall_pass_rate": round(passes / len(points), 4) if points else None,
+    }

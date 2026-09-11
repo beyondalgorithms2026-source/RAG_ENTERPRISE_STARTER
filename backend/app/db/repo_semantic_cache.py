@@ -1,16 +1,17 @@
 import hashlib
 import json
-import re
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any
 
-from sqlalchemy import text
-
+from app.auth.access_strategy import active_access_strategy, active_corpus_grant_fingerprint
 from app.auth.context import AuthenticatedUser
-from app.auth.access_strategy import active_corpus_grant_fingerprint, active_access_strategy
 from app.core.logging import logger
 from app.db.db import engine
-from app.db.repo_acl import active_direct_grant_fingerprint, can_current_user_access_source, current_acl_context
+from app.db.repo_acl import (
+    active_direct_grant_fingerprint,
+    can_current_user_access_source,
+    current_acl_context,
+)
 from app.db.repo_semantic_cache_policies import (
     get_active_policy_version,
     normalize_question,
@@ -18,6 +19,7 @@ from app.db.repo_semantic_cache_policies import (
 )
 from app.db.repo_sources import get_source_by_id
 from app.profiles.resolver import get_active_profile_snapshot
+from sqlalchemy import text
 
 
 def _stable_hash(payload: Any) -> str:
@@ -25,7 +27,7 @@ def _stable_hash(payload: Any) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def _embed_question(question: str) -> Optional[list[float]]:
+def _embed_question(question: str) -> list[float] | None:
     """Embed a question with the active embedder for semantic cache matching.
     Returns None on any failure so the cache degrades to exact-only, never errors."""
     try:
@@ -41,7 +43,7 @@ def _embed_question(question: str) -> Optional[list[float]]:
 def _cosine(a: list[float], b: list[float]) -> float:
     if not a or not b or len(a) != len(b):
         return 0.0
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=False))
     norm_a = sum(x * x for x in a) ** 0.5
     norm_b = sum(y * y for y in b) ** 0.5
     if norm_a == 0.0 or norm_b == 0.0:
@@ -49,7 +51,9 @@ def _cosine(a: list[float], b: list[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
-def cache_scope(*, question: str, retrieval_mode: Optional[str], corpus_scope: Optional[dict[str, Any]] = None) -> dict[str, str]:
+def cache_scope(
+    *, question: str, retrieval_mode: str | None, corpus_scope: dict[str, Any] | None = None
+) -> dict[str, str]:
     acl = current_acl_context()
     profiles = get_active_profile_snapshot()
     return {
@@ -91,14 +95,19 @@ def bump_cache_revision(*, scope_type: str, scope_key: str = "global", reason: s
         )
 
 
-def current_cache_revisions(*, corpus_names: Optional[list[str]] = None, source_ids: Optional[list[int]] = None) -> dict[str, int]:
+def current_cache_revisions(
+    *, corpus_names: list[str] | None = None, source_ids: list[int] | None = None
+) -> dict[str, int]:
     keys = [("access", "global"), ("profile", "global"), ("content", "global")]
-    keys.extend(("corpus", str(item).strip().lower()) for item in (corpus_names or []) if str(item).strip())
+    keys.extend(
+        ("corpus", str(item).strip().lower()) for item in (corpus_names or []) if str(item).strip()
+    )
     keys.extend(("source", str(int(item))) for item in (source_ids or []))
     with engine.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
+        rows = (
+            conn.execute(
+                text(
+                    """
                 SELECT scope_type, scope_key, revision
                 FROM semantic_cache_revisions
                 WHERE (scope_type, scope_key) IN (
@@ -106,14 +115,22 @@ def current_cache_revisions(*, corpus_names: Optional[list[str]] = None, source_
                     FROM jsonb_array_elements(CAST(:keys AS jsonb)) AS item
                 )
                 """
-            ),
-            {"keys": json.dumps(keys)},
-        ).mappings().all()
+                ),
+                {"keys": json.dumps(keys)},
+            )
+            .mappings()
+            .all()
+        )
     found = {f"{row['scope_type']}:{row['scope_key']}": int(row["revision"]) for row in rows}
-    return {f"{scope_type}:{scope_key}": found.get(f"{scope_type}:{scope_key}", 0) for scope_type, scope_key in keys}
+    return {
+        f"{scope_type}:{scope_key}": found.get(f"{scope_type}:{scope_key}", 0)
+        for scope_type, scope_key in keys
+    }
 
 
-def _source_scope(citations_json: list[dict[str, Any]]) -> tuple[list[int], list[str], dict[str, Any]]:
+def _source_scope(
+    citations_json: list[dict[str, Any]],
+) -> tuple[list[int], list[str], dict[str, Any]]:
     source_ids = sorted(
         {
             int(item["source_id"])
@@ -143,21 +160,32 @@ def cache_citation_scope(citations_json: list[dict[str, Any]]) -> tuple[list[int
     return source_ids, corpus_names
 
 
-def get_cache_entry_by_id(cache_entry_id: int) -> Optional[dict[str, Any]]:
+def get_cache_entry_by_id(cache_entry_id: int) -> dict[str, Any] | None:
     with engine.connect() as conn:
-        row = conn.execute(
-            text(
-                """
+        row = (
+            conn.execute(
+                text(
+                    """
                 SELECT id, policy_version_id, cache_namespace, answer_json, citations_json,
                        corpus_names_json, answer_path, original_latency_ms, metadata_json,
                        created_at, expires_at, invalidated_at
                 FROM semantic_cache_entries
                 WHERE id = :cache_entry_id
                 """
-            ),
-            {"cache_entry_id": cache_entry_id},
-        ).mappings().first()
-    return {key: (value.isoformat() if hasattr(value, "isoformat") else value) for key, value in dict(row).items()} if row else None
+                ),
+                {"cache_entry_id": cache_entry_id},
+            )
+            .mappings()
+            .first()
+        )
+    return (
+        {
+            key: (value.isoformat() if hasattr(value, "isoformat") else value)
+            for key, value in dict(row).items()
+        }
+        if row
+        else None
+    )
 
 
 def invalidate_cache_entry(cache_entry_id: int, *, reason: str) -> bool:
@@ -171,7 +199,10 @@ def invalidate_cache_entry(cache_entry_id: int, *, reason: str) -> bool:
                 WHERE id = :cache_entry_id AND invalidated_at IS NULL
                 """
             ),
-            {"cache_entry_id": cache_entry_id, "metadata": json.dumps({"invalidation_reason": reason})},
+            {
+                "cache_entry_id": cache_entry_id,
+                "metadata": json.dumps({"invalidation_reason": reason}),
+            },
         )
     return bool(result.rowcount)
 
@@ -204,7 +235,9 @@ def policy_allows(
     return (positive, "eligible" if positive else "no_positive_scope_match")
 
 
-def active_policy_decision(*, question: str, corpus_names: list[str]) -> tuple[Optional[dict[str, Any]], str]:
+def active_policy_decision(
+    *, question: str, corpus_names: list[str]
+) -> tuple[dict[str, Any] | None, str]:
     policy = get_active_policy_version()
     if not policy:
         return None, "global_default_off"
@@ -227,20 +260,23 @@ _ENTRY_COLUMNS = """
 
 
 def _serialize_entry(row: Any) -> dict[str, Any]:
-    return {key: (value.isoformat() if hasattr(value, "isoformat") else value) for key, value in dict(row).items()}
+    return {
+        key: (value.isoformat() if hasattr(value, "isoformat") else value)
+        for key, value in dict(row).items()
+    }
 
 
 def _finalize_hit(
     conn,
     row: Any,
     *,
-    governed: Optional[dict[str, Any]],
-    actor: Optional[AuthenticatedUser],
+    governed: dict[str, Any] | None,
+    actor: AuthenticatedUser | None,
     question: str,
     hit_type: str,
     hit_reason: str,
-    similarity: Optional[float] = None,
-) -> Optional[dict[str, Any]]:
+    similarity: float | None = None,
+) -> dict[str, Any] | None:
     """Identical post-match governance for BOTH exact and similarity hits
     (AR6): policy re-check, per-source ACL re-authorization, content/profile
     revision validation, then hit accounting. A similarity hit is held to the
@@ -277,7 +313,11 @@ def _finalize_hit(
                 VALUES (:cache_entry_id, 'reauthorization_miss', :actor_id, :actor_email)
                 """
             ),
-            {"cache_entry_id": row["id"], "actor_id": actor.user_id if actor else None, "actor_email": actor.email if actor else None},
+            {
+                "cache_entry_id": row["id"],
+                "actor_id": actor.user_id if actor else None,
+                "actor_email": actor.email if actor else None,
+            },
         )
         if governed:
             record_policy_event(
@@ -313,7 +353,10 @@ def _finalize_hit(
                 actor=actor,
             )
         return None
-    conn.execute(text("UPDATE semantic_cache_entries SET last_hit_at = now() WHERE id = :id"), {"id": row["id"]})
+    conn.execute(
+        text("UPDATE semantic_cache_entries SET last_hit_at = now() WHERE id = :id"),
+        {"id": row["id"]},
+    )
     conn.execute(
         text(
             """
@@ -323,7 +366,12 @@ def _finalize_hit(
             VALUES (:cache_entry_id, :hit_type, :actor_id, :actor_email)
             """
         ),
-        {"cache_entry_id": row["id"], "hit_type": hit_type, "actor_id": actor.user_id if actor else None, "actor_email": actor.email if actor else None},
+        {
+            "cache_entry_id": row["id"],
+            "hit_type": hit_type,
+            "actor_id": actor.user_id if actor else None,
+            "actor_email": actor.email if actor else None,
+        },
     )
     if governed:
         metadata = {"similarity": round(float(similarity), 4)} if similarity is not None else None
@@ -352,8 +400,8 @@ def _semantic_lookup(
     scope: dict[str, str],
     namespace: str,
     governed: dict[str, Any],
-    actor: Optional[AuthenticatedUser],
-) -> Optional[dict[str, Any]]:
+    actor: AuthenticatedUser | None,
+) -> dict[str, Any] | None:
     """Embedding-similarity tier (AR6): relax ONLY the normalized-question
     dimension; keep namespace + ACL + profile + corpus + mode scope identical to
     exact matching, then rank stored query embeddings by cosine and gate on the
@@ -369,9 +417,10 @@ def _semantic_lookup(
             metadata_json={"namespace": namespace},
         )
         return None
-    candidate_rows = conn.execute(
-        text(
-            f"""
+    candidate_rows = (
+        conn.execute(
+            text(
+                f"""
             SELECT {_ENTRY_COLUMNS}, query_embedding_json
             FROM semantic_cache_entries
             WHERE cache_namespace = :cache_namespace
@@ -385,9 +434,12 @@ def _semantic_lookup(
             ORDER BY created_at DESC, id DESC
             LIMIT 200
             """
-        ),
-        {**scope, "cache_namespace": namespace},
-    ).mappings().all()
+            ),
+            {**scope, "cache_namespace": namespace},
+        )
+        .mappings()
+        .all()
+    )
 
     best_row = None
     best_score = 0.0
@@ -400,7 +452,9 @@ def _semantic_lookup(
     if best_row is None or best_score < threshold:
         record_policy_event(
             event_type="miss",
-            reason="below_similarity_threshold" if best_row is not None else "no_semantic_candidate",
+            reason="below_similarity_threshold"
+            if best_row is not None
+            else "no_semantic_candidate",
             policy_version_id=governed.get("id"),
             cache_entry_id=(best_row["id"] if best_row is not None else None),
             actor=actor,
@@ -422,13 +476,15 @@ def _semantic_lookup(
 def get_cache_entry(
     *,
     question: str,
-    retrieval_mode: Optional[str],
-    corpus_scope: Optional[dict[str, Any]] = None,
-    actor: Optional[AuthenticatedUser] = None,
-    policy: Optional[dict[str, Any]] = None,
-    cache_namespace: Optional[str] = None,
-) -> Optional[dict[str, Any]]:
-    scope = cache_scope(question=question, retrieval_mode=retrieval_mode, corpus_scope=corpus_scope)
+    retrieval_mode: str | None,
+    corpus_scope: dict[str, Any] | None = None,
+    actor: AuthenticatedUser | None = None,
+    policy: dict[str, Any] | None = None,
+    cache_namespace: str | None = None,
+) -> dict[str, Any] | None:
+    scope = cache_scope(
+        question=question, retrieval_mode=retrieval_mode, corpus_scope=corpus_scope
+    )
     governed = policy or get_active_policy_version()
     namespace = cache_namespace or str((governed or {}).get("cache_namespace") or "")
     sql = text(
@@ -486,33 +542,39 @@ def get_cache_entry(
 def store_cache_entry(
     *,
     question: str,
-    retrieval_mode: Optional[str],
+    retrieval_mode: str | None,
     answer_json: dict[str, Any],
     citations_json: list[dict[str, Any]],
     retrieved_chunk_ids: list[int],
     ttl_seconds: int,
-    corpus_scope: Optional[dict[str, Any]] = None,
-    query_embedding: Optional[list[float]] = None,
-    metadata_json: Optional[dict[str, Any]] = None,
-    policy: Optional[dict[str, Any]] = None,
-    cache_namespace: Optional[str] = None,
-    answer_path: Optional[str] = None,
-    original_latency_ms: Optional[int] = None,
+    corpus_scope: dict[str, Any] | None = None,
+    query_embedding: list[float] | None = None,
+    metadata_json: dict[str, Any] | None = None,
+    policy: dict[str, Any] | None = None,
+    cache_namespace: str | None = None,
+    answer_path: str | None = None,
+    original_latency_ms: int | None = None,
 ) -> dict[str, Any]:
-    scope = cache_scope(question=question, retrieval_mode=retrieval_mode, corpus_scope=corpus_scope)
+    scope = cache_scope(
+        question=question, retrieval_mode=retrieval_mode, corpus_scope=corpus_scope
+    )
     governed = policy or get_active_policy_version()
     namespace = cache_namespace or str((governed or {}).get("cache_namespace") or "")
     # AR6: a semantic-match policy needs the stored query embedding for later
     # similarity lookup; compute it here when the caller did not supply one.
-    if query_embedding is None and str((governed or {}).get("match_mode") or "exact") == "semantic":
+    if (
+        query_embedding is None
+        and str((governed or {}).get("match_mode") or "exact") == "semantic"
+    ):
         query_embedding = _embed_question(question)
     source_ids, corpus_names, source_revisions = _source_scope(citations_json)
     revision_snapshot = current_cache_revisions(corpus_names=corpus_names, source_ids=source_ids)
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=max(ttl_seconds, 1))
     with engine.begin() as conn:
-        row = conn.execute(
-            text(
-                """
+        row = (
+            conn.execute(
+                text(
+                    """
                 INSERT INTO semantic_cache_entries (
                     policy_version_id, cache_namespace, normalized_question,
                     query_embedding_json, acl_scope_hash, profile_snapshot_hash,
@@ -533,24 +595,27 @@ def store_cache_entry(
                 )
                 RETURNING id, normalized_question, created_at, expires_at
                 """
-            ),
-            {
-                **scope,
-                "policy_version_id": governed.get("id") if governed else None,
-                "cache_namespace": namespace,
-                "query_embedding": json.dumps(query_embedding or []),
-                "corpus_names": json.dumps(corpus_names),
-                "source_revisions": json.dumps(source_revisions),
-                "revision_snapshot": json.dumps(revision_snapshot),
-                "answer_path": answer_path,
-                "original_latency_ms": original_latency_ms,
-                "answer_json": json.dumps(answer_json),
-                "citations_json": json.dumps(citations_json),
-                "retrieved_chunk_ids": json.dumps(retrieved_chunk_ids),
-                "metadata_json": json.dumps(metadata_json or {}),
-                "expires_at": expires_at,
-            },
-        ).mappings().one()
+                ),
+                {
+                    **scope,
+                    "policy_version_id": governed.get("id") if governed else None,
+                    "cache_namespace": namespace,
+                    "query_embedding": json.dumps(query_embedding or []),
+                    "corpus_names": json.dumps(corpus_names),
+                    "source_revisions": json.dumps(source_revisions),
+                    "revision_snapshot": json.dumps(revision_snapshot),
+                    "answer_path": answer_path,
+                    "original_latency_ms": original_latency_ms,
+                    "answer_json": json.dumps(answer_json),
+                    "citations_json": json.dumps(citations_json),
+                    "retrieved_chunk_ids": json.dumps(retrieved_chunk_ids),
+                    "metadata_json": json.dumps(metadata_json or {}),
+                    "expires_at": expires_at,
+                },
+            )
+            .mappings()
+            .one()
+        )
         if governed:
             max_entries = int(governed.get("max_active_entries") or 1000)
             evicted = conn.execute(
@@ -589,10 +654,13 @@ def store_cache_entry(
             actor=None,
             metadata_json={"corpora": corpus_names, "source_ids": source_ids},
         )
-    return {key: (value.isoformat() if hasattr(value, "isoformat") else value) for key, value in dict(row).items()}
+    return {
+        key: (value.isoformat() if hasattr(value, "isoformat") else value)
+        for key, value in dict(row).items()
+    }
 
 
-def invalidate_cache(reason: str = "manual", *, cache_namespace: Optional[str] = None) -> int:
+def invalidate_cache(reason: str = "manual", *, cache_namespace: str | None = None) -> int:
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -604,38 +672,51 @@ def invalidate_cache(reason: str = "manual", *, cache_namespace: Optional[str] =
                   AND (:cache_namespace IS NULL OR cache_namespace = :cache_namespace)
                 """
             ),
-            {"metadata": json.dumps({"invalidation_reason": reason}), "cache_namespace": cache_namespace},
+            {
+                "metadata": json.dumps({"invalidation_reason": reason}),
+                "cache_namespace": cache_namespace,
+            },
         )
     if result.rowcount:
-        record_policy_event(event_type="invalidation", reason=reason, metadata_json={"count": int(result.rowcount)})
+        record_policy_event(
+            event_type="invalidation", reason=reason, metadata_json={"count": int(result.rowcount)}
+        )
     return int(result.rowcount or 0)
 
 
 def cache_health() -> dict[str, Any]:
     with engine.connect() as conn:
-        row = conn.execute(
-            text(
-                """
+        row = (
+            conn.execute(
+                text(
+                    """
                 SELECT
                   COUNT(*)::bigint AS total_entries,
                   COUNT(*) FILTER (WHERE invalidated_at IS NULL AND expires_at > now())::bigint AS active_entries,
                   COUNT(*) FILTER (WHERE invalidated_at IS NOT NULL)::bigint AS invalidated_entries
                 FROM semantic_cache_entries
                 """
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         hits = conn.execute(text("SELECT COUNT(*)::bigint FROM semantic_cache_hits")).scalar_one()
-        hit_breakdown = conn.execute(
-            text(
-                """
+        hit_breakdown = (
+            conn.execute(
+                text(
+                    """
                 SELECT
                   COUNT(*) FILTER (WHERE hit_type = 'hit')::bigint AS exact_hits,
                   COUNT(*) FILTER (WHERE hit_type = 'similarity_hit')::bigint AS similarity_hits,
                   COUNT(*) FILTER (WHERE hit_type = 'reauthorization_miss')::bigint AS reauthorization_misses
                 FROM semantic_cache_hits
                 """
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
     active_policy = get_active_policy_version()
     return {
         **dict(row),

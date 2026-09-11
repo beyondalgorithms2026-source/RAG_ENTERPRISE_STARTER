@@ -4,7 +4,6 @@ from tests.smoke_test_base import *
 class SmokeTestBaseline(SmokeTestBase):
     def test_m16_1_access_request_route_approve_and_grant_enables_retrieval(self):
         from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
-        from app.db.repo_acl import assign_document_acl, sync_authenticated_user
         from app.db.repo_access_requests import (
             create_access_request,
             decide_inbox_item,
@@ -12,6 +11,7 @@ class SmokeTestBaseline(SmokeTestBase):
             list_inbox_items,
             route_access_request,
         )
+        from app.db.repo_acl import assign_document_acl, sync_authenticated_user
 
         suffix = uuid4().hex[:8]
         with engine.begin() as conn:
@@ -52,13 +52,31 @@ class SmokeTestBaseline(SmokeTestBase):
         )
         self.addCleanup(self._delete_retrieval_records, [source_id])
         with engine.connect() as conn:
-            chunk_id = conn.execute(text("SELECT id FROM chunks WHERE source_id = :source_id"), {"source_id": source_id}).scalar_one()
+            chunk_id = conn.execute(
+                text("SELECT id FROM chunks WHERE source_id = :source_id"),
+                {"source_id": source_id},
+            ).scalar_one()
         update_chunk_embeddings([(chunk_id, basis_vector(1.0))])
         assign_document_acl(source_id=source_id, group_names=["legal-team"])
 
-        requester = AuthenticatedUser(user_id=f"m161-user-{suffix}", email=f"m161-user-{suffix}@example.test", roles=["user"], groups=[])
-        admin = AuthenticatedUser(user_id=f"m161-admin-{suffix}", email=f"m161-admin-{suffix}@example.test", roles=["admin", "user"], groups=["legal-admins"])
-        approver = AuthenticatedUser(user_id=f"m161-approver-{suffix}", email=f"m161-approver-{suffix}@example.test", roles=["approver", "user"], groups=[])
+        requester = AuthenticatedUser(
+            user_id=f"m161-user-{suffix}",
+            email=f"m161-user-{suffix}@example.test",
+            roles=["user"],
+            groups=[],
+        )
+        admin = AuthenticatedUser(
+            user_id=f"m161-admin-{suffix}",
+            email=f"m161-admin-{suffix}@example.test",
+            roles=["admin", "user"],
+            groups=["legal-admins"],
+        )
+        approver = AuthenticatedUser(
+            user_id=f"m161-approver-{suffix}",
+            email=f"m161-approver-{suffix}@example.test",
+            roles=["approver", "user"],
+            groups=[],
+        )
         for actor in (requester, admin, approver):
             sync_authenticated_user(actor)
 
@@ -67,7 +85,12 @@ class SmokeTestBaseline(SmokeTestBase):
             # Scope to this test's source: the shared dev DB may contain stale
             # leftovers from earlier aborted runs that also match the token.
             before = perform_search(
-                SearchRequest(question="contracttokenm161", k=5, mode="keyword", filters=SearchFilters(source_id=source_id))
+                SearchRequest(
+                    question="contracttokenm161",
+                    k=5,
+                    mode="keyword",
+                    filters=SearchFilters(source_id=source_id),
+                )
             )
             request_row = create_access_request(
                 question="Need the protected contract terms",
@@ -128,7 +151,12 @@ class SmokeTestBaseline(SmokeTestBase):
         token = set_current_user(requester)
         try:
             after = perform_search(
-                SearchRequest(question="contracttokenm161", k=5, mode="keyword", filters=SearchFilters(source_id=source_id))
+                SearchRequest(
+                    question="contracttokenm161",
+                    k=5,
+                    mode="keyword",
+                    filters=SearchFilters(source_id=source_id),
+                )
             )
         finally:
             reset_current_user(token)
@@ -138,8 +166,8 @@ class SmokeTestBaseline(SmokeTestBase):
 
     def test_m16_1_clarification_marks_access_limited_no_answer_without_leak(self):
         from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
-        from app.db.repo_acl import assign_document_acl, sync_authenticated_user
         from app.core_rag.answering import perform_ask
+        from app.db.repo_acl import assign_document_acl, sync_authenticated_user
 
         suffix = uuid4().hex[:8]
         with engine.begin() as conn:
@@ -166,7 +194,12 @@ class SmokeTestBaseline(SmokeTestBase):
             ).scalar_one()
         assign_document_acl(source_id=source_id, group_names=["finance"])
 
-        requester = AuthenticatedUser(user_id=f"m161-clarify-{suffix}", email=f"m161-clarify-{suffix}@example.test", roles=["user"], groups=[])
+        requester = AuthenticatedUser(
+            user_id=f"m161-clarify-{suffix}",
+            email=f"m161-clarify-{suffix}@example.test",
+            roles=["user"],
+            groups=[],
+        )
         sync_authenticated_user(requester)
         token = set_current_user(requester)
         try:
@@ -190,16 +223,15 @@ class SmokeTestBaseline(SmokeTestBase):
 
     def test_m16_1_route_without_source_ids_and_approver_maps_sources_on_approval(self):
         from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
-        from app.db.repo_acl import assign_document_acl, sync_authenticated_user
         from app.db.repo_access_requests import (
             create_access_request,
             decide_inbox_item,
-            get_access_request,
             grant_access_request,
             list_access_request_targets,
             list_inbox_items,
             route_access_request,
         )
+        from app.db.repo_acl import assign_document_acl, sync_authenticated_user
 
         suffix = uuid4().hex[:8]
         with engine.begin() as conn:
@@ -239,13 +271,31 @@ class SmokeTestBaseline(SmokeTestBase):
             ],
         )
         with engine.connect() as conn:
-            chunk_id = conn.execute(text("SELECT id FROM chunks WHERE source_id = :source_id"), {"source_id": source_id}).scalar_one()
+            chunk_id = conn.execute(
+                text("SELECT id FROM chunks WHERE source_id = :source_id"),
+                {"source_id": source_id},
+            ).scalar_one()
         update_chunk_embeddings([(chunk_id, basis_vector(1.0))])
         assign_document_acl(source_id=source_id, group_names=["legal-team"])
 
-        requester = AuthenticatedUser(user_id=f"m161-requester-{suffix}", email=f"m161-requester-{suffix}@example.test", roles=["user"], groups=[])
-        admin = AuthenticatedUser(user_id=f"m161-admin-{suffix}", email=f"m161-admin-{suffix}@example.test", roles=["admin", "user"], groups=["legal-admins"])
-        approver = AuthenticatedUser(user_id=f"m161-approver-{suffix}", email=f"m161-approver-{suffix}@example.test", roles=["approver", "user"], groups=[])
+        requester = AuthenticatedUser(
+            user_id=f"m161-requester-{suffix}",
+            email=f"m161-requester-{suffix}@example.test",
+            roles=["user"],
+            groups=[],
+        )
+        admin = AuthenticatedUser(
+            user_id=f"m161-admin-{suffix}",
+            email=f"m161-admin-{suffix}@example.test",
+            roles=["admin", "user"],
+            groups=["legal-admins"],
+        )
+        approver = AuthenticatedUser(
+            user_id=f"m161-approver-{suffix}",
+            email=f"m161-approver-{suffix}@example.test",
+            roles=["approver", "user"],
+            groups=[],
+        )
         for actor in (requester, admin, approver):
             sync_authenticated_user(actor)
 
@@ -289,14 +339,19 @@ class SmokeTestBaseline(SmokeTestBase):
             reset_current_user(token)
 
         self.assertEqual(approved.status, "business_approved")
-        self.assertEqual([target.source_id for target in list_access_request_targets(request_row.id)], [source_id])
+        self.assertEqual(
+            [target.source_id for target in list_access_request_targets(request_row.id)],
+            [source_id],
+        )
 
         granted = grant_access_request(access_request_id=request_row.id, actor=admin)
         self.assertEqual(granted.status, "grant_completed")
 
         token = set_current_user(requester)
         try:
-            after = perform_search(SearchRequest(question="contracttokenm161sourcefree", k=5, mode="keyword"))
+            after = perform_search(
+                SearchRequest(question="contracttokenm161sourcefree", k=5, mode="keyword")
+            )
         finally:
             reset_current_user(token)
         self.assertTrue(after.results)
@@ -305,13 +360,34 @@ class SmokeTestBaseline(SmokeTestBase):
 
     def test_m16_1_approver_can_return_request_with_alternate_approver_suggestion(self):
         from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
+        from app.db.repo_access_requests import (
+            create_access_request,
+            decide_inbox_item,
+            get_access_request,
+            list_inbox_items,
+            route_access_request,
+        )
         from app.db.repo_acl import sync_authenticated_user
-        from app.db.repo_access_requests import create_access_request, decide_inbox_item, get_access_request, list_inbox_items, route_access_request
 
         suffix = uuid4().hex[:8]
-        requester = AuthenticatedUser(user_id=f"m161-requester-reroute-{suffix}", email=f"requester-reroute-{suffix}@example.test", roles=["user"], groups=[])
-        admin = AuthenticatedUser(user_id=f"m161-admin-reroute-{suffix}", email=f"admin-reroute-{suffix}@example.test", roles=["admin", "user"], groups=["legal-admins"])
-        wrong_approver = AuthenticatedUser(user_id=f"m161-wrong-{suffix}", email=f"wrong-{suffix}@example.test", roles=["approver", "user"], groups=[])
+        requester = AuthenticatedUser(
+            user_id=f"m161-requester-reroute-{suffix}",
+            email=f"requester-reroute-{suffix}@example.test",
+            roles=["user"],
+            groups=[],
+        )
+        admin = AuthenticatedUser(
+            user_id=f"m161-admin-reroute-{suffix}",
+            email=f"admin-reroute-{suffix}@example.test",
+            roles=["admin", "user"],
+            groups=["legal-admins"],
+        )
+        wrong_approver = AuthenticatedUser(
+            user_id=f"m161-wrong-{suffix}",
+            email=f"wrong-{suffix}@example.test",
+            roles=["approver", "user"],
+            groups=[],
+        )
         for actor in (requester, admin, wrong_approver):
             sync_authenticated_user(actor)
 
@@ -358,16 +434,24 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertEqual(returned.status, "triaged")
         refreshed = get_access_request(request_row.id)
         self.assertEqual(refreshed.business_approval_status, "returned")
-        self.assertEqual((refreshed.metadata_json.get("approver_return") or {}).get("decision"), "return_reroute")
         self.assertEqual(
-            ((refreshed.metadata_json.get("approver_return") or {}).get("alternate_business_approver") or {}).get("contact_email"),
+            (refreshed.metadata_json.get("approver_return") or {}).get("decision"),
+            "return_reroute",
+        )
+        self.assertEqual(
+            (
+                (refreshed.metadata_json.get("approver_return") or {}).get(
+                    "alternate_business_approver"
+                )
+                or {}
+            ).get("contact_email"),
             f"legal-owner-{suffix}@example.test",
         )
 
     def test_m16_1_create_access_request_accepts_contact_shaped_requester_manager(self):
         from app.auth.context import AuthenticatedUser
-        from app.db.repo_acl import sync_authenticated_user
         from app.db.repo_access_requests import create_access_request
+        from app.db.repo_acl import sync_authenticated_user
 
         suffix = uuid4().hex[:8]
         requester = AuthenticatedUser(
@@ -401,11 +485,28 @@ class SmokeTestBaseline(SmokeTestBase):
         from app.db.repo_actions import list_tool_invocations
 
         suffix = uuid4().hex[:8]
-        user = AuthenticatedUser(user_id=f"m14-user-{suffix}", email=f"m14-{suffix}@example.test", roles=["user"], groups=[])
+        user = AuthenticatedUser(
+            user_id=f"m14-user-{suffix}",
+            email=f"m14-{suffix}@example.test",
+            roles=["user"],
+            groups=[],
+        )
         token = set_current_user(user)
         try:
-            denied = invoke_tool(ToolInvokeRequest(tool_name="send_email", corpus_name="legal", payload={"to": "a@example.test"}), user)
-            allowed = invoke_tool(ToolInvokeRequest(tool_name="generate_report", corpus_name="legal", payload={"artifact_type": "csv"}), user)
+            denied = invoke_tool(
+                ToolInvokeRequest(
+                    tool_name="send_email", corpus_name="legal", payload={"to": "a@example.test"}
+                ),
+                user,
+            )
+            allowed = invoke_tool(
+                ToolInvokeRequest(
+                    tool_name="generate_report",
+                    corpus_name="legal",
+                    payload={"artifact_type": "csv"},
+                ),
+                user,
+            )
         finally:
             reset_current_user(token)
 
@@ -413,8 +514,12 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertEqual(denied.denial_reason, "role_not_allowed")
         self.assertEqual(allowed.status, "completed")
         rows = list_tool_invocations(limit=10)
-        self.assertTrue(any(row.id == denied.invocation_id and row.status == "denied" for row in rows))
-        self.assertTrue(any(row.id == allowed.invocation_id and row.status == "completed" for row in rows))
+        self.assertTrue(
+            any(row.id == denied.invocation_id and row.status == "denied" for row in rows)
+        )
+        self.assertTrue(
+            any(row.id == allowed.invocation_id and row.status == "completed" for row in rows)
+        )
 
     def test_m15_sensitive_answer_is_held_for_approval(self):
         from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
@@ -424,7 +529,12 @@ class SmokeTestBaseline(SmokeTestBase):
         from app.db.repo_actions import get_approval_request
 
         suffix = uuid4().hex[:8]
-        user = AuthenticatedUser(user_id=f"m15-user-{suffix}", email=f"m15-{suffix}@example.test", roles=["user"], groups=[])
+        user = AuthenticatedUser(
+            user_id=f"m15-user-{suffix}",
+            email=f"m15-{suffix}@example.test",
+            roles=["user"],
+            groups=[],
+        )
         token = set_current_user(user)
         original_search = answering_module.perform_search
         original_generate = answering_module.generate_answer
@@ -446,9 +556,14 @@ class SmokeTestBaseline(SmokeTestBase):
             mode="hybrid",
             debug_info={"request_id": f"m15-{suffix}"},
         )
-        answering_module.generate_answer = lambda system, user: {"success": True, "content": '{"answer":"Salary is supported [S1]","citations":["S1"]}'}
+        answering_module.generate_answer = lambda system, user: {
+            "success": True,
+            "content": '{"answer":"Salary is supported [S1]","citations":["S1"]}',
+        }
         try:
-            response = answering_module.perform_ask(AskRequest(question="What is the salary?", mode="hybrid"))
+            response = answering_module.perform_ask(
+                AskRequest(question="What is the salary?", mode="hybrid")
+            )
         finally:
             answering_module.perform_search = original_search
             answering_module.generate_answer = original_generate
@@ -467,7 +582,12 @@ class SmokeTestBaseline(SmokeTestBase):
         from app.db.repo_actions import list_query_feedback
 
         suffix = uuid4().hex[:8]
-        user = AuthenticatedUser(user_id=f"m16-user-{suffix}", email=f"m16-{suffix}@example.test", roles=["user"], groups=[])
+        user = AuthenticatedUser(
+            user_id=f"m16-user-{suffix}",
+            email=f"m16-{suffix}@example.test",
+            roles=["user"],
+            groups=[],
+        )
         token = set_current_user(user)
         original_search = answering_module.perform_search
         answering_module.perform_search = lambda request: SearchResponse(
@@ -477,14 +597,21 @@ class SmokeTestBaseline(SmokeTestBase):
             debug_info={"request_id": f"m16-{suffix}"},
         )
         try:
-            response = answering_module.perform_ask(AskRequest(question="Where is the latest renewal plan?", mode="hybrid"))
+            response = answering_module.perform_ask(
+                AskRequest(question="Where is the latest renewal plan?", mode="hybrid")
+            )
         finally:
             answering_module.perform_search = original_search
             reset_current_user(token)
 
         self.assertEqual(response.answer, "Not found in provided sources.")
         self.assertTrue(response.debug_info["clarification"]["missing_source_supported"])
-        self.assertTrue(any(row.request_id == f"m16-{suffix}" and row.feedback_type == "missing_evidence" for row in list_query_feedback(limit=20)))
+        self.assertTrue(
+            any(
+                row.request_id == f"m16-{suffix}" and row.feedback_type == "missing_evidence"
+                for row in list_query_feedback(limit=20)
+            )
+        )
 
     def test_m12_db_row_serialization_preserves_filter_metadata(self):
         from app.connectors.db import serialize_db_row
@@ -526,24 +653,30 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertEqual(parsed.source_type, "db_row")
         self.assertEqual(parsed.metadata["customer_id"], "acme")
         self.assertEqual(chunks[0]["locator_json"]["region"], "eu")
-        self.assertEqual(chunks[0]["provenance_json"]["parser_route"], "structured_row_serialization")
+        self.assertEqual(
+            chunks[0]["provenance_json"]["parser_route"], "structured_row_serialization"
+        )
         self.assertIn("Renewal blocker", chunks[0]["chunk_text"])
 
     def test_m12_db_connector_ingests_queryable_acl_scoped_rows(self):
+        import app.connectors.db as db_connector_module
         from app.auth.context import AuthenticatedUser, reset_current_user, set_current_user
         from app.db.repo_acl import sync_authenticated_user
         from app.db.repo_connectors import upsert_db_connector
-        import app.connectors.db as db_connector_module
 
         suffix = uuid4().hex[:8]
         table_name = f"m12_cases_{suffix}"
         connector_id = None
         source_ids: list[int] = []
-        user = AuthenticatedUser(user_id=f"m12-user-{suffix}", email=f"m12-{suffix}@example.test", groups=["support"])
+        user = AuthenticatedUser(
+            user_id=f"m12-user-{suffix}", email=f"m12-{suffix}@example.test", groups=["support"]
+        )
         token = set_current_user(user)
         original_process_embeddings = db_connector_module.process_embeddings
         original_run_enrichment = db_connector_module.run_post_ingestion_enrichment
-        db_connector_module.process_embeddings = lambda *, force=False, source_id=None: {"chunks_embedded": 1}
+        db_connector_module.process_embeddings = lambda *, force=False, source_id=None: {
+            "chunks_embedded": 1
+        }
         db_connector_module.run_post_ingestion_enrichment = lambda **kwargs: None
         try:
             sync_authenticated_user(user)
@@ -563,7 +696,9 @@ class SmokeTestBaseline(SmokeTestBase):
                     )
                 )
                 conn.execute(
-                    text(f"INSERT INTO {table_name} (id, updated_at, title, body, customer_id, region) VALUES (1, now(), 'Renewal blocker', 'Acme needs contract support', 'acme', 'eu')")
+                    text(
+                        f"INSERT INTO {table_name} (id, updated_at, title, body, customer_id, region) VALUES (1, now(), 'Renewal blocker', 'Acme needs contract support', 'acme', 'eu')"
+                    )
                 )
             connector_id = upsert_db_connector(
                 name=f"m12-{suffix}",
@@ -585,7 +720,10 @@ class SmokeTestBaseline(SmokeTestBase):
                     question="contract support",
                     k=5,
                     mode="keyword",
-                    filters=SearchFilters(source_id=source_ids[0], metadata_filters={"customer_id": "acme", "region": "eu"}),
+                    filters=SearchFilters(
+                        source_id=source_ids[0],
+                        metadata_filters={"customer_id": "acme", "region": "eu"},
+                    ),
                     debug=True,
                 )
             )
@@ -593,7 +731,9 @@ class SmokeTestBaseline(SmokeTestBase):
             self.assertEqual(result["rows_ingested"], 1)
             self.assertIsInstance(result["run_id"], int)
             self.assertTrue(response.results)
-            self.assertEqual(response.debug_info["structured_filters"], {"customer_id": "acme", "region": "eu"})
+            self.assertEqual(
+                response.debug_info["structured_filters"], {"customer_id": "acme", "region": "eu"}
+            )
             self.assertEqual(response.results[0].source_type, "db_row")
             self.assertEqual(response.results[0].freshness["status"], "fresh")
         finally:
@@ -604,11 +744,18 @@ class SmokeTestBaseline(SmokeTestBase):
                 self._delete_seed_source(source_id)
             with engine.begin() as conn:
                 if connector_id is not None:
-                    conn.execute(text("DELETE FROM db_connectors WHERE id = :connector_id"), {"connector_id": connector_id})
+                    conn.execute(
+                        text("DELETE FROM db_connectors WHERE id = :connector_id"),
+                        {"connector_id": connector_id},
+                    )
                 conn.execute(text(f"DROP TABLE IF EXISTS {table_name}"))
 
     def test_m12_connector_requests_can_be_reviewed(self):
-        from app.db.repo_connectors import create_connector_request, list_connector_requests, update_connector_request_review
+        from app.db.repo_connectors import (
+            create_connector_request,
+            list_connector_requests,
+            update_connector_request_review,
+        )
 
         suffix = uuid4().hex[:8]
         request_id = create_connector_request(
@@ -637,7 +784,10 @@ class SmokeTestBaseline(SmokeTestBase):
             self.assertEqual(reviewed.review_reason, "Approved for DB connector setup.")
         finally:
             with engine.begin() as conn:
-                conn.execute(text("DELETE FROM connector_requests WHERE id = :request_id"), {"request_id": request_id})
+                conn.execute(
+                    text("DELETE FROM connector_requests WHERE id = :request_id"),
+                    {"request_id": request_id},
+                )
 
     def test_m9_transcript_policy_adds_speaker_and_time_metadata(self):
         from app.adapters.models import ParsedSourceDocument, ParsedSourcePart
@@ -662,7 +812,9 @@ class SmokeTestBaseline(SmokeTestBase):
         chunks = chunk_parsed_document(parsed, policy_name="transcripts")
 
         self.assertEqual(chunks[0]["provenance_json"]["corpus_policy"], "transcripts")
-        self.assertEqual(chunks[0]["provenance_json"]["parser_route"], "transcript_speaker_windowing")
+        self.assertEqual(
+            chunks[0]["provenance_json"]["parser_route"], "transcript_speaker_windowing"
+        )
         self.assertEqual(chunks[0]["locator_json"]["speaker"], "Alice")
         self.assertEqual(chunks[0]["locator_json"]["time_start"], "00:01")
         self.assertIn("Bob", chunks[0]["locator_json"]["speakers"])
@@ -688,7 +840,9 @@ class SmokeTestBaseline(SmokeTestBase):
                     "file_name": f"m9-legal-{suffix}.pdf",
                     "storage_path": f"tests/m9-legal-{suffix}.pdf",
                     "hash_sha256": (suffix + "l") * 4,
-                    "source_metadata_json": json.dumps({"corpus": "legal", "corpus_policy": "legal"}),
+                    "source_metadata_json": json.dumps(
+                        {"corpus": "legal", "corpus_policy": "legal"}
+                    ),
                 },
             ).scalar_one()
         insert_chunks(
@@ -745,7 +899,9 @@ class SmokeTestBaseline(SmokeTestBase):
                     "file_name": f"m9-rows-{suffix}.xlsx",
                     "storage_path": f"tests/m9-rows-{suffix}.xlsx",
                     "hash_sha256": (suffix + "d") * 4,
-                    "source_metadata_json": json.dumps({"corpus": "db_rows", "corpus_policy": "db_rows"}),
+                    "source_metadata_json": json.dumps(
+                        {"corpus": "db_rows", "corpus_policy": "db_rows"}
+                    ),
                 },
             ).scalar_one()
         insert_chunks(
@@ -773,7 +929,9 @@ class SmokeTestBaseline(SmokeTestBase):
         )
         with engine.connect() as conn:
             chunk_rows = conn.execute(
-                text("SELECT id FROM chunks WHERE source_id = :source_id ORDER BY chunk_index ASC"),
+                text(
+                    "SELECT id FROM chunks WHERE source_id = :source_id ORDER BY chunk_index ASC"
+                ),
                 {"source_id": source_id},
             ).fetchall()
         update_chunk_embeddings([(row[0], basis_vector(1.0)) for row in chunk_rows])
@@ -800,7 +958,9 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertEqual([item.heading for item in response.results], ["Customer Rows"])
 
     def test_m9_corpus_policy_eval_matrix(self):
-        cases = json.loads((EVAL_FIXTURE_DIR / "corpus_policy_cases.json").read_text(encoding="utf-8"))
+        cases = json.loads(
+            (EVAL_FIXTURE_DIR / "corpus_policy_cases.json").read_text(encoding="utf-8")
+        )
         suffix = uuid4().hex[:8]
         import app.core_rag.retrieval as retrieval_module
 
@@ -823,7 +983,9 @@ class SmokeTestBaseline(SmokeTestBase):
                     "file_name": f"m9-legal-matrix-{suffix}.pdf",
                     "storage_path": f"tests/m9-legal-matrix-{suffix}.pdf",
                     "hash_sha256": (suffix + "a") * 4,
-                    "source_metadata_json": json.dumps({"corpus": "legal", "corpus_policy": "legal"}),
+                    "source_metadata_json": json.dumps(
+                        {"corpus": "legal", "corpus_policy": "legal"}
+                    ),
                 },
             ).scalar_one()
             transcript_source_id = conn.execute(
@@ -844,7 +1006,9 @@ class SmokeTestBaseline(SmokeTestBase):
                     "file_name": f"m9-transcript-matrix-{suffix}.txt",
                     "storage_path": f"tests/m9-transcript-matrix-{suffix}.txt",
                     "hash_sha256": (suffix + "b") * 4,
-                    "source_metadata_json": json.dumps({"corpus": "transcripts", "corpus_policy": "transcripts"}),
+                    "source_metadata_json": json.dumps(
+                        {"corpus": "transcripts", "corpus_policy": "transcripts"}
+                    ),
                 },
             ).scalar_one()
             db_rows_source_id = conn.execute(
@@ -865,7 +1029,9 @@ class SmokeTestBaseline(SmokeTestBase):
                     "file_name": f"m9-dbrows-matrix-{suffix}.xlsx",
                     "storage_path": f"tests/m9-dbrows-matrix-{suffix}.xlsx",
                     "hash_sha256": (suffix + "c") * 4,
-                    "source_metadata_json": json.dumps({"corpus": "db_rows", "corpus_policy": "db_rows"}),
+                    "source_metadata_json": json.dumps(
+                        {"corpus": "db_rows", "corpus_policy": "db_rows"}
+                    ),
                 },
             ).scalar_one()
         insert_chunks(
@@ -936,9 +1102,19 @@ class SmokeTestBaseline(SmokeTestBase):
                         ),
                     )
                 )
-                observed.append((case["id"], response.mode, response.results[0].heading if response.results else None))
+                observed.append(
+                    (
+                        case["id"],
+                        response.mode,
+                        response.results[0].heading if response.results else None,
+                    )
+                )
                 self.assertEqual(response.mode, case["expected_mode"], case["id"])
-                self.assertEqual(response.results[0].heading if response.results else None, case["expected_heading"], case["id"])
+                self.assertEqual(
+                    response.results[0].heading if response.results else None,
+                    case["expected_heading"],
+                    case["id"],
+                )
         finally:
             retrieval_module.embed_texts = original_embed_texts
             self._delete_seed_source(legal_source_id)
@@ -953,7 +1129,9 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertIsNotNone(engine)
 
     def test_retrieval_models(self):
-        filters = SearchFilters(source_type="pdf", source_id=1, source_part_id=2, locator_filter="page 1")
+        filters = SearchFilters(
+            source_type="pdf", source_id=1, source_part_id=2, locator_filter="page 1"
+        )
         request = SearchRequest(
             question="What is this?",
             filters=filters,
@@ -982,7 +1160,9 @@ class SmokeTestBaseline(SmokeTestBase):
             snippet="Snippet",
             score=0.9,
         )
-        response = SearchResponse(results=[item], latency_ms=5, mode="hybrid", debug_info={"deep_research_used": True})
+        response = SearchResponse(
+            results=[item], latency_ms=5, mode="hybrid", debug_info={"deep_research_used": True}
+        )
         self.assertEqual(response.results[0].file_name, "example.pdf")
         self.assertTrue(response.debug_info["deep_research_used"])
 
@@ -1009,7 +1189,13 @@ class SmokeTestBaseline(SmokeTestBase):
             locator="page=1",
             snippet="Snippet",
         )
-        response = AskResponse(answer="Answer [S1]", citations=[citation], used_chunks_count=1, latency_ms=1, mode="hybrid")
+        response = AskResponse(
+            answer="Answer [S1]",
+            citations=[citation],
+            used_chunks_count=1,
+            latency_ms=1,
+            mode="hybrid",
+        )
         self.assertTrue(request.dry_run)
         self.assertEqual(request.mode, "hybrid")
         self.assertTrue(request.deep_research)
@@ -1017,7 +1203,9 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertEqual(response.citations[0].source_part_id, 7)
 
         compare_request = CompareRequest(question="Compare these", source_ids=[1, 2], dry_run=True)
-        compare_response = CompareResponse(answer="Compared", sources=[], citations=[], used_chunks_count=2, latency_ms=1)
+        compare_response = CompareResponse(
+            answer="Compared", sources=[], citations=[], used_chunks_count=2, latency_ms=1
+        )
         self.assertEqual(compare_request.source_ids, [1, 2])
         self.assertEqual(compare_response.used_chunks_count, 2)
 
@@ -1088,12 +1276,18 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertEqual(chunks[1]["locator_json"]["page"], 2)
         self.assertIn("Page One Text", chunks[0]["chunk_text"])
         self.assertIn("page:1", chunks[0]["section_path"])
-        stitched = [chunk for chunk in chunks if chunk["provenance_json"].get("chunk_strategy") == "pdf_cross_page"]
+        stitched = [
+            chunk
+            for chunk in chunks
+            if chunk["provenance_json"].get("chunk_strategy") == "pdf_cross_page"
+        ]
         self.assertTrue(stitched)
         self.assertEqual(stitched[0]["locator_json"]["pages"], [1, 2])
 
     def test_chunk_docx_fixture(self):
-        parsed = parse_source_bytes("docx", (FIXTURE_DIR / "sample.docx").read_bytes(), "sample.docx")
+        parsed = parse_source_bytes(
+            "docx", (FIXTURE_DIR / "sample.docx").read_bytes(), "sample.docx"
+        )
         chunks = chunk_parsed_document(parsed)
         self.assertGreaterEqual(len(chunks), 2)
         self.assertTrue(all(chunk["locator_json"] for chunk in chunks))
@@ -1101,7 +1295,9 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertTrue(any("Table 1" in chunk["section_path"] for chunk in chunks))
 
     def test_chunk_pptx_fixture(self):
-        parsed = parse_source_bytes("pptx", (FIXTURE_DIR / "sample.pptx").read_bytes(), "sample.pptx")
+        parsed = parse_source_bytes(
+            "pptx", (FIXTURE_DIR / "sample.pptx").read_bytes(), "sample.pptx"
+        )
         chunks = chunk_parsed_document(parsed)
         self.assertEqual(len(chunks), 2)
         self.assertEqual(chunks[0]["locator_json"]["slide"], 1)
@@ -1110,7 +1306,9 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertIn("Speaker Notes", chunks[1]["chunk_text"])
 
     def test_chunk_xlsx_fixture(self):
-        parsed = parse_source_bytes("xlsx", (FIXTURE_DIR / "sample.xlsx").read_bytes(), "sample.xlsx")
+        parsed = parse_source_bytes(
+            "xlsx", (FIXTURE_DIR / "sample.xlsx").read_bytes(), "sample.xlsx"
+        )
         chunks = chunk_parsed_document(parsed)
         self.assertEqual(len(chunks), 2)
         self.assertEqual(chunks[0]["locator_json"]["sheet"], "Summary")
@@ -1223,7 +1421,9 @@ class SmokeTestBaseline(SmokeTestBase):
                     {"source_id": result["source_id"]},
                 ).scalar_one()
                 embedded_count = conn.execute(
-                    text("SELECT COUNT(*) FROM chunks WHERE source_id = :source_id AND embedding IS NOT NULL"),
+                    text(
+                        "SELECT COUNT(*) FROM chunks WHERE source_id = :source_id AND embedding IS NOT NULL"
+                    ),
                     {"source_id": result["source_id"]},
                 ).scalar_one()
                 source_part_count = conn.execute(
@@ -1349,22 +1549,22 @@ class SmokeTestBaseline(SmokeTestBase):
             self.assertEqual(item.job_metadata_json["ui_hint"], "m24")
         finally:
             with engine.begin() as conn:
-                conn.execute(text("DELETE FROM ingestion_jobs WHERE id = :job_id"), {"job_id": job_id})
+                conn.execute(
+                    text("DELETE FROM ingestion_jobs WHERE id = :job_id"), {"job_id": job_id}
+                )
             self._delete_seed_source(source_id)
 
     def test_deep_lookup_request_requires_source_ids(self):
-        from pydantic import ValidationError
-
         from app.core_rag.retrieval import DeepLookupRequest
+        from pydantic import ValidationError
 
         with self.assertRaises(ValidationError):
             DeepLookupRequest(question="Where is the answer?")
 
     def test_deep_lookup_rejects_too_many_source_ids(self):
-        from fastapi import HTTPException
-
         from app.api.deep_lookup import deep_lookup_endpoint
         from app.core_rag.retrieval import DeepLookupRequest
+        from fastapi import HTTPException
 
         with self.assertRaises(HTTPException) as ctx:
             deep_lookup_endpoint(
@@ -1378,10 +1578,9 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertEqual(ctx.exception.detail["error"], "too_many_source_ids")
 
     def test_deep_lookup_rejects_empty_source_ids(self):
-        from fastapi import HTTPException
-
         from app.api.deep_lookup import deep_lookup_endpoint
         from app.core_rag.retrieval import DeepLookupRequest
+        from fastapi import HTTPException
 
         with self.assertRaises(HTTPException) as ctx:
             deep_lookup_endpoint(DeepLookupRequest(question='"keywordbanana"', source_ids=[]))
@@ -1408,7 +1607,9 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertEqual(response.mode, "deep_lookup")
         self.assertEqual(response.scoped_source_ids, [seeded["docx_source_id"]])
         self.assertTrue(response.results)
-        self.assertTrue(all(item.source_id == seeded["docx_source_id"] for item in response.results))
+        self.assertTrue(
+            all(item.source_id == seeded["docx_source_id"] for item in response.results)
+        )
 
     def test_deep_lookup_multiple_sources_remain_scoped(self):
         from app.api.deep_lookup import deep_lookup_endpoint
@@ -1463,7 +1664,9 @@ class SmokeTestBaseline(SmokeTestBase):
             self.assertEqual(stats["chunks_embedded"], 2)
             with engine.connect() as conn:
                 embedded_count = conn.execute(
-                    text("SELECT COUNT(*) FROM chunks WHERE source_id = :source_id AND embedding IS NOT NULL"),
+                    text(
+                        "SELECT COUNT(*) FROM chunks WHERE source_id = :source_id AND embedding IS NOT NULL"
+                    ),
                     {"source_id": source_id},
                 ).scalar_one()
             self.assertEqual(embedded_count, 2)
@@ -1550,7 +1753,11 @@ class SmokeTestBaseline(SmokeTestBase):
     def test_migration_ledger_matches_plan_after_migrations(self):
         # AR1: the DB ledger must record every applied plan step; drift between
         # ledger and plan (audit: P012 recorded vs P020 expected) must fail loudly.
-        from app.db.migrate import describe_migration_plan, recorded_migration_steps, verify_migration_ledger
+        from app.db.migrate import (
+            describe_migration_plan,
+            recorded_migration_steps,
+            verify_migration_ledger,
+        )
 
         run_migrations()
         plan_ids = [item["step_id"] for item in describe_migration_plan()]
@@ -1602,7 +1809,9 @@ class SmokeTestBaseline(SmokeTestBase):
         original_embed_texts = retrieval_module.embed_texts
         retrieval_module.embed_texts = lambda texts: [basis_vector(1.0) for _ in texts]
         try:
-            response = perform_search(SearchRequest(question="keywordbanana alpha", k=5, mode="hybrid", debug=True))
+            response = perform_search(
+                SearchRequest(question="keywordbanana alpha", k=5, mode="hybrid", debug=True)
+            )
         finally:
             retrieval_module.embed_texts = original_embed_texts
             self._delete_retrieval_records(seeded.values())
@@ -1667,7 +1876,9 @@ class SmokeTestBaseline(SmokeTestBase):
             },
         ]
 
-        linear = merge_hybrid_results(vector_results=vector_results, keyword_results=keyword_results, k=3, alpha=0.65)
+        linear = merge_hybrid_results(
+            vector_results=vector_results, keyword_results=keyword_results, k=3, alpha=0.65
+        )
         rrf = merge_hybrid_results(
             vector_results=vector_results,
             keyword_results=keyword_results,
@@ -1684,7 +1895,6 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertEqual(diagnostics[0]["vector_rank"], 2)
         self.assertEqual(diagnostics[0]["keyword_rank"], 2)
         self.assertIsNotNone(diagnostics[0]["fusion_rrf_score"])
-
 
     def test_keyword_mode_soft_fallback_recovers_split_seo_evidence(self):
         seeded = self._seed_seo_anomaly_records()
@@ -1844,12 +2054,14 @@ class SmokeTestBaseline(SmokeTestBase):
 
         self.assertEqual(response.mode, "hybrid")
         self.assertTrue(response.debug_info["retrieval_trace"]["deep_research_used"])
-        self.assertIn("aggregators", " ".join(response.debug_info["retrieval_trace"]["anchor_terms_used"]))
+        self.assertIn(
+            "aggregators", " ".join(response.debug_info["retrieval_trace"]["anchor_terms_used"])
+        )
 
     def test_answering_recovers_inline_citations_when_citation_array_is_empty(self):
         seeded = self._seed_seo_anomaly_records()
-        import app.core_rag.retrieval as retrieval_module
         import app.core_rag.answering as answering_module
+        import app.core_rag.retrieval as retrieval_module
 
         original_embed_texts = retrieval_module.embed_texts
         original_generate_answer = answering_module.generate_answer
@@ -1882,8 +2094,8 @@ class SmokeTestBaseline(SmokeTestBase):
 
     def test_answering_uses_second_pass_repair_for_fragmented_initial_answer(self):
         seeded = self._seed_seo_anomaly_records()
-        import app.core_rag.retrieval as retrieval_module
         import app.core_rag.answering as answering_module
+        import app.core_rag.retrieval as retrieval_module
 
         original_embed_texts = retrieval_module.embed_texts
         original_generate_answer = answering_module.generate_answer
@@ -1935,8 +2147,8 @@ class SmokeTestBaseline(SmokeTestBase):
 
     def test_answering_returns_not_found_when_repair_cannot_produce_grounded_answer(self):
         seeded = self._seed_seo_anomaly_records()
-        import app.core_rag.retrieval as retrieval_module
         import app.core_rag.answering as answering_module
+        import app.core_rag.retrieval as retrieval_module
 
         original_embed_texts = retrieval_module.embed_texts
         original_generate_answer = answering_module.generate_answer
@@ -2069,10 +2281,14 @@ class SmokeTestBaseline(SmokeTestBase):
         import app.core_rag.answering as answering_module
 
         original_perform_search = answering_module.perform_search
-        answering_module.perform_search = lambda request: SearchResponse(results=[], latency_ms=1, mode="hybrid")
+        answering_module.perform_search = lambda request: SearchResponse(
+            results=[], latency_ms=1, mode="hybrid"
+        )
         try:
             response = ask_endpoint(AskRequest(question="Unsupported?", dry_run=True))
-            fallback = answering_module.perform_ask(AskRequest(question="Unsupported?", dry_run=False))
+            fallback = answering_module.perform_ask(
+                AskRequest(question="Unsupported?", dry_run=False)
+            )
         finally:
             answering_module.perform_search = original_perform_search
 
@@ -2110,7 +2326,9 @@ class SmokeTestBaseline(SmokeTestBase):
             "content": '{"answer":"Supported claim [S1] and fake claim [S9]","citations":["S1","S9"]}',
         }
         try:
-            response = ask_endpoint(AskRequest(question="What is supported?", mode="hybrid", dry_run=False))
+            response = ask_endpoint(
+                AskRequest(question="What is supported?", mode="hybrid", dry_run=False)
+            )
         finally:
             ask_api_module.verify_llm_ready = original_verify_llm_ready
             answering_module.perform_search = original_perform_search
@@ -2144,7 +2362,6 @@ class SmokeTestBaseline(SmokeTestBase):
 
     def test_verify_llm_ready_accepts_ollama_v1_models_data_shape(self):
         import app.llm.client as llm_client_module
-
         from app.profiles.resolver import get_effective_llm
 
         effective_model = get_effective_llm().model
@@ -2221,7 +2438,11 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertEqual(parsed.parts[1].locator_json["body_format"], "text/html_fallback")
 
     def test_m13_email_connector_record_normalizes_to_email_document(self):
-        from app.connectors.email import EmailAttachmentRecord, EmailMessageRecord, parsed_document_from_email_record
+        from app.connectors.email import (
+            EmailAttachmentRecord,
+            EmailMessageRecord,
+            parsed_document_from_email_record,
+        )
 
         parsed = parsed_document_from_email_record(
             EmailMessageRecord(
@@ -2291,6 +2512,7 @@ class SmokeTestBaseline(SmokeTestBase):
 
     def test_m13_email_upload_creates_searchable_attachment_child_source(self):
         from email.message import EmailMessage
+
         import app.ingestion.jobs as jobs_module
 
         message = EmailMessage()
@@ -2299,7 +2521,9 @@ class SmokeTestBaseline(SmokeTestBase):
         message["Subject"] = "Attachment case"
         message["Message-ID"] = f"<m13-{uuid4().hex}@example.test>"
         message.set_content("The attachment has the implementation details.")
-        message.add_attachment("M13 child attachment searchable text.", subtype="plain", filename="m13-notes.txt")
+        message.add_attachment(
+            "M13 child attachment searchable text.", subtype="plain", filename="m13-notes.txt"
+        )
 
         upload = UploadFile(
             filename=f"m13-{uuid4().hex[:8]}.eml",
@@ -2308,7 +2532,9 @@ class SmokeTestBaseline(SmokeTestBase):
         )
         original_process_embeddings = jobs_module.process_embeddings
         original_run_enrichment = jobs_module.run_post_ingestion_enrichment
-        jobs_module.process_embeddings = lambda *, force=False, source_id=None: {"chunks_embedded": 99}
+        jobs_module.process_embeddings = lambda *, force=False, source_id=None: {
+            "chunks_embedded": 99
+        }
         jobs_module.run_post_ingestion_enrichment = lambda **kwargs: None
         result = None
         child_source_ids: list[int] = []
@@ -2316,7 +2542,9 @@ class SmokeTestBaseline(SmokeTestBase):
             result = asyncio.run(process_upload(upload))
             with engine.connect() as conn:
                 attachment_rows = conn.execute(
-                    text("SELECT child_source_id FROM attachments WHERE parent_source_id = :source_id"),
+                    text(
+                        "SELECT child_source_id FROM attachments WHERE parent_source_id = :source_id"
+                    ),
                     {"source_id": result["source_id"]},
                 ).fetchall()
             self.assertEqual(len(attachment_rows), 1)
@@ -2359,5 +2587,7 @@ class SmokeTestBaseline(SmokeTestBase):
         self.assertEqual(parsed.source_type, "md")
         self.assertTrue(any(part.title == "Overview" for part in parsed.parts))
         self.assertTrue(any(part.title == "Details" for part in parsed.parts))
-        self.assertTrue(any("[docs](https://example.com/docs)" in part.content_text for part in parsed.parts))
+        self.assertTrue(
+            any("[docs](https://example.com/docs)" in part.content_text for part in parsed.parts)
+        )
         self.assertTrue(any("```python" in part.content_text for part in parsed.parts))

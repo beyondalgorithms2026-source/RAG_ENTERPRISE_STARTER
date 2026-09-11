@@ -1,6 +1,5 @@
-from dataclasses import dataclass
 import re
-from typing import Optional
+from dataclasses import dataclass
 
 from app.core.config import settings
 from app.db.repo_sources import get_source_by_id
@@ -16,20 +15,24 @@ class QueryRouteDecision:
     route_class: str
     router_applied: bool
     manual_mode: bool
-    fallback_reason: Optional[str] = None
+    fallback_reason: str | None = None
     graph_ready: bool = False
     temporal_ready: bool = False
     source_scoped: bool = False
     reason_details: dict | None = None
 
 
-def _artifact_current(*, artifact_metadata, expected_version: str, source_hash: Optional[str]) -> bool:
+def _artifact_current(
+    *, artifact_metadata, expected_version: str, source_hash: str | None
+) -> bool:
     if not isinstance(artifact_metadata, dict) or not artifact_metadata:
         return False
-    artifact_version = artifact_metadata.get("artifact_version") or artifact_metadata.get("provenance", {}).get("artifact_version")
-    built_from_source_hash = artifact_metadata.get("built_from_source_hash") or artifact_metadata.get(
+    artifact_version = artifact_metadata.get("artifact_version") or artifact_metadata.get(
         "provenance", {}
-    ).get("built_from_source_hash")
+    ).get("artifact_version")
+    built_from_source_hash = artifact_metadata.get(
+        "built_from_source_hash"
+    ) or artifact_metadata.get("provenance", {}).get("built_from_source_hash")
     if artifact_version != expected_version:
         return False
     if source_hash and built_from_source_hash and built_from_source_hash != source_hash:
@@ -180,7 +183,9 @@ def _has_temporal_signal(question: str) -> bool:
     )
 
 
-def _route_reason_details(*, question: str, source_scoped: bool, graph_ready: bool, temporal_ready: bool) -> dict:
+def _route_reason_details(
+    *, question: str, source_scoped: bool, graph_ready: bool, temporal_ready: bool
+) -> dict:
     return {
         "quote_like": _has_quote_like_signal(question),
         "identifier_like": _has_identifier_signal(question),
@@ -197,9 +202,9 @@ def _route_reason_details(*, question: str, source_scoped: bool, graph_ready: bo
 def route_query(
     *,
     question: str,
-    explicit_mode: Optional[str],
+    explicit_mode: str | None,
     default_mode: str,
-    source_id: Optional[int] = None,
+    source_id: int | None = None,
 ) -> QueryRouteDecision:
     if explicit_mode is not None:
         return QueryRouteDecision(
@@ -238,7 +243,9 @@ def route_query(
                 source_hash=source.hash_sha256,
             )
             temporal_ready = bool(
-                settings.ENABLE_TEMPORAL or settings.EXTRACT_TEMPORAL_METADATA or settings.TEMPORAL_RERANK_ENABLED
+                settings.ENABLE_TEMPORAL
+                or settings.EXTRACT_TEMPORAL_METADATA
+                or settings.TEMPORAL_RERANK_ENABLED
             ) and _artifact_current(
                 artifact_metadata=metadata.get("temporal"),
                 expected_version=TEMPORAL_ARTIFACT_VERSION,
@@ -350,7 +357,9 @@ def route_query(
     return QueryRouteDecision(
         selected_mode=default_mode,
         preferred_mode=default_mode,
-        reason="default_hybrid_router_policy" if default_mode == "hybrid" else "default_corpus_router_policy",
+        reason="default_hybrid_router_policy"
+        if default_mode == "hybrid"
+        else "default_corpus_router_policy",
         route_class="semantic_first",
         router_applied=True,
         manual_mode=False,

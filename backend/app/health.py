@@ -11,10 +11,17 @@ Each tile is {tile, status: pass|warn|fail, reason, details}. P0 invariants
 (the coherence checks) drive the console banner; the operational tiles
 (warm-up, cache, eval) can only warn.
 """
-from datetime import datetime, timezone
-from typing import Any, Optional
 
-P0_TILES = {"embedding_dimension", "embedding_registry_metadata", "active_profiles_promoted", "migration_ledger", "vector_serving"}
+from datetime import datetime, timezone
+from typing import Any
+
+P0_TILES = {
+    "embedding_dimension",
+    "embedding_registry_metadata",
+    "active_profiles_promoted",
+    "migration_ledger",
+    "vector_serving",
+}
 
 
 def _tile(name: str, status: str, reason: str, **details: Any) -> dict[str, Any]:
@@ -24,7 +31,7 @@ def _tile(name: str, status: str, reason: str, **details: Any) -> dict[str, Any]
     return payload
 
 
-def _parse_ts(value: Any) -> Optional[datetime]:
+def _parse_ts(value: Any) -> datetime | None:
     if not value:
         return None
     try:
@@ -39,15 +46,36 @@ def reranker_warmup_tile(*, max_age_s: int = 86400) -> dict[str, Any]:
 
     warmups = [w for w in list_model_warmups(limit=50) if w.get("model_type") == "reranker"]
     if not warmups:
-        return _tile("reranker_warmup", "warn", "No reranker warm-up recorded; first rerank will pay cold-start latency.")
+        return _tile(
+            "reranker_warmup",
+            "warn",
+            "No reranker warm-up recorded; first rerank will pay cold-start latency.",
+        )
     latest = warmups[0]
     if str(latest.get("status")) != "success":
-        return _tile("reranker_warmup", "fail", f"Last reranker warm-up failed: {latest.get('error_message') or 'unknown'}.", model=latest.get("model_name"))
+        return _tile(
+            "reranker_warmup",
+            "fail",
+            f"Last reranker warm-up failed: {latest.get('error_message') or 'unknown'}.",
+            model=latest.get("model_name"),
+        )
     created = _parse_ts(latest.get("created_at"))
     age_s = int((datetime.now(timezone.utc) - created).total_seconds()) if created else None
     if age_s is not None and age_s > max_age_s:
-        return _tile("reranker_warmup", "warn", f"Reranker warm-up is stale ({age_s // 3600}h old).", model=latest.get("model_name"), age_s=age_s)
-    return _tile("reranker_warmup", "pass", "Reranker warmed and loadable.", model=latest.get("model_name"), age_s=age_s)
+        return _tile(
+            "reranker_warmup",
+            "warn",
+            f"Reranker warm-up is stale ({age_s // 3600}h old).",
+            model=latest.get("model_name"),
+            age_s=age_s,
+        )
+    return _tile(
+        "reranker_warmup",
+        "pass",
+        "Reranker warmed and loadable.",
+        model=latest.get("model_name"),
+        age_s=age_s,
+    )
 
 
 def semantic_cache_tile() -> dict[str, Any]:
@@ -58,7 +86,12 @@ def semantic_cache_tile() -> dict[str, Any]:
     if not policy:
         # AR15: surface the off state as an informational warning so the operator
         # knows the cache is doing nothing until a policy is activated. Not P0.
-        return _tile("semantic_cache", "warn", "Semantic cache is globally OFF (no active policy).", state="off")
+        return _tile(
+            "semantic_cache",
+            "warn",
+            "Semantic cache is globally OFF (no active policy).",
+            state="off",
+        )
     return _tile(
         "semantic_cache",
         "pass",
@@ -77,7 +110,9 @@ def eval_gate_tile() -> dict[str, Any]:
 
     baseline = latest_live_baseline_run()
     history = list_tuning_history(limit=20)
-    last_promote = next((e for e in history.get("promotion_events", []) if e.get("action") == "promote"), None)
+    last_promote = next(
+        (e for e in history.get("promotion_events", []) if e.get("action") == "promote"), None
+    )
     promotion_evidence = (last_promote or {}).get("eval_evidence_json") or {}
     if not baseline:
         return _tile(
@@ -87,7 +122,11 @@ def eval_gate_tile() -> dict[str, Any]:
             last_promotion_gate=promotion_evidence.get("gate_status"),
         )
     status = "pass" if baseline.get("gate_status") == "pass" else "fail"
-    reason = "Live baseline passes the eval gate." if status == "pass" else "Live baseline FAILS the eval gate."
+    reason = (
+        "Live baseline passes the eval gate."
+        if status == "pass"
+        else "Live baseline FAILS the eval gate."
+    )
     return _tile(
         "eval_gate",
         status,
@@ -106,7 +145,9 @@ def health_dashboard(*, deep: bool = False) -> dict[str, Any]:
     coherence = run_coherence_checks(deep=deep)
     tiles: list[dict[str, Any]] = []
     for inv in coherence["invariants"]:
-        tiles.append(_tile(inv["invariant"], inv["status"], inv["reason"], **(inv.get("details") or {})))
+        tiles.append(
+            _tile(inv["invariant"], inv["status"], inv["reason"], **(inv.get("details") or {}))
+        )
     tiles.append(reranker_warmup_tile())
     tiles.append(semantic_cache_tile())
     tiles.append(eval_gate_tile())

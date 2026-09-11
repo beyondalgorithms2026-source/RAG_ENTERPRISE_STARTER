@@ -1,8 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from app.core.config import settings
-
 
 GRAPH_EXPLAIN_ARTIFACT_VERSION = "m14-graph-explain-v1"
 
@@ -15,7 +14,9 @@ class GraphExplainResult:
     artifact_version: str = GRAPH_EXPLAIN_ARTIFACT_VERSION
 
 
-def explain_graph_result(*, result_count: int, graph_artifact: Optional[dict[str, Any]] = None) -> GraphExplainResult:
+def explain_graph_result(
+    *, result_count: int, graph_artifact: dict[str, Any] | None = None
+) -> GraphExplainResult:
     if not settings.ENABLE_GRAPH_EXPLAINABILITY:
         return GraphExplainResult()
     details = {"result_count": result_count}

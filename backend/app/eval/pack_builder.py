@@ -16,25 +16,66 @@ Builds graded, labeled retrieval eval packs from two evidence sources:
 
 Run: python -m app.eval.pack_builder  (writes backend/eval_packs/pack_*.json)
 """
+
 import json
 import re
 import time
 from collections import Counter
 from pathlib import Path
-from typing import Any, Optional
-
-from sqlalchemy import text
+from typing import Any
 
 from app.db.db import engine
+from sqlalchemy import text
 
 BUILDER_VERSION = "ar3.1"
 PACKS_DIR = Path(__file__).resolve().parents[2] / "eval_packs"
 
 _STOPWORDS = {
-    "the", "and", "for", "that", "with", "this", "from", "are", "was", "were", "have", "has",
-    "had", "not", "but", "all", "can", "will", "into", "over", "under", "its", "their", "his",
-    "her", "our", "your", "they", "them", "then", "than", "also", "been", "being", "would",
-    "could", "should", "there", "here", "what", "when", "where", "which", "while", "about",
+    "the",
+    "and",
+    "for",
+    "that",
+    "with",
+    "this",
+    "from",
+    "are",
+    "was",
+    "were",
+    "have",
+    "has",
+    "had",
+    "not",
+    "but",
+    "all",
+    "can",
+    "will",
+    "into",
+    "over",
+    "under",
+    "its",
+    "their",
+    "his",
+    "her",
+    "our",
+    "your",
+    "they",
+    "them",
+    "then",
+    "than",
+    "also",
+    "been",
+    "being",
+    "would",
+    "could",
+    "should",
+    "there",
+    "here",
+    "what",
+    "when",
+    "where",
+    "which",
+    "while",
+    "about",
 }
 
 _JUNK_QUESTION_PATTERNS = [
@@ -66,7 +107,9 @@ def is_junk_mined_question(question: str) -> bool:
     return any(pattern.search(cleaned) for pattern in _JUNK_QUESTION_PATTERNS)
 
 
-def synthesize_question_variants(*, heading: str, chunk_text: str, file_name: str) -> list[dict[str, str]]:
+def synthesize_question_variants(
+    *, heading: str, chunk_text: str, file_name: str
+) -> list[dict[str, str]]:
     terms = _salient_terms(chunk_text)
     if not terms:
         return []
@@ -77,18 +120,25 @@ def synthesize_question_variants(*, heading: str, chunk_text: str, file_name: st
     topic = " ".join(terms[:3])
     heading_clean = re.sub(r"\s+", " ", heading or "").strip()
     if heading_clean:
-        variants.append({"style": "heading_topic", "question": f"{heading_clean}: what is stated about {topic}?"})
+        variants.append(
+            {
+                "style": "heading_topic",
+                "question": f"{heading_clean}: what is stated about {topic}?",
+            }
+        )
     variants.append({"style": "salient_terms", "question": " ".join(terms)})
     return variants
 
 
-def _corpus_filter_sql(corpus: Optional[str]) -> str:
+def _corpus_filter_sql(corpus: str | None) -> str:
     if corpus is None:
         return "COALESCE(s.source_metadata_json->>'corpus', '') = ''"
     return "s.source_metadata_json->>'corpus' = :corpus"
 
 
-def build_synthetic_cases(*, corpus: Optional[str], max_cases: int, min_chunk_words: int = 25) -> list[dict[str, Any]]:
+def build_synthetic_cases(
+    *, corpus: str | None, max_cases: int, min_chunk_words: int = 25
+) -> list[dict[str, Any]]:
     params: dict[str, Any] = {}
     if corpus is not None:
         params["corpus"] = corpus
@@ -115,7 +165,9 @@ def build_synthetic_cases(*, corpus: Optional[str], max_cases: int, min_chunk_wo
             neighbor_id = neighbors.get((source_id, chunk_index + offset))
             if neighbor_id is not None:
                 relevant[str(neighbor_id)] = 1
-        for variant in synthesize_question_variants(heading=heading or "", chunk_text=chunk_text or "", file_name=file_name or ""):
+        for variant in synthesize_question_variants(
+            heading=heading or "", chunk_text=chunk_text or "", file_name=file_name or ""
+        ):
             cases.append(
                 {
                     "id": f"syn-{chunk_id}-{variant['style']}",
@@ -151,7 +203,11 @@ def build_mined_cases(*, max_cases: int) -> list[dict[str, Any]]:
         if is_junk_mined_question(question):
             continue
         trace = trace_json or {}
-        accessed = ((trace.get("acl") or {}).get("accessed_doc_ids") or []) if isinstance(trace, dict) else []
+        accessed = (
+            ((trace.get("acl") or {}).get("accessed_doc_ids") or [])
+            if isinstance(trace, dict)
+            else []
+        )
         cited_chunks = trace.get("cited_chunk_ids") if isinstance(trace, dict) else None
         relevant: dict[str, int] = {}
         for chunk_id in cited_chunks or []:
@@ -174,7 +230,9 @@ def build_mined_cases(*, max_cases: int) -> list[dict[str, Any]]:
     return cases
 
 
-def build_pack(*, pack_name: str, corpus: Optional[str], max_synthetic: int = 400, max_mined: int = 200) -> dict[str, Any]:
+def build_pack(
+    *, pack_name: str, corpus: str | None, max_synthetic: int = 400, max_mined: int = 200
+) -> dict[str, Any]:
     synthetic = build_synthetic_cases(corpus=corpus, max_cases=max_synthetic)
     mined = build_mined_cases(max_cases=max_mined) if corpus is None else []
     return {
@@ -199,7 +257,12 @@ def write_pack(pack: dict[str, Any], directory: Path = PACKS_DIR) -> Path:
 
 
 def build_default_packs() -> list[Path]:
-    targets = [("general", None), ("legal", "legal"), ("db_rows", "db_rows"), ("transcripts", "transcripts")]
+    targets = [
+        ("general", None),
+        ("legal", "legal"),
+        ("db_rows", "db_rows"),
+        ("transcripts", "transcripts"),
+    ]
     written: list[Path] = []
     for pack_name, corpus in targets:
         pack = build_pack(pack_name=pack_name, corpus=corpus)

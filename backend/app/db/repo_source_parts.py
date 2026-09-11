@@ -1,23 +1,21 @@
 import json
 from dataclasses import dataclass
-from typing import Dict, List, Optional
-
-from sqlalchemy import text
 
 from app.db.db import engine
+from sqlalchemy import text
 
 
 @dataclass
 class SourcePartRow:
     id: int
     source_id: int
-    parent_part_id: Optional[int]
+    parent_part_id: int | None
     part_type: str
     part_index: int
-    title: Optional[str]
-    locator_json: Dict
-    content_text: Optional[str]
-    provenance_json: Dict
+    title: str | None
+    locator_json: dict
+    content_text: str | None
+    provenance_json: dict
 
 
 def insert_source_part(
@@ -25,11 +23,11 @@ def insert_source_part(
     source_id: int,
     part_type: str,
     part_index: int,
-    title: Optional[str] = None,
-    parent_part_id: Optional[int] = None,
-    locator_json: Optional[Dict] = None,
-    content_text: Optional[str] = None,
-    provenance_json: Optional[Dict] = None,
+    title: str | None = None,
+    parent_part_id: int | None = None,
+    locator_json: dict | None = None,
+    content_text: str | None = None,
+    provenance_json: dict | None = None,
 ) -> int:
     sql = text(
         """
@@ -58,7 +56,7 @@ def insert_source_part(
         return conn.execute(sql, params).scalar_one()
 
 
-def list_source_parts(source_id: int) -> List[SourcePartRow]:
+def list_source_parts(source_id: int) -> list[SourcePartRow]:
     sql = text(
         """
         SELECT id, source_id, parent_part_id, part_type, part_index, title,
@@ -79,7 +77,7 @@ def delete_source_parts_for_source(source_id: int) -> None:
         conn.execute(sql, {"source_id": source_id})
 
 
-def get_source_part(source_part_id: int) -> Optional[SourcePartRow]:
+def get_source_part(source_part_id: int) -> SourcePartRow | None:
     sql = text(
         """
         SELECT id, source_id, parent_part_id, part_type, part_index, title,

@@ -10,18 +10,19 @@ context managers, which monkeypatch module-level resolvers. That is
 concurrency-unsafe (audit finding, AR8 scope): a concurrent live request
 during a candidate eval could see candidate profiles.
 """
+
 import hashlib
 import json
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from app.auth.context import AuthenticatedUser
 from app.core.config import settings
 from app.db.repo_eval_runs import insert_eval_run, latest_live_baseline_run
 from app.db.repo_tuning_configs import get_candidate_draft, get_live_configuration
-from app.eval.pack_eval import DEFAULT_THRESHOLDS, run_pack_eval
 from app.eval.pack_builder import PACKS_DIR
+from app.eval.pack_eval import run_pack_eval
 from app.tuning.sandbox_compare import (
     _profile_models_with_retrieval_override,
     _temporary_reranker_profile,
@@ -62,10 +63,12 @@ def enforcement_mode_source() -> str:
 
 
 def config_fingerprint(resolved_config: dict[str, Any]) -> str:
-    return hashlib.sha256(json.dumps(resolved_config, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+    return hashlib.sha256(
+        json.dumps(resolved_config, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
 
 
-def resolve_pack_paths(pack_names: Optional[list[str]]) -> Optional[list[Path]]:
+def resolve_pack_paths(pack_names: list[str] | None) -> list[Path] | None:
     """Pack names only — never caller-supplied paths — resolved inside PACKS_DIR."""
     if not pack_names:
         return None
@@ -81,23 +84,29 @@ def resolve_pack_paths(pack_names: Optional[list[str]]) -> Optional[list[Path]]:
     return paths
 
 
-def metric_deltas(candidate_aggregates: dict[str, Any], baseline_aggregates: dict[str, Any]) -> dict[str, Optional[float]]:
-    deltas: dict[str, Optional[float]] = {}
+def metric_deltas(
+    candidate_aggregates: dict[str, Any], baseline_aggregates: dict[str, Any]
+) -> dict[str, float | None]:
+    deltas: dict[str, float | None] = {}
     for metric in DELTA_METRICS:
         candidate = candidate_aggregates.get(metric)
         baseline = baseline_aggregates.get(metric)
-        deltas[metric] = round(float(candidate) - float(baseline), 4) if candidate is not None and baseline is not None else None
+        deltas[metric] = (
+            round(float(candidate) - float(baseline), 4)
+            if candidate is not None and baseline is not None
+            else None
+        )
     return deltas
 
 
 def run_candidate_eval(
     *,
-    draft_id: Optional[int] = None,
-    pack_names: Optional[list[str]] = None,
-    sample_size: Optional[int] = 150,
+    draft_id: int | None = None,
+    pack_names: list[str] | None = None,
+    sample_size: int | None = 150,
     k: int = 10,
-    thresholds: Optional[dict[str, float]] = None,
-    actor: Optional[AuthenticatedUser] = None,
+    thresholds: dict[str, float] | None = None,
+    actor: AuthenticatedUser | None = None,
 ) -> dict[str, Any]:
     """Run AR3 packs under the draft's profile bundle (or the live config when
     draft_id is None) and persist the result as promotion evidence."""
@@ -113,7 +122,11 @@ def run_candidate_eval(
             raise ValueError(f"Draft {draft_id} not found")
         selected_profiles = dict(draft.get("selected_profiles") or {})
         live_selected = dict((get_live_configuration() or {}).get("selected_profiles") or {})
-        if selected_profiles.get("embedding") and live_selected.get("embedding") and selected_profiles["embedding"] != live_selected["embedding"]:
+        if (
+            selected_profiles.get("embedding")
+            and live_selected.get("embedding")
+            and selected_profiles["embedding"] != live_selected["embedding"]
+        ):
             # Evaluating a different embedding model against the current index
             # would score a vector space that does not exist yet.
             raise ValueError(
@@ -144,7 +157,9 @@ def run_candidate_eval(
 
     # Persist without per-case payloads; aggregates and gate are the evidence.
     slim_report = dict(report)
-    slim_report["packs"] = [{key: value for key, value in pack.items() if key != "cases"} for pack in report["packs"]]
+    slim_report["packs"] = [
+        {key: value for key, value in pack.items() if key != "cases"} for pack in report["packs"]
+    ]
     run = insert_eval_run(
         run_label=label,
         draft_id=draft_id,
@@ -161,13 +176,15 @@ def run_candidate_eval(
     baseline = latest_live_baseline_run()
     if baseline and draft_id is not None:
         run["baseline_eval_run_id"] = baseline["id"]
-        run["deltas_vs_live_baseline"] = metric_deltas(run["gate_aggregates"], baseline["gate_aggregates"])
+        run["deltas_vs_live_baseline"] = metric_deltas(
+            run["gate_aggregates"], baseline["gate_aggregates"]
+        )
     return run
 
 
 def build_promotion_evidence(
     *,
-    eval_run: Optional[dict[str, Any]],
+    eval_run: dict[str, Any] | None,
     enforcement_mode: str,
     warnings: list[str],
 ) -> dict[str, Any]:
@@ -183,7 +200,11 @@ def build_promotion_evidence(
                 "thresholds": eval_run["thresholds"],
                 "baseline_eval_run_id": baseline["id"] if baseline else None,
                 "baseline_gate_aggregates": baseline["gate_aggregates"] if baseline else None,
-                "deltas_vs_live_baseline": metric_deltas(eval_run["gate_aggregates"], baseline["gate_aggregates"]) if baseline else None,
+                "deltas_vs_live_baseline": metric_deltas(
+                    eval_run["gate_aggregates"], baseline["gate_aggregates"]
+                )
+                if baseline
+                else None,
             }
         )
     else:

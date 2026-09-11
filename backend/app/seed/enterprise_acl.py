@@ -4,11 +4,15 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import REPO_ROOT
-from app.db.repo_acl import ensure_group, replace_source_acl, replace_user_memberships, upsert_auth_user
 from app.db.repo_access_requests import upsert_source_access_contacts
+from app.db.repo_acl import (
+    ensure_group,
+    replace_source_acl,
+    replace_user_memberships,
+    upsert_auth_user,
+)
 from app.db.repo_chunks import delete_chunks_for_source, insert_chunks
-from app.db.repo_sources import get_source_by_storage_path, upsert_source
-
+from app.db.repo_sources import upsert_source
 
 DEFAULT_PACK_DIR = Path(REPO_ROOT) / "backend" / "tests" / "fixtures" / "enterprise_acl"
 
@@ -33,7 +37,11 @@ def _normalize_source_metadata(row: dict[str, str]) -> dict[str, Any]:
         metadata["classification"] = row["classification"].strip()
     if row.get("notes"):
         metadata["notes"] = row["notes"].strip()
-    if row.get("owner_external_user_id") or row.get("owner_email") or row.get("owner_display_name"):
+    if (
+        row.get("owner_external_user_id")
+        or row.get("owner_email")
+        or row.get("owner_display_name")
+    ):
         metadata["source_owner"] = {
             "contact_external_user_id": row.get("owner_external_user_id") or None,
             "contact_email": (row.get("owner_email") or "").strip().lower() or None,
@@ -103,7 +111,7 @@ def seed_enterprise_acl_pack(pack_dir: Path = DEFAULT_PACK_DIR) -> dict[str, Any
             source_type=row.get("source_type", "").strip() or "pdf",
             mime_type=row.get("mime_type", "").strip() or None,
             sensitivity_label=row.get("sensitivity_label", "").strip() or "internal",
-            hash_sha256=sha256(f"{source_key}:{storage_path}:{content_text}".encode("utf-8")).hexdigest(),
+            hash_sha256=sha256(f"{source_key}:{storage_path}:{content_text}".encode()).hexdigest(),
             file_size_bytes=max(len(content_text.encode("utf-8")), 1),
             ingestion_status="embedded",
             enrichment_status="not_started",
@@ -117,12 +125,17 @@ def seed_enterprise_acl_pack(pack_dir: Path = DEFAULT_PACK_DIR) -> dict[str, Any
                 [
                     {
                         "chunk_index": 0,
-                        "heading": row.get("heading", "").strip() or row.get("file_name", "").strip() or source_key,
+                        "heading": row.get("heading", "").strip()
+                        or row.get("file_name", "").strip()
+                        or source_key,
                         "section_path": "seed:1",
                         "chunk_text": content_text,
                         "token_count": len(content_text.split()),
                         "locator_json": {"seed_source_key": source_key, "page": 1},
-                        "provenance_json": {"seed_pack": "enterprise_acl", "source_key": source_key},
+                        "provenance_json": {
+                            "seed_pack": "enterprise_acl",
+                            "source_key": source_key,
+                        },
                     }
                 ],
             )

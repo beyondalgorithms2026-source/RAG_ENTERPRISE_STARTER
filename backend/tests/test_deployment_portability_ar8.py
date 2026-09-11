@@ -3,7 +3,11 @@ import unittest
 from pathlib import Path
 
 from app.profiles.models import RerankerProfileConfig, RetrievalProfileConfig
-from app.profiles.resolver import current_profile_overrides, get_effective_retrieval, profile_overrides
+from app.profiles.resolver import (
+    current_profile_overrides,
+    get_effective_retrieval,
+    profile_overrides,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -47,7 +51,10 @@ class ProfileOverrideConcurrencyAR8Tests(unittest.TestCase):
         self.assertNotEqual(thread_seen["top_k"], 12345)  # the live thread never does
 
     def test_sandbox_temporary_helpers_apply_via_overrides(self):
-        from app.tuning.sandbox_compare import _temporary_reranker_profile, _temporary_retrieval_profile
+        from app.tuning.sandbox_compare import (
+            _temporary_reranker_profile,
+            _temporary_retrieval_profile,
+        )
 
         with _temporary_retrieval_profile(RetrievalProfileConfig(top_k_initial=777)):
             with _temporary_reranker_profile(RerankerProfileConfig(top_n=5, enabled=True)):
@@ -73,7 +80,9 @@ class WorkerSafetyAR8Tests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "single-process"):
                 assert_worker_safety({"WEB_CONCURRENCY": "2"})
             settings.ALLOW_MULTI_WORKER = True
-            self.assertEqual(assert_worker_safety({"WEB_CONCURRENCY": "2"}), 2)  # explicit override
+            self.assertEqual(
+                assert_worker_safety({"WEB_CONCURRENCY": "2"}), 2
+            )  # explicit override
         finally:
             settings.ALLOW_MULTI_WORKER = original
 
@@ -96,7 +105,9 @@ class DeploymentPortabilityAR8Tests(unittest.TestCase):
         security = (REPO_ROOT / "backend/app/auth/service.py").read_text(encoding="utf-8")
         self.assertIn('env == "demo" and mode != "none"', security)
         self.assertIn('env == "demo" and settings.AUTH_NONE_ALLOW_UPLOAD', security)
-        self.assertIn('embedding_provider == "openai" and not settings.EMBEDDING_API_KEY', security)
+        self.assertIn(
+            'embedding_provider == "openai" and not settings.EMBEDDING_API_KEY', security
+        )
 
         from app.auth.service import AuthError, validate_security_posture
         from app.core.config import settings

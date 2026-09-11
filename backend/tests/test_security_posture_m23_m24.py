@@ -1,7 +1,5 @@
 import unittest
 
-from fastapi.testclient import TestClient
-
 import app.api.search as search_api
 import app.api.upload as upload_api
 import app.main as main_module
@@ -11,6 +9,7 @@ from app.core.config import settings
 from app.core.rate_limit import _buckets
 from app.core_rag.retrieval import SearchResponse
 from app.main import app
+from fastapi.testclient import TestClient
 
 
 class SecurityPostureM23M24Tests(unittest.TestCase):
@@ -78,8 +77,12 @@ class SecurityPostureM23M24Tests(unittest.TestCase):
         main_module.authenticate_request = lambda request: None
         client = TestClient(app)
 
-        search_response = client.post("/search", json={"question": "private", "k": 1, "mode": "keyword"})
-        upload_response = client.post("/upload", files={"file": ("note.txt", b"hello", "text/plain")})
+        search_response = client.post(
+            "/search", json={"question": "private", "k": 1, "mode": "keyword"}
+        )
+        upload_response = client.post(
+            "/upload", files={"file": ("note.txt", b"hello", "text/plain")}
+        )
 
         self.assertEqual(search_response.status_code, 401)
         self.assertEqual(upload_response.status_code, 401)
@@ -126,7 +129,9 @@ class SecurityPostureM23M24Tests(unittest.TestCase):
         settings.RATE_LIMIT_SEARCH_PER_MINUTE = 1
         actor = AuthenticatedUser(user_id="admin-1", email="admin@example.test", roles=["admin"])
         main_module.authenticate_request = lambda request: actor
-        search_api.perform_search = lambda request: SearchResponse(results=[], latency_ms=1, mode="keyword")
+        search_api.perform_search = lambda request: SearchResponse(
+            results=[], latency_ms=1, mode="keyword"
+        )
         client = TestClient(app)
 
         first = client.post("/search", json={"question": "alpha", "k": 1, "mode": "keyword"})

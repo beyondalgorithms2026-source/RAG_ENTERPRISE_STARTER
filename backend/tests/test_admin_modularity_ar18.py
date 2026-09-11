@@ -35,10 +35,9 @@ class AdminModularityAR18Tests(SmokeTestBase):
         super().tearDown()
 
     def _client(self):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         original_auth = settings.AUTH_ENABLED
         original_fn = main_module.authenticate_request
@@ -133,8 +132,12 @@ class AdminModularityAR18Tests(SmokeTestBase):
             self.assertEqual(saved.json()["source"], "runtime")
             self.assertEqual(saved.json()["enabled_modules"], ["health", "overview", "sources"])
             reloaded = client.get("/admin/modules")
-            self.assertEqual(reloaded.json()["runtime_override"], ["health", "overview", "sources"])
-            events = list_admin_audit_events(action="admin_modules.update", actor_external_user_id="ar18-admin")
+            self.assertEqual(
+                reloaded.json()["runtime_override"], ["health", "overview", "sources"]
+            )
+            events = list_admin_audit_events(
+                action="admin_modules.update", actor_external_user_id="ar18-admin"
+            )
             self.assertTrue(events)
             self.assertEqual(events[0]["after_json"]["source"], "runtime")
             reset = client.patch("/admin/modules", json={"enabled_modules": None})

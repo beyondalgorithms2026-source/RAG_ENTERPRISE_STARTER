@@ -6,15 +6,20 @@ and restarting. Read paths consult these overrides first, then fall back to the
 environment (`settings.*`). Only the allowlisted keys are accepted, each with
 its own validation, so this never becomes an arbitrary config backdoor.
 """
-import math
-from typing import Any, Optional
 
-from sqlalchemy import text
+import math
+from typing import Any
 
 from app.auth.context import AuthenticatedUser
 from app.db.db import engine
+from sqlalchemy import text
 
-ALLOWED_KEYS = {"llm_cost_alert_usd", "llm_price_table", "tuning_eval_enforcement", "admin_modules_enabled"}
+ALLOWED_KEYS = {
+    "llm_cost_alert_usd",
+    "llm_price_table",
+    "tuning_eval_enforcement",
+    "admin_modules_enabled",
+}
 
 
 def _validate(key: str, value: Any) -> Any:
@@ -35,7 +40,9 @@ def _validate(key: str, value: Any) -> Any:
                 raise ValueError(f"price for '{model}' must be [input_per_1k, output_per_1k]")
             normalized = [float(prices[0]), float(prices[1])]
             if any(not math.isfinite(price) or price < 0 for price in normalized):
-                raise ValueError(f"price for '{model_name}' must contain finite non-negative values")
+                raise ValueError(
+                    f"price for '{model_name}' must contain finite non-negative values"
+                )
             table[model_name] = normalized
         return table
     if key == "tuning_eval_enforcement":
@@ -56,20 +63,22 @@ def _validate(key: str, value: Any) -> Any:
     raise ValueError(f"Setting '{key}' is not runtime-editable")
 
 
-def get_setting(key: str) -> Optional[Any]:
+def get_setting(key: str) -> Any | None:
     """Return the runtime override for a key, or None when unset. Never raises on
     a missing table so callers can fall back to env safely."""
     if key not in ALLOWED_KEYS:
         return None
     try:
         with engine.connect() as conn:
-            row = conn.execute(text("SELECT value_json FROM runtime_settings WHERE key = :k"), {"k": key}).first()
+            row = conn.execute(
+                text("SELECT value_json FROM runtime_settings WHERE key = :k"), {"k": key}
+            ).first()
         return row[0] if row else None
     except Exception:
         return None
 
 
-def set_setting(key: str, value: Any, *, actor: Optional[AuthenticatedUser] = None) -> dict[str, Any]:
+def set_setting(key: str, value: Any, *, actor: AuthenticatedUser | None = None) -> dict[str, Any]:
     if key not in ALLOWED_KEYS:
         raise ValueError(f"Setting '{key}' is not runtime-editable")
     validated = _validate(key, value)

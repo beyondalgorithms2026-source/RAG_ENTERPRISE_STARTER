@@ -1,9 +1,8 @@
 import json
-from typing import Any, Dict, Optional
-
-from sqlalchemy import text
+from typing import Any
 
 from app.db.db import engine
+from sqlalchemy import text
 
 
 def list_corpora() -> list[dict[str, Any]]:
@@ -34,7 +33,7 @@ def list_corpora() -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
-def get_corpus(name: str) -> Optional[dict[str, Any]]:
+def get_corpus(name: str) -> dict[str, Any] | None:
     sql = text(
         """
         SELECT name, description, metadata_json, created_at, updated_at
@@ -47,7 +46,9 @@ def get_corpus(name: str) -> Optional[dict[str, Any]]:
     return dict(row) if row else None
 
 
-def upsert_corpus(*, name: str, description: str = "", metadata_json: Optional[Dict[str, Any]] = None) -> dict[str, Any]:
+def upsert_corpus(
+    *, name: str, description: str = "", metadata_json: dict[str, Any] | None = None
+) -> dict[str, Any]:
     sql = text(
         """
         INSERT INTO corpora (name, description, metadata_json)
@@ -60,12 +61,16 @@ def upsert_corpus(*, name: str, description: str = "", metadata_json: Optional[D
         """
     )
     with engine.begin() as conn:
-        row = conn.execute(
-            sql,
-            {
-                "name": name,
-                "description": description,
-                "metadata_json": json.dumps(metadata_json or {}),
-            },
-        ).mappings().one()
+        row = (
+            conn.execute(
+                sql,
+                {
+                    "name": name,
+                    "description": description,
+                    "metadata_json": json.dumps(metadata_json or {}),
+                },
+            )
+            .mappings()
+            .one()
+        )
     return dict(row)

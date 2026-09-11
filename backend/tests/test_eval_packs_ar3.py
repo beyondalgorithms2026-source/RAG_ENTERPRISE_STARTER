@@ -1,18 +1,15 @@
-from tests.smoke_test_base import *
-
 import json
-from pathlib import Path
 
 from app.eval.metrics import (
     aggregate_case_metrics,
     citation_faithfulness,
-    evaluate_ranking,
     ndcg_at_k,
     recall_at_k,
     reciprocal_rank,
 )
 from app.eval.pack_builder import PACKS_DIR, is_junk_mined_question, synthesize_question_variants
 from app.eval.pack_eval import DEGRADED_RETRIEVAL_OVERRIDES, evaluate_case, evaluate_gate
+from tests.smoke_test_base import *
 
 
 class EvalMetricsAR3Tests(SmokeTestBase):
@@ -38,11 +35,27 @@ class EvalMetricsAR3Tests(SmokeTestBase):
     def test_citation_faithfulness_contract(self):
         grades = {1: 3, 2: 2}
         self.assertAlmostEqual(
-            citation_faithfulness(cited_chunk_ids=[1, 99], relevant_grades=grades, answered_not_found=False), 0.5
+            citation_faithfulness(
+                cited_chunk_ids=[1, 99], relevant_grades=grades, answered_not_found=False
+            ),
+            0.5,
         )
-        self.assertEqual(citation_faithfulness(cited_chunk_ids=[], relevant_grades=grades, answered_not_found=False), 0.0)
-        self.assertEqual(citation_faithfulness(cited_chunk_ids=[], relevant_grades={}, answered_not_found=True), 1.0)
-        self.assertEqual(citation_faithfulness(cited_chunk_ids=[], relevant_grades=grades, answered_not_found=True), 0.0)
+        self.assertEqual(
+            citation_faithfulness(
+                cited_chunk_ids=[], relevant_grades=grades, answered_not_found=False
+            ),
+            0.0,
+        )
+        self.assertEqual(
+            citation_faithfulness(cited_chunk_ids=[], relevant_grades={}, answered_not_found=True),
+            1.0,
+        )
+        self.assertEqual(
+            citation_faithfulness(
+                cited_chunk_ids=[], relevant_grades=grades, answered_not_found=True
+            ),
+            0.0,
+        )
 
     def test_aggregation_skips_missing_values(self):
         aggregated = aggregate_case_metrics([{"mrr": 1.0}, {"mrr": 0.0}, {"mrr": None}])
@@ -51,10 +64,14 @@ class EvalMetricsAR3Tests(SmokeTestBase):
 
 class PackBuilderAR3Tests(SmokeTestBase):
     def test_junk_mined_question_filter(self):
-        self.assertTrue(is_junk_mined_question("missing payroll policy 19db69e6f66e4711a30547331e0763b1"))
+        self.assertTrue(
+            is_junk_mined_question("missing payroll policy 19db69e6f66e4711a30547331e0763b1")
+        )
         self.assertTrue(is_junk_mined_question("[redacted by retention policy]"))
         self.assertTrue(is_junk_mined_question("hi"))
-        self.assertFalse(is_junk_mined_question("What are the termination clauses in the master agreement?"))
+        self.assertFalse(
+            is_junk_mined_question("What are the termination clauses in the master agreement?")
+        )
 
     def test_question_variants_are_grounded_and_distinct(self):
         variants = synthesize_question_variants(
@@ -72,7 +89,9 @@ class PackBuilderAR3Tests(SmokeTestBase):
 
     def test_committed_flagship_pack_exists_with_100_plus_graded_cases(self):
         path = PACKS_DIR / "pack_general.json"
-        self.assertTrue(path.exists(), msg="flagship pack missing; run python -m app.eval.pack_builder")
+        self.assertTrue(
+            path.exists(), msg="flagship pack missing; run python -m app.eval.pack_builder"
+        )
         pack = json.loads(path.read_text(encoding="utf-8"))
         self.assertGreaterEqual(pack["case_counts"]["total"], 100)
         for case in pack["cases"][:50]:
@@ -99,7 +118,11 @@ class PackEvalGateAR3Tests(SmokeTestBase):
                     RETURNING id
                     """
                 ),
-                {"f": f"ar3-gate-{suffix}.pdf", "p": f"tests/ar3-gate-{suffix}.pdf", "h": (suffix + "ar3") * 4},
+                {
+                    "f": f"ar3-gate-{suffix}.pdf",
+                    "p": f"tests/ar3-gate-{suffix}.pdf",
+                    "h": (suffix + "ar3") * 4,
+                },
             ).scalar_one()
         self.addCleanup(self._delete_retrieval_records, [source_id])
         token = f"gradedtoken{suffix}"
@@ -120,14 +143,19 @@ class PackEvalGateAR3Tests(SmokeTestBase):
         )
         with engine.connect() as conn:
             chunk_rows = conn.execute(
-                text("SELECT id, chunk_index FROM chunks WHERE source_id = :s ORDER BY chunk_index"),
+                text(
+                    "SELECT id, chunk_index FROM chunks WHERE source_id = :s ORDER BY chunk_index"
+                ),
                 {"s": source_id},
             ).fetchall()
         # All four chunks are relevant; descending similarity to the query vector.
         similarities = [0.95, 0.9, 0.85, 0.8]
         update_chunk_embeddings(
             [
-                (chunk_id, basis_vector(similarities[index], (1 - similarities[index] ** 2) ** 0.5))
+                (
+                    chunk_id,
+                    basis_vector(similarities[index], (1 - similarities[index] ** 2) ** 0.5),
+                )
                 for chunk_id, index in chunk_rows
             ]
         )
@@ -137,7 +165,9 @@ class PackEvalGateAR3Tests(SmokeTestBase):
                 "question": f"{token} graded evidence passage",
                 "provenance": "synthetic_chunk_grounded",
                 "review_status": "auto_labeled",
-                "relevant": {str(chunk_id): (3 if index == 0 else 2) for chunk_id, index in chunk_rows},
+                "relevant": {
+                    str(chunk_id): (3 if index == 0 else 2) for chunk_id, index in chunk_rows
+                },
             }
         ]
         return cases
@@ -164,8 +194,16 @@ class PackEvalGateAR3Tests(SmokeTestBase):
         healthy_aggregates = aggregate_case_metrics(healthy)
         degraded_aggregates = aggregate_case_metrics(degraded)
         thresholds = {"recall_at_5": 0.6}
-        self.assertEqual(evaluate_gate(healthy_aggregates, thresholds)["status"], "pass", msg=str(healthy_aggregates))
-        self.assertEqual(evaluate_gate(degraded_aggregates, thresholds)["status"], "fail", msg=str(degraded_aggregates))
+        self.assertEqual(
+            evaluate_gate(healthy_aggregates, thresholds)["status"],
+            "pass",
+            msg=str(healthy_aggregates),
+        )
+        self.assertEqual(
+            evaluate_gate(degraded_aggregates, thresholds)["status"],
+            "fail",
+            msg=str(degraded_aggregates),
+        )
         self.assertLess(degraded_aggregates["recall_at_5"], healthy_aggregates["recall_at_5"])
 
     def test_unreviewed_cases_never_gate(self):
@@ -174,16 +212,22 @@ class PackEvalGateAR3Tests(SmokeTestBase):
         self.assertEqual(gate["status"], "fail")
         # Gate construction in run_pack_eval excludes unreviewed cases; the
         # filter is part of the runner contract:
-        from app.eval.pack_eval import run_pack_eval
         import inspect
+
+        from app.eval.pack_eval import run_pack_eval
 
         self.assertIn('review_status"] != "unreviewed"', inspect.getsource(run_pack_eval))
 
     def test_committed_baseline_and_degraded_reference_reports(self):
         baseline_path = PACKS_DIR / "AR3_baseline_report.json"
         degraded_path = PACKS_DIR / "AR3_degraded_control_report.json"
-        self.assertTrue(baseline_path.exists(), msg="baseline report missing; run python -m app.eval.pack_eval")
-        self.assertTrue(degraded_path.exists(), msg="degraded report missing; run python -m app.eval.pack_eval --degraded")
+        self.assertTrue(
+            baseline_path.exists(), msg="baseline report missing; run python -m app.eval.pack_eval"
+        )
+        self.assertTrue(
+            degraded_path.exists(),
+            msg="degraded report missing; run python -m app.eval.pack_eval --degraded",
+        )
         baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
         degraded = json.loads(degraded_path.read_text(encoding="utf-8"))
         self.assertEqual(baseline["gate"]["status"], "pass", msg=str(baseline["gate"]))

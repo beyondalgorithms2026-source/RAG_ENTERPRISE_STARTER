@@ -72,19 +72,27 @@ class ProviderRegistryAR9Tests(unittest.TestCase):
     def test_openai_payload_requests_json_object_when_supported(self):
         provider = OpenAICompatibleProvider()
         llm = LLMProfileConfig(provider="openai", model="gpt-4o-mini-2024-07-18")
-        payload = provider.build_payload(llm, "sys", "user", json_mode=True, temperature=0.0, max_tokens=128)
+        payload = provider.build_payload(
+            llm, "sys", "user", json_mode=True, temperature=0.0, max_tokens=128
+        )
         self.assertEqual(payload["response_format"], {"type": "json_object"})
         self.assertEqual(payload["model"], "gpt-4o-mini-2024-07-18")
         self.assertEqual(payload["max_tokens"], 128)
 
     def test_anthropic_uses_messages_shape_and_api_key_header(self):
         provider = AnthropicProvider()
-        llm = LLMProfileConfig(provider="anthropic", model="claude-haiku-4-5-20251001", api_key="sk-test")
-        headers = provider.headers(llm, {"Content-Type": "application/json", "Authorization": "Bearer sk-test"})
+        llm = LLMProfileConfig(
+            provider="anthropic", model="claude-haiku-4-5-20251001", api_key="sk-test"
+        )
+        headers = provider.headers(
+            llm, {"Content-Type": "application/json", "Authorization": "Bearer sk-test"}
+        )
         self.assertEqual(headers["x-api-key"], "sk-test")
         self.assertNotIn("Authorization", headers)
         self.assertIn("anthropic-version", headers)
-        payload = provider.build_payload(llm, "sys", "user", json_mode=True, temperature=0.0, max_tokens=256)
+        payload = provider.build_payload(
+            llm, "sys", "user", json_mode=True, temperature=0.0, max_tokens=256
+        )
         self.assertEqual(payload["system"], "sys")
         self.assertEqual(payload["messages"], [{"role": "user", "content": "user"}])
 
@@ -107,9 +115,19 @@ class TwoProviderAnswerContractAR9Tests(unittest.TestCase):
 
     def test_openai_compatible_answer(self):
         capture: dict = {}
-        response = _FakeResponse({"choices": [{"message": {"content": '{"answer":"ok [S1]","citations":["S1"]}'}}]})
+        response = _FakeResponse(
+            {"choices": [{"message": {"content": '{"answer":"ok [S1]","citations":["S1"]}'}}]}
+        )
         client._get_httpx = lambda: _FakeHttpx(capture, response)
-        self._pin_llm(LLMProfileConfig(provider="openai", model="gpt-4o-mini", base_url="https://api.openai.example", api_key="sk-x", structured_output_mode="native_json"))
+        self._pin_llm(
+            LLMProfileConfig(
+                provider="openai",
+                model="gpt-4o-mini",
+                base_url="https://api.openai.example",
+                api_key="sk-x",
+                structured_output_mode="native_json",
+            )
+        )
         result = client.generate_answer("sys", "user")
         self.assertTrue(result["success"])
         self.assertIn('"answer"', result["content"])
@@ -118,7 +136,9 @@ class TwoProviderAnswerContractAR9Tests(unittest.TestCase):
 
         # Provider project hard limits are surfaced as non-2xx responses. The
         # client must fail closed instead of manufacturing answer content.
-        rejected = _FakeResponse({"error": {"code": "billing_hard_limit_reached"}}, status_code=429)
+        rejected = _FakeResponse(
+            {"error": {"code": "billing_hard_limit_reached"}}, status_code=429
+        )
         client._get_httpx = lambda: _FakeHttpx(capture, rejected)
         capped = client.generate_answer("sys", "user")
         self.assertFalse(capped["success"])
@@ -126,9 +146,18 @@ class TwoProviderAnswerContractAR9Tests(unittest.TestCase):
 
     def test_anthropic_answer_same_contract(self):
         capture: dict = {}
-        response = _FakeResponse({"content": [{"type": "text", "text": '{"answer":"ok [S1]","citations":["S1"]}'}]})
+        response = _FakeResponse(
+            {"content": [{"type": "text", "text": '{"answer":"ok [S1]","citations":["S1"]}'}]}
+        )
         client._get_httpx = lambda: _FakeHttpx(capture, response)
-        self._pin_llm(LLMProfileConfig(provider="anthropic", model="claude-haiku-4-5-20251001", base_url="https://api.anthropic.example", api_key="sk-y"))
+        self._pin_llm(
+            LLMProfileConfig(
+                provider="anthropic",
+                model="claude-haiku-4-5-20251001",
+                base_url="https://api.anthropic.example",
+                api_key="sk-y",
+            )
+        )
         result = client.generate_answer("sys", "user")
         self.assertTrue(result["success"])
         self.assertIn('"answer"', result["content"])
@@ -141,7 +170,9 @@ class TwoProviderAnswerContractAR9Tests(unittest.TestCase):
         capture: dict = {}
         response = _FakeResponse({"choices": [{"message": {"content": "rewritten query"}}]})
         client._get_httpx = lambda: _FakeHttpx(capture, response)
-        self._pin_llm(LLMProfileConfig(provider="vllm", model="mistral", base_url="http://vllm.local:8000"))
+        self._pin_llm(
+            LLMProfileConfig(provider="vllm", model="mistral", base_url="http://vllm.local:8000")
+        )
         result = client.generate_transform_text("sys", "user", timeout_s=1.0)
         self.assertTrue(result["success"])
         self.assertEqual(result["content"], "rewritten query")

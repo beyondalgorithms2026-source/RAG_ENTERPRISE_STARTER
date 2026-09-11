@@ -2,12 +2,16 @@ import argparse
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.core.logging import logger
-from app.core_rag.retrieval import DeepLookupRequest, SearchRequest, perform_deep_lookup, perform_search
+from app.core_rag.retrieval import (
+    DeepLookupRequest,
+    SearchRequest,
+    perform_deep_lookup,
+    perform_search,
+)
 from app.profiles.resolver import get_active_profile_snapshot, get_effective_retrieval
-
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 REPORTS_DIR = PROJECT_ROOT / "data" / "reports"
@@ -17,12 +21,12 @@ RETRIEVAL_CASES_FILE = EVAL_FIXTURE_DIR / "retrieval_cases.json"
 DEFAULT_REPORT_FILE = REPORTS_DIR / "eval_report_retrieval.json"
 
 
-def parse_demo_questions() -> List[Dict[str, Any]]:
+def parse_demo_questions() -> list[dict[str, Any]]:
     if not DEMO_FILE.exists():
         logger.error("Demo file not found at %s", DEMO_FILE)
         return []
 
-    with open(DEMO_FILE, "r", encoding="utf-8") as handle:
+    with open(DEMO_FILE, encoding="utf-8") as handle:
         content = handle.read()
 
     match = re.search(r"```json\n(.*?)\n```", content, re.DOTALL)
@@ -37,19 +41,19 @@ def parse_demo_questions() -> List[Dict[str, Any]]:
         return []
 
 
-def load_eval_cases(path: Optional[Path] = None) -> List[Dict[str, Any]]:
+def load_eval_cases(path: Path | None = None) -> list[dict[str, Any]]:
     case_path = path or RETRIEVAL_CASES_FILE
     if not case_path.exists():
         logger.error("Eval case file not found at %s", case_path)
         return []
 
-    with open(case_path, "r", encoding="utf-8") as handle:
+    with open(case_path, encoding="utf-8") as handle:
         data = json.load(handle)
 
     return data if isinstance(data, list) else []
 
 
-def write_eval_report(report: Dict[str, Any], path: Optional[Path] = None) -> Path:
+def write_eval_report(report: dict[str, Any], path: Path | None = None) -> Path:
     report_path = path or DEFAULT_REPORT_FILE
     report_path.parent.mkdir(parents=True, exist_ok=True)
     with open(report_path, "w", encoding="utf-8") as handle:
@@ -57,7 +61,7 @@ def write_eval_report(report: Dict[str, Any], path: Optional[Path] = None) -> Pa
     return report_path
 
 
-def print_debug_table(results: List[Dict[str, Any]]):
+def print_debug_table(results: list[dict[str, Any]]):
     print(
         f"\n{'Rank':<5} | {'Score':<6} | {'Type':<10} | {'File Name':<20} | "
         f"{'Heading':<20} | {'Locator':<16} | {'Snippet (First 80 chars)'}"
@@ -81,7 +85,9 @@ def _resolve_legacy_eval_mode(mode: str) -> str:
     return mode
 
 
-def _evaluate_expected_matches(*, results: List[Dict[str, Any]], expected: Dict[str, Any]) -> Dict[str, Any]:
+def _evaluate_expected_matches(
+    *, results: list[dict[str, Any]], expected: dict[str, Any]
+) -> dict[str, Any]:
     headings_any = [item.lower() for item in expected.get("headings_any", [])]
     headings_all = [item.lower() for item in expected.get("headings_all", [])]
     snippet_keywords_any = [item.lower() for item in expected.get("snippet_keywords_any", [])]
@@ -140,7 +146,7 @@ def _evaluate_expected_matches(*, results: List[Dict[str, Any]], expected: Dict[
     }
 
 
-def evaluate_search_case(case: Dict[str, Any], debug: bool = False) -> Dict[str, Any]:
+def evaluate_search_case(case: dict[str, Any], debug: bool = False) -> dict[str, Any]:
     request_payload = dict(case.get("request", {}))
     if "question" not in request_payload:
         return {"id": case.get("id", "unknown"), "status": "FAIL", "error": "missing_question"}
@@ -208,12 +214,12 @@ def evaluate_search_case(case: Dict[str, Any], debug: bool = False) -> Dict[str,
 
 
 def evaluate_question(
-    question_data: Dict[str, Any],
+    question_data: dict[str, Any],
     default_k: int,
-    global_source_type: Optional[str] = None,
+    global_source_type: str | None = None,
     debug: bool = False,
     mode: str = "vector",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     question = question_data["question"]
     k = question_data.get("k", default_k)
     filters = dict(question_data.get("filters", {}))
@@ -230,7 +236,9 @@ def evaluate_question(
             "filters": filters or None,
         },
         "expected": {
-            "headings_any": [question_data.get("heading_hint")] if question_data.get("heading_hint") else [],
+            "headings_any": [question_data.get("heading_hint")]
+            if question_data.get("heading_hint")
+            else [],
             "snippet_keywords_any": question_data.get("keywords_any", []),
             "snippet_keywords_all": question_data.get("keywords_all", []),
         },
@@ -240,15 +248,17 @@ def evaluate_question(
 
 def run_retrieval_eval(
     *,
-    cases: List[Dict[str, Any]],
-    report_path: Optional[Path] = None,
+    cases: list[dict[str, Any]],
+    report_path: Path | None = None,
     debug: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     results = [evaluate_search_case(case, debug=debug) for case in cases]
     passed = sum(1 for item in results if item["status"] == "PASS")
     total = len(results)
     failures = [item for item in results if item["status"] == "FAIL"]
-    evaluated_modes = sorted({item.get("requested_mode") or item.get("resolved_mode") for item in results if item})
+    evaluated_modes = sorted(
+        {item.get("requested_mode") or item.get("resolved_mode") for item in results if item}
+    )
     report = {
         "summary": {
             "kind": "retrieval",
@@ -302,7 +312,9 @@ def run_eval(args):
             if case.get("surface") == "deep_lookup":
                 rewritten_cases.append(case)
             else:
-                rewritten_cases.append(dict(case, request={**case.get("request", {}), "mode": args.mode}))
+                rewritten_cases.append(
+                    dict(case, request={**case.get("request", {}), "mode": args.mode})
+                )
         cases = rewritten_cases
     if args.limit:
         cases = cases[: args.limit]
@@ -318,7 +330,9 @@ if __name__ == "__main__":
     parser.add_argument("--limit", type=int, help="Limit to N cases")
     parser.add_argument("--debug", action="store_true", help="Print debug top-k tables")
     parser.add_argument("--debug-question", type=str, help="Debug single ad-hoc question")
-    parser.add_argument("--source-type", type=str, help="Filter by source type (pdf, docx, pptx, xlsx, eml)")
+    parser.add_argument(
+        "--source-type", type=str, help="Filter by source type (pdf, docx, pptx, xlsx, eml)"
+    )
     parser.add_argument(
         "--mode",
         type=str,

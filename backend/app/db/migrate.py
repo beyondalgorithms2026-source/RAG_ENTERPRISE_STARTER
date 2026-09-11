@@ -1,11 +1,10 @@
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
-
-from sqlalchemy import text
 
 from app.core.logging import logger
 from app.db.db import engine
+from sqlalchemy import text
 
 
 @dataclass(frozen=True)
@@ -24,7 +23,7 @@ def _load_schema_sql() -> str:
     if not os.path.exists(schema_path):
         raise FileNotFoundError(f"Schema file not found at {schema_path}")
 
-    with open(schema_path, "r", encoding="utf-8") as handle:
+    with open(schema_path, encoding="utf-8") as handle:
         return handle.read()
 
 
@@ -103,10 +102,12 @@ def _install_weighted_search_tsv() -> None:
 
 def _patch_enrichment_job_artifact_version() -> None:
     with engine.begin() as conn:
-        conn.execute(text("ALTER TABLE enrichment_jobs ADD COLUMN IF NOT EXISTS artifact_version TEXT;"))
+        conn.execute(
+            text("ALTER TABLE enrichment_jobs ADD COLUMN IF NOT EXISTS artifact_version TEXT;")
+        )
 
 
-def _current_embedding_dimension(conn) -> Optional[int]:
+def _current_embedding_dimension(conn) -> int | None:
     row = conn.execute(
         text(
             """
@@ -136,7 +137,9 @@ def _align_embedding_dimension() -> None:
 
         expected_dim = get_expected_dim()
     except Exception as exc:
-        logger.warning(f"Could not resolve embedding dimension dynamically during migration: {exc}")
+        logger.warning(
+            f"Could not resolve embedding dimension dynamically during migration: {exc}"
+        )
         return
 
     with engine.begin() as conn:
@@ -150,7 +153,9 @@ def _align_embedding_dimension() -> None:
                 current_dim,
                 expected_dim,
             )
-        conn.execute(text(f"ALTER TABLE chunks ALTER COLUMN embedding TYPE vector({expected_dim});"))
+        conn.execute(
+            text(f"ALTER TABLE chunks ALTER COLUMN embedding TYPE vector({expected_dim});")
+        )
     logger.info(f"Aligned chunks.embedding to vector({expected_dim}).")
 
 
@@ -937,6 +942,7 @@ def _create_access_request_tables() -> None:
 def _seed_default_profiles() -> None:
     from app.core.config import settings
     from app.db.repo_profiles import seed_default_profiles
+
     seed_default_profiles(settings)
 
 
@@ -1279,7 +1285,9 @@ def _record_migration_step(step: MigrationStep) -> None:
 def recorded_migration_steps() -> list[str]:
     _ensure_migration_ledger_table()
     with engine.connect() as conn:
-        rows = conn.execute(text("SELECT step_id FROM schema_migration_ledger ORDER BY step_id ASC")).fetchall()
+        rows = conn.execute(
+            text("SELECT step_id FROM schema_migration_ledger ORDER BY step_id ASC")
+        ).fetchall()
     return [row[0] for row in rows]
 
 

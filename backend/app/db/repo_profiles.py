@@ -1,9 +1,8 @@
-from typing import Any, Optional
-
-from sqlalchemy import text
+from typing import Any
 
 from app.core.logging import logger
 from app.db.db import engine
+from sqlalchemy import text
 
 PROFILE_TYPES_FOR_TUNING = ("embedding", "reranker", "llm", "retrieval")
 
@@ -188,26 +187,26 @@ APPROVED_PROFILE_SEEDS: dict[str, list[dict[str, Any]]] = {
             },
         },
         {
-                "name": "gemma3_4b_it_qat",
-                "config": {
-                    "provider": "ollama",
-                    "model": "gemma3:4b-it-qat",
-                    "base_url": "http://localhost:11434",
-                    "api_key": "",
-                    "timeout_s": 60,
-                    "temperature": 0.0,
-                    "max_tokens": None,
-                    "display_name": "Gemma 3 4B IT QAT",
-                    "structured_output_mode": "native_json",
-                    "registry_entry": True,
-                    "approval_status": "approved",
+            "name": "gemma3_4b_it_qat",
+            "config": {
+                "provider": "ollama",
+                "model": "gemma3:4b-it-qat",
+                "base_url": "http://localhost:11434",
+                "api_key": "",
+                "timeout_s": 60,
+                "temperature": 0.0,
+                "max_tokens": None,
+                "display_name": "Gemma 3 4B IT QAT",
+                "structured_output_mode": "native_json",
+                "registry_entry": True,
+                "approval_status": "approved",
             },
         },
     ],
 }
 
 
-def list_profiles(profile_type: Optional[str] = None) -> list[dict[str, Any]]:
+def list_profiles(profile_type: str | None = None) -> list[dict[str, Any]]:
     sql = "SELECT id, profile_type, name, config_json, is_default, created_at, updated_at FROM profiles"
     params: dict[str, Any] = {}
     if profile_type:
@@ -222,7 +221,7 @@ def list_profiles(profile_type: Optional[str] = None) -> list[dict[str, Any]]:
         return [dict(r) for r in rows]
 
 
-def get_profile(profile_type: str, name: str) -> Optional[dict[str, Any]]:
+def get_profile(profile_type: str, name: str) -> dict[str, Any] | None:
     sql = "SELECT id, profile_type, name, config_json, is_default, created_at, updated_at FROM profiles WHERE profile_type = :pt AND name = :n"
     with engine.connect() as conn:
         stmt = text(sql).bindparams(pt=profile_type, n=name)
@@ -230,7 +229,9 @@ def get_profile(profile_type: str, name: str) -> Optional[dict[str, Any]]:
         return dict(row) if row else None
 
 
-def upsert_profile(profile_type: str, name: str, config_json: dict, is_default: bool = False) -> int:
+def upsert_profile(
+    profile_type: str, name: str, config_json: dict, is_default: bool = False
+) -> int:
     sql = """
         INSERT INTO profiles (profile_type, name, config_json, is_default)
         VALUES (:pt, :n, CAST(:cj AS jsonb), :d)
@@ -241,12 +242,10 @@ def upsert_profile(profile_type: str, name: str, config_json: dict, is_default: 
         RETURNING id
     """
     import json
+
     with engine.begin() as conn:
         stmt = text(sql).bindparams(
-            pt=profile_type,
-            n=name,
-            cj=json.dumps(config_json),
-            d=is_default
+            pt=profile_type, n=name, cj=json.dumps(config_json), d=is_default
         )
         row = conn.execute(stmt).first()
         return row[0]
@@ -260,7 +259,7 @@ def delete_profile(profile_type: str, name: str) -> int:
     return int(result.rowcount or 0)
 
 
-def get_active_profile_name(profile_type: str) -> Optional[str]:
+def get_active_profile_name(profile_type: str) -> str | None:
     sql = "SELECT profile_name FROM active_profiles WHERE profile_type = :pt"
     with engine.connect() as conn:
         stmt = text(sql).bindparams(pt=profile_type)
@@ -289,7 +288,7 @@ def set_active_profile(profile_type: str, profile_name: str) -> None:
         conn.execute(stmt)
 
 
-def get_active_profile_config(profile_type: str) -> Optional[dict[str, Any]]:
+def get_active_profile_config(profile_type: str) -> dict[str, Any] | None:
     sql = """
         SELECT p.config_json
         FROM active_profiles ap
@@ -302,23 +301,30 @@ def get_active_profile_config(profile_type: str) -> Optional[dict[str, Any]]:
         return row[0] if row else None
 
 
-def get_active_profile_map(profile_types: Optional[list[str]] = None) -> dict[str, str]:
+def get_active_profile_map(profile_types: list[str] | None = None) -> dict[str, str]:
     sql = "SELECT profile_type, profile_name FROM active_profiles"
     with engine.connect() as conn:
         stmt = text(sql)
         rows = conn.execute(stmt).fetchall()
     payload = {str(row[0]): str(row[1]) for row in rows}
     if profile_types:
-        return {profile_type: payload[profile_type] for profile_type in profile_types if profile_type in payload}
+        return {
+            profile_type: payload[profile_type]
+            for profile_type in profile_types
+            if profile_type in payload
+        }
     return payload
 
 
-def list_approved_registry_profiles(profile_type: Optional[str] = None) -> list[dict[str, Any]]:
+def list_approved_registry_profiles(profile_type: str | None = None) -> list[dict[str, Any]]:
     rows = list_profiles(profile_type)
     approved: list[dict[str, Any]] = []
     for row in rows:
         config = row["config_json"] or {}
-        if config.get("registry_entry") and str(config.get("approval_status", "")).lower() == "approved":
+        if (
+            config.get("registry_entry")
+            and str(config.get("approval_status", "")).lower() == "approved"
+        ):
             approved.append(
                 {
                     "id": row["id"],
@@ -338,7 +344,10 @@ def is_registry_approved_profile(profile_type: str, profile_name: str) -> bool:
     if not profile:
         return False
     config = profile["config_json"] or {}
-    return bool(config.get("registry_entry")) and str(config.get("approval_status", "")).lower() == "approved"
+    return (
+        bool(config.get("registry_entry"))
+        and str(config.get("approval_status", "")).lower() == "approved"
+    )
 
 
 def _retire_replaced_llm_profiles() -> None:
@@ -369,76 +378,113 @@ def seed_default_profiles(settings) -> None:
     # Embedding — dimension resolved dynamically
     try:
         from app.embedding.embedder import get_expected_dim
+
         dim = get_expected_dim()
     except Exception:
         dim = settings.EMBEDDING_DIMENSIONS
 
-    upsert_profile("embedding", "default", {
-        "provider": settings.EMBEDDING_PROVIDER,
-        "model": settings.EMBEDDING_MODEL,
-        "dimension": dim,
-        "batch_size": settings.EMBEDDING_BATCH_SIZE,
-    }, is_default=True)
+    upsert_profile(
+        "embedding",
+        "default",
+        {
+            "provider": settings.EMBEDDING_PROVIDER,
+            "model": settings.EMBEDDING_MODEL,
+            "dimension": dim,
+            "batch_size": settings.EMBEDDING_BATCH_SIZE,
+        },
+        is_default=True,
+    )
 
-    upsert_profile("reranker", "default", {
-        "enabled": settings.RERANK_ENABLED,
-        "model": settings.RERANK_MODEL,
-        "enabled_modes": [],
-        "enabled_corpora": [],
-        "min_candidate_count": 0,
-        "max_candidate_count": None,
-        "latency_budget_ms": None,
-        "mmr_enabled": False,
-        "mmr_lambda": 0.5,
-    }, is_default=True)
+    upsert_profile(
+        "reranker",
+        "default",
+        {
+            "enabled": settings.RERANK_ENABLED,
+            "model": settings.RERANK_MODEL,
+            "enabled_modes": [],
+            "enabled_corpora": [],
+            "min_candidate_count": 0,
+            "max_candidate_count": None,
+            "latency_budget_ms": None,
+            "mmr_enabled": False,
+            "mmr_lambda": 0.5,
+        },
+        is_default=True,
+    )
 
-    upsert_profile("llm", "default", {
-        "provider": settings.LLM_PROVIDER,
-        "model": settings.LLM_MODEL,
-        "base_url": settings.LLM_BASE_URL,
-        # Environment credentials are resolved in memory by the profile
-        # resolver; never copy a host secret into the profiles table.
-        "api_key": "",
-        "timeout_s": settings.LLM_TIMEOUT_S,
-        "temperature": 0.0,
-        "max_tokens": settings.LLM_MAX_TOKENS,
-        "structured_output_mode": "prompt_json_only" if settings.LLM_MODEL == "gpt-oss:20b-cloud" else "native_json",
-        "reasoning_effort": "none" if settings.LLM_MODEL == "gpt-oss:20b-cloud" else None,
-    }, is_default=True)
+    upsert_profile(
+        "llm",
+        "default",
+        {
+            "provider": settings.LLM_PROVIDER,
+            "model": settings.LLM_MODEL,
+            "base_url": settings.LLM_BASE_URL,
+            # Environment credentials are resolved in memory by the profile
+            # resolver; never copy a host secret into the profiles table.
+            "api_key": "",
+            "timeout_s": settings.LLM_TIMEOUT_S,
+            "temperature": 0.0,
+            "max_tokens": settings.LLM_MAX_TOKENS,
+            "structured_output_mode": "prompt_json_only"
+            if settings.LLM_MODEL == "gpt-oss:20b-cloud"
+            else "native_json",
+            "reasoning_effort": "none" if settings.LLM_MODEL == "gpt-oss:20b-cloud" else None,
+        },
+        is_default=True,
+    )
 
-    upsert_profile("retrieval", "default", {
-        "default_mode": settings.RETRIEVAL_MODE,
-        "top_k_initial": settings.TOP_K_INITIAL,
-        "hybrid_alpha": settings.HYBRID_ALPHA,
-        "vector_candidates": settings.VECTOR_CANDIDATES,
-        "keyword_candidates": settings.KEYWORD_CANDIDATES,
-        "deep_research_alpha": 0.2,
-        "deep_research_vector_candidates": 24,
-        "deep_research_keyword_candidates": 36,
-        "fusion_method": "linear",
-        "rrf_k": 60,
-        "query_transform_enabled": False,
-        "rewrite_enabled": False,
-        "expansion_enabled": False,
-        "hyde_enabled": False,
-        "transform_timeout_ms": 5000,
-        "transform_max_variants": 3,
-    }, is_default=True)
+    upsert_profile(
+        "retrieval",
+        "default",
+        {
+            "default_mode": settings.RETRIEVAL_MODE,
+            "top_k_initial": settings.TOP_K_INITIAL,
+            "hybrid_alpha": settings.HYBRID_ALPHA,
+            "vector_candidates": settings.VECTOR_CANDIDATES,
+            "keyword_candidates": settings.KEYWORD_CANDIDATES,
+            "deep_research_alpha": 0.2,
+            "deep_research_vector_candidates": 24,
+            "deep_research_keyword_candidates": 36,
+            "fusion_method": "linear",
+            "rrf_k": 60,
+            "query_transform_enabled": False,
+            "rewrite_enabled": False,
+            "expansion_enabled": False,
+            "hyde_enabled": False,
+            "transform_timeout_ms": 5000,
+            "transform_max_variants": 3,
+        },
+        is_default=True,
+    )
 
-    upsert_profile("eval_pack", "default", {
-        "dataset_name": "retrieval_cases",
-        "cases_path": "backend/tests/fixtures/eval/retrieval_cases.json",
-        "description": "Baseline retrieval evaluation pack",
-    }, is_default=True)
+    upsert_profile(
+        "eval_pack",
+        "default",
+        {
+            "dataset_name": "retrieval_cases",
+            "cases_path": "backend/tests/fixtures/eval/retrieval_cases.json",
+            "description": "Baseline retrieval evaluation pack",
+        },
+        is_default=True,
+    )
 
     for profile_type, seeds in APPROVED_PROFILE_SEEDS.items():
         for entry in seeds:
-            if profile_type == "embedding" and entry["config"].get("model") == settings.EMBEDDING_MODEL:
+            if (
+                profile_type == "embedding"
+                and entry["config"].get("model") == settings.EMBEDDING_MODEL
+            ):
                 entry_config = dict(entry["config"])
-                entry_config["dimension"] = dim if entry_config.get("model") == settings.EMBEDDING_MODEL else entry_config.get("dimension")
+                entry_config["dimension"] = (
+                    dim
+                    if entry_config.get("model") == settings.EMBEDDING_MODEL
+                    else entry_config.get("dimension")
+                )
                 upsert_profile(profile_type, entry["name"], entry_config, is_default=False)
             else:
-                upsert_profile(profile_type, entry["name"], dict(entry["config"]), is_default=False)
+                upsert_profile(
+                    profile_type, entry["name"], dict(entry["config"]), is_default=False
+                )
 
     _retire_replaced_llm_profiles()
 

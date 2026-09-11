@@ -1,25 +1,24 @@
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
-
-from sqlalchemy import text
+from typing import Any
 
 from app.auth.context import AuthenticatedUser
 from app.db.db import engine
 from app.db.repo_sources import get_source_by_id
+from sqlalchemy import text
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _normalize_email(value: Optional[str]) -> Optional[str]:
+def _normalize_email(value: str | None) -> str | None:
     cleaned = (value or "").strip().lower()
     return cleaned or None
 
 
-def _json(value: Optional[Dict[str, Any]]) -> str:
+def _json(value: dict[str, Any] | None) -> str:
     return json.dumps(value or {})
 
 
@@ -28,12 +27,12 @@ class SourceAccessContactRow:
     id: int
     source_id: int
     contact_role: str
-    contact_external_user_id: Optional[str]
-    contact_email: Optional[str]
-    contact_display_name: Optional[str]
-    contact_metadata_json: Dict[str, Any]
-    created_at: Optional[str]
-    updated_at: Optional[str]
+    contact_external_user_id: str | None
+    contact_email: str | None
+    contact_display_name: str | None
+    contact_metadata_json: dict[str, Any]
+    created_at: str | None
+    updated_at: str | None
 
 
 @dataclass
@@ -42,28 +41,28 @@ class AccessRequestRow:
     status: str
     question: str
     business_reason: str
-    source_hint: Optional[str]
-    request_id: Optional[str]
-    answer_path: Optional[str]
-    requester_external_user_id: Optional[str]
-    requester_email: Optional[str]
-    requester_display_name: Optional[str]
-    requester_manager_external_user_id: Optional[str]
-    requester_manager_email: Optional[str]
-    requester_manager_display_name: Optional[str]
-    approved_duration_hours: Optional[int]
-    business_approval_status: Optional[str]
-    business_approval_decision: Optional[str]
-    business_approval_reason: Optional[str]
-    business_approved_at: Optional[str]
-    granted_at: Optional[str]
-    expires_at: Optional[str]
-    granted_by_external_user_id: Optional[str]
-    granted_by_email: Optional[str]
-    review_reason: Optional[str]
-    metadata_json: Dict[str, Any]
-    created_at: Optional[str]
-    updated_at: Optional[str]
+    source_hint: str | None
+    request_id: str | None
+    answer_path: str | None
+    requester_external_user_id: str | None
+    requester_email: str | None
+    requester_display_name: str | None
+    requester_manager_external_user_id: str | None
+    requester_manager_email: str | None
+    requester_manager_display_name: str | None
+    approved_duration_hours: int | None
+    business_approval_status: str | None
+    business_approval_decision: str | None
+    business_approval_reason: str | None
+    business_approved_at: str | None
+    granted_at: str | None
+    expires_at: str | None
+    granted_by_external_user_id: str | None
+    granted_by_email: str | None
+    review_reason: str | None
+    metadata_json: dict[str, Any]
+    created_at: str | None
+    updated_at: str | None
 
 
 @dataclass
@@ -72,66 +71,66 @@ class AccessRequestTargetRow:
     access_request_id: int
     source_id: int
     status: str
-    mapped_by_external_user_id: Optional[str]
-    mapped_by_email: Optional[str]
-    created_at: Optional[str]
+    mapped_by_external_user_id: str | None
+    mapped_by_email: str | None
+    created_at: str | None
 
 
 @dataclass
 class AccessRequestRoutingRow:
     id: int
     access_request_id: int
-    admin_coordinator_external_user_id: Optional[str]
-    admin_coordinator_email: Optional[str]
-    business_approver_external_user_id: Optional[str]
-    business_approver_email: Optional[str]
-    business_approver_display_name: Optional[str]
-    acl_manager_external_user_id: Optional[str]
-    acl_manager_email: Optional[str]
-    acl_manager_display_name: Optional[str]
-    requester_manager_external_user_id: Optional[str]
-    requester_manager_email: Optional[str]
-    requester_manager_display_name: Optional[str]
-    routed_at: Optional[str]
-    responded_at: Optional[str]
-    created_at: Optional[str]
-    updated_at: Optional[str]
+    admin_coordinator_external_user_id: str | None
+    admin_coordinator_email: str | None
+    business_approver_external_user_id: str | None
+    business_approver_email: str | None
+    business_approver_display_name: str | None
+    acl_manager_external_user_id: str | None
+    acl_manager_email: str | None
+    acl_manager_display_name: str | None
+    requester_manager_external_user_id: str | None
+    requester_manager_email: str | None
+    requester_manager_display_name: str | None
+    routed_at: str | None
+    responded_at: str | None
+    created_at: str | None
+    updated_at: str | None
 
 
 @dataclass
 class ApprovalInboxItemRow:
     id: int
     access_request_id: int
-    routing_id: Optional[int]
-    assigned_external_user_id: Optional[str]
-    assigned_email: Optional[str]
-    assigned_display_name: Optional[str]
+    routing_id: int | None
+    assigned_external_user_id: str | None
+    assigned_email: str | None
+    assigned_display_name: str | None
     status: str
-    decision: Optional[str]
-    decision_reason: Optional[str]
-    request_payload_json: Dict[str, Any]
-    resolution_payload_json: Dict[str, Any]
-    created_at: Optional[str]
-    decided_at: Optional[str]
+    decision: str | None
+    decision_reason: str | None
+    request_payload_json: dict[str, Any]
+    resolution_payload_json: dict[str, Any]
+    created_at: str | None
+    decided_at: str | None
 
 
 @dataclass
 class NotificationEventRow:
     id: int
-    access_request_id: Optional[int]
+    access_request_id: int | None
     event_type: str
-    recipient_external_user_id: Optional[str]
-    recipient_email: Optional[str]
-    recipient_display_name: Optional[str]
-    recipient_role: Optional[str]
+    recipient_external_user_id: str | None
+    recipient_email: str | None
+    recipient_display_name: str | None
+    recipient_role: str | None
     title: str
     body: str
-    email_subject: Optional[str]
-    email_payload_json: Dict[str, Any]
-    payload_json: Dict[str, Any]
+    email_subject: str | None
+    email_payload_json: dict[str, Any]
+    payload_json: dict[str, Any]
     status: str
-    created_at: Optional[str]
-    read_at: Optional[str]
+    created_at: str | None
+    read_at: str | None
 
 
 def _row_to_contact(row) -> SourceAccessContactRow:
@@ -251,7 +250,7 @@ def _row_to_notification(row) -> NotificationEventRow:
     )
 
 
-def _manager_fields(actor: Optional[AuthenticatedUser]) -> dict[str, Optional[str]]:
+def _manager_fields(actor: AuthenticatedUser | None) -> dict[str, str | None]:
     claims = (actor.raw_claims if actor else {}) or {}
     return {
         "requester_manager_external_user_id": str(
@@ -268,7 +267,9 @@ def _manager_fields(actor: Optional[AuthenticatedUser]) -> dict[str, Optional[st
     }
 
 
-def _normalize_requester_manager(payload: Optional[Dict[str, Optional[str]]], actor: Optional[AuthenticatedUser]) -> dict[str, Optional[str]]:
+def _normalize_requester_manager(
+    payload: dict[str, str | None] | None, actor: AuthenticatedUser | None
+) -> dict[str, str | None]:
     if not payload:
         return _manager_fields(actor)
     return {
@@ -291,7 +292,7 @@ def _normalize_requester_manager(payload: Optional[Dict[str, Optional[str]]], ac
     }
 
 
-def list_source_access_contacts(source_id: int) -> List[SourceAccessContactRow]:
+def list_source_access_contacts(source_id: int) -> list[SourceAccessContactRow]:
     sql = text(
         """
         SELECT id, source_id, contact_role, contact_external_user_id, contact_email, contact_display_name,
@@ -302,12 +303,17 @@ def list_source_access_contacts(source_id: int) -> List[SourceAccessContactRow]:
         """
     )
     with engine.connect() as conn:
-        return [_row_to_contact(row) for row in conn.execute(sql, {"source_id": source_id}).fetchall()]
+        return [
+            _row_to_contact(row) for row in conn.execute(sql, {"source_id": source_id}).fetchall()
+        ]
 
 
-def upsert_source_access_contacts(source_id: int, contacts: List[dict[str, Any]]) -> None:
+def upsert_source_access_contacts(source_id: int, contacts: list[dict[str, Any]]) -> None:
     with engine.begin() as conn:
-        conn.execute(text("DELETE FROM source_access_contacts WHERE source_id = :source_id"), {"source_id": source_id})
+        conn.execute(
+            text("DELETE FROM source_access_contacts WHERE source_id = :source_id"),
+            {"source_id": source_id},
+        )
         for contact in contacts:
             role = str(contact.get("contact_role") or "").strip().lower()
             email = _normalize_email(contact.get("contact_email"))
@@ -335,9 +341,12 @@ def upsert_source_access_contacts(source_id: int, contacts: List[dict[str, Any]]
             )
 
 
-def resolve_source_contacts(source_id: int) -> dict[str, Optional[dict[str, Any]]]:
+def resolve_source_contacts(source_id: int) -> dict[str, dict[str, Any] | None]:
     rows = list_source_access_contacts(source_id)
-    contacts: dict[str, Optional[dict[str, Any]]] = {"business_approver": None, "acl_manager": None}
+    contacts: dict[str, dict[str, Any] | None] = {
+        "business_approver": None,
+        "acl_manager": None,
+    }
     for row in rows:
         if row.contact_role in contacts and contacts[row.contact_role] is None:
             contacts[row.contact_role] = row.__dict__
@@ -367,12 +376,12 @@ def create_access_request(
     *,
     question: str,
     business_reason: str,
-    source_hint: Optional[str] = None,
-    request_id: Optional[str] = None,
-    answer_path: Optional[str] = None,
-    actor: Optional[AuthenticatedUser],
-    requester_manager: Optional[Dict[str, Optional[str]]] = None,
-    metadata_json: Optional[Dict[str, Any]] = None,
+    source_hint: str | None = None,
+    request_id: str | None = None,
+    answer_path: str | None = None,
+    actor: AuthenticatedUser | None,
+    requester_manager: dict[str, str | None] | None = None,
+    metadata_json: dict[str, Any] | None = None,
 ) -> AccessRequestRow:
     manager = _normalize_requester_manager(requester_manager, actor)
     sql = text(
@@ -409,7 +418,9 @@ def create_access_request(
                 "requester_external_user_id": actor.user_id if actor else None,
                 "requester_email": actor.email if actor else None,
                 "requester_display_name": actor.name if actor else None,
-                "requester_manager_external_user_id": manager["requester_manager_external_user_id"],
+                "requester_manager_external_user_id": manager[
+                    "requester_manager_external_user_id"
+                ],
                 "requester_manager_email": manager["requester_manager_email"],
                 "requester_manager_display_name": manager["requester_manager_display_name"],
                 "metadata_json": _json(metadata_json),
@@ -418,7 +429,7 @@ def create_access_request(
     return _row_to_access_request(row)
 
 
-def get_access_request(access_request_id: int) -> Optional[AccessRequestRow]:
+def get_access_request(access_request_id: int) -> AccessRequestRow | None:
     sql = text(
         """
         SELECT id, status, question, business_reason, source_hint, request_id, answer_path,
@@ -438,13 +449,13 @@ def get_access_request(access_request_id: int) -> Optional[AccessRequestRow]:
 
 def list_access_requests(
     *,
-    requester_external_user_id: Optional[str] = None,
-    actor_email: Optional[str] = None,
-    statuses: Optional[List[str]] = None,
+    requester_external_user_id: str | None = None,
+    actor_email: str | None = None,
+    statuses: list[str] | None = None,
     limit: int = 200,
-) -> List[AccessRequestRow]:
+) -> list[AccessRequestRow]:
     filters = []
-    params: Dict[str, Any] = {"limit": limit}
+    params: dict[str, Any] = {"limit": limit}
     if requester_external_user_id:
         filters.append("requester_external_user_id = :requester_external_user_id")
         params["requester_external_user_id"] = requester_external_user_id
@@ -473,7 +484,7 @@ def list_access_requests(
         return [_row_to_access_request(row) for row in conn.execute(sql, params).fetchall()]
 
 
-def list_access_request_targets(access_request_id: int) -> List[AccessRequestTargetRow]:
+def list_access_request_targets(access_request_id: int) -> list[AccessRequestTargetRow]:
     sql = text(
         """
         SELECT id, access_request_id, source_id, status, mapped_by_external_user_id, mapped_by_email, created_at
@@ -483,10 +494,13 @@ def list_access_request_targets(access_request_id: int) -> List[AccessRequestTar
         """
     )
     with engine.connect() as conn:
-        return [_row_to_target(row) for row in conn.execute(sql, {"access_request_id": access_request_id}).fetchall()]
+        return [
+            _row_to_target(row)
+            for row in conn.execute(sql, {"access_request_id": access_request_id}).fetchall()
+        ]
 
 
-def get_access_request_routing(access_request_id: int) -> Optional[AccessRequestRoutingRow]:
+def get_access_request_routing(access_request_id: int) -> AccessRequestRoutingRow | None:
     sql = text(
         """
         SELECT id, access_request_id, admin_coordinator_external_user_id, admin_coordinator_email,
@@ -505,17 +519,17 @@ def get_access_request_routing(access_request_id: int) -> Optional[AccessRequest
 
 def create_notification_event(
     *,
-    access_request_id: Optional[int],
+    access_request_id: int | None,
     event_type: str,
-    recipient_external_user_id: Optional[str],
-    recipient_email: Optional[str],
-    recipient_display_name: Optional[str],
-    recipient_role: Optional[str],
+    recipient_external_user_id: str | None,
+    recipient_email: str | None,
+    recipient_display_name: str | None,
+    recipient_role: str | None,
     title: str,
     body: str,
-    email_subject: Optional[str],
-    email_payload_json: Optional[Dict[str, Any]],
-    payload_json: Optional[Dict[str, Any]],
+    email_subject: str | None,
+    email_payload_json: dict[str, Any] | None,
+    payload_json: dict[str, Any] | None,
 ) -> int:
     sql = text(
         """
@@ -551,7 +565,9 @@ def create_notification_event(
         )
 
 
-def list_notification_events(*, actor: Optional[AuthenticatedUser], limit: int = 100) -> List[NotificationEventRow]:
+def list_notification_events(
+    *, actor: AuthenticatedUser | None, limit: int = 100
+) -> list[NotificationEventRow]:
     if actor is None:
         return []
     sql = text(
@@ -571,12 +587,16 @@ def list_notification_events(*, actor: Optional[AuthenticatedUser], limit: int =
             _row_to_notification(row)
             for row in conn.execute(
                 sql,
-                {"actor_user_id": actor.user_id, "actor_email": _normalize_email(actor.email) or "", "limit": limit},
+                {
+                    "actor_user_id": actor.user_id,
+                    "actor_email": _normalize_email(actor.email) or "",
+                    "limit": limit,
+                },
             ).fetchall()
         ]
 
 
-def mark_notification_read(notification_id: int, actor: Optional[AuthenticatedUser]) -> bool:
+def mark_notification_read(notification_id: int, actor: AuthenticatedUser | None) -> bool:
     if actor is None:
         return False
     sql = text(
@@ -590,12 +610,18 @@ def mark_notification_read(notification_id: int, actor: Optional[AuthenticatedUs
     with engine.begin() as conn:
         result = conn.execute(
             sql,
-            {"notification_id": notification_id, "actor_user_id": actor.user_id, "actor_email": _normalize_email(actor.email) or ""},
+            {
+                "notification_id": notification_id,
+                "actor_user_id": actor.user_id,
+                "actor_email": _normalize_email(actor.email) or "",
+            },
         )
     return result.rowcount > 0
 
 
-def list_inbox_items(*, actor: Optional[AuthenticatedUser], limit: int = 100) -> List[ApprovalInboxItemRow]:
+def list_inbox_items(
+    *, actor: AuthenticatedUser | None, limit: int = 100
+) -> list[ApprovalInboxItemRow]:
     if actor is None:
         return []
     sql = text(
@@ -614,7 +640,11 @@ def list_inbox_items(*, actor: Optional[AuthenticatedUser], limit: int = 100) ->
             _row_to_inbox(row)
             for row in conn.execute(
                 sql,
-                {"actor_user_id": actor.user_id, "actor_email": _normalize_email(actor.email) or "", "limit": limit},
+                {
+                    "actor_user_id": actor.user_id,
+                    "actor_email": _normalize_email(actor.email) or "",
+                    "limit": limit,
+                },
             ).fetchall()
         ]
 
@@ -623,10 +653,10 @@ def _create_inbox_item(
     *,
     access_request_id: int,
     routing_id: int,
-    assigned_external_user_id: Optional[str],
-    assigned_email: Optional[str],
-    assigned_display_name: Optional[str],
-    request_payload_json: Optional[Dict[str, Any]],
+    assigned_external_user_id: str | None,
+    assigned_email: str | None,
+    assigned_display_name: str | None,
+    request_payload_json: dict[str, Any] | None,
 ) -> int:
     sql = text(
         """
@@ -658,26 +688,35 @@ def _create_inbox_item(
 def route_access_request(
     *,
     access_request_id: int,
-    source_ids: List[int],
-    admin_actor: Optional[AuthenticatedUser],
-    business_approver: Dict[str, Optional[str]],
-    acl_manager: Optional[Dict[str, Optional[str]]],
-    requester_manager: Optional[Dict[str, Optional[str]]],
-    fallback_requester_manager: Optional[Dict[str, Optional[str]]] = None,
+    source_ids: list[int],
+    admin_actor: AuthenticatedUser | None,
+    business_approver: dict[str, str | None],
+    acl_manager: dict[str, str | None] | None,
+    requester_manager: dict[str, str | None] | None,
+    fallback_requester_manager: dict[str, str | None] | None = None,
     review_reason: str = "",
-) -> Optional[AccessRequestRow]:
+) -> AccessRequestRow | None:
     access_request = get_access_request(access_request_id)
     if access_request is None:
         return None
-    resolved_requester_manager = requester_manager or fallback_requester_manager or {
-        "contact_external_user_id": access_request.requester_manager_external_user_id,
-        "contact_email": access_request.requester_manager_email,
-        "contact_display_name": access_request.requester_manager_display_name,
-    }
+    resolved_requester_manager = (
+        requester_manager
+        or fallback_requester_manager
+        or {
+            "contact_external_user_id": access_request.requester_manager_external_user_id,
+            "contact_email": access_request.requester_manager_email,
+            "contact_display_name": access_request.requester_manager_display_name,
+        }
+    )
     with engine.begin() as conn:
         next_source_ids = sorted({int(item) for item in source_ids if item is not None})
         if next_source_ids:
-            conn.execute(text("DELETE FROM access_request_targets WHERE access_request_id = :access_request_id"), {"access_request_id": access_request_id})
+            conn.execute(
+                text(
+                    "DELETE FROM access_request_targets WHERE access_request_id = :access_request_id"
+                ),
+                {"access_request_id": access_request_id},
+            )
             for source_id in next_source_ids:
                 conn.execute(
                     text(
@@ -731,15 +770,27 @@ def route_access_request(
                 "access_request_id": access_request_id,
                 "admin_coordinator_external_user_id": admin_actor.user_id if admin_actor else None,
                 "admin_coordinator_email": admin_actor.email if admin_actor else None,
-                "business_approver_external_user_id": business_approver.get("contact_external_user_id"),
-                "business_approver_email": _normalize_email(business_approver.get("contact_email")),
+                "business_approver_external_user_id": business_approver.get(
+                    "contact_external_user_id"
+                ),
+                "business_approver_email": _normalize_email(
+                    business_approver.get("contact_email")
+                ),
                 "business_approver_display_name": business_approver.get("contact_display_name"),
-                "acl_manager_external_user_id": (acl_manager or {}).get("contact_external_user_id"),
+                "acl_manager_external_user_id": (acl_manager or {}).get(
+                    "contact_external_user_id"
+                ),
                 "acl_manager_email": _normalize_email((acl_manager or {}).get("contact_email")),
                 "acl_manager_display_name": (acl_manager or {}).get("contact_display_name"),
-                "requester_manager_external_user_id": resolved_requester_manager.get("contact_external_user_id"),
-                "requester_manager_email": _normalize_email(resolved_requester_manager.get("contact_email")),
-                "requester_manager_display_name": resolved_requester_manager.get("contact_display_name"),
+                "requester_manager_external_user_id": resolved_requester_manager.get(
+                    "contact_external_user_id"
+                ),
+                "requester_manager_email": _normalize_email(
+                    resolved_requester_manager.get("contact_email")
+                ),
+                "requester_manager_display_name": resolved_requester_manager.get(
+                    "contact_display_name"
+                ),
             },
         ).first()
         row = conn.execute(
@@ -765,9 +816,15 @@ def route_access_request(
             {
                 "access_request_id": access_request_id,
                 "review_reason": review_reason,
-                "requester_manager_external_user_id": resolved_requester_manager.get("contact_external_user_id"),
-                "requester_manager_email": _normalize_email(resolved_requester_manager.get("contact_email")),
-                "requester_manager_display_name": resolved_requester_manager.get("contact_display_name"),
+                "requester_manager_external_user_id": resolved_requester_manager.get(
+                    "contact_external_user_id"
+                ),
+                "requester_manager_email": _normalize_email(
+                    resolved_requester_manager.get("contact_email")
+                ),
+                "requester_manager_display_name": resolved_requester_manager.get(
+                    "contact_display_name"
+                ),
             },
         ).first()
 
@@ -787,8 +844,12 @@ def route_access_request(
             "requester_email": access_request.requester_email,
             "requester_display_name": access_request.requester_display_name,
             "requester_manager_email": access_request.requester_manager_email,
-            "suggested_approver_email": (access_request.metadata_json or {}).get("suggested_approver_email"),
-            "suggested_approver_display_name": (access_request.metadata_json or {}).get("suggested_approver_display_name"),
+            "suggested_approver_email": (access_request.metadata_json or {}).get(
+                "suggested_approver_email"
+            ),
+            "suggested_approver_display_name": (access_request.metadata_json or {}).get(
+                "suggested_approver_display_name"
+            ),
             "admin_note": review_reason,
         },
     )
@@ -815,7 +876,9 @@ def route_access_request(
             recipient_email=contact.get("contact_email"),
             recipient_display_name=contact.get("contact_display_name"),
             recipient_role=role,
-            title="Access request routed for review" if role == "business_approver" else "Access request update",
+            title="Access request routed for review"
+            if role == "business_approver"
+            else "Access request update",
             body=f"Access request #{access_request_id} is awaiting business approval.",
             email_subject=f"Access request #{access_request_id} routed",
             email_payload_json={"request_id": access_request_id, "role": role},
@@ -827,17 +890,30 @@ def route_access_request(
 def decide_inbox_item(
     *,
     inbox_item_id: int,
-    actor: Optional[AuthenticatedUser],
+    actor: AuthenticatedUser | None,
     decision: str,
     decision_reason: str,
-    selected_source_ids: Optional[List[int]] = None,
-    alternate_business_approver: Optional[Dict[str, Optional[str]]] = None,
-) -> Optional[AccessRequestRow]:
-    if decision not in {"approve_24h", "approve_7d", "approve_30d", "deny", "return_not_owner", "return_not_relevant", "return_reroute"}:
+    selected_source_ids: list[int] | None = None,
+    alternate_business_approver: dict[str, str | None] | None = None,
+) -> AccessRequestRow | None:
+    if decision not in {
+        "approve_24h",
+        "approve_7d",
+        "approve_30d",
+        "deny",
+        "return_not_owner",
+        "return_not_relevant",
+        "return_reroute",
+    }:
         return None
     hours = {"approve_24h": 24, "approve_7d": 24 * 7, "approve_30d": 24 * 30}.get(decision)
-    next_source_ids = sorted({int(item) for item in (selected_source_ids or []) if item is not None})
-    if decision == "return_reroute" and not ((alternate_business_approver or {}).get("contact_email") or (alternate_business_approver or {}).get("contact_external_user_id")):
+    next_source_ids = sorted(
+        {int(item) for item in (selected_source_ids or []) if item is not None}
+    )
+    if decision == "return_reroute" and not (
+        (alternate_business_approver or {}).get("contact_email")
+        or (alternate_business_approver or {}).get("contact_external_user_id")
+    ):
         return None
     with engine.begin() as conn:
         visible_row = conn.execute(
@@ -861,12 +937,18 @@ def decide_inbox_item(
         routing_id = int(visible_row[1]) if visible_row[1] is not None else None
         existing_target_count = int(
             conn.execute(
-                text("SELECT COUNT(*) FROM access_request_targets WHERE access_request_id = :access_request_id"),
+                text(
+                    "SELECT COUNT(*) FROM access_request_targets WHERE access_request_id = :access_request_id"
+                ),
                 {"access_request_id": access_request_id},
             ).scalar_one()
             or 0
         )
-        if decision in {"approve_24h", "approve_7d", "approve_30d"} and not next_source_ids and existing_target_count == 0:
+        if (
+            decision in {"approve_24h", "approve_7d", "approve_30d"}
+            and not next_source_ids
+            and existing_target_count == 0
+        ):
             return None
         inbox_row = conn.execute(
             text(
@@ -894,7 +976,9 @@ def decide_inbox_item(
                     {
                         "decision": decision,
                         "hours": hours,
-                        "selected_source_ids": sorted({int(item) for item in (selected_source_ids or []) if item is not None}),
+                        "selected_source_ids": sorted(
+                            {int(item) for item in (selected_source_ids or []) if item is not None}
+                        ),
                         "alternate_business_approver": alternate_business_approver or {},
                     }
                 ),
@@ -905,7 +989,12 @@ def decide_inbox_item(
         if inbox_row is None:
             return None
         if next_source_ids:
-            conn.execute(text("DELETE FROM access_request_targets WHERE access_request_id = :access_request_id"), {"access_request_id": access_request_id})
+            conn.execute(
+                text(
+                    "DELETE FROM access_request_targets WHERE access_request_id = :access_request_id"
+                ),
+                {"access_request_id": access_request_id},
+            )
             for source_id in next_source_ids:
                 conn.execute(
                     text(
@@ -1017,14 +1106,24 @@ def decide_inbox_item(
             body="The approver returned this request for rerouting or closure.",
             email_subject=f"Access request #{access_request.id} returned to admin",
             email_payload_json={"decision": decision, "request_id": access_request.id},
-            payload_json={"decision": decision, "request_id": access_request.id, "alternate_business_approver": alternate_business_approver or {}},
+            payload_json={
+                "decision": decision,
+                "request_id": access_request.id,
+                "alternate_business_approver": alternate_business_approver or {},
+            },
         )
     return access_request
 
 
-def grant_access_request(*, access_request_id: int, actor: Optional[AuthenticatedUser]) -> Optional[AccessRequestRow]:
+def grant_access_request(
+    *, access_request_id: int, actor: AuthenticatedUser | None
+) -> AccessRequestRow | None:
     access_request = get_access_request(access_request_id)
-    if access_request is None or access_request.business_approval_status != "approved" or not access_request.approved_duration_hours:
+    if (
+        access_request is None
+        or access_request.business_approval_status != "approved"
+        or not access_request.approved_duration_hours
+    ):
         return None
     starts_at = _now()
     expires_at = starts_at + timedelta(hours=int(access_request.approved_duration_hours))
@@ -1056,7 +1155,9 @@ def grant_access_request(*, access_request_id: int, actor: Optional[Authenticate
                     "granted_by_email": actor.email if actor else None,
                     "starts_at": starts_at,
                     "expires_at": expires_at,
-                    "metadata_json": _json({"approved_duration_hours": access_request.approved_duration_hours}),
+                    "metadata_json": _json(
+                        {"approved_duration_hours": access_request.approved_duration_hours}
+                    ),
                 },
             )
         row = conn.execute(
@@ -1106,7 +1207,9 @@ def grant_access_request(*, access_request_id: int, actor: Optional[Authenticate
     return result
 
 
-def deny_access_request(*, access_request_id: int, actor: Optional[AuthenticatedUser], reason: str) -> Optional[AccessRequestRow]:
+def deny_access_request(
+    *, access_request_id: int, actor: AuthenticatedUser | None, reason: str
+) -> AccessRequestRow | None:
     sql = text(
         """
         UPDATE access_requests

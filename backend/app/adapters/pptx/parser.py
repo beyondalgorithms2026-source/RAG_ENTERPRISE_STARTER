@@ -1,6 +1,7 @@
 from io import BytesIO
 
 from pptx import Presentation
+
 from app.adapters.models import ParsedSourceDocument, ParsedSourcePart
 
 
@@ -44,7 +45,11 @@ def parse_pptx_bytes(content: bytes, file_name: str) -> ParsedSourceDocument:
         if notes_text:
             combined_text = f"{body_text}\n\nSpeaker Notes:\n{notes_text}".strip()
         title_shape = slide.shapes.title
-        title = (title_shape.text or "").strip() if title_shape is not None and title_shape.text else None
+        title = (
+            (title_shape.text or "").strip()
+            if title_shape is not None and title_shape.text
+            else None
+        )
         if not title:
             title = slide_texts[0].splitlines()[0] if slide_texts else f"Slide {slide_number}"
         parts.append(
@@ -54,7 +59,11 @@ def parse_pptx_bytes(content: bytes, file_name: str) -> ParsedSourceDocument:
                 title=title,
                 locator_json={"slide": slide_number},
                 content_text=combined_text,
-                provenance_json={"parser": "python-pptx", "file_name": file_name, "has_notes": bool(notes_text)},
+                provenance_json={
+                    "parser": "python-pptx",
+                    "file_name": file_name,
+                    "has_notes": bool(notes_text),
+                },
             )
         )
 

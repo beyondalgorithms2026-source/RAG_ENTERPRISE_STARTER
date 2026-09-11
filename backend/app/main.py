@@ -1,22 +1,22 @@
-from pathlib import Path
 import secrets
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from .api.auth import router as auth_router
+
+from .api.access_requests import router as access_requests_router
+from .api.actions import router as actions_router
+from .api.admin import router as admin_router
 from .api.ask import router as ask_router
+from .api.auth import router as auth_router
 from .api.compare import router as compare_router
+from .api.corpus import router as corpus_router
 from .api.deep_lookup import router as deep_lookup_router
 from .api.health import router as health_router
 from .api.search import router as search_router
 from .api.upload import router as upload_router
-from .api.corpus import router as corpus_router
-from .api.admin import router as admin_router
-from .api.actions import router as actions_router
-from .api.access_requests import router as access_requests_router
 from .auth.admin_modules import enforce_admin_module_for_request
 from .auth.context import reset_current_user, set_current_user
 from .auth.service import AuthError, authenticate_request, validate_security_posture
@@ -61,7 +61,9 @@ app.add_middleware(
 
 def _request_uses_cookie_auth(request: Request) -> bool:
     authorization = request.headers.get("Authorization", "").strip().lower()
-    return not authorization.startswith("bearer ") and bool(request.cookies.get(settings.AUTH_COOKIE_NAME))
+    return not authorization.startswith("bearer ") and bool(
+        request.cookies.get(settings.AUTH_COOKIE_NAME)
+    )
 
 
 def _csrf_required_for_request(request: Request) -> bool:
@@ -88,7 +90,10 @@ def _enforce_csrf_if_needed(request: Request) -> None:
     if not csrf_cookie or not csrf_header or not secrets.compare_digest(csrf_cookie, csrf_header):
         raise HTTPException(
             status_code=403,
-            detail={"error": "csrf_required", "message": "Cookie-authenticated mutations require a valid CSRF header."},
+            detail={
+                "error": "csrf_required",
+                "message": "Cookie-authenticated mutations require a valid CSRF header.",
+            },
         )
 
 
@@ -96,9 +101,13 @@ def _apply_security_headers(response) -> None:
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    response.headers.setdefault("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'")
+    response.headers.setdefault(
+        "Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'"
+    )
     if (settings.APP_ENV or "local").strip().lower() not in {"local", "dev"}:
-        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
 
 
 @app.middleware("http")
@@ -122,11 +131,15 @@ async def auth_context_middleware(request: Request, call_next):
         _apply_security_headers(response)
         return response
     except AuthError as exc:
-        return JSONResponse(status_code=exc.status_code, content={"detail": {"error": exc.code, "message": exc.message}})
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": {"error": exc.code, "message": exc.message}},
+        )
     except HTTPException as exc:
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     finally:
         reset_current_user(token)
+
 
 app.include_router(auth_router)
 app.include_router(health_router)

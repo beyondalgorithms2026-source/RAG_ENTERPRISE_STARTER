@@ -1,10 +1,10 @@
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, Iterable, Optional
+from typing import Any
 
 from app.core.config import settings
-
 
 TEMPORAL_ARTIFACT_VERSION = "m13-rule-based-temporal-v1"
 
@@ -74,7 +74,7 @@ class TemporalResult:
     artifact_version: str = TEMPORAL_ARTIFACT_VERSION
 
 
-def _normalize_date_text(value: str) -> Optional[str]:
+def _normalize_date_text(value: str) -> str | None:
     raw = value.strip()
     iso_match = _ISO_DATE_RE.fullmatch(raw)
     if iso_match:
@@ -93,7 +93,9 @@ def _normalize_date_text(value: str) -> Optional[str]:
         if month is None:
             return None
         try:
-            return date(int(full_match.group("year")), month, int(full_match.group("day"))).isoformat()
+            return date(
+                int(full_match.group("year")), month, int(full_match.group("day"))
+            ).isoformat()
         except ValueError:
             return None
 
@@ -111,7 +113,9 @@ def _normalize_date_text(value: str) -> Optional[str]:
     return None
 
 
-def _dedupe_dicts(items: Iterable[dict[str, Any]], key_fields: tuple[str, ...]) -> list[dict[str, Any]]:
+def _dedupe_dicts(
+    items: Iterable[dict[str, Any]], key_fields: tuple[str, ...]
+) -> list[dict[str, Any]]:
     seen: set[tuple[Any, ...]] = set()
     deduped: list[dict[str, Any]] = []
     for item in items:
@@ -214,7 +218,11 @@ def analyze_temporal_metadata(*, text: str) -> TemporalResult:
                             "evidence": evidence,
                         }
                     )
-                if "valid until" in context_before or "valid through" in context_before or "expires on" in context_before:
+                if (
+                    "valid until" in context_before
+                    or "valid through" in context_before
+                    or "expires on" in context_before
+                ):
                     effective_end = effective_end or normalized
                     expressions.append(
                         {
@@ -243,7 +251,9 @@ def analyze_temporal_metadata(*, text: str) -> TemporalResult:
 
     metadata: dict[str, Any] = {
         "expressions": expressions,
-        "normalized_dates": [item["normalized"] for item in expressions if isinstance(item.get("normalized"), str)],
+        "normalized_dates": [
+            item["normalized"] for item in expressions if isinstance(item.get("normalized"), str)
+        ],
         "document_version_refs": version_refs,
         "artifact_version": TEMPORAL_ARTIFACT_VERSION,
         "fallback_reason": None,
@@ -267,7 +277,9 @@ def analyze_temporal_metadata(*, text: str) -> TemporalResult:
             reason="no_reliable_temporal_metadata",
         )
 
-    metadata["confidence"] = "high" if any(item["confidence"] == "high" for item in expressions) else "low"
+    metadata["confidence"] = (
+        "high" if any(item["confidence"] == "high" for item in expressions) else "low"
+    )
     return TemporalResult(
         metadata=metadata,
         enabled=True,
@@ -275,9 +287,13 @@ def analyze_temporal_metadata(*, text: str) -> TemporalResult:
     )
 
 
-def summarize_temporal_metadata(*, chunk_temporal_metadata: list[dict[str, Any]]) -> dict[str, Any]:
+def summarize_temporal_metadata(
+    *, chunk_temporal_metadata: list[dict[str, Any]]
+) -> dict[str, Any]:
     reliable_chunks = [
-        item for item in chunk_temporal_metadata if item and item.get("confidence") in {"high", "medium", "low"}
+        item
+        for item in chunk_temporal_metadata
+        if item and item.get("confidence") in {"high", "medium", "low"}
     ]
     normalized_dates: list[str] = []
     version_refs: list[dict[str, Any]] = []
@@ -287,7 +303,9 @@ def summarize_temporal_metadata(*, chunk_temporal_metadata: list[dict[str, Any]]
             continue
         if item.get("fallback_reason"):
             fallback_count += 1
-        normalized_dates.extend(value for value in item.get("normalized_dates", []) if isinstance(value, str))
+        normalized_dates.extend(
+            value for value in item.get("normalized_dates", []) if isinstance(value, str)
+        )
         version_refs.extend(item.get("document_version_refs", []))
 
     normalized_dates = sorted(set(normalized_dates))
@@ -306,16 +324,20 @@ def summarize_temporal_metadata(*, chunk_temporal_metadata: list[dict[str, Any]]
     effective_starts = [
         item.get("effective_window", {}).get("start")
         for item in reliable_chunks
-        if isinstance(item.get("effective_window"), dict) and item.get("effective_window", {}).get("start")
+        if isinstance(item.get("effective_window"), dict)
+        and item.get("effective_window", {}).get("start")
     ]
     effective_ends = [
         item.get("effective_window", {}).get("end")
         for item in reliable_chunks
-        if isinstance(item.get("effective_window"), dict) and item.get("effective_window", {}).get("end")
+        if isinstance(item.get("effective_window"), dict)
+        and item.get("effective_window", {}).get("end")
     ]
     return {
         "artifact_version": TEMPORAL_ARTIFACT_VERSION,
-        "confidence": "high" if any(item.get("confidence") == "high" for item in reliable_chunks) else "low",
+        "confidence": "high"
+        if any(item.get("confidence") == "high" for item in reliable_chunks)
+        else "low",
         "fallback_reason": None,
         "reliable_chunk_count": len(reliable_chunks),
         "fallback_chunk_count": fallback_count,

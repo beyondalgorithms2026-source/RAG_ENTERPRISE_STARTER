@@ -1,16 +1,14 @@
 import math
 import time
-from typing import Dict, List
 
 from app.core.logging import logger
-
 
 RERANK_CHUNK_CAP = 2000
 _reranker = None
 _loaded_reranker_model: str | None = None
 
 
-def _normalize_policy_values(values: List[str]) -> list[str]:
+def _normalize_policy_values(values: list[str]) -> list[str]:
     normalized: list[str] = []
     seen: set[str] = set()
     for value in values or []:
@@ -25,8 +23,8 @@ def _normalize_policy_values(values: List[str]) -> list[str]:
 def evaluate_rerank_policy(
     *,
     resolved_mode: str,
-    chunks: List[Dict],
-    candidate_corpora: List[str],
+    chunks: list[dict],
+    candidate_corpora: list[str],
     search_latency_ms: int,
 ) -> dict:
     from app.profiles.resolver import get_effective_reranker
@@ -75,10 +73,14 @@ def evaluate_rerank_policy(
     if candidate_count < int(profile.min_candidate_count or 0):
         policy["reason"] = "candidate_count_below_min"
         return policy
-    if profile.max_candidate_count is not None and candidate_count > int(profile.max_candidate_count):
+    if profile.max_candidate_count is not None and candidate_count > int(
+        profile.max_candidate_count
+    ):
         policy["reason"] = "candidate_count_above_max"
         return policy
-    if profile.latency_budget_ms is not None and int(search_latency_ms or 0) > int(profile.latency_budget_ms):
+    if profile.latency_budget_ms is not None and int(search_latency_ms or 0) > int(
+        profile.latency_budget_ms
+    ):
         policy["reason"] = "latency_budget_exceeded"
         return policy
 
@@ -88,8 +90,8 @@ def evaluate_rerank_policy(
     return policy
 
 
-def _cosine_similarity(left: List[float], right: List[float]) -> float:
-    dot = sum(a * b for a, b in zip(left, right))
+def _cosine_similarity(left: list[float], right: list[float]) -> float:
+    dot = sum(a * b for a, b in zip(left, right, strict=False))
     left_norm = math.sqrt(sum(value * value for value in left))
     right_norm = math.sqrt(sum(value * value for value in right))
     if left_norm == 0.0 or right_norm == 0.0:
@@ -97,7 +99,7 @@ def _cosine_similarity(left: List[float], right: List[float]) -> float:
     return dot / (left_norm * right_norm)
 
 
-def _normalized_relevance(chunks: List[Dict]) -> dict[int, float]:
+def _normalized_relevance(chunks: list[dict]) -> dict[int, float]:
     scores = [float(chunk.get("rerank_score") or 0.0) for chunk in chunks]
     low = min(scores, default=0.0)
     high = max(scores, default=0.0)
@@ -109,7 +111,7 @@ def _normalized_relevance(chunks: List[Dict]) -> dict[int, float]:
     }
 
 
-def apply_mmr(chunks: List[Dict], policy: dict, *, top_k: int) -> List[Dict]:
+def apply_mmr(chunks: list[dict], policy: dict, *, top_k: int) -> list[dict]:
     started_at = time.perf_counter()
     mmr_policy = dict(policy.get("mmr") or {})
     effective_top = max(0, min(int(top_k), len(chunks)))
@@ -133,12 +135,16 @@ def apply_mmr(chunks: List[Dict], policy: dict, *, top_k: int) -> List[Dict]:
     relevance = _normalized_relevance(chunks)
     candidate_by_id = {int(chunk["chunk_id"]): chunk for chunk in chunks}
     remaining = list(candidate_by_id)
-    selected: List[int] = []
+    selected: list[int] = []
     lambda_value = min(1.0, max(0.0, float(mmr_policy.get("lambda") or 0.5)))
     while remaining and len(selected) < effective_top:
+
         def mmr_score(chunk_id: int) -> tuple[float, float, int]:
             redundancy = max(
-                (_cosine_similarity(embeddings[chunk_id], embeddings[selected_id]) for selected_id in selected),
+                (
+                    _cosine_similarity(embeddings[chunk_id], embeddings[selected_id])
+                    for selected_id in selected
+                ),
                 default=0.0,
             )
             score = lambda_value * relevance[chunk_id] - (1.0 - lambda_value) * redundancy
@@ -159,6 +165,7 @@ def apply_mmr(chunks: List[Dict], policy: dict, *, top_k: int) -> List[Dict]:
 def get_reranker():
     global _reranker, _loaded_reranker_model
     from app.profiles.resolver import get_effective_reranker
+
     profile = get_effective_reranker()
     if _reranker is None or _loaded_reranker_model != profile.model:
         try:
@@ -175,8 +182,9 @@ def get_reranker():
     return _reranker
 
 
-def rerank(question: str, chunks: List[Dict]) -> List[Dict]:
+def rerank(question: str, chunks: list[dict]) -> list[dict]:
     from app.profiles.resolver import get_effective_reranker
+
     profile = get_effective_reranker()
     model = get_reranker()
     pairs = [(question, chunk["snippet"][:RERANK_CHUNK_CAP]) for chunk in chunks]

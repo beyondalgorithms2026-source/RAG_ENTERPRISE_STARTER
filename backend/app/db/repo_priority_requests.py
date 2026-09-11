@@ -2,31 +2,29 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Optional
-
-from sqlalchemy import text
 
 from app.auth.context import get_current_user
 from app.db.db import engine
+from sqlalchemy import text
 
 
 @dataclass
 class PriorityRequestRow:
     id: int
     job_id: int
-    source_id: Optional[int]
-    requester_external_user_id: Optional[str]
-    requester_email: Optional[str]
-    requester_display_name: Optional[str]
+    source_id: int | None
+    requester_external_user_id: str | None
+    requester_email: str | None
+    requester_display_name: str | None
     requested_priority: int
     reason: str
     status: str
-    review_reason: Optional[str]
-    reviewed_by_external_user_id: Optional[str]
-    reviewed_by_email: Optional[str]
-    created_at: Optional[str]
-    reviewed_at: Optional[str]
-    expires_at: Optional[str]
+    review_reason: str | None
+    reviewed_by_external_user_id: str | None
+    reviewed_by_email: str | None
+    created_at: str | None
+    reviewed_at: str | None
+    expires_at: str | None
 
 
 def _row_to_request(row) -> PriorityRequestRow:
@@ -36,7 +34,7 @@ def _row_to_request(row) -> PriorityRequestRow:
 def create_priority_request(
     *,
     job_id: int,
-    source_id: Optional[int],
+    source_id: int | None,
     requested_priority: int,
     reason: str,
     expires_in_hours: int = 24,
@@ -85,7 +83,7 @@ def _base_select_sql() -> str:
     """
 
 
-def get_priority_request(request_id: int) -> Optional[PriorityRequestRow]:
+def get_priority_request(request_id: int) -> PriorityRequestRow | None:
     sql = text(f"{_base_select_sql()} WHERE id = :request_id")
     with engine.connect() as conn:
         row = conn.execute(sql, {"request_id": request_id}).first()
@@ -94,8 +92,10 @@ def get_priority_request(request_id: int) -> Optional[PriorityRequestRow]:
     return _row_to_request(row)
 
 
-def get_latest_priority_request_for_job(job_id: int) -> Optional[PriorityRequestRow]:
-    sql = text(f"{_base_select_sql()} WHERE job_id = :job_id ORDER BY created_at DESC, id DESC LIMIT 1")
+def get_latest_priority_request_for_job(job_id: int) -> PriorityRequestRow | None:
+    sql = text(
+        f"{_base_select_sql()} WHERE job_id = :job_id ORDER BY created_at DESC, id DESC LIMIT 1"
+    )
     with engine.connect() as conn:
         row = conn.execute(sql, {"job_id": job_id}).first()
     if not row:
@@ -103,7 +103,9 @@ def get_latest_priority_request_for_job(job_id: int) -> Optional[PriorityRequest
     return _row_to_request(row)
 
 
-def list_priority_requests(*, status: Optional[str] = None, limit: int = 100, offset: int = 0) -> list[PriorityRequestRow]:
+def list_priority_requests(
+    *, status: str | None = None, limit: int = 100, offset: int = 0
+) -> list[PriorityRequestRow]:
     sql = _base_select_sql()
     params = {"limit": limit, "offset": offset}
     if status:
@@ -134,7 +136,7 @@ def update_priority_request_status(
     request_id: int,
     *,
     status: str,
-    review_reason: Optional[str] = None,
+    review_reason: str | None = None,
 ) -> bool:
     actor = get_current_user()
     sql = text(

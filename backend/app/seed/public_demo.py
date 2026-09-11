@@ -31,8 +31,8 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 from hashlib import sha256
+from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
@@ -43,7 +43,7 @@ from app.db.repo_acl import (
     upsert_auth_user,
 )
 from app.db.repo_chunks import delete_chunks_for_source, insert_chunks
-from app.db.repo_sources import get_source_by_storage_path, upsert_source
+from app.db.repo_sources import upsert_source
 
 SEED_PACK = "public_demo"
 ALL_EMPLOYEES = "all-employees"

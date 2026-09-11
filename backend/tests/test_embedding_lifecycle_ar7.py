@@ -1,7 +1,6 @@
-from tests.smoke_test_base import *
-
 import app.embedding.lifecycle as lifecycle
 from app.db.repo_profiles import get_active_profile_name, get_profile, upsert_profile
+from tests.smoke_test_base import *
 
 
 class VectorServingHardBlockAR7Tests(SmokeTestBase):
@@ -24,9 +23,16 @@ class VectorServingHardBlockAR7Tests(SmokeTestBase):
         import app.coherence as coherence
 
         original = coherence.vector_serving_state
-        coherence.vector_serving_state = lambda: {"serviceable": False, "reason": "dimension_mismatch", "profile_dimension": 768, "index_dimension": 384}
+        coherence.vector_serving_state = lambda: {
+            "serviceable": False,
+            "reason": "dimension_mismatch",
+            "profile_dimension": 768,
+            "index_dimension": 384,
+        }
         try:
-            response = perform_search(SearchRequest(question="anything", k=5, mode="hybrid", deep_research=True))
+            response = perform_search(
+                SearchRequest(question="anything", k=5, mode="hybrid", deep_research=True)
+            )
         finally:
             coherence.vector_serving_state = original
         self.assertEqual(response.mode, "keyword")
@@ -45,10 +51,9 @@ class VectorServingHardBlockAR7Tests(SmokeTestBase):
 
 class EmbeddingActivationGuardAR7Tests(SmokeTestBase):
     def test_dimension_changing_activation_is_blocked(self):
-        from fastapi.testclient import TestClient
-
         import app.main as main_module
         from app.auth.context import AuthenticatedUser
+        from fastapi.testclient import TestClient
 
         run_migrations()
         self._unpin_test_profiles()
@@ -57,13 +62,23 @@ class EmbeddingActivationGuardAR7Tests(SmokeTestBase):
         original_auth_fn = main_module.authenticate_request
         # A profile that declares a different dimension than the live index column.
         name = f"ar7-mismatch-{uuid4().hex[:6]}"
-        active_model = (get_profile("embedding", get_active_profile_name("embedding"))["config_json"] or {}).get("model")
-        upsert_profile("embedding", name, {"model": active_model, "dimension": 384}, is_default=False)
+        active_model = (
+            get_profile("embedding", get_active_profile_name("embedding"))["config_json"] or {}
+        ).get("model")
+        upsert_profile(
+            "embedding", name, {"model": active_model, "dimension": 384}, is_default=False
+        )
         self.addCleanup(self._delete_profile, "embedding", name)
         try:
             settings.AUTH_ENABLED = True
-            main_module.authenticate_request = lambda request: AuthenticatedUser(user_id="ar7-admin", email="ar7@example.com", roles=["admin"], groups=["ops"])
-            response = client.post("/admin/profiles/active", json={"profile_type": "embedding", "profile_name": name}, headers={"Authorization": "Bearer t"})
+            main_module.authenticate_request = lambda request: AuthenticatedUser(
+                user_id="ar7-admin", email="ar7@example.com", roles=["admin"], groups=["ops"]
+            )
+            response = client.post(
+                "/admin/profiles/active",
+                json={"profile_type": "embedding", "profile_name": name},
+                headers={"Authorization": "Bearer t"},
+            )
         finally:
             settings.AUTH_ENABLED = original_auth
             main_module.authenticate_request = original_auth_fn
@@ -74,7 +89,10 @@ class EmbeddingActivationGuardAR7Tests(SmokeTestBase):
         from sqlalchemy import text as _text
 
         with engine.begin() as conn:
-            conn.execute(_text("DELETE FROM profiles WHERE profile_type = :t AND name = :n"), {"t": profile_type, "n": name})
+            conn.execute(
+                _text("DELETE FROM profiles WHERE profile_type = :t AND name = :n"),
+                {"t": profile_type, "n": name},
+            )
 
 
 class EmbeddingSwapLifecycleAR7Tests(SmokeTestBase):
@@ -134,7 +152,10 @@ class EmbeddingSwapLifecycleAR7Tests(SmokeTestBase):
         from sqlalchemy import text as _text
 
         with engine.begin() as conn:
-            conn.execute(_text("DELETE FROM profiles WHERE profile_type = :t AND name = :n"), {"t": profile_type, "n": name})
+            conn.execute(
+                _text("DELETE FROM profiles WHERE profile_type = :t AND name = :n"),
+                {"t": profile_type, "n": name},
+            )
 
     def test_resumable_swap_reaches_verifying_then_completes(self):
         state = self._stub_heavy_steps(total=1200)
@@ -204,7 +225,7 @@ class EmbeddingSwapLifecycleAR7Tests(SmokeTestBase):
         self.assertEqual(lifecycle.run_embedding_swap(run_id=run["id"])["status"], "aborted")
 
     def test_verification_fails_on_counts_shortfall(self):
-        state = self._stub_heavy_steps(total=1000)
+        self._stub_heavy_steps(total=1000)
         target = self._target_profile()
         run = lifecycle.begin_embedding_swap(target_profile_name=target)
         lifecycle.run_embedding_swap(run_id=run["id"])  # embeds all 1000 → verifying

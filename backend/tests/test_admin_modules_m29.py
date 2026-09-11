@@ -1,7 +1,5 @@
 import unittest
 
-from fastapi.testclient import TestClient
-
 import app.main as main_module
 from app.auth.admin_modules import admin_modules_payload, enabled_admin_modules
 from app.auth.context import AuthenticatedUser
@@ -9,8 +7,7 @@ from app.auth.service import AuthError, validate_security_posture
 from app.core.config import settings
 from app.db.repo_runtime_settings import delete_setting, get_setting, set_setting
 from app.main import app
-
-
+from fastapi.testclient import TestClient
 
 
 def setUpModule():
@@ -18,6 +15,7 @@ def setUpModule():
     from tests.db_guard import require_database
 
     require_database()
+
 
 class AdminModulesM29Tests(unittest.TestCase):
     def setUp(self):
@@ -33,7 +31,9 @@ class AdminModulesM29Tests(unittest.TestCase):
         delete_setting("admin_modules_enabled")
         settings.AUTH_MODE = "dev"
         settings.APP_ENV = "local"
-        self.admin = AuthenticatedUser(user_id="m29-admin", email="m29-admin@example.test", roles=["admin"])
+        self.admin = AuthenticatedUser(
+            user_id="m29-admin", email="m29-admin@example.test", roles=["admin"]
+        )
         main_module.authenticate_request = lambda request: self.admin
         main_module.sync_authenticated_user = lambda user: None
 
@@ -66,7 +66,9 @@ class AdminModulesM29Tests(unittest.TestCase):
         self.assertIn("tuning", payload["disabled_modules"])
         self.assertIn("governance", payload["disabled_modules"])
         self.assertIn("connectors", payload["disabled_modules"])
-        self.assertNotIn("/console/admin/connectors", {item["href"] for item in payload["navigation"]})
+        self.assertNotIn(
+            "/console/admin/connectors", {item["href"] for item in payload["navigation"]}
+        )
 
     def test_disabled_admin_module_direct_api_returns_403(self):
         settings.SCENARIO_PROFILE = "small_enterprise_corpus_acl"

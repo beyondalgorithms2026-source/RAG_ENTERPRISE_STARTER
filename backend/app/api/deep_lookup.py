@@ -3,7 +3,6 @@ from fastapi import APIRouter, HTTPException
 from app.core_rag.retrieval import DeepLookupRequest, DeepLookupResponse, perform_deep_lookup
 from app.db.repo_sources import get_sources_by_ids
 
-
 router = APIRouter()
 
 MAX_DEEP_LOOKUP_SOURCE_IDS = 3
@@ -36,7 +35,9 @@ def deep_lookup_endpoint(request: DeepLookupRequest):
         )
 
     existing_sources = get_sources_by_ids(normalized_source_ids)
-    missing_source_ids = [source_id for source_id in normalized_source_ids if source_id not in existing_sources]
+    missing_source_ids = [
+        source_id for source_id in normalized_source_ids if source_id not in existing_sources
+    ]
     if missing_source_ids:
         raise HTTPException(
             status_code=404,

@@ -1,4 +1,4 @@
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -23,13 +23,12 @@ from app.db.repo_actions import (
 from app.db.repo_admin_audit import insert_admin_audit_event
 from app.db.repo_query_mining import list_query_events, record_query_event
 
-
 router = APIRouter()
 
 
 class ToolInvokeRequest(BaseModel):
     tool_name: str
-    corpus_name: Optional[str] = None
+    corpus_name: str | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -38,8 +37,8 @@ class ToolInvokeResponse(BaseModel):
     invocation_id: int
     tool_name: str
     result: dict[str, Any] = Field(default_factory=dict)
-    denial_reason: Optional[str] = None
-    approval_request_id: Optional[int] = None
+    denial_reason: str | None = None
+    approval_request_id: int | None = None
 
 
 class ApprovalReviewRequest(BaseModel):
@@ -49,13 +48,15 @@ class ApprovalReviewRequest(BaseModel):
 
 class QueryFeedbackCreate(BaseModel):
     question: str
-    feedback_type: Literal["helpful", "not_helpful", "missing_evidence", "clarification", "source_suggestion"]
-    rating: Optional[str] = None
+    feedback_type: Literal[
+        "helpful", "not_helpful", "missing_evidence", "clarification", "source_suggestion"
+    ]
+    rating: str | None = None
     reason: str = ""
-    suggested_source: Optional[str] = None
-    request_id: Optional[str] = None
-    answer_path: Optional[str] = None
-    negative_reason: Optional[
+    suggested_source: str | None = None
+    request_id: str | None = None
+    answer_path: str | None = None
+    negative_reason: (
         Literal[
             "too_vague",
             "wrong_document",
@@ -67,7 +68,8 @@ class QueryFeedbackCreate(BaseModel):
             "should_have_said_not_found",
             "access_permission_issue",
         ]
-    ] = None
+        | None
+    ) = None
     note: str = ""
     answer_text: str = ""
     citations_json: list[dict[str, Any]] = Field(default_factory=list)
@@ -78,9 +80,9 @@ class QueryFeedbackCreate(BaseModel):
 
 class QueryRetryCreate(BaseModel):
     question: str
-    original_request_id: Optional[str] = None
-    redo_request_id: Optional[str] = None
-    selected_mode: Optional[str] = None
+    original_request_id: str | None = None
+    redo_request_id: str | None = None
+    selected_mode: str | None = None
     retry_variant: Literal["try_again", "add_details"] = "add_details"
     depth: Literal["fast", "strict"] = "fast"
     include_documents: bool = True
@@ -131,7 +133,9 @@ def list_tools(_user=Depends(require_authenticated_user)):
 def invoke_tool(body: ToolInvokeRequest, _user=Depends(require_authenticated_user)):
     actor = get_current_user()
     tool_name = body.tool_name.strip()
-    allowed, reason = evaluate_tool_policy(tool_name=tool_name, actor=actor, corpus_name=body.corpus_name)
+    allowed, reason = evaluate_tool_policy(
+        tool_name=tool_name, actor=actor, corpus_name=body.corpus_name
+    )
     if not allowed:
         invocation_id = create_tool_invocation(
             tool_name=tool_name,
@@ -151,7 +155,9 @@ def invoke_tool(body: ToolInvokeRequest, _user=Depends(require_authenticated_use
             corpus_name=body.corpus_name,
             after_json={"denial_reason": reason, "payload": body.payload},
         )
-        return ToolInvokeResponse(status="denied", invocation_id=invocation_id, tool_name=tool_name, denial_reason=reason)
+        return ToolInvokeResponse(
+            status="denied", invocation_id=invocation_id, tool_name=tool_name, denial_reason=reason
+        )
 
     tool = TOOL_REGISTRY[tool_name]
     result = _tool_result(tool_name, body.payload)
@@ -162,7 +168,11 @@ def invoke_tool(body: ToolInvokeRequest, _user=Depends(require_authenticated_use
             approval_type="tool_action",
             reason=f"{tool_name} requires human approval before external execution.",
             actor=actor,
-            requested_payload_json={"tool_name": tool_name, "corpus_name": body.corpus_name, "payload": body.payload},
+            requested_payload_json={
+                "tool_name": tool_name,
+                "corpus_name": body.corpus_name,
+                "payload": body.payload,
+            },
             response_payload_json=result,
         )
         status = "pending_approval"
@@ -184,23 +194,46 @@ def invoke_tool(body: ToolInvokeRequest, _user=Depends(require_authenticated_use
         corpus_name=body.corpus_name,
         after_json={"status": status, "approval_request_id": approval_id, "result": result},
     )
-    return ToolInvokeResponse(status=status, invocation_id=invocation_id, tool_name=tool_name, result=result, approval_request_id=approval_id)
+    return ToolInvokeResponse(
+        status=status,
+        invocation_id=invocation_id,
+        tool_name=tool_name,
+        result=result,
+        approval_request_id=approval_id,
+    )
 
 
 @router.get("/approvals")
 def list_user_approvals(_user=Depends(require_authenticated_user)):
     actor = get_current_user()
-    requester_id = None if actor and "admin" in {role.lower() for role in actor.roles} else actor.user_id if actor else None
-    return {"approvals": [_approval_payload(row) for row in list_approval_requests(requester_external_user_id=requester_id)]}
+    requester_id = (
+        None
+        if actor and "admin" in {role.lower() for role in actor.roles}
+        else actor.user_id
+        if actor
+        else None
+    )
+    return {
+        "approvals": [
+            _approval_payload(row)
+            for row in list_approval_requests(requester_external_user_id=requester_id)
+        ]
+    }
 
 
 @router.get("/approvals/{approval_id}")
 def get_user_approval(approval_id: int, _user=Depends(require_authenticated_user)):
     row = get_approval_request(approval_id)
     if row is None:
-        raise HTTPException(status_code=404, detail={"error": "approval_not_found", "approval_id": approval_id})
+        raise HTTPException(
+            status_code=404, detail={"error": "approval_not_found", "approval_id": approval_id}
+        )
     actor = get_current_user()
-    if actor and "admin" not in {role.lower() for role in actor.roles} and row.requester_external_user_id != actor.user_id:
+    if (
+        actor
+        and "admin" not in {role.lower() for role in actor.roles}
+        and row.requester_external_user_id != actor.user_id
+    ):
         raise HTTPException(status_code=403, detail={"error": "approval_not_visible"})
     return _approval_payload(row)
 
@@ -211,12 +244,21 @@ def list_admin_approvals(_admin=Depends(require_admin_user)):
 
 
 @router.post("/admin/approvals/{approval_id}/review")
-def review_admin_approval(approval_id: int, body: ApprovalReviewRequest, _admin=Depends(require_admin_user)):
+def review_admin_approval(
+    approval_id: int, body: ApprovalReviewRequest, _admin=Depends(require_admin_user)
+):
     actor = get_current_user()
     before = get_approval_request(approval_id)
-    row = review_approval_request(approval_id=approval_id, status=body.status, review_reason=body.review_reason, reviewer=actor)
+    row = review_approval_request(
+        approval_id=approval_id,
+        status=body.status,
+        review_reason=body.review_reason,
+        reviewer=actor,
+    )
     if row is None:
-        raise HTTPException(status_code=404, detail={"error": "approval_not_found", "approval_id": approval_id})
+        raise HTTPException(
+            status_code=404, detail={"error": "approval_not_found", "approval_id": approval_id}
+        )
     insert_admin_audit_event(
         event_type="approval",
         action="approval.reviewed",
@@ -237,7 +279,10 @@ def create_feedback(body: QueryFeedbackCreate, _user=Depends(require_authenticat
         if not body.negative_reason:
             raise HTTPException(
                 status_code=422,
-                detail={"error": "negative_reason_required", "message": "Structured thumbs-down feedback requires a reason."},
+                detail={
+                    "error": "negative_reason_required",
+                    "message": "Structured thumbs-down feedback requires a reason.",
+                },
             )
         negative_feedback_id = create_negative_feedback_event(
             question=body.question.strip(),
@@ -264,7 +309,10 @@ def create_feedback(body: QueryFeedbackCreate, _user=Depends(require_authenticat
         request_id=body.request_id,
         answer_path=body.answer_path,
         actor=actor,
-        metadata_json={**body.metadata_json, **({"negative_feedback_id": negative_feedback_id} if negative_feedback_id else {})},
+        metadata_json={
+            **body.metadata_json,
+            **({"negative_feedback_id": negative_feedback_id} if negative_feedback_id else {}),
+        },
     )
     record_query_event(
         question=body.question,
@@ -281,7 +329,11 @@ def create_feedback(body: QueryFeedbackCreate, _user=Depends(require_authenticat
             "negative_reason": body.negative_reason,
         },
     )
-    return {"status": "recorded", "feedback_id": feedback_id, "negative_feedback_id": negative_feedback_id}
+    return {
+        "status": "recorded",
+        "feedback_id": feedback_id,
+        "negative_feedback_id": negative_feedback_id,
+    }
 
 
 @router.post("/feedback/retry")
@@ -313,7 +365,8 @@ def create_retry_feedback(body: QueryRetryCreate, _user=Depends(require_authenti
 @router.get("/admin/feedback")
 def list_admin_feedback(_admin=Depends(require_admin_user)):
     retry_events = [
-        event for event in list_query_events(limit=200)
+        event
+        for event in list_query_events(limit=200)
         if event.get("event_type") == "retry" or event.get("feedback_type") == "redo_search"
     ]
     return {
@@ -327,4 +380,7 @@ def list_admin_feedback(_admin=Depends(require_admin_user)):
 
 @router.get("/admin/tools")
 def list_admin_tools(_admin=Depends(require_admin_user)):
-    return {"tools": [{"name": name, **config} for name, config in TOOL_REGISTRY.items()], "invocations": [row.__dict__ for row in list_tool_invocations(limit=200)]}
+    return {
+        "tools": [{"name": name, **config} for name, config in TOOL_REGISTRY.items()],
+        "invocations": [row.__dict__ for row in list_tool_invocations(limit=200)],
+    }
