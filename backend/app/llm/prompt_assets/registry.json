@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "prompts": {
+    "starter_answer": {
+      "version": "1.0.0",
+      "file": "answer-v1.0.0.txt",
+      "sha256": "9b76a7b3c554e38c1a56b417d27625d1bce2774b2148f305ce207d461628cb03"
+    },
+    "starter_json_repair": {
+      "version": "1.0.0",
+      "file": "json-repair-v1.0.0.txt",
+      "sha256": "e0a2193b14da0b4841495537c4e83dab057efd22e067049a47caba216115d305"
+    },
+    "starter_second_pass": {
+      "version": "1.0.0",
+      "file": "second-pass-v1.0.0.txt",
+      "sha256": "7e55344f072948cf9097d3d865cf5e26326e065d2ff566c2eea96fdce1641f72"
+    }
+  }
+}

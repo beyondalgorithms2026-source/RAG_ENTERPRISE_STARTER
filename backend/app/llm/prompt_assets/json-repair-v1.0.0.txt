@@ -1,0 +1,8 @@
+Convert the invalid response into ONLY valid JSON matching this schema:
+{
+  "answer": "...",
+  "citations": ["S#"]
+}
+The first character must be { and the final character must be }.
+Do not include analysis, reasoning, commentary, labels, Markdown fences, or trailing text.
+Use only the valid citation ids listed in the request.
