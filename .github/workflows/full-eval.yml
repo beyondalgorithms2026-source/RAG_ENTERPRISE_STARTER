@@ -46,7 +46,7 @@ jobs:
     with:
       candidate: starter
       candidate_ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      mode: calibration
+      mode: blocking
       run_quality: ${{ needs.scope.outputs.relevant == 'true' }}
     secrets:
       EVAL_OPENAI_API_KEY: ${{ secrets.EVAL_OPENAI_API_KEY }}
