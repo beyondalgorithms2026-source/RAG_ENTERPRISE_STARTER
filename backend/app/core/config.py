@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # and must not sit inside a git working directory, where a single `git add -f`
     # or an edited .gitignore would commit them permanently.
     UPLOAD_DIR: str = os.path.expanduser(os.path.join("~", ".rag-enterprise", "uploads"))
+    # Opt-in deterministic synthetic-corpus provisioning for the hosted public demo.
+    # It remains false for local, pilot, and production-like environments.
+    PUBLIC_DEMO_AUTOSEED: bool = False
     MAX_UPLOAD_SIZE_BYTES: int = 25 * 1024 * 1024
     ALLOWED_UPLOAD_EXTENSIONS: tuple[str, ...] = (
         "pdf",

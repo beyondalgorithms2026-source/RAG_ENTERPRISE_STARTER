@@ -81,9 +81,12 @@ before adding dependencies or changing authentication, access control, retrieval
 embedding, or governance behaviour.
 
 P12 is APP's fast mocked evaluation-harness smoke test. P12B is the authoritative real
-APP → MCP → STARTER → PostgreSQL/pgvector 25-question gate. Quality-sensitive retrieval,
-embedding, prompt, ACL, citation, or answer/refusal changes must include the applicable
-evaluation evidence. Mocked tests do not prove live retrieval or SQL ACL enforcement.
+APP → MCP → STARTER → PostgreSQL/pgvector evaluation gate. Its approved v1 baseline has
+25 cases; the 90-case v2 candidate (25 core plus 65 Operations Manual cases) becomes
+blocking only after calibration and explicit baseline approval. Quality-sensitive
+retrieval, embedding, prompt, ACL, citation, or answer/refusal changes must include the
+applicable evaluation evidence. Mocked tests do not prove live retrieval or SQL ACL
+enforcement.
 P12B baselines must never be automatically overwritten after regression; every baseline
 change must be explicit, justified, and owner/CODEOWNER-reviewed.
 

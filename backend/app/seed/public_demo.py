@@ -31,10 +31,12 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
+from app.adapters.md.parser import parse_md_bytes
 from app.core.config import settings
 from app.db.repo_acl import (
     ensure_group,
@@ -42,8 +44,9 @@ from app.db.repo_acl import (
     replace_user_memberships,
     upsert_auth_user,
 )
-from app.db.repo_chunks import delete_chunks_for_source, insert_chunks
-from app.db.repo_sources import upsert_source
+from app.db.repo_chunks import check_chunks_exist, delete_chunks_for_source, insert_chunks
+from app.db.repo_sources import get_source_by_storage_path, upsert_source
+from app.ingestion.chunking import chunk_parsed_document
 
 SEED_PACK = "public_demo"
 ALL_EMPLOYEES = "all-employees"
@@ -106,6 +109,29 @@ def _acl_groups_for(classification: str, owner_group: str) -> list[str]:
     return [ALL_EMPLOYEES]
 
 
+def _chunks_for_document(
+    *, content: str, file_name: str, parser_route: str
+) -> list[dict[str, Any]]:
+    if parser_route == "production_markdown":
+        parsed = parse_md_bytes(content.encode("utf-8"), file_name)
+        return chunk_parsed_document(parsed)
+    if parser_route != "section_seed":
+        raise ValueError(f"Unsupported public-demo parser route: {parser_route}")
+    return _chunk_by_section(content)
+
+
+def generate_bundled_public_demo(corpus_dir: Path) -> dict[str, Any]:
+    """Materialize the deliberately tracked synthetic corpus for runtime seeding."""
+    repo_root = Path(__file__).resolve().parents[3]
+    corpus_source = repo_root / "corpus"
+    if str(corpus_source) not in sys.path:
+        sys.path.insert(0, str(corpus_source))
+    from generate_corpus import write_corpus
+    from library import DOCUMENTS
+
+    return write_corpus(corpus_dir, DOCUMENTS)
+
+
 def seed_public_demo(corpus_dir: Path | None = None, embed: bool = True) -> dict[str, Any]:
     corpus_dir = corpus_dir or Path(settings.UPLOAD_DIR).expanduser()
     manifest_path = corpus_dir / "corpus-manifest.json"
@@ -132,12 +158,19 @@ def seed_public_demo(corpus_dir: Path | None = None, embed: bool = True) -> dict
             external_user_id=user["external_user_id"], group_names=user["groups"]
         )
 
-    stats = {"sources": 0, "chunks": 0, "restricted": 0}
+    stats = {"sources": 0, "chunks": 0, "restricted": 0, "unchanged": 0}
 
     for entry in manifest["documents"]:
         path = corpus_dir / entry["filename"]
         content = path.read_text(encoding="utf-8")
         classification = entry["classification"]
+        content_hash = sha256(content.encode("utf-8")).hexdigest()
+        if entry.get("content_sha256") and entry["content_sha256"] != content_hash:
+            raise ValueError(f"Corpus content hash mismatch for {entry['filename']}")
+        existing = get_source_by_storage_path(str(path))
+        content_unchanged = bool(
+            existing and existing.hash_sha256 == content_hash and check_chunks_exist(existing.id)
+        )
 
         source_id = upsert_source(
             storage_path=str(path),
@@ -145,7 +178,7 @@ def seed_public_demo(corpus_dir: Path | None = None, embed: bool = True) -> dict
             source_type="md",
             mime_type="text/markdown",
             sensitivity_label=classification,
-            hash_sha256=sha256(content.encode("utf-8")).hexdigest(),
+            hash_sha256=content_hash,
             file_size_bytes=len(content.encode("utf-8")),
             # Chunks are embedded by process_embeddings() below; the source is
             # marked embedded so retrieval and the health endpoint treat it as
@@ -159,13 +192,23 @@ def seed_public_demo(corpus_dir: Path | None = None, embed: bool = True) -> dict
                 "classification": classification,
                 "owner_group": entry["owner_group"],
                 "title": entry["title"],
+                "parser_route": entry.get("parser_route", "section_seed"),
+                "source_file": entry.get("source_file"),
             },
         )
 
-        delete_chunks_for_source(source_id)
-        chunks = _chunk_by_section(content)
-        if chunks:
-            insert_chunks(source_id, chunks)
+        chunks: list[dict[str, Any]] = []
+        if content_unchanged:
+            stats["unchanged"] += 1
+        else:
+            delete_chunks_for_source(source_id)
+            chunks = _chunks_for_document(
+                content=content,
+                file_name=entry["filename"],
+                parser_route=entry.get("parser_route", "section_seed"),
+            )
+            if chunks:
+                insert_chunks(source_id, chunks)
 
         groups = _acl_groups_for(classification, entry["owner_group"])
         replace_source_acl(source_id=source_id, group_names=groups)
@@ -183,6 +226,14 @@ def seed_public_demo(corpus_dir: Path | None = None, embed: bool = True) -> dict
         stats["embedding"] = process_embeddings()
 
     return stats
+
+
+def auto_seed_public_demo() -> dict[str, Any] | None:
+    if not settings.PUBLIC_DEMO_AUTOSEED:
+        return None
+    corpus_dir = Path(settings.UPLOAD_DIR).expanduser()
+    generate_bundled_public_demo(corpus_dir)
+    return seed_public_demo(corpus_dir)
 
 
 def main() -> int:

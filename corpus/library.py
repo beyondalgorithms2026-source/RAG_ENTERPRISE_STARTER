@@ -17,6 +17,13 @@ drift, and drift is how a validator ends up knowing answers it should not.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+
+SOURCE_DOCUMENTS_DIR = Path(__file__).resolve().parent / "source_documents"
+
+
+def _read_source_document(file_name: str) -> str:
+    return (SOURCE_DOCUMENTS_DIR / file_name).read_text(encoding="utf-8")
 
 
 @dataclass(frozen=True)
@@ -26,11 +33,15 @@ class Document:
     classification: str  # public | internal | restricted
     owner_group: str
     body: str
+    parser_route: str = "section_seed"
+    source_file: str | None = None
 
     def filename(self) -> str:
         return f"{self.slug}.md"
 
     def render(self) -> str:
+        if self.source_file:
+            return f"{self.body.strip()}\n"
         return f"# {self.title}\n\n{self.body.strip()}\n"
 
 
@@ -940,6 +951,15 @@ start date, and these form the basis of the midpoint probation review.
 
 The buddy is a peer, not a manager, and the arrangement runs for the first three months.
 """,
+    ),
+    Document(
+        slug="northwind-operations-manual-v3.2",
+        title="Northwind Logistics Operations Manual, Version 3.2",
+        classification="public",
+        owner_group="operations",
+        body=_read_source_document("northwind-operations-manual-v3.2.md"),
+        parser_route="production_markdown",
+        source_file="source_documents/northwind-operations-manual-v3.2.md",
     ),
 ]
 

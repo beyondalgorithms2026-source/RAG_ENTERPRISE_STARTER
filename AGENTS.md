@@ -36,10 +36,11 @@ stricter instruction applies wherever documents overlap.
   redaction controls to make a test pass.
 - Identify meaningful failure and boundary coverage before or alongside implementation.
   Fakes may prove deterministic mechanisms but not live retrieval or SQL authorization.
-- P12 is the fast mocked harness smoke test; P12B is the authoritative real APP → MCP →
-  STARTER → PostgreSQL/pgvector 25-question regression gate. Quality-sensitive changes
-  must run the applicable evaluation, and baselines must never be overwritten
-  automatically after regression.
+- P12 is the fast mocked harness smoke test. P12B is the authoritative real APP → MCP →
+  STARTER → PostgreSQL/pgvector evaluation gate: the approved v1 baseline has 25 cases,
+  while the 90-case v2 suite must not become blocking until calibration and explicit
+  baseline approval are complete. Quality-sensitive changes must run the applicable
+  evaluation, and baselines must never be overwritten automatically after regression.
 - Preserve public API/response shapes, status vocabularies, configuration metadata, and
   cross-repository contracts unless an approved change explicitly updates consumers.
 

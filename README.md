@@ -30,23 +30,24 @@ of the answer path: an answer that cannot be tied to retrieved text is not relea
 verified answer. The layer above then decides whether to retry, escalate to human review,
 or stop.
 
-Measured behaviour, on a 25-question evaluation: **five of five** questions with no
-supporting document in the corpus were refused.
+The currently approved public baseline covers 25 questions: **five of five** questions
+with no supporting document in the corpus were refused. A 90-case successor suite
+(25 core cases plus 65 Operations Manual cases) remains a candidate until its required
+calibration and baseline approval are complete.
 
 ## The test evidence
 
 **[The full evaluation report is here.](https://beyondalgorithms2026-source.github.io/RAG_ENTERPRISE_LANGGRAPH_APP/evaluation/)**
 
-This repository's suite discovers 363 test methods across 37 test modules. Twenty-five
-modules require a live migrated Postgres, because testing SQL-level access control
-against anything other than a real query planner proves very little. Those are skipped
-— visibly, with a reason — when no database is present.
+The ordinary local suite requires no live database. Database-bound groups are skipped
+visibly, with a reason, because testing SQL-level access control against a fake query
+planner proves very little. The current command reports:
 
 ```
-Discovered: 363 test methods
-Without a database: 66 executed and passed
-Database-dependent: 297 methods, represented by 35 module/class skip events
-Failures or errors among the 66 executed tests: 0
+Reported by unittest: 80 tests
+Passed without a database: 44
+Explicit database-dependent skips: 36
+Failures or errors: 0
 ```
 
 Set `RAG_REQUIRE_DB=1` to turn the skips into failures, so a CI job that is supposed to
@@ -55,7 +56,7 @@ have a database cannot pass by skipping everything.
 ## What this is NOT
 
 - **Not a production or client deployment.** The public Render Free service is a
-  self-built portfolio demo over a 27-document synthetic corpus. It has no client
+  self-built portfolio demo over a 28-document synthetic corpus. It has no client
   environment, real users, or real workload evidence.
 - **Not multi-tenant, and not multi-worker.** Single-process by design and guarded
   against being run otherwise.
@@ -101,7 +102,7 @@ without them and tells you which is missing. Generate each with:
 python -c "import secrets;print(secrets.token_urlsafe(48))"
 ```
 
-Load the synthetic demo corpus — 27 invented HR and policy documents for a fictional
+Load the synthetic demo corpus — 28 invented HR and policy documents for a fictional
 company, with public, internal and restricted classifications that become real access
 grants:
 

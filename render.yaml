@@ -23,6 +23,8 @@ services:
         value: none
       - key: AUTH_NONE_ALLOW_UPLOAD
         value: false
+      - key: PUBLIC_DEMO_AUTOSEED
+        value: true
       - key: ACCESS_STRATEGY
         value: document_acl_with_time_bound_grants
       - key: FRONTEND_APP_URL

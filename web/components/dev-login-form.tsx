@@ -119,7 +119,9 @@ export function DevLoginForm({ nextPath }: { nextPath: string }) {
         <button className="stitch-button stitch-button-secondary stitch-button-block" type="submit" disabled={loading}>
           {loading ? "Signing In..." : "Sign In With Local Dev Account"}
         </button>
-        <div className="dev-login-helper">Use `test-user@ragenterprise.local` or `test-admin@ragenterprise.local` with `<the value you set in DEV_TEST_USER_PASSWORD>`.</div>
+        <div className="dev-login-helper">
+          Use <code>test-user@ragenterprise.local</code> or <code>test-admin@ragenterprise.local</code> with the value you set in <code>DEV_TEST_USER_PASSWORD</code>.
+        </div>
       </form>
 
       <form className="dev-login-form" onSubmit={onAssumeIdentity}>
