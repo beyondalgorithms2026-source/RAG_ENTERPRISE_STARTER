@@ -2,9 +2,9 @@
   "schema_version": "1.0",
   "prompts": {
     "starter_answer": {
-      "version": "1.0.0",
-      "file": "answer-v1.0.0.txt",
-      "sha256": "9b76a7b3c554e38c1a56b417d27625d1bce2774b2148f305ce207d461628cb03"
+      "version": "1.1.0",
+      "file": "answer-v1.1.0.txt",
+      "sha256": "cc42bcd3f77f20d2f4e74f363d4670ebdb7b8d6fd4ffbfdf9c004c5b4f6d8b00"
     },
     "starter_json_repair": {
       "version": "1.0.0",
@@ -12,9 +12,9 @@
       "sha256": "e0a2193b14da0b4841495537c4e83dab057efd22e067049a47caba216115d305"
     },
     "starter_second_pass": {
-      "version": "1.0.0",
-      "file": "second-pass-v1.0.0.txt",
-      "sha256": "7e55344f072948cf9097d3d865cf5e26326e065d2ff566c2eea96fdce1641f72"
+      "version": "1.1.0",
+      "file": "second-pass-v1.1.0.txt",
+      "sha256": "f0c6515fcce9a262b9526dd55dffa77d06e1dee8493b47565e04ccec7afab8ea"
     }
   }
 }
