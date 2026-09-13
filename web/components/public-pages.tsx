@@ -35,10 +35,10 @@ export function PublicFooter({ compact = false }: { compact?: boolean }) {
     <footer className={`public-footer ${compact ? "is-compact" : ""}`}>
       <div className="public-footer-inner">
         <div className="public-footer-brand">
-          {compact ? "© 2024 RAG ENTERPRISE. Built for enterprise retrieval teams." : (
+          {compact ? "© 2026 RAG ENTERPRISE. Synthetic demonstration project." : (
             <>
               <span className="public-brand">RAG Enterprise</span>
-              <p>Built for enterprise retrieval teams</p>
+              <p>Open synthetic retrieval demonstration</p>
             </>
           )}
         </div>
@@ -49,7 +49,7 @@ export function PublicFooter({ compact = false }: { compact?: boolean }) {
           <Link href="/status">Status</Link>
         </div>
       </div>
-      {compact ? null : <div className="public-footer-copy">© 2024 RAG Enterprise. All Rights Reserved.</div>}
+      {compact ? null : <div className="public-footer-copy">© 2026 RAG Enterprise. Demonstration project.</div>}
     </footer>
   );
 }
@@ -64,23 +64,20 @@ export function DemoPage() {
             <span className="demo-kicker">Enterprise AI Retrieval</span>
             <h1>Put AI to work. At work.</h1>
             <p>
-              The unified knowledge layer that powers enterprise-grade RAG. Connect your data, evaluate your models, and deploy at scale.
+              Explore the checked-in synthetic corpus, inspect citations, and review the
+              measured evaluation and governance paths implemented in this repository.
             </p>
           </div>
           <div className="demo-quote-card">
-            <div className="demo-stars">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <MaterialIcon key={index} name="star" className="icon-fill" />
-              ))}
-            </div>
             <blockquote>
-              "RAG Enterprise has transformed how our retrieval teams access cross-functional data, cutting our hallucination rates by nearly 40%."
+              This page contains no customer testimonial or improvement claim. The
+              public proof is the reproducible evaluation report and synthetic corpus.
             </blockquote>
             <div className="demo-quote-author">
-              <Monogram seed="Chief Data Officer" />
+              <Monogram seed="B004 Demo" />
               <div>
-                <strong>Chief Data Officer</strong>
-                <span>Booking.com</span>
+                <strong>B004 evidence note</strong>
+                <span>Repository-maintained disclosure</span>
               </div>
             </div>
           </div>
@@ -158,13 +155,14 @@ export function VideoTourPage() {
         <section className="video-hero">
           <span className="video-announcement">
             <MaterialIcon name="bolt" className="icon-fill" />
-            New Feature: Universal Semantic Search
+            Walkthrough: governed retrieval and evaluation
           </span>
           <h1>
-            Instantly find documents <span>across your entire stack.</span>
+            Inspect answers <span>against their source evidence.</span>
           </h1>
           <p>
-            Stop digging through Slack threads and buried Drive folders. RAG Enterprise connects your fragmented knowledge into a single, intelligent retrieval layer.
+            The active demo uses deterministic synthetic documents. Connector cards below
+            illustrate supported connector categories, not configured live integrations.
           </p>
           <div className="video-player-shell">
             <div className="video-browser-bar">
@@ -197,8 +195,8 @@ export function VideoTourPage() {
                   <MaterialIcon name="chat" />
                 </div>
                 <div>
-                  <strong>Slack Integration</strong>
-                  <span>3,420 channels indexed</span>
+                  <strong>Connector example</strong>
+                  <span>Availability depends on deployment configuration</span>
                 </div>
               </div>
               <div className="video-mini-bar">
@@ -207,8 +205,8 @@ export function VideoTourPage() {
             </div>
             <div className="video-floating-chip video-floating-right">
               <MaterialIcon name="verified_user" className="icon-fill" />
-              <p>"The accuracy of the retrieval is unmatched by anything else we've tried."</p>
-              <span>— CTO, Cloudscale</span>
+              <p>No customer endorsement is claimed in this walkthrough.</p>
+              <span>— Synthetic demo disclosure</span>
             </div>
           </div>
         </section>
@@ -216,8 +214,8 @@ export function VideoTourPage() {
         <section className="video-section">
           <div className="video-section-head">
             <div>
-              <h2>A unified brain for all your data</h2>
-              <p>Direct integrations with over 100+ enterprise tools. No migration needed, just secure read-only access.</p>
+              <h2>Connector-aware governance surfaces</h2>
+              <p>These categories are interface examples. A deployment must separately configure and verify each connector.</p>
             </div>
             <Link href="/get-a-demo" className="video-inline-link">
               Request integration walkthrough
@@ -248,7 +246,8 @@ export function VideoTourPage() {
             </div>
             <h3>Semantic Context Discovery</h3>
             <p>
-              Our RAG engine doesn't just look for words; it understands the intent behind your query and finds the most relevant passage across millions of files.
+              Hybrid retrieval combines lexical and vector candidates over the configured
+              corpus. Relevance is measured by checked-in retrieval and full-stack evals.
             </p>
             <div className="video-avatar-row">
               <div className="video-avatar-stack">
@@ -256,23 +255,23 @@ export function VideoTourPage() {
                 <Monogram seed="Liam Park" />
                 <Monogram seed="Noah Reed" />
               </div>
-              <span>Trusted by 500+ Engineering Teams</span>
+              <span>Synthetic interface — no customer-count claim</span>
             </div>
           </article>
           <article className="video-feature-card video-feature-card-lime">
             <MaterialIcon name="security" className="icon-fill" />
             <h3>Enterprise Security</h3>
-            <p>SOC2 Type II compliant. Your data is encrypted at rest and never used for training foundation models.</p>
+            <p>Authentication, SQL ACL, audit, approval, and redaction controls are implemented. No external certification is claimed.</p>
           </article>
           <article className="video-feature-card video-feature-card-primary">
             <MaterialIcon name="bolt" className="icon-fill" />
-            <h3>Sub-second Latency</h3>
-            <p>Global vector indexing ensures search results are delivered in under 200ms anywhere in the world.</p>
+            <h3>Measured Latency</h3>
+            <p>The status page reports the rolling sample and thresholds; no universal latency is asserted.</p>
           </article>
           <article className="video-feature-card video-feature-card-wide video-feature-card-citation">
             <div>
               <h3>Citations & Provenance</h3>
-              <p>Every AI-generated response includes direct links to the source documents, ensuring trust and verifiability.</p>
+              <p>Grounded answers require citations and evidence validation; unsupported answers are refused or routed to recovery.</p>
             </div>
             <div className="video-citation-preview">
               <div className="video-citation-line short" />

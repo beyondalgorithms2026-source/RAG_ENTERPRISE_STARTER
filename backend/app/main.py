@@ -15,6 +15,7 @@ from .api.compare import router as compare_router
 from .api.corpus import router as corpus_router
 from .api.deep_lookup import router as deep_lookup_router
 from .api.health import router as health_router
+from .api.public_metrics import router as public_metrics_router
 from .api.search import router as search_router
 from .api.upload import router as upload_router
 from .auth.admin_modules import enforce_admin_module_for_request
@@ -143,6 +144,7 @@ async def auth_context_middleware(request: Request, call_next):
 
 app.include_router(auth_router)
 app.include_router(health_router)
+app.include_router(public_metrics_router)
 app.include_router(search_router)
 app.include_router(deep_lookup_router)
 app.include_router(ask_router)
@@ -161,6 +163,9 @@ def start_background_workers() -> None:
     assert_worker_safety()
     validate_security_posture()
     run_migrations()
+    from app.seed.public_demo import auto_seed_public_demo
+
+    auto_seed_public_demo()
     from app.coherence import enforce_startup_coherence
 
     enforce_startup_coherence()

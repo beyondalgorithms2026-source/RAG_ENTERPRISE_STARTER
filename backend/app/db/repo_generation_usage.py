@@ -121,3 +121,41 @@ def cost_summary(*, group_by: str = "retrieval_mode", limit: int = 100) -> dict[
             k: (float(v) if hasattr(v, "as_integer_ratio") else v) for k, v in dict(totals).items()
         },
     }
+
+
+def live_usage_summary(*, hours: int = 24) -> dict[str, Any]:
+    """Sanitized rolling generation metrics grouped by backend request ID.
+
+    The generation-usage table contains LLM answer calls only, so one-time
+    ingestion/embedding cost is excluded by construction.
+    """
+    bounded_hours = min(max(int(hours), 1), 168)
+    sql = text(
+        """
+        WITH per_request AS (
+            SELECT request_id,
+                   SUM(cost_usd) AS cost_usd,
+                   MAX(latency_ms) AS latency_ms,
+                   BOOL_OR(answer_path = 'repair') AS recovery_attempted
+            FROM generation_usage_events
+            WHERE created_at >= now() - (:hours * interval '1 hour')
+              AND request_id IS NOT NULL
+            GROUP BY request_id
+        )
+        SELECT COUNT(*)::bigint AS sample_size,
+               ROUND(AVG(latency_ms)::numeric, 1) AS mean_latency_ms,
+               percentile_disc(0.50) WITHIN GROUP (ORDER BY latency_ms) AS p50_latency_ms,
+               percentile_disc(0.95) WITHIN GROUP (ORDER BY latency_ms) AS p95_latency_ms,
+               MAX(latency_ms) AS max_latency_ms,
+               ROUND(AVG(cost_usd)::numeric, 8) AS average_cost_usd_per_query,
+               ROUND(AVG(CASE WHEN recovery_attempted THEN 1.0 ELSE 0.0 END)::numeric, 6)
+                   AS recovery_rate
+        FROM per_request
+        """
+    )
+    with engine.connect() as conn:
+        row = conn.execute(sql, {"hours": bounded_hours}).mappings().one()
+    return {
+        key: (float(value) if hasattr(value, "as_integer_ratio") else value)
+        for key, value in dict(row).items()
+    }

@@ -35,11 +35,20 @@ layer cannot reach them, because ACL enforcement lives in the backend's retrieva
 Documents are deterministic: the same seed produces the same corpus, so eval numbers
 are reproducible.
 
+The corpus contains 27 concise policy/procedure sources plus the public synthetic
+`Northwind Logistics Operations Manual, Version 3.2`. The manual is deliberately long
+and structured, with tables, definitions, amendments, conditional rules, and
+cross-references. Its source and reconciliation record are checked in under `corpus/`.
+
 ## Ingesting
 
 The corpus is loaded as a seed pack, reusing the mechanism in `app/seed/` so that
 sources, ACL grants and chunks are created through the same code path the application
 uses. See the quickstart for the command.
+
+The manual uses the production Markdown parser and chunker. Re-running the seed is
+content-hash idempotent: unchanged sources retain their chunks and embeddings, while a
+changed source is rebuilt through the declared parser route.
 
 ## What this corpus is not
 

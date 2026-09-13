@@ -17,6 +17,7 @@ import argparse
 import json
 import sys
 from dataclasses import asdict
+from hashlib import sha256
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -48,6 +49,10 @@ def check() -> list[str]:
             problems.append(f"{document.slug}: unknown owner_group {document.owner_group!r}")
         if document.body.count("##") < 3:
             problems.append(f"{document.slug}: fewer than 3 sections")
+        if "<br>" in document.body.lower():
+            problems.append(f"{document.slug}: contains HTML line-break artifacts")
+        if document.parser_route not in {"section_seed", "production_markdown"}:
+            problems.append(f"{document.slug}: unknown parser_route {document.parser_route!r}")
 
     known = set(slugs)
     for question in EVAL_QUESTIONS:
@@ -85,7 +90,11 @@ def write_corpus(out_dir: Path, documents: list[Document]) -> dict:
         "note": "Every document is invented. No real company or person is represented.",
         "document_count": len(documents),
         "documents": [
-            {k: v for k, v in asdict(d).items() if k != "body"} | {"filename": d.filename()}
+            {k: v for k, v in asdict(d).items() if k != "body"}
+            | {
+                "filename": d.filename(),
+                "content_sha256": sha256(d.render().encode("utf-8")).hexdigest(),
+            }
             for d in documents
         ],
         "eval_questions": [asdict(q) for q in EVAL_QUESTIONS],
@@ -100,6 +109,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default="~/.rag-enterprise/uploads", help="Output directory.")
     parser.add_argument("--check", action="store_true", help="Validate the corpus and exit.")
+    parser.add_argument(
+        "--legacy-only",
+        action="store_true",
+        help="Materialize the original 27-source phase without the v3.2 manual.",
+    )
     args = parser.parse_args()
 
     problems = check()
@@ -119,7 +133,10 @@ def main() -> int:
         print(f"OK: {answerable} answerable eval questions, {unanswerable} unanswerable by design")
         return 0
 
-    result = write_corpus(Path(args.out).expanduser(), DOCUMENTS)
+    documents = [document for document in DOCUMENTS if not document.source_file]
+    result = write_corpus(
+        Path(args.out).expanduser(), documents if args.legacy_only else DOCUMENTS
+    )
     print(f"Wrote {result['count']} synthetic documents to {result['out_dir']}")
     return 0
 

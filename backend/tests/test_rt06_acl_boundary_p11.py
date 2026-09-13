@@ -51,12 +51,12 @@ class Rt06AclBoundaryP11Tests(unittest.TestCase):
         settings.AUTH_MODE = self.original_auth_mode
 
     @staticmethod
-    def _search_as(actor: AuthenticatedUser):
+    def _search_as(actor: AuthenticatedUser, question: str = "What is the Band 6 salary range?"):
         context_token = set_current_user(actor)
         try:
             return perform_search(
                 SearchRequest(
-                    question="What is the Band 6 salary range?",
+                    question=question,
                     k=10,
                     mode="keyword",
                 )
@@ -94,6 +94,38 @@ class Rt06AclBoundaryP11Tests(unittest.TestCase):
         self.assertTrue(
             any("76,000 to 98,000" in item.snippet for item in restricted_results),
             "authorized control must find the restricted Band 6 fact",
+        )
+
+    def test_rt16_semantic_near_match_respects_same_sql_acl(self):
+        employee = AuthenticatedUser(
+            user_id="demo-employee",
+            email="demo.employee@northwind.example",
+            roles=["user"],
+            groups=["all-employees"],
+        )
+        hr_user = AuthenticatedUser(
+            user_id="demo-hr",
+            email="demo.hr@northwind.example",
+            roles=["user"],
+            groups=["all-employees", "people-operations"],
+        )
+        paraphrase = "What compensation interval applies to senior Band 6 employees?"
+
+        employee_response = self._search_as(employee, paraphrase)
+        hr_response = self._search_as(hr_user, paraphrase)
+
+        employee_text = " ".join(
+            f"{item.file_name} {item.snippet}" for item in employee_response.results
+        ).lower()
+        self.assertNotIn("compensation-bands-2026", employee_text)
+        self.assertNotIn("76,000 to 98,000", employee_text)
+        self.assertTrue(
+            any(
+                item.file_name == "compensation-bands-2026.md"
+                and "76,000 to 98,000" in item.snippet
+                for item in hr_response.results
+            ),
+            "authorized semantic-near-match control must find the restricted fact",
         )
 
 

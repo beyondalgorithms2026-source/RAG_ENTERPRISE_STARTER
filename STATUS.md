@@ -1,6 +1,6 @@
 # Operational Snapshot
 
-Last reconciled: 7 September 2026.
+Last reconciled: 13 September 2026.
 
 ## Current state
 
@@ -8,13 +8,19 @@ Last reconciled: 7 September 2026.
 - UX0–UX12 interface remediation is complete.
 - The active implementation is `backend/` and `web/`.
 - `frontend/` is retained legacy fallback code and is not the active interface.
+- The deterministic public corpus contains 28 synthetic documents. Source 28 is the
+  versioned Northwind Operations Manual v3.2 and is parsed and chunked through production
+  ingestion code with source-hash validation.
+- The approved public quality baseline remains the 25-case v1 run. The 90-case v2 suite
+  (25 core plus 65 manual cases), performance thresholds, and expanded RT-01–RT-20
+  governance set are implemented as candidates pending live calibration and approval.
 - M20–M30 retain manual-verification closure notes; the full test suite now covers their
   implemented paths, but the historical per-milestone notes have not all been closed.
 
 ## Verified B004 posture
 
 - This is a self-built proof of concept with a public Render Free portfolio demo over
-  the 27-document synthetic corpus. It is not a production or client deployment and has
+  the 28-document synthetic corpus. It is not a production or client deployment and has
   no client environment, real users, or real workload evidence.
 - Access control is enforced inside retrieval SQL.
 - Citation enforcement prefers a safe not-found result to an unsupported answer.
