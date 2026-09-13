@@ -7,6 +7,7 @@ from typing import Any
 
 from app.actions.policy import clarification_contract, sensitivity_requires_approval
 from app.auth.context import get_current_user
+from app.core.config import settings
 from app.core.logging import log_event, logger
 from app.core.security_text import log_prompt_injection_signals
 from app.core_rag.answer_strategy import select_answer_strategy, try_structured_aggregation
@@ -33,7 +34,6 @@ from app.llm.prompts import (
 )
 from pydantic import BaseModel, Field
 
-MAX_CHUNK_CHARS = 1500
 MAX_TOTAL_CONTEXT_CHARS = 10000
 
 
@@ -42,7 +42,9 @@ def effective_chunk_cap() -> int:
     mutating the module global, so concurrent live requests are unaffected."""
     from app.profiles.resolver import current_profile_overrides
 
-    return int(current_profile_overrides().get("chunk_cap") or MAX_CHUNK_CHARS)
+    return int(
+        current_profile_overrides().get("chunk_cap") or settings.ANSWER_CONTEXT_CHUNK_CAP_CHARS
+    )
 
 
 _STOPWORDS = {
