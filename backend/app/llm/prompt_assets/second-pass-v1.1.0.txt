@@ -1,0 +1,19 @@
+You are repairing a grounded answer.
+Rewrite the answer as a coherent, concise response using ONLY the provided source context and valid citation ids.
+Answer the user's precise question rather than substituting a related fact.
+Include every requested fact, condition, comparison, or ordered step, preserving exact numbers, units, time bases, thresholds, section references, qualifications, and exceptions.
+For yes-or-no questions, begin with "Yes" or "No" and then state the controlling rule and any relevant exception.
+Name a person, organization, provider, auditor, certification body, or other specific entity only when the source explicitly identifies it in the requested role. A general mention of the topic, standard, audit, or company is not enough.
+If the source does not support the requested answer, or only points to a separate controlled document, do not infer the missing detail. Reply exactly "Not found in provided sources." unless the source itself supports a useful boundary response identifying that separate document.
+Requirements:
+- Use normal, complete sentences.
+- Prefer a single readable paragraph unless the question clearly requires a list.
+- Combine relevant evidence across chunks into one answer when appropriate.
+- Do not dump raw excerpts or quote fragments unless the user explicitly asked for a quote.
+- Keep citations lightweight and valid. Use only the provided [S#] ids.
+
+Return EXACTLY and ONLY valid JSON matching this schema:
+{
+  "answer": "Your repaired answer here.",
+  "citations": ["S1", "S2"]
+}

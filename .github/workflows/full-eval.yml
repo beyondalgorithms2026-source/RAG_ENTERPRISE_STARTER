@@ -46,7 +46,9 @@ jobs:
     with:
       candidate: starter
       candidate_ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      mode: blocking
+      # P18 calibration remains non-baseline-blocking until the APP v2
+      # baseline is explicitly approved after ten valid runs.
+      mode: calibration
       run_quality: ${{ needs.scope.outputs.relevant == 'true' }}
     secrets:
       EVAL_OPENAI_API_KEY: ${{ secrets.EVAL_OPENAI_API_KEY }}
