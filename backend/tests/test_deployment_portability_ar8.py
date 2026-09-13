@@ -26,6 +26,20 @@ class ProfileOverrideConcurrencyAR8Tests(unittest.TestCase):
         self.assertEqual(current_profile_overrides(), {})
         self.assertNotEqual(get_effective_retrieval().top_k_initial, 999)
 
+    def test_answer_context_cap_uses_config_and_request_override(self):
+        from app.core.config import settings
+        from app.core_rag.answering import effective_chunk_cap
+
+        original = settings.ANSWER_CONTEXT_CHUNK_CAP_CHARS
+        try:
+            settings.ANSWER_CONTEXT_CHUNK_CAP_CHARS = 2000
+            self.assertEqual(effective_chunk_cap(), 2000)
+            with profile_overrides(chunk_cap=1750):
+                self.assertEqual(effective_chunk_cap(), 1750)
+            self.assertEqual(effective_chunk_cap(), 2000)
+        finally:
+            settings.ANSWER_CONTEXT_CHUNK_CAP_CHARS = original
+
     def test_override_does_not_bleed_into_concurrent_thread(self):
         candidate = RetrievalProfileConfig(top_k_initial=12345)
         thread_seen = {}

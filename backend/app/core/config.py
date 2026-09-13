@@ -144,6 +144,9 @@ class Settings(BaseSettings):
     HYBRID_ALPHA: float = 0.65
     VECTOR_CANDIDATES: int = 30
     KEYWORD_CANDIDATES: int = 30
+    # Per-chunk answer-context ceiling. Keep this below the total context cap;
+    # request-scoped tuning profiles may still override it without global state.
+    ANSWER_CONTEXT_CHUNK_CAP_CHARS: int = 2000
 
     # Enrichment flags
     #
