@@ -76,7 +76,9 @@ def check() -> list[str]:
     return problems
 
 
-def write_corpus(out_dir: Path, documents: list[Document]) -> dict:
+def write_corpus(
+    out_dir: Path, documents: list[Document], *, legacy_manifest: bool = False
+) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     for document in documents:
         (out_dir / document.filename()).write_text(document.render(), encoding="utf-8")
@@ -90,11 +92,20 @@ def write_corpus(out_dir: Path, documents: list[Document]) -> dict:
         "note": "Every document is invented. No real company or person is represented.",
         "document_count": len(documents),
         "documents": [
-            {k: v for k, v in asdict(d).items() if k != "body"}
-            | {
-                "filename": d.filename(),
-                "content_sha256": sha256(d.render().encode("utf-8")).hexdigest(),
-            }
+            (
+                {
+                    k: v
+                    for k, v in asdict(d).items()
+                    if k not in {"body", "parser_route", "source_file"}
+                }
+                | {"filename": d.filename()}
+                if legacy_manifest
+                else {k: v for k, v in asdict(d).items() if k != "body"}
+                | {
+                    "filename": d.filename(),
+                    "content_sha256": sha256(d.render().encode("utf-8")).hexdigest(),
+                }
+            )
             for d in documents
         ],
         "eval_questions": [asdict(q) for q in EVAL_QUESTIONS],
@@ -135,7 +146,9 @@ def main() -> int:
 
     documents = [document for document in DOCUMENTS if not document.source_file]
     result = write_corpus(
-        Path(args.out).expanduser(), documents if args.legacy_only else DOCUMENTS
+        Path(args.out).expanduser(),
+        documents if args.legacy_only else DOCUMENTS,
+        legacy_manifest=args.legacy_only,
     )
     print(f"Wrote {result['count']} synthetic documents to {result['out_dir']}")
     return 0

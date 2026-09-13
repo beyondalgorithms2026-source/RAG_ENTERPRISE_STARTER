@@ -4,6 +4,7 @@ import json
 import sys
 import tempfile
 import unittest
+from hashlib import sha256
 from pathlib import Path
 from unittest.mock import patch
 
@@ -63,6 +64,19 @@ class PublicDemoCorpusP16Tests(unittest.TestCase):
                 (Path(directory) / "corpus-manifest.json").read_text(encoding="utf-8")
             )
             self.assertEqual(manifest["document_count"], 27)
+            manifest_bytes = (Path(directory) / "corpus-manifest.json").read_bytes()
+            self.assertEqual(
+                sha256(manifest_bytes).hexdigest(),
+                "5760b4d7662b395d02b83043975a9037d0d8ba140f45fdcf3138f5d66dc6fdfe",
+            )
+            self.assertTrue(
+                all(
+                    "content_sha256" not in item
+                    and "parser_route" not in item
+                    and "source_file" not in item
+                    for item in manifest["documents"]
+                )
+            )
             self.assertNotIn(
                 "northwind-operations-manual-v3.2",
                 {item["slug"] for item in manifest["documents"]},
