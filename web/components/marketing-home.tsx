@@ -149,7 +149,7 @@ export function MarketingHome() {
           </div>
           <div className="marketing-feature-grid">
             {starterQuestions.map((question, index) => (
-              <article className="marketing-feature-card" key={question}>
+              <article className="marketing-feature-card marketing-question-card" key={question}>
                 <span className="marketing-feature-index">{String(index + 1).padStart(2, "0")}</span>
                 <h3>{question}</h3>
                 <p>Ask this in the console and inspect the cited section and evidence.</p>

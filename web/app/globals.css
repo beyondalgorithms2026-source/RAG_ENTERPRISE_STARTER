@@ -998,6 +998,10 @@ textarea:focus-visible {
   box-shadow: var(--ambient);
 }
 
+.marketing-question-card {
+  grid-column: span 3;
+}
+
 .marketing-feature-card-wide {
   grid-column: span 8;
 }
@@ -6767,6 +6771,10 @@ textarea:focus-visible {
     grid-column: span 12;
   }
 
+  .marketing-question-card {
+    grid-column: span 6;
+  }
+
   .video-floating-chip,
   .login-floating-art {
     display: none;
@@ -6809,6 +6817,10 @@ textarea:focus-visible {
 }
 
 @media (max-width: 820px) {
+  .marketing-question-card {
+    grid-column: span 12;
+  }
+
   .tuning-lab-selector-grid,
   .tuning-lab-slider-grid,
   .tuning-lab-model-grid,
