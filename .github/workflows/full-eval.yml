@@ -42,7 +42,9 @@ jobs:
 
   full-eval:
     needs: scope
-    uses: beyondalgorithms2026-source/RAG_ENTERPRISE_LANGGRAPH_APP/.github/workflows/full-eval-reusable.yml@main
+    # Coordinated rollout: use the companion APP workflow until APP PR #18
+    # merges, then return this reference to main in the merge-cleanup commit.
+    uses: beyondalgorithms2026-source/RAG_ENTERPRISE_LANGGRAPH_APP/.github/workflows/full-eval-reusable.yml@codex/post-p14-eval-redteam-publishing
     with:
       candidate: starter
       candidate_ref: ${{ github.event.pull_request.head.sha || github.sha }}
