@@ -147,6 +147,8 @@ class Settings(BaseSettings):
     # Per-chunk answer-context ceiling. Keep this below the total context cap;
     # request-scoped tuning profiles may still override it without global state.
     ANSWER_CONTEXT_CHUNK_CAP_CHARS: int = 2000
+    ANSWER_CONTEXT_SELECTION_ENABLED: bool = False
+    ANSWER_PROMPT_CANDIDATE: bool = False
 
     # Enrichment flags
     #

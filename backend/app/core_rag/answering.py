@@ -11,6 +11,12 @@ from app.core.config import settings
 from app.core.logging import log_event, logger
 from app.core.security_text import log_prompt_injection_signals
 from app.core_rag.answer_strategy import select_answer_strategy, try_structured_aggregation
+from app.core_rag.context_selection import (
+    bounded_excerpt,
+    compound_question,
+    definition_term,
+    select_candidates,
+)
 from app.core_rag.retrieval import SearchFilters, SearchMode, SearchRequest, perform_search
 from app.db.repo_actions import create_approval_request, create_query_feedback
 from app.db.repo_query_mining import record_query_event
@@ -28,6 +34,7 @@ from app.llm.client import generate_answer
 from app.llm.prompts import (
     SECOND_PASS_PROMPT,
     SYSTEM_PROMPT,
+    effective_system_prompt,
     generate_json_repair_prompt,
     generate_second_pass_prompt,
     generate_user_prompt,
@@ -188,19 +195,40 @@ class CompareResponse(BaseModel):
     debug_info: dict[str, Any] | None = None
 
 
-def _build_context_blocks(raw_chunks) -> list[dict[str, Any]]:
+def _build_context_blocks(
+    raw_chunks, *, question: str = "", decisions: list | None = None
+) -> list[dict[str, Any]]:
     context_blocks = []
     total_chars = 0
     for index, chunk in enumerate(raw_chunks):
-        snippet = chunk.snippet[: effective_chunk_cap()]
+        snippet = (
+            bounded_excerpt(chunk.snippet, question=question, cap=effective_chunk_cap())
+            if settings.ANSWER_CONTEXT_SELECTION_ENABLED
+            else chunk.snippet[: effective_chunk_cap()]
+        )
+        if not snippet:
+            if decisions is not None:
+                decisions.append(
+                    {"chunk_id": chunk.chunk_id, "reason": "no_complete_unit_within_cap"}
+                )
+            continue
         if total_chars + len(snippet) > MAX_TOTAL_CONTEXT_CHARS:
+            if settings.ANSWER_CONTEXT_SELECTION_ENABLED:
+                logger.warning(
+                    "Context budget reached; skipping this block and checking later candidates."
+                )
+                if decisions is not None:
+                    decisions.append(
+                        {"chunk_id": chunk.chunk_id, "reason": "total_budget_exclusion"}
+                    )
+                continue
             logger.warning(
                 f"Context max size reached. Dropping remaining {len(raw_chunks) - index} lower-ranked chunks."
             )
             break
 
         block = {
-            "citation_id": f"S{index + 1}",
+            "citation_id": f"S{len(context_blocks) + 1}",
             "source_id": chunk.source_id,
             "source_part_id": chunk.source_part_id,
             "chunk_id": chunk.chunk_id,
@@ -219,6 +247,16 @@ def _build_context_blocks(raw_chunks) -> list[dict[str, Any]]:
         if signals:
             block["security_signals"] = signals
         context_blocks.append(block)
+        if decisions is not None:
+            decisions.append(
+                {
+                    "chunk_id": chunk.chunk_id,
+                    "reason": "included",
+                    "original_chars": len(chunk.snippet),
+                    "selected_chars": len(snippet),
+                    "shortened": len(snippet) < len(chunk.snippet),
+                }
+            )
         total_chars += len(snippet)
     return context_blocks
 
@@ -813,16 +851,24 @@ def _perform_ask_internal(
     log_event("ask.started", stage="ask", status="processing", requested_mode=request.mode)
     if progress_callback:
         progress_callback(10, "Searching sources")
+    governing_term = (
+        definition_term(request.question) if settings.ANSWER_CONTEXT_SELECTION_ENABLED else None
+    )
     search_request = SearchRequest(
         question=request.question,
-        k=request.k_chunks,
+        k=(
+            max(request.k_chunks, 10)
+            if settings.ANSWER_CONTEXT_SELECTION_ENABLED
+            and (compound_question(request.question) or governing_term)
+            else request.k_chunks
+        ),
         filters=request.filters,
         mode=request.mode,
         deep_research=request.deep_research,
         custom_query=request.custom_query,
         search_instruction=request.search_instruction,
-        anchor_terms=request.anchor_terms,
-        exact_phrase_bias=request.exact_phrase_bias,
+        anchor_terms=request.anchor_terms or ([governing_term] if governing_term else []),
+        exact_phrase_bias=request.exact_phrase_bias or governing_term,
         expand_neighbors=request.expand_neighbors,
         force_rare_keyword_scan=request.force_rare_keyword_scan,
     )
@@ -830,6 +876,13 @@ def _perform_ask_internal(
     # Enforce the documented k_chunks contract: rerank-enabled retrieval can
     # return more than k candidates (top_k_initial widening).
     raw_chunks = search_response.results[: max(0, int(request.k_chunks))]
+    context_decisions: list[dict[str, Any]] = []
+    if settings.ANSWER_CONTEXT_SELECTION_ENABLED:
+        raw_chunks, context_decisions = select_candidates(
+            list(search_response.results),
+            question=request.question,
+            limit=request.k_chunks,
+        )
     strategy_decision = select_answer_strategy(request.question)
     if strategy_decision.aggregation:
         if progress_callback:
@@ -900,7 +953,11 @@ def _perform_ask_internal(
                     },
                 ),
             )
-    context_blocks = _build_context_blocks(raw_chunks)
+    context_blocks = _build_context_blocks(
+        raw_chunks, question=request.question, decisions=context_decisions
+    )
+    if settings.ANSWER_CONTEXT_SELECTION_ENABLED and isinstance(search_response.debug_info, dict):
+        search_response.debug_info["context_selection"] = context_decisions
     if progress_callback:
         progress_callback(42, f"Retrieved {len(raw_chunks)} candidate chunks")
 
@@ -975,7 +1032,7 @@ def _perform_ask_internal(
 
     if progress_callback:
         progress_callback(70, "Generating grounded answer")
-    llm_response = generate_answer(SYSTEM_PROMPT, user_prompt)
+    llm_response = generate_answer(effective_system_prompt(), user_prompt)
     if not llm_response.get("success"):
         ask_latency_ms = int((time.time() - start_time) * 1000)
         retrieval_trace = _record_answer_trace(
