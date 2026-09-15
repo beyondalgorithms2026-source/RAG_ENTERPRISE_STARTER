@@ -61,6 +61,7 @@ def main() -> int:
     parser.add_argument("--prepare", choices=["legacy", "full"])
     parser.add_argument("--setup-only", action="store_true")
     parser.add_argument("--candidate", action="store_true")
+    parser.add_argument("--numeric-repair", action="store_true")
     parser.add_argument("--case-id", action="append")
     args = parser.parse_args()
     require_isolated_database(os.environ.get("DATABASE_URL", ""))
@@ -69,6 +70,7 @@ def main() -> int:
     # Dedicated process settings; never mutate a running visitor process/profile.
     os.environ["ANSWER_CONTEXT_SELECTION_ENABLED"] = str(args.candidate).lower()
     os.environ["ANSWER_PROMPT_CANDIDATE"] = str(args.candidate).lower()
+    os.environ["ANSWER_NUMERIC_CLAIM_REPAIR_ENABLED"] = str(args.numeric_repair).lower()
     os.environ["ANSWER_CONTEXT_CHUNK_CAP_CHARS"] = "4000"
     from app.core.config import settings
     from app.core_rag import answering
@@ -128,6 +130,17 @@ def main() -> int:
     retrieval = get_effective_retrieval().model_copy(update={"semantic_cache_enabled": False})
     original_builder = answering._build_context_blocks
     observed = []
+    original_numeric_generate = answering.generate_numeric_answer
+    numeric_outputs = []
+
+    def observe_numeric(*a, **kw):
+        result = original_numeric_generate(*a, **kw)
+        if result.get("success"):
+            try:
+                numeric_outputs.append(json.loads(result.get("content", "")))
+            except (ValueError, TypeError):
+                numeric_outputs.append({"invalid_structured_output": True})
+        return result
 
     def observe(*a, **kw):
         blocks = original_builder(*a, **kw)
@@ -137,6 +150,7 @@ def main() -> int:
     # Observability wrapper calls the real implementation unchanged; no fake
     # retrieval, SQL, provider or generated response participates in this run.
     answering._build_context_blocks = observe
+    answering.generate_numeric_answer = observe_numeric
     rows = []
     report = {
         "scope": "starter-only-live",
@@ -144,6 +158,7 @@ def main() -> int:
         "suite_version": payload.get("suite_version"),
         "configuration": {
             "candidate": args.candidate,
+            "numeric_repair": args.numeric_repair,
             "chunk_cap_chars": 4000,
             "llm": {"provider": llm.provider, "model": llm.model},
             "prompts": prompt_metadata(),
@@ -161,6 +176,7 @@ def main() -> int:
                 raise RuntimeError("infrastructure: pinned LLM readiness failed")
             for q in questions:
                 observed.clear()
+                numeric_outputs.clear()
                 start = time.perf_counter()
                 try:
                     response = answering.perform_ask(
@@ -198,9 +214,13 @@ def main() -> int:
                         "latency_ms": round((time.perf_counter() - start) * 1000, 3),
                         "retrieval_trace": (response.debug_info or {}).get("retrieval_trace", {}),
                         "failure_class": None,
+                        "numeric_validation": (response.debug_info or {}).get(
+                            "numeric_validation"
+                        ),
                         "backend_answer_path": (response.debug_info or {}).get(
                             "answer_generation_path"
                         ),
+                        "numeric_claim_outputs": numeric_outputs.copy(),
                     }
                 except Exception:
                     row = {
@@ -220,6 +240,7 @@ def main() -> int:
                 )
     finally:
         answering._build_context_blocks = original_builder
+        answering.generate_numeric_answer = original_numeric_generate
     return 2 if any(r["failure_class"] for r in rows) else 0
 
 

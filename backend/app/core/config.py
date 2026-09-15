@@ -149,6 +149,8 @@ class Settings(BaseSettings):
     ANSWER_CONTEXT_CHUNK_CAP_CHARS: int = 2000
     ANSWER_CONTEXT_SELECTION_ENABLED: bool = False
     ANSWER_PROMPT_CANDIDATE: bool = False
+    # Candidate only: source-bound arithmetic checks on binary threshold questions.
+    ANSWER_NUMERIC_CLAIM_REPAIR_ENABLED: bool = False
 
     # Enrichment flags
     #

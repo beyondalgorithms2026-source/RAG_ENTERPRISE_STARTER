@@ -43,4 +43,11 @@ def prompt_metadata() -> dict[str, dict[str, str]]:
             "version": str(entry["version"]),
             "sha256": str(entry["sha256"]),
         }
+    if settings.ANSWER_NUMERIC_CLAIM_REPAIR_ENABLED:
+        load_prompt("starter_numeric_claims", candidate=True)
+        entry = registry["candidates"]["starter_numeric_claims"]
+        output["starter_numeric_claims"] = {
+            "version": str(entry["version"]),
+            "sha256": str(entry["sha256"]),
+        }
     return output

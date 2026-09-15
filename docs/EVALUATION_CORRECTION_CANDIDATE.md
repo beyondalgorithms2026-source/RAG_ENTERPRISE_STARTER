@@ -25,7 +25,7 @@ and HR authorized retrieval. Offline tests discovered 93 cases: 57 passed and
 Measured 36-case p95 decreased 29.95%; average input tokens increased 5.26%.
 These are diagnostic measurements, not production guarantees or full-stack proof.
 
-Release remains blocked: OM-044 can miscompare four minutes with a trigger of
+The preceding candidate remains blocked: OM-044 could miscompare four minutes with a trigger of
 more than five, despite correct evidence in context. OM-089 can omit Section
 5.5.1 despite its presence in context. OM-046 has not met every-run completeness
 requirements. Do not enable these flags in deployed visitor traffic or promote
@@ -36,3 +36,7 @@ numeric repair design are in the APP repository's `docs/EVALUATION_CORRECTION_*`
 and `docs/NUMERIC_CLAIM_REPAIR_REVIEW.md`. The approved v1 gate is unchanged;
 MCP is unchanged. Calibration is intentionally not repeated while a known
 safety blocker exists.
+
+The approved bounded numeric repair is now implemented as a separate disabled
+candidate; see `NUMERIC_CLAIM_REPAIR.md` for current targeted results and remaining
+performance/calibration requirements. This does not resolve OM-089 or approve v2.

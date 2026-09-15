@@ -34,6 +34,11 @@ The published B004 measurements and their limitations are maintained in the
 
 ## Known limitations
 
+- Owner-approved numeric-claim repair is implemented as a disabled candidate;
+  see `docs/NUMERIC_CLAIM_REPAIR.md`. Targeted STARTER checks correct the known
+  temperature and financial comparisons; full-stack calibration and cost review
+  remain prerequisites for activation. The approved v1 gate is unchanged.
+
 - Single-process runtime; multi-worker safety has not been implemented.
 - The public demo uses a versioned GPT-4o Mini snapshot. Provider transport contracts
   remain tested with simulated responses; the live D9 smoke checks are recorded in the

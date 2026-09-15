@@ -17,6 +17,11 @@ from app.core_rag.context_selection import (
     definition_term,
     select_candidates,
 )
+from app.core_rag.numeric_claims import (
+    NumericInfrastructureError,
+    generate_checked_answer,
+    threshold_question,
+)
 from app.core_rag.retrieval import SearchFilters, SearchMode, SearchRequest, perform_search
 from app.db.repo_actions import create_approval_request, create_query_feedback
 from app.db.repo_query_mining import record_query_event
@@ -30,7 +35,7 @@ from app.db.repo_semantic_cache import (
 )
 from app.db.repo_semantic_cache_policies import get_active_policy_version, record_policy_event
 from app.db.repo_sources import get_source_by_id
-from app.llm.client import generate_answer
+from app.llm.client import generate_answer, generate_numeric_answer
 from app.llm.prompts import (
     SECOND_PASS_PROMPT,
     SYSTEM_PROMPT,
@@ -1032,7 +1037,30 @@ def _perform_ask_internal(
 
     if progress_callback:
         progress_callback(70, "Generating grounded answer")
-    llm_response = generate_answer(effective_system_prompt(), user_prompt)
+    numeric_active = settings.ANSWER_NUMERIC_CLAIM_REPAIR_ENABLED and threshold_question(
+        request.question
+    )
+    numeric_metadata = None
+    numeric_parsed = None
+    if numeric_active:
+        numeric_parsed, numeric_metadata = generate_checked_answer(
+            question=request.question,
+            context=context_blocks,
+            user_prompt=user_prompt,
+            generate=generate_numeric_answer,
+        )
+        if numeric_metadata.get("failure_class") == "infrastructure":
+            raise NumericInfrastructureError()
+        # Never route an unsafe/unsupported structured result through generic
+        # JSON or evidence repair; the numeric route owns its two-call budget.
+        llm_response = {
+            "success": True,
+            "content": json.dumps(
+                numeric_parsed or {"answer": _not_found_answer(request.question), "citations": []}
+            ),
+        }
+    else:
+        llm_response = generate_answer(effective_system_prompt(), user_prompt)
     if not llm_response.get("success"):
         ask_latency_ms = int((time.time() - start_time) * 1000)
         retrieval_trace = _record_answer_trace(
@@ -1127,7 +1155,11 @@ def _perform_ask_internal(
     answer_text = parsed.get("answer", "")
     safe_citations = _safe_citation_ids(parsed=parsed, context_blocks=context_blocks)
     answer_text = _strip_fake_citations(answer_text, safe_citations)
-    answer_generation_path = "llm"
+    answer_generation_path = (
+        "repair"
+        if numeric_active and numeric_metadata.get("repair_attempted") and numeric_parsed
+        else "llm"
+    )
     fallback_reason = _answer_fallback_reason(
         answer_text=answer_text,
         question=request.question,
@@ -1139,7 +1171,7 @@ def _perform_ask_internal(
         context_blocks=context_blocks,
         retrieval_trace=search_response.debug_info,
     )
-    if fallback_reason == "not_found_answer" and repair_context_blocks:
+    if not numeric_active and fallback_reason == "not_found_answer" and repair_context_blocks:
         repair_attempted = True
         repaired_parsed, repair_error = _generate_second_pass_answer(
             question=request.question,
@@ -1172,6 +1204,7 @@ def _perform_ask_internal(
             fallback_reason = f"{fallback_reason}; bounded_evidence_repair_error:{repair_error}"
     if (
         answer_generation_path != "evidence_repair"
+        and not numeric_active
         and fallback_reason
         and context_blocks
         and "not found" not in answer_text.lower()
@@ -1253,12 +1286,18 @@ def _perform_ask_internal(
         answer_generation_path=answer_generation_path,
         fallback_reason=fallback_reason,
         extra={
+            **({"numeric_validation": numeric_metadata} if numeric_active else {}),
+            **(
+                {"error": "numeric_claim_infrastructure_failure"}
+                if numeric_active and numeric_metadata.get("failure_class") == "infrastructure"
+                else {}
+            ),
             "clarification": clarification_contract(
                 request.question,
                 answer_path=answer_generation_path,
                 evidence_count=len(final_citations),
                 source_scoped=bool(request.filters and request.filters.source_id is not None),
-            )
+            ),
         },
     )
     gated_response = _maybe_gate_sensitive_answer(
@@ -1308,6 +1347,9 @@ def perform_ask(
     cache_reason = "global_default_off" if not policy else "request_bypass"
     if (
         policy
+        and not (
+            settings.ANSWER_NUMERIC_CLAIM_REPAIR_ENABLED and threshold_question(request.question)
+        )
         and not request.dry_run
         and not request.bypass_cache
         and not request.refresh_cache_entry_id
@@ -1392,6 +1434,9 @@ def perform_ask(
     safe_answer = bool(
         policy
         and eligible
+        and not (
+            settings.ANSWER_NUMERIC_CLAIM_REPAIR_ENABLED and threshold_question(request.question)
+        )
         and not request.dry_run
         and response.answer
         and response.citations
