@@ -14,8 +14,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from app.db.db import engine
 from sqlalchemy import text
+
+from app.db.db import engine
 
 
 def _path_fingerprint(value: str) -> str:
