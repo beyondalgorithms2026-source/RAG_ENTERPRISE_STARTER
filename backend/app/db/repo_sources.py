@@ -48,6 +48,53 @@ def get_source_by_storage_path(storage_path: str) -> SourceRow | None:
     return _row_to_source(row)
 
 
+def get_source_by_seed_identity(
+    *, seed_pack: str, source_file: str, preferred_storage_path: str | None = None
+) -> SourceRow | None:
+    """Return the canonical seeded source independently of its runtime upload root."""
+    sql = text(
+        """
+        SELECT id, file_name, storage_path, source_type, mime_type, hash_sha256,
+               sensitivity_label, file_size_bytes, ingestion_status, enrichment_status, source_metadata_json,
+               last_ingested_at, last_synced_at, last_enriched_at
+        FROM sources
+        WHERE source_metadata_json->>'seed_pack' = :seed_pack
+          AND source_metadata_json->>'source_file' = :source_file
+        ORDER BY (storage_path = :preferred_storage_path) DESC,
+                 (ingestion_status = 'embedded') DESC,
+                 created_at DESC,
+                 id DESC
+        LIMIT 1
+        """
+    )
+    with engine.connect() as conn:
+        row = conn.execute(
+            sql,
+            {
+                "seed_pack": seed_pack,
+                "source_file": source_file,
+                "preferred_storage_path": preferred_storage_path or "",
+            },
+        ).first()
+    if not row:
+        return None
+    return _row_to_source(row)
+
+
+def update_source_storage_path(source_id: int, storage_path: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE sources
+                SET storage_path = :storage_path, updated_at = now()
+                WHERE id = :source_id
+                """
+            ),
+            {"source_id": source_id, "storage_path": storage_path},
+        )
+
+
 def get_source_by_id(source_id: int) -> SourceRow | None:
     sql = text(
         """
