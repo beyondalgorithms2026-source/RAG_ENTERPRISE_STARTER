@@ -1,4 +1,5 @@
 import json
+import re
 import unittest
 from types import SimpleNamespace
 
@@ -160,7 +161,7 @@ class AnswerStrategyAutoRedoTests(unittest.TestCase):
                     source_type="txt",
                     heading="Ben Franklin rent",
                     locator=None,
-                    snippet="No one paid 5 percent of sales for rent on a Ben Franklin store.",
+                    snippet="Sam Walton's first Ben Franklin store cost 5 percent of sales for rent.",
                     score=0.9,
                 ),
             ],
@@ -184,12 +185,15 @@ class AnswerStrategyAutoRedoTests(unittest.TestCase):
                     ),
                 }
             self.assertIn("5 percent of sales", user_prompt)
+            cited_block = re.search(r"\[(S\d+)\][^\n]*Section: Ben Franklin rent", user_prompt)
+            self.assertIsNotNone(cited_block)
+            citation_id = cited_block.group(1)
             return {
                 "success": True,
                 "content": json.dumps(
                     {
-                        "answer": "Sam Walton's first Ben Franklin cost 5 percent of sales for rent [S2].",
-                        "citations": ["S2"],
+                        "answer": f"Sam Walton's first Ben Franklin cost 5 percent of sales for rent [{citation_id}].",
+                        "citations": [citation_id],
                     }
                 ),
             }

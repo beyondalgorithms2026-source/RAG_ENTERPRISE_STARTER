@@ -1,11 +1,13 @@
 # Bounded numeric-claim repair candidate
 
-Owner approved implementation on 15 September 2026. This is an opt-in candidate,
-not an approved v2 baseline or a deployed visitor feature.
+Owner approved implementation and default-on configuration on 15 September 2026.
+Default activation is separate from v2 baseline approval and does not prove a
+deployment has picked up these changes. Explicit environment overrides still win.
 
 ## Contract
 
-`ANSWER_NUMERIC_CLAIM_REPAIR_ENABLED=false` remains the default. Concrete binary
+`ANSWER_NUMERIC_CLAIM_REPAIR_ENABLED=true` is the default; set it to `false` to
+roll back. Concrete binary
 threshold/definition questions use the existing pinned OpenAI snapshot. Ordinary
 lookups retain their existing path. Unsupported providers are not silently swapped.
 No dependency, embedding, database or ACL change occurs.
@@ -67,7 +69,14 @@ input-token review limit versus the preceding 2,804-token diagnostic. Matched
 36-case performance verification and explicit review are required before
 activation, especially when a repair adds a second call.
 
-Release still requires full-stack verification, ten stable calibration runs,
+Baseline promotion still requires full-stack verification, ten stable calibration runs,
 refusals/RT-06, outstanding nonnumeric fixes, performance review and baseline
 approval. No baseline is automatically overwritten. Targeted passes alone do not
-authorize deployment.
+approve a revised baseline.
+
+The online Supabase/OpenAI diagnostic completed 90 full-stack cases: 73 pass,
+11 quality-labelled failures, one manual review and five grading-infrastructure
+failures. Matched STARTER p95 decreased 9.39% and average input tokens increased
+7.04%; full-stack p95 remained 28.35 seconds. These single runs are not calibration
+or approved baseline evidence. Numeric OM-044/046 passed; equality required one
+bounded repair. No Docker is required to connect local code to hosted Supabase.

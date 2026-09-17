@@ -20,6 +20,65 @@ def chunk(i, heading, text):
 
 
 class CandidateContextTests(unittest.TestCase):
+    def test_authorized_duplicate_copies_do_not_crowd_out_other_sections(self):
+        first = chunk(1, "Substance testing", "Substance testing rules.")
+        duplicate = chunk(2, "Substance testing", "Substance testing rules.")
+        duplicate.source_id = 2
+        control = chunk(3, "Disciplinary procedure", "Separate conduct rules.")
+        selected, trace = select_candidates(
+            [first, duplicate, control],
+            question="Which sections jointly govern substance testing and conduct?",
+            limit=2,
+        )
+        self.assertEqual({c.chunk_id for c in selected}, {1, 3})
+        self.assertTrue(any(d["reason"] == "duplicate" for d in trace))
+
+    def test_ownership_and_title_are_not_operative_section_answers(self):
+        chunks = [
+            chunk(1, "Document ownership", "HR owns the respective sections of this document."),
+            chunk(2, "Operations Manual", "Operations Manual"),
+            chunk(
+                3,
+                "Accident response",
+                "Following an accident, follow substance testing instructions.",
+            ),
+            chunk(
+                4, "Disciplinary procedure", "Separate HR document governs suspension and conduct."
+            ),
+        ]
+        selected, _ = select_candidates(
+            chunks,
+            question="Which document sections jointly govern a post-accident substance test, suspension and conduct?",
+            limit=2,
+        )
+        self.assertEqual({c.chunk_id for c in selected}, {3, 4})
+
+    def test_historical_question_prefers_amendment_not_current_table(self):
+        selected, _ = select_candidates(
+            [
+                chunk(
+                    1, "Temperature thresholds", "Current chilled product allowance: 30 minutes."
+                ),
+                chunk(
+                    2, "Appendix Amendment Log", "Previous chilled product allowance: 45 minutes."
+                ),
+            ],
+            question="What was the chilled product allowance before the Version 4 update?",
+            limit=1,
+        )
+        self.assertEqual(selected[0].chunk_id, 2)
+
+    def test_single_capitalized_defined_term_is_recognized(self):
+        from app.core_rag.context_selection import definition_term
+
+        self.assertEqual(
+            definition_term(
+                "The manual says this must be handled Immediately. What is the latest time?"
+            ),
+            "Immediately",
+        )
+        self.assertIsNone(definition_term("What is the meal allowance?"))
+
     def test_real_manual_trigger_row_survives_table_shortening(self):
         import re
         from pathlib import Path
