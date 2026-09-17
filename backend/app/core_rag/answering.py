@@ -11,6 +11,17 @@ from app.core.config import settings
 from app.core.logging import log_event, logger
 from app.core.security_text import log_prompt_injection_signals
 from app.core_rag.answer_strategy import select_answer_strategy, try_structured_aggregation
+from app.core_rag.context_selection import (
+    bounded_excerpt,
+    compound_question,
+    definition_term,
+    select_candidates,
+)
+from app.core_rag.numeric_claims import (
+    NumericInfrastructureError,
+    generate_checked_answer,
+    threshold_question,
+)
 from app.core_rag.retrieval import SearchFilters, SearchMode, SearchRequest, perform_search
 from app.db.repo_actions import create_approval_request, create_query_feedback
 from app.db.repo_query_mining import record_query_event
@@ -24,10 +35,11 @@ from app.db.repo_semantic_cache import (
 )
 from app.db.repo_semantic_cache_policies import get_active_policy_version, record_policy_event
 from app.db.repo_sources import get_source_by_id
-from app.llm.client import generate_answer
+from app.llm.client import generate_answer, generate_numeric_answer
 from app.llm.prompts import (
     SECOND_PASS_PROMPT,
     SYSTEM_PROMPT,
+    effective_system_prompt,
     generate_json_repair_prompt,
     generate_second_pass_prompt,
     generate_user_prompt,
@@ -188,19 +200,40 @@ class CompareResponse(BaseModel):
     debug_info: dict[str, Any] | None = None
 
 
-def _build_context_blocks(raw_chunks) -> list[dict[str, Any]]:
+def _build_context_blocks(
+    raw_chunks, *, question: str = "", decisions: list | None = None
+) -> list[dict[str, Any]]:
     context_blocks = []
     total_chars = 0
     for index, chunk in enumerate(raw_chunks):
-        snippet = chunk.snippet[: effective_chunk_cap()]
+        snippet = (
+            bounded_excerpt(chunk.snippet, question=question, cap=effective_chunk_cap())
+            if settings.ANSWER_CONTEXT_SELECTION_ENABLED
+            else chunk.snippet[: effective_chunk_cap()]
+        )
+        if not snippet:
+            if decisions is not None:
+                decisions.append(
+                    {"chunk_id": chunk.chunk_id, "reason": "no_complete_unit_within_cap"}
+                )
+            continue
         if total_chars + len(snippet) > MAX_TOTAL_CONTEXT_CHARS:
+            if settings.ANSWER_CONTEXT_SELECTION_ENABLED:
+                logger.warning(
+                    "Context budget reached; skipping this block and checking later candidates."
+                )
+                if decisions is not None:
+                    decisions.append(
+                        {"chunk_id": chunk.chunk_id, "reason": "total_budget_exclusion"}
+                    )
+                continue
             logger.warning(
                 f"Context max size reached. Dropping remaining {len(raw_chunks) - index} lower-ranked chunks."
             )
             break
 
         block = {
-            "citation_id": f"S{index + 1}",
+            "citation_id": f"S{len(context_blocks) + 1}",
             "source_id": chunk.source_id,
             "source_part_id": chunk.source_part_id,
             "chunk_id": chunk.chunk_id,
@@ -219,6 +252,16 @@ def _build_context_blocks(raw_chunks) -> list[dict[str, Any]]:
         if signals:
             block["security_signals"] = signals
         context_blocks.append(block)
+        if decisions is not None:
+            decisions.append(
+                {
+                    "chunk_id": chunk.chunk_id,
+                    "reason": "included",
+                    "original_chars": len(chunk.snippet),
+                    "selected_chars": len(snippet),
+                    "shortened": len(snippet) < len(chunk.snippet),
+                }
+            )
         total_chars += len(snippet)
     return context_blocks
 
@@ -813,16 +856,24 @@ def _perform_ask_internal(
     log_event("ask.started", stage="ask", status="processing", requested_mode=request.mode)
     if progress_callback:
         progress_callback(10, "Searching sources")
+    governing_term = (
+        definition_term(request.question) if settings.ANSWER_CONTEXT_SELECTION_ENABLED else None
+    )
     search_request = SearchRequest(
         question=request.question,
-        k=request.k_chunks,
+        k=(
+            max(request.k_chunks, 10)
+            if settings.ANSWER_CONTEXT_SELECTION_ENABLED
+            and (compound_question(request.question) or governing_term)
+            else request.k_chunks
+        ),
         filters=request.filters,
         mode=request.mode,
         deep_research=request.deep_research,
         custom_query=request.custom_query,
         search_instruction=request.search_instruction,
-        anchor_terms=request.anchor_terms,
-        exact_phrase_bias=request.exact_phrase_bias,
+        anchor_terms=request.anchor_terms or ([governing_term] if governing_term else []),
+        exact_phrase_bias=request.exact_phrase_bias or governing_term,
         expand_neighbors=request.expand_neighbors,
         force_rare_keyword_scan=request.force_rare_keyword_scan,
     )
@@ -830,6 +881,13 @@ def _perform_ask_internal(
     # Enforce the documented k_chunks contract: rerank-enabled retrieval can
     # return more than k candidates (top_k_initial widening).
     raw_chunks = search_response.results[: max(0, int(request.k_chunks))]
+    context_decisions: list[dict[str, Any]] = []
+    if settings.ANSWER_CONTEXT_SELECTION_ENABLED:
+        raw_chunks, context_decisions = select_candidates(
+            list(search_response.results),
+            question=request.question,
+            limit=request.k_chunks,
+        )
     strategy_decision = select_answer_strategy(request.question)
     if strategy_decision.aggregation:
         if progress_callback:
@@ -900,7 +958,11 @@ def _perform_ask_internal(
                     },
                 ),
             )
-    context_blocks = _build_context_blocks(raw_chunks)
+    context_blocks = _build_context_blocks(
+        raw_chunks, question=request.question, decisions=context_decisions
+    )
+    if settings.ANSWER_CONTEXT_SELECTION_ENABLED and isinstance(search_response.debug_info, dict):
+        search_response.debug_info["context_selection"] = context_decisions
     if progress_callback:
         progress_callback(42, f"Retrieved {len(raw_chunks)} candidate chunks")
 
@@ -975,7 +1037,30 @@ def _perform_ask_internal(
 
     if progress_callback:
         progress_callback(70, "Generating grounded answer")
-    llm_response = generate_answer(SYSTEM_PROMPT, user_prompt)
+    numeric_active = settings.ANSWER_NUMERIC_CLAIM_REPAIR_ENABLED and threshold_question(
+        request.question
+    )
+    numeric_metadata = None
+    numeric_parsed = None
+    if numeric_active:
+        numeric_parsed, numeric_metadata = generate_checked_answer(
+            question=request.question,
+            context=context_blocks,
+            user_prompt=user_prompt,
+            generate=generate_numeric_answer,
+        )
+        if numeric_metadata.get("failure_class") == "infrastructure":
+            raise NumericInfrastructureError()
+        # Never route an unsafe/unsupported structured result through generic
+        # JSON or evidence repair; the numeric route owns its two-call budget.
+        llm_response = {
+            "success": True,
+            "content": json.dumps(
+                numeric_parsed or {"answer": _not_found_answer(request.question), "citations": []}
+            ),
+        }
+    else:
+        llm_response = generate_answer(effective_system_prompt(), user_prompt)
     if not llm_response.get("success"):
         ask_latency_ms = int((time.time() - start_time) * 1000)
         retrieval_trace = _record_answer_trace(
@@ -1070,7 +1155,11 @@ def _perform_ask_internal(
     answer_text = parsed.get("answer", "")
     safe_citations = _safe_citation_ids(parsed=parsed, context_blocks=context_blocks)
     answer_text = _strip_fake_citations(answer_text, safe_citations)
-    answer_generation_path = "llm"
+    answer_generation_path = (
+        "repair"
+        if numeric_active and numeric_metadata.get("repair_attempted") and numeric_parsed
+        else "llm"
+    )
     fallback_reason = _answer_fallback_reason(
         answer_text=answer_text,
         question=request.question,
@@ -1082,7 +1171,7 @@ def _perform_ask_internal(
         context_blocks=context_blocks,
         retrieval_trace=search_response.debug_info,
     )
-    if fallback_reason == "not_found_answer" and repair_context_blocks:
+    if not numeric_active and fallback_reason == "not_found_answer" and repair_context_blocks:
         repair_attempted = True
         repaired_parsed, repair_error = _generate_second_pass_answer(
             question=request.question,
@@ -1115,6 +1204,7 @@ def _perform_ask_internal(
             fallback_reason = f"{fallback_reason}; bounded_evidence_repair_error:{repair_error}"
     if (
         answer_generation_path != "evidence_repair"
+        and not numeric_active
         and fallback_reason
         and context_blocks
         and "not found" not in answer_text.lower()
@@ -1196,12 +1286,18 @@ def _perform_ask_internal(
         answer_generation_path=answer_generation_path,
         fallback_reason=fallback_reason,
         extra={
+            **({"numeric_validation": numeric_metadata} if numeric_active else {}),
+            **(
+                {"error": "numeric_claim_infrastructure_failure"}
+                if numeric_active and numeric_metadata.get("failure_class") == "infrastructure"
+                else {}
+            ),
             "clarification": clarification_contract(
                 request.question,
                 answer_path=answer_generation_path,
                 evidence_count=len(final_citations),
                 source_scoped=bool(request.filters and request.filters.source_id is not None),
-            )
+            ),
         },
     )
     gated_response = _maybe_gate_sensitive_answer(
@@ -1251,6 +1347,9 @@ def perform_ask(
     cache_reason = "global_default_off" if not policy else "request_bypass"
     if (
         policy
+        and not (
+            settings.ANSWER_NUMERIC_CLAIM_REPAIR_ENABLED and threshold_question(request.question)
+        )
         and not request.dry_run
         and not request.bypass_cache
         and not request.refresh_cache_entry_id
@@ -1335,6 +1434,9 @@ def perform_ask(
     safe_answer = bool(
         policy
         and eligible
+        and not (
+            settings.ANSWER_NUMERIC_CLAIM_REPAIR_ENABLED and threshold_question(request.question)
+        )
         and not request.dry_run
         and response.answer
         and response.citations

@@ -98,6 +98,7 @@ def _provider_generate(
     temperature: float,
     max_tokens,
     timeout_s: float,
+    response_schema: dict | None = None,
 ) -> dict:
     """Single provider-dispatched completion path used by both answer and
     transform generation (AR9)."""
@@ -121,6 +122,11 @@ def _provider_generate(
         temperature=temperature,
         max_tokens=max_tokens,
     )
+    if response_schema is not None:
+        payload["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {"name": "numeric_answer", "strict": True, "schema": response_schema},
+        }
     try:
         with httpx.Client(timeout=timeout_s) as client:
             response = client.post(provider.chat_url(base), json=payload, headers=headers)
@@ -128,6 +134,12 @@ def _provider_generate(
             data = response.json()
             content = provider.extract_content(data) or ""
             usage = _build_usage(provider, data, llm.model, system_prompt, user_prompt, content)
+            if response_schema is not None:
+                choice = data.get("choices", [{}])[0]
+                if choice.get("finish_reason") != "stop" or choice.get("message", {}).get(
+                    "refusal"
+                ):
+                    return {"success": False, "error": "numeric_structured_output_unavailable"}
             return {"success": True, "content": content, "usage": usage}
     except httpx.TimeoutException:
         return {
@@ -197,4 +209,23 @@ def generate_answer(system_prompt: str, user_prompt: str) -> dict:
         temperature=0.0 if prompt_json_only else llm.temperature,
         max_tokens=llm.max_tokens,
         timeout_s=timeout_s,
+    )
+
+
+def generate_numeric_answer(system_prompt: str, user_prompt: str, *, schema: dict) -> dict:
+    """One bounded request to the existing pinned provider; never switch models."""
+    from app.profiles.resolver import get_effective_llm
+
+    llm = get_effective_llm()
+    if llm.provider != "openai" or llm.model != "gpt-4o-mini-2024-07-18":
+        return {"success": False, "error": "numeric_structured_provider_unsupported"}
+    return _provider_generate(
+        llm,
+        system_prompt,
+        user_prompt,
+        json_mode=True,
+        temperature=0,
+        max_tokens=1000,
+        timeout_s=min(60.0, max(0.05, float(llm.timeout_s or 60))),
+        response_schema=schema,
     )

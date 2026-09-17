@@ -10,6 +10,7 @@ from app.auth.dependencies import require_ask_user
 from app.core.config import settings
 from app.core.rate_limit import rate_limit_ask, rate_limit_ask_stream
 from app.core_rag.answering import AskRequest, AskResponse, perform_ask
+from app.core_rag.numeric_claims import NumericInfrastructureError
 from app.db.repo_governance import is_restricted
 from app.llm.client import verify_llm_ready
 
@@ -41,7 +42,16 @@ def ask_endpoint(
                 "message": f"The configured LLM provider or model '{settings.LLM_MODEL}' is unreachable.",
             },
         )
-    return perform_ask(request)
+    try:
+        return perform_ask(request)
+    except NumericInfrastructureError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "numeric_validation_unavailable",
+                "message": "The configured numeric answer service is unavailable.",
+            },
+        ) from exc
 
 
 @router.post("/ask/stream")

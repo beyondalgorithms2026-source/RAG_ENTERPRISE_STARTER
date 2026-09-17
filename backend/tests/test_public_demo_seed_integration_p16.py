@@ -39,14 +39,16 @@ class PublicDemoSeedIntegrationP16Tests(unittest.TestCase):
         settings.AUTH_MODE = "none"
         self.temp_dir = tempfile.TemporaryDirectory(prefix="b004-p16-seed-")
         self.corpus_path = Path(self.temp_dir.name)
+        self.seed_paths = [self.corpus_path]
         write_corpus(self.corpus_path, DOCUMENTS)
 
     def tearDown(self):
         with engine.begin() as conn:
-            conn.execute(
-                text("DELETE FROM sources WHERE storage_path LIKE :prefix"),
-                {"prefix": f"{self.corpus_path}%"},
-            )
+            for path in self.seed_paths:
+                conn.execute(
+                    text("DELETE FROM sources WHERE storage_path LIKE :prefix"),
+                    {"prefix": f"{path}%"},
+                )
         self.temp_dir.cleanup()
         settings.ACCESS_STRATEGY = self.original_strategy
         settings.AUTH_MODE = self.original_auth_mode
@@ -96,6 +98,34 @@ class PublicDemoSeedIntegrationP16Tests(unittest.TestCase):
                 for item in response.results
             )
         )
+
+    def test_seed_identity_is_stable_across_two_filesystem_roots(self):
+        seed_public_demo(self.corpus_path, embed=False)
+        second_temp = tempfile.TemporaryDirectory(prefix="b004-p16-seed-second-")
+        self.addCleanup(second_temp.cleanup)
+        second_path = Path(second_temp.name)
+        self.seed_paths.append(second_path)
+        write_corpus(second_path, DOCUMENTS)
+
+        second = seed_public_demo(second_path, embed=False)
+
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text(
+                    """
+                    SELECT source_metadata_json->>'source_file' AS source_file, COUNT(*)
+                    FROM sources
+                    WHERE source_metadata_json->>'seed_pack' = 'public_demo'
+                      AND storage_path LIKE :prefix
+                    GROUP BY source_metadata_json->>'source_file'
+                    """
+                ),
+                {"prefix": f"{second_path}%"},
+            ).fetchall()
+        self.assertEqual(second["sources"], 28)
+        self.assertEqual(second["unchanged"], 28)
+        self.assertEqual(len(rows), 28)
+        self.assertTrue(all(count == 1 for _source_file, count in rows))
 
 
 if __name__ == "__main__":

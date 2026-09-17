@@ -30,7 +30,7 @@ services:
       - key: FRONTEND_APP_URL
         value: https://beyondalgorithms2026-source.github.io/RAG_ENTERPRISE_LANGGRAPH_APP/evaluation/
       - key: API_ALLOWED_ORIGINS
-        value: https://beyondalgorithms2026-source.github.io
+        value: https://rag-enterprise-governance-demo.onrender.com,https://beyondalgorithms2026-source.github.io
       - key: RATE_LIMIT_ENABLED
         value: true
       - key: RATE_LIMIT_ASK_PER_MINUTE

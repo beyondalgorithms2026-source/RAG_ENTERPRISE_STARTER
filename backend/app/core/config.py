@@ -147,6 +147,11 @@ class Settings(BaseSettings):
     # Per-chunk answer-context ceiling. Keep this below the total context cap;
     # request-scoped tuning profiles may still override it without global state.
     ANSWER_CONTEXT_CHUNK_CAP_CHARS: int = 2000
+    # Owner-enabled defaults; explicit false values retain the rollback path.
+    ANSWER_CONTEXT_SELECTION_ENABLED: bool = True
+    ANSWER_PROMPT_CANDIDATE: bool = True
+    # Source-bound arithmetic is routed only for supported binary threshold questions.
+    ANSWER_NUMERIC_CLAIM_REPAIR_ENABLED: bool = True
 
     # Enrichment flags
     #

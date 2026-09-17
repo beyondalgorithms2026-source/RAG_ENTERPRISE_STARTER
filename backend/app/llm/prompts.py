@@ -1,8 +1,17 @@
+from app.core.config import settings
 from app.llm.prompt_registry import load_prompt
 
 SYSTEM_PROMPT = load_prompt("starter_answer")
 REPAIR_PROMPT = load_prompt("starter_json_repair")
 SECOND_PASS_PROMPT = load_prompt("starter_second_pass")
+
+
+def effective_system_prompt() -> str:
+    return (
+        load_prompt("starter_answer", candidate=True)
+        if settings.ANSWER_PROMPT_CANDIDATE
+        else SYSTEM_PROMPT
+    )
 
 
 def generate_user_prompt(question: str, context_blocks: list) -> str:

@@ -45,7 +45,11 @@ from app.db.repo_acl import (
     upsert_auth_user,
 )
 from app.db.repo_chunks import check_chunks_exist, delete_chunks_for_source, insert_chunks
-from app.db.repo_sources import get_source_by_storage_path, upsert_source
+from app.db.repo_sources import (
+    get_source_by_seed_identity,
+    update_source_storage_path,
+    upsert_source,
+)
 from app.ingestion.chunking import chunk_parsed_document
 
 SEED_PACK = "public_demo"
@@ -165,9 +169,16 @@ def seed_public_demo(corpus_dir: Path | None = None, embed: bool = True) -> dict
         content = path.read_text(encoding="utf-8")
         classification = entry["classification"]
         content_hash = sha256(content.encode("utf-8")).hexdigest()
+        source_file = entry.get("source_file") or entry["filename"]
         if entry.get("content_sha256") and entry["content_sha256"] != content_hash:
             raise ValueError(f"Corpus content hash mismatch for {entry['filename']}")
-        existing = get_source_by_storage_path(str(path))
+        existing = get_source_by_seed_identity(
+            seed_pack=SEED_PACK,
+            source_file=source_file,
+            preferred_storage_path=str(path),
+        )
+        if existing and existing.storage_path != str(path):
+            update_source_storage_path(existing.id, str(path))
         content_unchanged = bool(
             existing and existing.hash_sha256 == content_hash and check_chunks_exist(existing.id)
         )
@@ -193,7 +204,7 @@ def seed_public_demo(corpus_dir: Path | None = None, embed: bool = True) -> dict
                 "owner_group": entry["owner_group"],
                 "title": entry["title"],
                 "parser_route": entry.get("parser_route", "section_seed"),
-                "source_file": entry.get("source_file"),
+                "source_file": source_file,
             },
         )
 
