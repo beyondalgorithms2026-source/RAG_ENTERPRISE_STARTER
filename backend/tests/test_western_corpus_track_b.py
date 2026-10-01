@@ -51,7 +51,9 @@ class WesternCorpusFixtureTests(unittest.TestCase):
             {
                 "NL-HR-A.md": _doc("NL-HR-A"),
                 "NL-OPS-SOP-INCIDENT.md": _doc("NL-OPS-SOP-INCIDENT", "Confidential"),
-                "NL-SEC-DATA-RETENTION-2026.md": _doc("NL-SEC-DATA-RETENTION-2026", "Confidential"),
+                "NL-SEC-DATA-RETENTION-2026.md": _doc(
+                    "NL-SEC-DATA-RETENTION-2026", "Confidential"
+                ),
             },
             [
                 "NL-HR-A,NL-HR-A.md,policy,group,Internal,10,policy_qa\n",
@@ -61,7 +63,9 @@ class WesternCorpusFixtureTests(unittest.TestCase):
             ],
         )
         documents = {document.doc_id: document for document in self._load()}
-        self.assertEqual(set(documents), {"NL-HR-A", "NL-OPS-SOP-INCIDENT", "NL-SEC-DATA-RETENTION-2026"})
+        self.assertEqual(
+            set(documents), {"NL-HR-A", "NL-OPS-SOP-INCIDENT", "NL-SEC-DATA-RETENTION-2026"}
+        )
         self.assertEqual(documents["NL-HR-A"].classification, "public")
         self.assertEqual(documents["NL-OPS-SOP-INCIDENT"].classification, "restricted")
         self.assertEqual(documents["NL-SEC-DATA-RETENTION-2026"].classification, "public")
@@ -86,7 +90,9 @@ class WesternCorpusFixtureTests(unittest.TestCase):
         self.assertIn(fragment, str(caught.exception))
 
     def test_missing_file_is_rejected(self):
-        self._assert_rejected({}, ["NL-HR-A,NL-HR-A.md,policy,group,Internal,1,x\n"], "file not found")
+        self._assert_rejected(
+            {}, ["NL-HR-A,NL-HR-A.md,policy,group,Internal,1,x\n"], "file not found"
+        )
 
     def test_unlisted_file_is_rejected(self):
         self._assert_rejected(
@@ -94,6 +100,13 @@ class WesternCorpusFixtureTests(unittest.TestCase):
             ["NL-HR-A,NL-HR-A.md,policy,group,Internal,1,x\n"],
             "NL-HR-B.md: present in corpus/western but not in the manifest",
         )
+
+    def test_readme_is_documentation_not_corpus(self):
+        self._write(
+            {"NL-HR-A.md": _doc("NL-HR-A"), "README.md": "# About this corpus\n"},
+            ["NL-HR-A,NL-HR-A.md,policy,group,Internal,1,x\n"],
+        )
+        self.assertEqual([document.doc_id for document in self._load()], ["NL-HR-A"])
 
     def test_unknown_classification_is_rejected(self):
         self._assert_rejected(
@@ -150,9 +163,12 @@ class WesternCorpusSafetyTests(unittest.TestCase):
             settings.WESTERN_CORPUS_AUTOSEED = False
             self.assertIsNone(auto_seed_western_corpus())
             settings.WESTERN_CORPUS_AUTOSEED = True
-            with mock.patch.object(
-                western, "load_documents", side_effect=WesternCorpusError("bad drop")
-            ), mock.patch.object(western, "log_event") as log_event:
+            with (
+                mock.patch.object(
+                    western, "load_documents", side_effect=WesternCorpusError("bad drop")
+                ),
+                mock.patch.object(western, "log_event") as log_event,
+            ):
                 self.assertIsNone(auto_seed_western_corpus())
             self.assertEqual(log_event.call_args.args[0], "western_corpus.autoseed_failed")
         finally:

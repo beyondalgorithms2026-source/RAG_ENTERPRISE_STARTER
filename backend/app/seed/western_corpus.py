@@ -51,6 +51,8 @@ CLASSIFICATION_MAP = {"Internal": "public", "Confidential": "restricted"}
 CLASSIFICATION_OVERRIDES = {"NL-SEC-DATA-RETENTION-2026": "public"}
 # Listed in the manifest but, per eval/western/EVAL_README.md, not searchable policy.
 EXCLUDED_IDS = {"NL-CORPUS-NOTES-2026"}
+# Repository documentation in corpus/western, never seeded or required in the manifest.
+NON_CORPUS_FILES = {"README.md"}
 
 OWNER_GROUP_BY_PREFIX = {
     "HR": "people-operations",
@@ -220,11 +222,13 @@ def load_documents(
 
     if corpus_dir.exists():
         for path in sorted(corpus_dir.glob("*.md")):
-            if path.name not in listed_files:
+            if path.name not in listed_files and path.name not in NON_CORPUS_FILES:
                 problems.append(f"{path.name}: present in corpus/western but not in the manifest")
 
     if problems:
-        raise WesternCorpusError("Western corpus validation failed:\n  - " + "\n  - ".join(problems))
+        raise WesternCorpusError(
+            "Western corpus validation failed:\n  - " + "\n  - ".join(problems)
+        )
     return documents
 
 
@@ -404,18 +408,27 @@ def auto_seed_western_corpus() -> dict[str, Any] | None:
             reason=str(exc)[:500],
         )
         return None
-    log_event("western_corpus.autoseeded", stage="startup", status="completed", **{
-        key: stats[key] for key in ("sources", "chunks", "unchanged", "restricted")
-    })
+    log_event(
+        "western_corpus.autoseeded",
+        stage="startup",
+        status="completed",
+        **{key: stats[key] for key in ("sources", "chunks", "unchanged", "restricted")},
+    )
     return stats
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     action = parser.add_mutually_exclusive_group(required=True)
-    action.add_argument("--dry-run", action="store_true", help="Validate and estimate; no DB or API.")
+    action.add_argument(
+        "--dry-run", action="store_true", help="Validate and estimate; no DB or API."
+    )
     action.add_argument("--apply", action="store_true", help="Write sources, chunks and ACL.")
-    action.add_argument("--wipe", action="store_true", help="Delete only this seed pack's sources.")
+    action.add_argument(
+        "--wipe", action="store_true", help="Delete only this seed pack's sources."
+    )
     parser.add_argument("--no-embed", action="store_true", help="With --apply, skip embedding.")
     parser.add_argument("--confirm", default="", help=f"Required with --wipe: {SEED_PACK}.")
     args = parser.parse_args(argv)
@@ -425,7 +438,9 @@ def main(argv: list[str] | None = None) -> int:
             result = wipe(confirm=args.confirm)
         else:
             documents = load_documents()
-            result = dry_run(documents) if args.dry_run else apply(documents, embed=not args.no_embed)
+            result = (
+                dry_run(documents) if args.dry_run else apply(documents, embed=not args.no_embed)
+            )
     except WesternCorpusError as exc:
         print(str(exc))
         return 1

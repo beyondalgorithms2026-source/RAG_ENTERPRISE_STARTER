@@ -6,13 +6,13 @@ from pydantic import BaseModel, Field
 
 from app.auth.context import AuthenticatedUser, get_current_user
 from app.auth.dependencies import require_admin_user, require_connector_request_user
-from app.core_rag.corpus_scope import corpus_scope, normalize_corpora
 from app.connectors.db import (
     ingest_db_connector,
     inspect_db_connector_schema,
     preview_db_connector_sync,
 )
 from app.connectors.runtime import ConnectorSyncConflict, poke_connector_scheduler
+from app.core_rag.corpus_scope import corpus_scope, normalize_corpora
 from app.db.repo_admin_audit import insert_admin_audit_event
 from app.db.repo_chunks import fetch_chunk_context, get_chunks_for_enrichment
 from app.db.repo_connectors import (
@@ -277,7 +277,9 @@ def corpus_list_endpoint(corpus: list[str] | None = Query(default=None)):
     try:
         requested_corpora = normalize_corpora(corpus)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail={"error": "invalid_corpus", "message": str(exc)})
+        raise HTTPException(
+            status_code=422, detail={"error": "invalid_corpus", "message": str(exc)}
+        ) from exc
     with corpus_scope(requested_corpora):
         sources = list_accessible_sources()
     latest_job_by_source: dict[int, dict[str, Any]] = {}

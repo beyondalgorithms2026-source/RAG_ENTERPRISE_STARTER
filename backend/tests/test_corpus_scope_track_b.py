@@ -3,8 +3,6 @@
 import unittest
 from unittest import mock
 
-from pydantic import ValidationError
-
 import app.api.corpus as corpus_api
 import app.core_rag.answering as answering
 import app.core_rag.retrieval as retrieval
@@ -19,6 +17,7 @@ from app.core_rag.corpus_scope import (
 from app.core_rag.retrieval import SearchFilters, SearchRequest
 from app.main import app
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 
 class CorpusScopeTests(unittest.TestCase):
@@ -79,7 +78,9 @@ class CorpusScopeTests(unittest.TestCase):
     def test_perform_search_runs_inside_the_requested_scope(self):
         seen = []
         with mock.patch.object(
-            retrieval, "_perform_search_scoped", side_effect=lambda request: seen.append(active_corpora())
+            retrieval,
+            "_perform_search_scoped",
+            side_effect=lambda request: seen.append(active_corpora()),
         ):
             retrieval.perform_search(
                 SearchRequest(question="q", filters=SearchFilters(corpus=["western_northline"]))
@@ -90,7 +91,9 @@ class CorpusScopeTests(unittest.TestCase):
     def test_perform_ask_runs_inside_the_requested_scope(self):
         seen = []
         with mock.patch.object(
-            answering, "_perform_ask_scoped", side_effect=lambda *a, **k: seen.append(active_corpora())
+            answering,
+            "_perform_ask_scoped",
+            side_effect=lambda *a, **k: seen.append(active_corpora()),
         ):
             answering.perform_ask(
                 answering.AskRequest(question="q", filters={"corpus": ["western_northline"]})
@@ -101,9 +104,14 @@ class CorpusScopeTests(unittest.TestCase):
         settings.ALLOWED_CORPORA = "western_northline"
         seen = []
         client = TestClient(app)
-        with mock.patch.object(
-            corpus_api, "list_accessible_sources", side_effect=lambda: seen.append(active_corpora()) or []
-        ), mock.patch.object(corpus_api, "_enriched_ingestion_jobs", return_value=[]):
+        with (
+            mock.patch.object(
+                corpus_api,
+                "list_accessible_sources",
+                side_effect=lambda: seen.append(active_corpora()) or [],
+            ),
+            mock.patch.object(corpus_api, "_enriched_ingestion_jobs", return_value=[]),
+        ):
             self.assertEqual(client.get("/corpus?corpus=western_northline").status_code, 200)
             self.assertEqual(client.get("/corpus").status_code, 200)
             self.assertEqual(client.get("/corpus?corpus=unknown").status_code, 422)

@@ -53,7 +53,9 @@ def corpus_scope(corpora: Iterable[str] | None) -> Iterator[tuple[str, ...] | No
         _active_corpora.reset(token)
 
 
-def corpus_scope_sql(*, params: dict[str, Any], source_alias: str = "s", prefix: str = "access") -> str:
+def corpus_scope_sql(
+    *, params: dict[str, Any], source_alias: str = "s", prefix: str = "access"
+) -> str:
     corpora = active_corpora()
     if corpora is None:
         return ""
