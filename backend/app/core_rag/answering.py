@@ -17,6 +17,7 @@ from app.core_rag.context_selection import (
     definition_term,
     select_candidates,
 )
+from app.core_rag.corpus_scope import cache_corpus_scope, corpus_scope
 from app.core_rag.numeric_claims import (
     NumericInfrastructureError,
     generate_checked_answer,
@@ -1336,6 +1337,22 @@ def perform_ask(
     policy_override: dict[str, Any] | None = None,
     cache_namespace_override: str | None = None,
 ) -> AskResponse:
+    with corpus_scope(request.filters.corpus if request.filters else None):
+        return _perform_ask_scoped(
+            request,
+            progress_callback,
+            policy_override=policy_override,
+            cache_namespace_override=cache_namespace_override,
+        )
+
+
+def _perform_ask_scoped(
+    request: AskRequest,
+    progress_callback: Callable[[int, str], None] | None = None,
+    *,
+    policy_override: dict[str, Any] | None = None,
+    cache_namespace_override: str | None = None,
+) -> AskResponse:
     actor = get_current_user()
     policy = policy_override or get_active_policy_version()
     prior_cache_entry = (
@@ -1357,6 +1374,7 @@ def perform_ask(
         cached = get_cache_entry(
             question=request.question,
             retrieval_mode=request.mode,
+            corpus_scope=cache_corpus_scope(),
             actor=actor,
             policy=policy,
             cache_namespace=cache_namespace_override,
@@ -1458,6 +1476,7 @@ def perform_ask(
             stored_entry = store_cache_entry(
                 question=request.question,
                 retrieval_mode=request.mode,
+                corpus_scope=cache_corpus_scope(),
                 answer_json={
                     "answer": response.answer,
                     "used_chunks_count": response.used_chunks_count,

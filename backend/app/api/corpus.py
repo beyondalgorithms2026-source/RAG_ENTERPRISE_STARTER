@@ -1,11 +1,12 @@
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
 from app.auth.context import AuthenticatedUser, get_current_user
 from app.auth.dependencies import require_admin_user, require_connector_request_user
+from app.core_rag.corpus_scope import corpus_scope, normalize_corpora
 from app.connectors.db import (
     ingest_db_connector,
     inspect_db_connector_schema,
@@ -272,7 +273,13 @@ def _connector_request_payload(row) -> ConnectorRequestItem:
 
 
 @router.get("/corpus", response_model=list[CorpusItem])
-def corpus_list_endpoint():
+def corpus_list_endpoint(corpus: list[str] | None = Query(default=None)):
+    try:
+        requested_corpora = normalize_corpora(corpus)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail={"error": "invalid_corpus", "message": str(exc)})
+    with corpus_scope(requested_corpora):
+        sources = list_accessible_sources()
     latest_job_by_source: dict[int, dict[str, Any]] = {}
     for job in _enriched_ingestion_jobs():
         source_id = job.get("source_id")
@@ -285,7 +292,7 @@ def corpus_list_endpoint():
             freshness=source_freshness(row),
             latest_ingestion_job=latest_job_by_source.get(int(row.id)),
         )
-        for row in list_accessible_sources()
+        for row in sources
     ]
 
 
