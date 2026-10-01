@@ -1,0 +1,16 @@
+id,filename,doc_type,jurisdiction,classification,word_count,gold_use
+NL-HR-LEAVE-2026,NL-HR-LEAVE-2026.md,policy,group,Internal,3786,policy_qa
+NL-FIN-EXPENSE-2026,NL-FIN-EXPENSE-2026.md,policy,group,Internal,1771,numbers_tables
+NL-CS-SUPPORT-PLAYBOOK-2026,NL-CS-SUPPORT-PLAYBOOK-2026.md,playbook,group,Internal,1707,sop_steps
+NL-SEC-AUP-2026,NL-SEC-AUP-2026.md,policy,group,Internal,1120,policy_qa
+NL-SEC-DATA-RETENTION-2026,NL-SEC-DATA-RETENTION-2026.md,policy,group,Confidential,3513,numbers_tables
+NL-OPS-REMOTE-2026,NL-OPS-REMOTE-2026.md,policy,group,Internal,1161,policy_qa
+NL-PROC-VENDOR-2026,NL-PROC-VENDOR-2026.md,sop,group,Internal,1239,sop_steps
+NL-HR-CODE-2026,NL-HR-CODE-2026.md,policy,group,Internal,1225,policy_qa
+NL-FIN-EXPENSE-APPENDIX-RATES,NL-FIN-EXPENSE-APPENDIX-RATES.md,appendix,group,Internal,411,numbers_tables
+NL-CS-MACROS,NL-CS-MACROS.md,playbook,group,Internal,598,sop_steps
+NL-OPS-SOP-INCIDENT,NL-OPS-SOP-INCIDENT.md,sop,group,Confidential,406,sop_steps
+NL-FIN-SAMPLE-INVOICE-GUIDE,NL-FIN-SAMPLE-INVOICE-GUIDE.md,sop,group,Internal,310,sop_steps
+NL-POLICY-CHANGELOG-2026,NL-POLICY-CHANGELOG-2026.md,changelog,group,Internal,282,policy_qa
+NL-TEST-POISON-DOC,NL-TEST-POISON-DOC.md,test_fixture,group,Internal,99,negative_control
+NL-CORPUS-NOTES-2026,CORPUS_NOTES.md,appendix,group,Internal,792,numbers_tables

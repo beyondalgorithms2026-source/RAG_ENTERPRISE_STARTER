@@ -166,6 +166,9 @@ def start_background_workers() -> None:
     from app.seed.public_demo import auto_seed_public_demo
 
     auto_seed_public_demo()
+    from app.seed.western_corpus import auto_seed_western_corpus
+
+    auto_seed_western_corpus()
     from app.coherence import enforce_startup_coherence
 
     enforce_startup_coherence()

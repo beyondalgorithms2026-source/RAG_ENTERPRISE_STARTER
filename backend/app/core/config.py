@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     # Opt-in deterministic synthetic-corpus provisioning for the hosted public demo.
     # It remains false for local, pilot, and production-like environments.
     PUBLIC_DEMO_AUTOSEED: bool = False
+    # Opt-in seeding of the synthetic Northline (Western) corpus from corpus/western.
+    WESTERN_CORPUS_AUTOSEED: bool = False
     MAX_UPLOAD_SIZE_BYTES: int = 25 * 1024 * 1024
     ALLOWED_UPLOAD_EXTENSIONS: tuple[str, ...] = (
         "pdf",
@@ -138,6 +140,8 @@ class Settings(BaseSettings):
     # Retrieval configuration
     ACCESS_STRATEGY: str = "document_acl_with_time_bound_grants"
     RETRIEVAL_MODE: str = "hybrid"
+    # Comma-separated corpus names a request may scope to; empty accepts any name.
+    ALLOWED_CORPORA: str = ""
     RERANK_ENABLED: bool = False
     RERANK_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     TOP_K_INITIAL: int = 30

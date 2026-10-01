@@ -4,6 +4,7 @@ from typing import Any, Literal
 
 from app.core.config import settings
 from app.core.logging import log_event, logger
+from app.core_rag.corpus_scope import corpus_scope, normalize_corpora
 from app.core_rag.query_router import QueryRouteDecision, route_query
 from app.core_rag.query_transform import transform_query
 from app.corpus_policies import get_source_corpus_policy
@@ -16,7 +17,7 @@ from app.graph.graph_retriever import retrieve_graph_candidates
 from app.graph.temporal import analyze_temporal_metadata
 from app.ingestion.enrichment import ensure_lazy_full_mode_readiness
 from app.profiles.resolver import get_effective_reranker, get_effective_retrieval
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 SearchMode = Literal["vector", "keyword", "hybrid", "graph_hybrid", "full"]
 DEEP_LOOKUP_MODE = "deep_lookup"
@@ -59,6 +60,14 @@ class SearchFilters(BaseModel):
     source_part_id: int | None = None
     locator_filter: str | None = None
     metadata_filters: dict[str, str] | None = None
+    # Restricts the request to sources whose source_metadata_json.corpus is listed.
+    corpus: list[str] | None = None
+
+    @field_validator("corpus")
+    @classmethod
+    def _validate_corpus(cls, value: list[str] | None) -> list[str] | None:
+        corpora = normalize_corpora(value)
+        return list(corpora) if corpora is not None else None
 
 
 class SearchRequest(BaseModel):
@@ -1429,6 +1438,11 @@ def _maybe_fan_out_multi_query(
 
 
 def perform_search(request: SearchRequest) -> SearchResponse:
+    with corpus_scope(request.filters.corpus if request.filters else None):
+        return _perform_search_scoped(request)
+
+
+def _perform_search_scoped(request: SearchRequest) -> SearchResponse:
     import uuid
 
     start_time = time.time()

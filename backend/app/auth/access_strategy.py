@@ -7,6 +7,7 @@ from sqlalchemy import text
 from app.auth.context import AuthenticatedUser, get_current_user
 from app.auth.service import anonymous_research_enabled, local_dev_auth_enabled
 from app.core.config import settings
+from app.core_rag.corpus_scope import corpus_scope_sql
 from app.db.db import engine
 
 SUPPORTED_ACCESS_STRATEGIES = {
@@ -106,6 +107,19 @@ def _corpus_grant_sql(*, source_alias: str, external_user_param: str, email_para
 
 
 def source_access_sql(
+    *, params: dict[str, Any], source_alias: str = "s", prefix: str = "access"
+) -> str:
+    authorization = _source_authorization_sql(
+        params=params, source_alias=source_alias, prefix=prefix
+    )
+    # A request-level corpus scope can only narrow what authorization allows.
+    scope = corpus_scope_sql(params=params, source_alias=source_alias, prefix=prefix)
+    if not scope:
+        return authorization
+    return f"({authorization} AND {scope})"
+
+
+def _source_authorization_sql(
     *, params: dict[str, Any], source_alias: str = "s", prefix: str = "access"
 ) -> str:
     context = current_access_context()

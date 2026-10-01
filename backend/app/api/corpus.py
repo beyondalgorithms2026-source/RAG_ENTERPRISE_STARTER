@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
@@ -12,6 +12,7 @@ from app.connectors.db import (
     preview_db_connector_sync,
 )
 from app.connectors.runtime import ConnectorSyncConflict, poke_connector_scheduler
+from app.core_rag.corpus_scope import corpus_scope, normalize_corpora
 from app.db.repo_admin_audit import insert_admin_audit_event
 from app.db.repo_chunks import fetch_chunk_context, get_chunks_for_enrichment
 from app.db.repo_connectors import (
@@ -272,7 +273,15 @@ def _connector_request_payload(row) -> ConnectorRequestItem:
 
 
 @router.get("/corpus", response_model=list[CorpusItem])
-def corpus_list_endpoint():
+def corpus_list_endpoint(corpus: list[str] | None = Query(default=None)):
+    try:
+        requested_corpora = normalize_corpora(corpus)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail={"error": "invalid_corpus", "message": str(exc)}
+        ) from exc
+    with corpus_scope(requested_corpora):
+        sources = list_accessible_sources()
     latest_job_by_source: dict[int, dict[str, Any]] = {}
     for job in _enriched_ingestion_jobs():
         source_id = job.get("source_id")
@@ -285,7 +294,7 @@ def corpus_list_endpoint():
             freshness=source_freshness(row),
             latest_ingestion_job=latest_job_by_source.get(int(row.id)),
         )
-        for row in list_accessible_sources()
+        for row in sources
     ]
 
 
