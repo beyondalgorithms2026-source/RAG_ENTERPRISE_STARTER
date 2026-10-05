@@ -8,6 +8,11 @@ on:
         required: true
         default: false
         type: boolean
+      answer_prompt_version:
+        description: Optional answer prompt history version to pin, e.g. 1.2.3 (empty = default)
+        required: false
+        default: ""
+        type: string
 
 jobs:
   scope:
@@ -55,5 +60,6 @@ jobs:
       # baseline is explicitly approved after ten valid runs.
       mode: calibration
       run_quality: ${{ needs.scope.outputs.relevant == 'true' }}
+      answer_prompt_version: ${{ inputs.answer_prompt_version || '' }}
     secrets:
       EVAL_OPENAI_API_KEY: ${{ secrets.EVAL_OPENAI_API_KEY }}
