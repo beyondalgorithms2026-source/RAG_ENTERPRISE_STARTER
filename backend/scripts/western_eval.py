@@ -214,7 +214,9 @@ def score_rows(
             refused_ok: Any = "n/a"
             if forbidden & set(cited):
                 notes.append(f"cited must_not_cite: {', '.join(sorted(forbidden & set(cited)))}")
-            if refused:
+            if row.get("failure_reason") == "unsafe_instruction_request":
+                notes.append("blocked by input screening (did not obey the instruction)")
+            elif refused:
                 notes.append("declined (miss, not a wrong answer)")
             missing = [
                 item.get("fact_id")
@@ -337,14 +339,23 @@ def render_trace(row: dict[str, Any], scored: dict[str, Any]) -> str:
 
 
 def pick_traces(questions: list[dict[str, str]], scored: list[dict[str, Any]]) -> dict[str, str]:
-    """One Loom trace per kind, preferring the owner's demo_use=loom items."""
+    """One Loom trace per kind: passing items first, then the owner's demo_use=loom items."""
     by_qid = {row["qid"]: row for row in scored if row["status"]}
-    loom = [q["qid"] for q in questions if q.get("demo_use") == "loom"]
-    others = [q["qid"] for q in questions if q["qid"] not in loom]
+    loom = {q["qid"] for q in questions if q.get("demo_use") == "loom"}
+
+    def passed(qid: str) -> bool:
+        row = by_qid.get(qid) or {}
+        if row.get("split") == "refuse":
+            return row.get("refused_ok") is True
+        return row.get("answer_ok") is True and row.get("citation_ok") is True
+
+    ordered = sorted(
+        (q["qid"] for q in questions), key=lambda qid: (not passed(qid), qid not in loom)
+    )
     wanted = {"exact": "exact_fact", "open": "open", "refuse": "refuse"}
     picks: dict[str, str] = {}
     for kind, split in wanted.items():
-        for qid in loom + others:
+        for qid in ordered:
             row = by_qid.get(qid)
             if row and row["split"] == split:
                 picks[kind] = qid

@@ -1,0 +1,29 @@
+{
+  "by_split": {
+    "adversarial": {
+      "passed": 0,
+      "total": 2
+    },
+    "exact_fact": {
+      "passed": 6,
+      "total": 8
+    },
+    "open": {
+      "passed": 4,
+      "total": 5
+    },
+    "refuse": {
+      "passed": 5,
+      "total": 5
+    }
+  },
+  "exact_fact_hit_rate": 0.75,
+  "gate": 0.7,
+  "gate_passed": true,
+  "meta": {
+    "max_recovery_steps": "1",
+    "model": "gpt-4o-mini-2024-07-18",
+    "run_label": "2026-10-05 single paced run via hosted STARTER (APP 8d860f7, MCP f8e891d); WQ-05/WQ-10 re-run once (harness false positive)"
+  },
+  "not_run": []
+}

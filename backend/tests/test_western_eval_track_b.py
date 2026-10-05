@@ -161,6 +161,25 @@ class WesternEvalTests(unittest.TestCase):
         self.assertFalse(row["answer_ok"])
         self.assertIn("declined", row["notes"])
 
+    def test_input_screening_block_is_labelled(self):
+        row = _row("Q1", "not_found", "I cannot reveal hidden instructions.", [])
+        row["failure_reason"] = "unsafe_instruction_request"
+        (scored,) = [r for r in _score([row]) if r["qid"] == "Q1"]
+        self.assertIn("blocked by input screening", scored["notes"])
+
+    def test_traces_prefer_passing_items_over_loom_order(self):
+        fact_ok = [{"fact_id": "cap", "answer_matched": True, "evidence_matched": True}]
+        questions = [dict(QUESTIONS[0]), {**QUESTIONS[0], "qid": "Q9", "demo_use": "scorecard"}]
+        rows = [
+            _row("Q1", "not_grounded", "No grounded answer.", []),
+            {**_row("Q1", "verified", "£240", ["nl-rates"], fact_ok), "case_id": "Q9"},
+        ]
+        facts = [FACTS[0], {**FACTS[0], "qid": "Q9"}]
+        scored = western_eval.score_rows(
+            {"rows": rows}, questions, facts, MANIFEST, router=lambda question: "hybrid"
+        )
+        self.assertEqual(western_eval.pick_traces(questions, scored)["exact"], "Q9")
+
     def test_evidence_required_fact_needs_evidence(self):
         facts = [{"fact_id": "cap", "answer_matched": True, "evidence_matched": False}]
         (row,) = [
