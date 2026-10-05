@@ -43,3 +43,6 @@ data/extracted/*
 !data/extracted/.gitkeep
 data/graph_artifacts/*
 !data/graph_artifacts/.gitkeep
+
+# Private working copy of the Track B plan (published version: docs/track-b/)
+/IMPLEMENTATION_TRACK_B.md

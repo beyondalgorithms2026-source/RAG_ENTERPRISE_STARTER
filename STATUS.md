@@ -1,6 +1,6 @@
 # Operational Snapshot
 
-Last reconciled: 13 September 2026.
+Last reconciled: 5 October 2026.
 
 ## Current state
 
@@ -11,23 +11,32 @@ Last reconciled: 13 September 2026.
 - The deterministic public corpus contains 28 synthetic documents. Source 28 is the
   versioned Northwind Operations Manual v3.2 and is parsed and chunked through production
   ingestion code with source-hash validation.
+- Track B (complete, 5 October 2026) added a second synthetic company, Northline Analytics
+  (14 documents in `corpus/western/`; 13 public, 1 restricted). Every request is scoped to one
+  company through `SearchFilters.corpus`, which can only narrow access. Hosted database: 42
+  sources (28 Northwind + 14 Northline), no duplicate rows. Record:
+  `docs/track-b/IMPLEMENTATION_TRACK_B.md`; scorecard and poison test:
+  `docs/evaluation/western/`.
 - The approved public quality baseline remains the 25-case v1 run. The 90-case v2 suite
   (25 core plus 65 manual cases), performance thresholds, and expanded RT-01–RT-20
   governance set are implemented as candidates pending live calibration and approval.
+  Calibration runs before 5 October are not valid: the RT-06 test emptied the CI corpus
+  before the core phase (fixed in #31). The first valid run scored core 25/25.
 - M20–M30 retain manual-verification closure notes; the full test suite now covers their
   implemented paths, but the historical per-milestone notes have not all been closed.
 
 ## Verified B004 posture
 
 - This is a self-built proof of concept with a public Render Free portfolio demo over
-  the 28-document synthetic corpus. It is not a production or client deployment and has
-  no client environment, real users, or real workload evidence.
+  two synthetic corpora (Northwind, 28 documents; Northline, 14). It is not a production or
+  client deployment and has no client environment, real users, or real workload evidence.
 - Access control is enforced inside retrieval SQL.
 - Citation enforcement prefers a safe not-found result to an unsupported answer.
 - Retrieval augmentation is implemented but off by default; a backend operator enables
   it per corpus, and the agent cannot change that profile.
 - The offline suite is designed to report database-bound coverage as explicit skips.
-  Set `RAG_REQUIRE_DB=1` when a live migrated database is required.
+  Set `RAG_REQUIRE_DB=1` when a live migrated database is required. Database tests refuse
+  non-local hosts unless `RAG_TEST_ALLOW_REMOTE_DB=1`.
 
 The published B004 measurements and their limitations are maintained in the
 [evaluation report](https://beyondalgorithms2026-source.github.io/RAG_ENTERPRISE_LANGGRAPH_APP/evaluation/).

@@ -374,18 +374,20 @@ No infra/auth milestones. UI work is limited to the bucket switch, banner, group
 
 ## 4. Definition of done
 
-- [ ] `corpus/western` ingested on the existing stack (same Supabase DB, embedder and chunker), once per doc (no duplicates)
-- [ ] Live app answers from Northline on the existing Render services (redeploy of the same services only)
-- [ ] Documents page shows two clearly labelled buckets; homepage banner explains them; Northline starter cards
-- [ ] Scorecard for the **20** supplied questions (owner's `EVAL_README.md` sets 20, not ~40): `qid, split, predicted_route, used_doc_ids, answer_ok, citation_ok, refused_ok, notes` (+ extras)
-- [ ] exact_fact (8), open (6), refuse (4) and adversarial (2) scored separately
-- [ ] Refusal (`not_found`/`not_grounded`) on refuse items = success, not an accuracy failure
-- [ ] Existing orchestrator routing + refusal/evidence gates reused unchanged; no matrix/tuning run unless exact_fact < 0.70 **and** the owner approves
-- [ ] One poison test logged with residual risk (no “secure” claim), if M6 is approved
-- [ ] README: re-ingest, run eval, data statement; §1.9 corrections applied
-- [ ] No GST/India fields in the Western path (guard + test)
-- [ ] Northwind intact; D1 duplicates resolved or explicitly deferred by the owner
-- [ ] Total OpenAI spend within the agreed budget, logged
+All items met, checked against the live system on 2026-10-05 (§8.19).
+
+- [x] `corpus/western` ingested on the existing stack (same Supabase DB, embedder and chunker), once per doc (no duplicates)
+- [x] Live app answers from Northline on the existing Render services (redeploy of the same services only)
+- [x] Documents page shows two clearly labelled buckets; homepage banner explains them; Northline starter cards
+- [x] Scorecard for the **20** supplied questions (owner's `EVAL_README.md` sets 20, not ~40): `qid, split, predicted_route, used_doc_ids, answer_ok, citation_ok, refused_ok, notes` (+ extras)
+- [x] exact_fact (8), open (6), refuse (4) and adversarial (2) scored separately
+- [x] Refusal (`not_found`/`not_grounded`) on refuse items = success, not an accuracy failure
+- [x] Existing orchestrator routing + refusal/evidence gates reused unchanged; no matrix/tuning run unless exact_fact < 0.70 **and** the owner approves
+- [x] One poison test logged with residual risk (no “secure” claim), if M6 is approved
+- [x] README: re-ingest, run eval, data statement; §1.9 corrections applied
+- [x] No GST/India fields in the Western path (guard + test)
+- [x] Northwind intact; D1 duplicates resolved or explicitly deferred by the owner
+- [x] Total OpenAI spend within the agreed budget, logged
 
 ---
 
