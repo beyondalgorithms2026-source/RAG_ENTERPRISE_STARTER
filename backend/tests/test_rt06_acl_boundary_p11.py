@@ -22,6 +22,17 @@ from generate_corpus import write_corpus  # noqa: E402
 from library import DOCUMENTS  # noqa: E402
 
 
+def _public_demo_storage_paths() -> dict[int, str]:
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT id, storage_path FROM sources "
+                "WHERE source_metadata_json->>'seed_pack' = 'public_demo'"
+            )
+        )
+        return {int(row.id): str(row.storage_path) for row in rows}
+
+
 def setUpModule():
     from tests.db_guard import require_database
 
@@ -38,13 +49,23 @@ class Rt06AclBoundaryP11Tests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory(prefix="b004-rt06-")
         self.corpus_path = Path(self.temp_dir.name)
         write_corpus(self.corpus_path, DOCUMENTS)
+        # The seeder matches existing public_demo rows by document identity and moves
+        # their storage_path here. Remember them so tearDown restores, not deletes, them.
+        self.preexisting_paths = _public_demo_storage_paths()
         seed_public_demo(self.corpus_path, embed=False)
 
     def tearDown(self):
         with engine.begin() as conn:
+            for source_id, storage_path in self.preexisting_paths.items():
+                conn.execute(
+                    text("UPDATE sources SET storage_path = :path WHERE id = :id"),
+                    {"path": storage_path, "id": source_id},
+                )
             conn.execute(
-                text("DELETE FROM sources WHERE storage_path LIKE :prefix"),
-                {"prefix": f"{self.corpus_path}%"},
+                text(
+                    "DELETE FROM sources WHERE storage_path LIKE :prefix AND NOT (id = ANY(:keep))"
+                ),
+                {"prefix": f"{self.corpus_path}%", "keep": list(self.preexisting_paths)},
             )
         self.temp_dir.cleanup()
         settings.ACCESS_STRATEGY = self.original_strategy
