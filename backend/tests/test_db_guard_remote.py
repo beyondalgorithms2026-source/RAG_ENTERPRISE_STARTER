@@ -23,6 +23,8 @@ class RemoteDatabaseGuardTests(unittest.TestCase):
             "postgresql://u:p@[::1]:5432/db",
             "postgresql://u:p@postgres:5432/db",
             "postgresql://u:p@pg.localhost/db",
+            "postgresql://postgres@/postgres?host=/tmp/pg-socket",
+            "postgresql:///db",
         ):
             self.assertEqual(remote_database_reason(url), "", url)
 
@@ -30,6 +32,11 @@ class RemoteDatabaseGuardTests(unittest.TestCase):
         reason = remote_database_reason(SUPABASE)
         self.assertIn("pooler.supabase.com", reason)
         self.assertNotIn(":p@", reason)
+
+    def test_remote_host_in_query_is_refused(self):
+        self.assertIn(
+            "db.example.com", remote_database_reason("postgresql:///db?host=db.example.com")
+        )
 
     def test_explicit_opt_in_allows_remote(self):
         os.environ["RAG_TEST_ALLOW_REMOTE_DB"] = "1"

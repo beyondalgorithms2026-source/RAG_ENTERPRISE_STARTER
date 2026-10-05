@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import os
 import unittest
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 LOCAL_DB_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "postgres", "db"})
 
@@ -32,7 +32,13 @@ def remote_database_reason(database_url: str) -> str:
     """Return why the URL is not safe for tests to write to, or "" when it is local."""
     if os.environ.get("RAG_TEST_ALLOW_REMOTE_DB") == "1":
         return ""
-    host = (urlsplit(database_url).hostname or "").lower()
+    parts = urlsplit(database_url)
+    host = (parts.hostname or "").lower()
+    if not host:
+        # libpq reads a Unix-socket directory from ?host=/path; no host means the default socket.
+        host = (parse_qs(parts.query).get("host") or [""])[0]
+        if not host or host.startswith("/"):
+            return ""
     if host in LOCAL_DB_HOSTS or host.endswith(".localhost"):
         return ""
     return (
