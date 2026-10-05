@@ -51,8 +51,8 @@ visibly, with a reason, because testing SQL-level access control against a fake 
 planner proves very little. The current command reports:
 
 ```
-Reported by unittest: 119 tests
-Passed without a database: 83
+Reported by unittest: 148 tests
+Passed without a database: 112
 Explicit database-dependent skips: 36
 Failures or errors: 0
 ```
@@ -63,7 +63,8 @@ have a database cannot pass by skipping everything.
 ## What this is NOT
 
 - **Not a production or client deployment.** The public Render Free service is a
-  self-built portfolio demo over a 28-document synthetic corpus. It has no client
+  self-built portfolio demo over two synthetic corpora: Northwind Logistics (28 documents)
+  and Northline Analytics (14 documents, US/EU). It has no client
   environment, real users, or real workload evidence.
 - **Not multi-tenant, and not multi-worker.** Single-process by design and guarded
   against being run otherwise.
@@ -72,9 +73,9 @@ have a database cannot pass by skipping everything.
   audit machinery around them is real; the outbound effect is deliberately absent.
 - **`AUTH_MODE=password` is not implemented.** It is reserved and says so.
 - **Retrieval enhancements ship off by design.** Reranking, MMR, query transformation,
-  rewrite, expansion, HyDE and multi-query are implemented and switched off. An operator
-  enables them per corpus; the agent layer cannot reach them. The published evaluation
-  measures both states.
+  rewrite, expansion, HyDE and multi-query are implemented and switched off in the hosted
+  demo. An operator enables them through retrieval profiles; the agent layer cannot reach
+  them. The published evaluation measures the switched-off configuration.
 
 ## What is here
 
@@ -89,7 +90,8 @@ have a database cannot pass by skipping everything.
 
 ## Setup
 
-Requires Docker and Python 3.12.
+Requires Docker and Python 3.12. (The hosted demo runs the same backend on Render against a
+managed Supabase PostgreSQL/pgvector database; Docker is only for the local database.)
 
 ```bash
 docker compose up -d
@@ -114,10 +116,44 @@ company, with public, internal and restricted classifications that become real a
 grants:
 
 ```bash
-python corpus/generate_corpus.py --out ~/.rag-enterprise/uploads
-cd backend && python -m app.seed.public_demo
+# from the backend/ directory used above
+python ../corpus/generate_corpus.py --out ~/.rag-enterprise/uploads
+python -m app.seed.public_demo
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
+
+### Second corpus: Northline Analytics (US/EU)
+
+`corpus/western/` holds a second synthetic company, Northline Analytics Ltd (Manchester,
+Austin, Amsterdam): 13 public policy documents, one restricted incident SOP and one
+deliberately unsafe test fixture for prompt-injection checks. Its sources are tagged
+`corpus=western_northline`, and a request can be limited to one company with
+`filters.corpus` (or `GET /corpus?corpus=`). The scope is ANDed onto the access-control
+clause in the retrieval SQL, so it can only narrow what a user may see. See
+[`corpus/western/README.md`](corpus/western/README.md) for the data statement.
+
+```bash
+cd backend
+python -m app.seed.western_corpus --dry-run      # validate, chunk, estimate embedding cost
+python -m app.seed.western_corpus --apply        # load sources, chunks, ACL; embed new chunks
+python -m app.seed.western_corpus --wipe --confirm western_northline
+```
+
+On the hosted demo, `WESTERN_CORPUS_AUTOSEED=true` runs the same `--apply` at startup, and
+`ALLOWED_CORPORA` lists the corpus names a request may scope to. Re-runs are content-hash
+idempotent.
+
+The 20-question demo evaluation lives in `eval/western/`. Converting it and scoring a run
+of the agent layer's existing eval runner:
+
+```bash
+python backend/scripts/western_eval.py convert
+python backend/scripts/western_eval.py scorecard --report path/to/eval-results.json
+```
+
+The published result is in
+[`docs/evaluation/western/scorecard.md`](docs/evaluation/western/scorecard.md): a demo
+scorecard on synthetic data, not a benchmark.
 
 Repository map:
 
