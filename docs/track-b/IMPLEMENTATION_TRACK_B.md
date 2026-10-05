@@ -899,4 +899,7 @@ so this is first exercised in the M3 smoke test after deploy, with read-only GET
 - **§8.7 core-phase `not_found` explained** (STARTER #31): the RT-06 test re-seeded `public_demo` from a temp folder,
   which moved the CI-seeded rows there, and its tearDown then deleted them, so the core phase ran on an empty Northwind
   corpus (0 LLM calls). The test now restores the rows it moved. Reproduced and verified on a local pgvector Postgres
-  (28 → 0 sources before, 28 → 28 after). A paid full-eval run to confirm is optional.
+  (28 → 0 sources before, 28 → 28 after).
+- **Confirmed by one paid full-eval run** on `main` `ed853ca` (run 37315388125, $0.038): core phase **25/25**
+  (was 5/25), 20 verified + 5 correct refusals; manual phase unchanged at 46 pass / 16 fail / 3 review; full report
+  71 / 16 / 3 (was 51 / 36 / 3); refusals 8/8, safe-boundary 2/2, 0 infrastructure failures.
