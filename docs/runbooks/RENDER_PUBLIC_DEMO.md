@@ -9,7 +9,7 @@ It is a portfolio demo posture, not a production or client deployment.
 - automatic deployment only after GitHub checks pass
 - anonymous research access with SQL-level document ACLs
 - uploads, admin-expensive operations, connectors, and enrichment disabled
-- three answer requests and ten search requests per IP per minute
+- twelve answer requests and ten search requests per IP per minute
 - OpenAI `text-embedding-3-small` at 384 dimensions
 - versioned `gpt-4o-mini-2024-07-18`, capped at 600 output tokens per call
 - a USD 0.01 per-request cost alert
@@ -61,9 +61,24 @@ public deployment claim:
 - an answerable preset returns a cited result
 - an unsupported question refuses safely
 - `/upload` is rejected
-- the fourth rapid `/ask` request from one address receives HTTP 429
+- the thirteenth rapid `/ask` request from one address within a minute receives HTTP 429
 - a simulated OpenAI hard-limit response remains covered by the offline test
 
-Record measured status codes, latency, and test output in the B004 build log. Do not
-publish the URL or replace the README's “Not deployed anywhere” statement until the
-owner reviews and approves those measurements.
+Record measured status codes, latency, and test output in the B004 build log. (The
+owner approved those measurements and the URL is now published in the README.)
+
+## Track B: Northline corpus settings
+
+The same service also hosts the synthetic Northline Analytics corpus. Two non-secret
+settings enable it:
+
+- `ALLOWED_CORPORA=northwind-public-demo,western_northline`: corpus names a request may
+  scope to (unknown names get HTTP 422)
+- `WESTERN_CORPUS_AUTOSEED=true`: seed `corpus/western` at startup (idempotent; a bad
+  corpus drop is logged as `western_corpus.autoseed_failed` and skipped)
+
+The governance (APP) service chooses the default company with
+`RAG_AGENT_DEFAULT_CORPUS` (`northwind-public-demo` or `western_northline`). To roll back,
+set it to `northwind-public-demo`; to remove the corpus, run
+`python -m app.seed.western_corpus --wipe --confirm western_northline` and set
+`WESTERN_CORPUS_AUTOSEED=false`.
