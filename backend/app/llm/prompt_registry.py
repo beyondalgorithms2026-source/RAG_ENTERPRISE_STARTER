@@ -27,12 +27,29 @@ def load_prompt(prompt_id: str, *, candidate: bool = False) -> str:
     return content
 
 
+def load_prompt_version(prompt_id: str, version: str) -> str:
+    """Load a hash-verified prompt from the registry history by exact version."""
+    entry = _registry().get("history", {}).get(prompt_id, {}).get(version)
+    if not isinstance(entry, dict):
+        raise RuntimeError(f"STARTER prompt {prompt_id} has no registered version {version}")
+    content = (_ROOT / str(entry["file"])).read_text(encoding="utf-8").rstrip("\n")
+    if hashlib.sha256(content.encode("utf-8")).hexdigest() != entry.get("sha256"):
+        raise RuntimeError(f"STARTER prompt hash mismatch: {prompt_id} {version}")
+    return content
+
+
 def prompt_metadata() -> dict[str, dict[str, str]]:
     from app.core.config import settings
 
     registry = _registry()
     output: dict[str, dict[str, str]] = {}
+    pinned = settings.ANSWER_PROMPT_VERSION.strip()
     for prompt_id, entry in registry.get("prompts", {}).items():
+        if pinned and prompt_id == "starter_answer":
+            load_prompt_version(prompt_id, pinned)
+            history = registry["history"][prompt_id][pinned]
+            output[prompt_id] = {"version": pinned, "sha256": str(history["sha256"])}
+            continue
         candidate = settings.ANSWER_PROMPT_CANDIDATE and prompt_id == "starter_answer"
         if candidate:
             entry = registry.get("candidates", {}).get(prompt_id)

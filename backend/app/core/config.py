@@ -154,6 +154,9 @@ class Settings(BaseSettings):
     # Owner-enabled defaults; explicit false values retain the rollback path.
     ANSWER_CONTEXT_SELECTION_ENABLED: bool = True
     ANSWER_PROMPT_CANDIDATE: bool = True
+    # Pin the answer prompt to a registered history version (e.g. 1.2.3) for measurement;
+    # empty keeps the candidate/current selection above.
+    ANSWER_PROMPT_VERSION: str = ""
     # Source-bound arithmetic is routed only for supported binary threshold questions.
     ANSWER_NUMERIC_CLAIM_REPAIR_ENABLED: bool = True
 

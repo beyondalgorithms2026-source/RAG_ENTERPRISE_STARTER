@@ -38,6 +38,10 @@
       "1.2.2": {
         "file": "answer-v1.2.2.txt",
         "sha256": "93e7cf867bea099e421ae808a6e7a476dd9f4132fac996449cc14433ec7f8ec9"
+      },
+      "1.2.3": {
+        "file": "answer-v1.2.3.txt",
+        "sha256": "5fbb6c93d40935539881114b1c665ff5098d21d162a568583163110be1e5117a"
       }
     }
   }
