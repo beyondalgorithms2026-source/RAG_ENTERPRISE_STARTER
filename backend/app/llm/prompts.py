@@ -1,5 +1,5 @@
 from app.core.config import settings
-from app.llm.prompt_registry import load_prompt
+from app.llm.prompt_registry import load_prompt, load_prompt_version
 
 SYSTEM_PROMPT = load_prompt("starter_answer")
 REPAIR_PROMPT = load_prompt("starter_json_repair")
@@ -7,6 +7,9 @@ SECOND_PASS_PROMPT = load_prompt("starter_second_pass")
 
 
 def effective_system_prompt() -> str:
+    pinned = settings.ANSWER_PROMPT_VERSION.strip()
+    if pinned:
+        return load_prompt_version("starter_answer", pinned)
     return (
         load_prompt("starter_answer", candidate=True)
         if settings.ANSWER_PROMPT_CANDIDATE

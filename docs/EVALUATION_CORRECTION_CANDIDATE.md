@@ -56,3 +56,16 @@ safety blocker exists.
 The approved bounded numeric repair is implemented and defaults on;
 see `NUMERIC_CLAIM_REPAIR.md` for current targeted results and remaining
 performance/calibration requirements. This does not resolve OM-089 or approve v2.
+
+## Answer prompt 1.2.3 (draft, off by default — 5 October 2026)
+
+`ANSWER_PROMPT_VERSION` pins the answer prompt to a registered history version and wins
+over `ANSWER_PROMPT_CANDIDATE`. It is empty by default, so the live and CI default stays
+1.2.2. Version 1.2.3 is 1.2.2 plus three completeness rules, written after the 5 October
+calibration run found answers that left out retrieved facts (OM-060, OM-072, OM-084):
+reproduce every item of a source list and match its count; report every relevant cell of
+a table row; never write "the specified/applicable/relevant" value instead of the value.
+It is not promoted until a calibration run with `ANSWER_PROMPT_VERSION=1.2.3` is compared
+against the same run on 1.2.2. The semantic-cache scope now includes the answer-prompt
+selection, so changing either setting cannot serve answers cached under another prompt.
+

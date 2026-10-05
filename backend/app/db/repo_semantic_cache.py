@@ -51,6 +51,15 @@ def _cosine(a: list[float], b: list[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
+def answer_prompt_identity() -> str:
+    from app.core.config import settings
+
+    pinned = settings.ANSWER_PROMPT_VERSION.strip()
+    if pinned:
+        return f"version:{pinned}"
+    return "candidate" if settings.ANSWER_PROMPT_CANDIDATE else "current"
+
+
 def cache_scope(
     *, question: str, retrieval_mode: str | None, corpus_scope: dict[str, Any] | None = None
 ) -> dict[str, str]:
@@ -69,7 +78,11 @@ def cache_scope(
                 "corpus_grants": active_corpus_grant_fingerprint(),
             }
         ),
-        "profile_snapshot_hash": _stable_hash(profiles),
+        # The answer prompt selection is part of the profile: answers cached under one prompt
+        # version must not be served after ANSWER_PROMPT_CANDIDATE or ANSWER_PROMPT_VERSION changes.
+        "profile_snapshot_hash": _stable_hash(
+            {"profiles": profiles, "answer_prompt": answer_prompt_identity()}
+        ),
         "corpus_scope_hash": _stable_hash(corpus_scope or {}),
         "retrieval_mode": retrieval_mode or "",
     }

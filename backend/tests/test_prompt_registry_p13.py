@@ -62,7 +62,7 @@ class PromptRegistryP13Tests(unittest.TestCase):
             self.assertTrue((prompt_root / file_name).is_file(), file_name)
         registry = json.loads((prompt_root / "registry.json").read_text())
         history = registry["history"]["starter_answer"]
-        self.assertEqual(set(history), {"1.2.1", "1.2.2"})
+        self.assertEqual(set(history), {"1.2.1", "1.2.2", "1.2.3"})
         for entry in history.values():
             content = (prompt_root / entry["file"]).read_text().rstrip("\n")
             self.assertEqual(hashlib.sha256(content.encode()).hexdigest(), entry["sha256"])
