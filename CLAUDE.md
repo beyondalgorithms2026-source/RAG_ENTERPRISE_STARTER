@@ -65,6 +65,8 @@ cd web && npx tsc --noEmit && pnpm run build   # frontend changes
 
 Database-backed tests require a live migrated Postgres. `RAG_REQUIRE_DB=1` converts
 database skips into failures when a database is expected.
+They refuse non-local database hosts (for example a hosted `DATABASE_URL` in
+`backend/.env`) unless `RAG_TEST_ALLOW_REMOTE_DB=1` is set for a disposable database.
 
 Report the checks actually run, including failures and skips. Do not describe an
 unmeasured result as verified.
