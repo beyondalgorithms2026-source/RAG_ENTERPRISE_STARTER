@@ -88,6 +88,10 @@ have a database cannot pass by skipping everything.
 | Governance | Approval gates, hash-chained audit, admin console, evaluation packs |
 | Console | Next.js admin interface with no external dependencies — renders with the network blocked |
 
+## How this was built
+
+AI tools assisted with drafting, implementation and review. The linked source, tests and evaluation evidence show what was checked; AI-generated suggestions are not treated as proof of correctness.
+
 ## Setup
 
 Requires Docker and Python 3.12. (The hosted demo runs the same backend on Render against a
