@@ -97,6 +97,15 @@ class ProviderRegistryAR9Tests(unittest.TestCase):
         self.assertEqual(payload["response_format"], {"type": "json_object"})
         self.assertEqual(payload["model"], "gpt-4o-mini-2024-07-18")
         self.assertEqual(payload["max_tokens"], 128)
+        self.assertEqual(payload["seed"], 20261006)
+
+    def test_seed_is_sent_only_to_openai(self):
+        provider = OpenAICompatibleProvider()
+        llm = LLMProfileConfig(provider="ollama", model="llama3.2:3b")
+        payload = provider.build_payload(
+            llm, "sys", "user", json_mode=False, temperature=0.0, max_tokens=64
+        )
+        self.assertNotIn("seed", payload)
 
     def test_anthropic_uses_messages_shape_and_api_key_header(self):
         provider = AnthropicProvider()

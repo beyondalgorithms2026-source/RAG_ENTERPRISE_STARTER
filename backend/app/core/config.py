@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     # unbounded bill. The provider project's own hard spend limit remains the
     # final enforcement boundary.
     LLM_MAX_TOKENS: int = 600
+    # OpenAI best-effort reproducibility. Temperature 0 alone still produced different
+    # answers to the same question across identical calibration runs (6 Oct 2026).
+    # Sent only to the OpenAI provider.
+    LLM_SEED: int | None = 20261006
     LLM_API_KEY: str = ""
     OLLAMA_API_KEY: str = ""
 
