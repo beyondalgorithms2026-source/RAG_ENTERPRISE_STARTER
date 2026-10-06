@@ -81,6 +81,11 @@ class OpenAICompatibleProvider(LLMProvider):
         }
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
+        if getattr(llm, "provider", None) == "openai":
+            from app.core.config import settings
+
+            if settings.LLM_SEED is not None:
+                payload["seed"] = settings.LLM_SEED
         if getattr(llm, "reasoning_effort", None):
             payload["reasoning_effort"] = llm.reasoning_effort
         if max_tokens is not None:
