@@ -22,6 +22,10 @@ Last reconciled: 5 October 2026.
   governance set are implemented as candidates pending live calibration and approval.
   Calibration runs before 5 October are not valid: the RT-06 test emptied the CI corpus
   before the core phase (fixed in #31). The first valid run scored core 25/25.
+  Calibration is paused (6 October 2026): six runs on the candidate sets passed 71–75 of
+  90 with all refusals, but none counted because the judge does not yet quote the
+  mandatory cases OM-044/OM-046 literally. Record: APP
+  `docs/V2_CALIBRATION_2026-10-05.md`.
 - M20–M30 retain manual-verification closure notes; the full test suite now covers their
   implemented paths, but the historical per-milestone notes have not all been closed.
 
