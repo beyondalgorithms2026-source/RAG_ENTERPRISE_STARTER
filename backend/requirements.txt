@@ -1,5 +1,5 @@
 fastapi>=0.110.0
-uvicorn[standard]>=0.29.0
+uvicorn[standard]>=0.54.0
 pydantic-settings>=2.2.0
 # 2.1 makes postgresql:// URLs use psycopg (v3); this service ships psycopg2.
 sqlalchemy>=2.0.0,<2.1
