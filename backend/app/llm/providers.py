@@ -175,10 +175,11 @@ class AnthropicProvider(LLMProvider):
     def build_payload(
         self, llm, system_prompt, user_prompt, *, json_mode, temperature, max_tokens
     ):
+        # Claude Haiku 5.5 rejects `temperature` ("deprecated for this model", HTTP 400),
+        # so it is omitted here. The OpenAI-compatible provider still sends it.
         return {
             "model": llm.model,
             "max_tokens": int(max_tokens or 1024),
-            "temperature": temperature,
             "system": system_prompt,
             "messages": [{"role": "user", "content": user_prompt}],
         }
