@@ -265,5 +265,19 @@ class TwoProviderAnswerContractAR9Tests(unittest.TestCase):
         self.assertNotIn("response_format", capture["payload"])
 
 
+class AnthropicStopReasonTests(unittest.TestCase):
+    def test_max_tokens_stop_is_reported_as_truncated(self):
+        provider = AnthropicProvider()
+        self.assertTrue(provider.is_truncated({"stop_reason": "max_tokens", "content": []}))
+
+    def test_end_turn_and_missing_stop_reason_are_not_truncated(self):
+        provider = AnthropicProvider()
+        self.assertFalse(provider.is_truncated({"stop_reason": "end_turn", "content": []}))
+        self.assertFalse(provider.is_truncated({"content": []}))
+
+    def test_openai_compatible_provider_never_reports_truncation(self):
+        self.assertFalse(OpenAICompatibleProvider().is_truncated({"choices": []}))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -53,6 +53,10 @@ class LLMProvider:
         """Return (prompt_tokens, completion_tokens) if the provider reports usage, else None."""
         return None
 
+    def is_truncated(self, data: dict) -> bool:
+        """True when the reply stopped because it ran out of output tokens."""
+        return False
+
 
 class OpenAICompatibleProvider(LLMProvider):
     """OpenAI Chat Completions shape — covers OpenAI, Azure OpenAI, vLLM, and
@@ -187,6 +191,10 @@ class AnthropicProvider(LLMProvider):
     def extract_content(self, data):
         blocks = data.get("content") or []
         return "".join(block.get("text", "") for block in blocks if isinstance(block, dict))
+
+    def is_truncated(self, data):
+        # Haiku 5.5 spends output tokens on hidden thinking, so a long reply can hit the cap.
+        return data.get("stop_reason") == "max_tokens"
 
     def verify_models(self, data, model):
         return True
