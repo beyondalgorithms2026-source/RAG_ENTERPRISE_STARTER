@@ -132,6 +132,11 @@ def _provider_generate(
             response = client.post(provider.chat_url(base), json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
+            if provider.is_truncated(data):
+                logger.error(
+                    f"LLM output truncated at max_tokens (provider {llm.provider}, model {llm.model})"
+                )
+                return {"success": False, "error": "llm_output_truncated"}
             content = provider.extract_content(data) or ""
             usage = _build_usage(provider, data, llm.model, system_prompt, user_prompt, content)
             if response_schema is not None:
