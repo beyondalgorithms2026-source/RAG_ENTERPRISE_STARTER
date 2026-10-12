@@ -61,8 +61,9 @@ services:
         value: https://api.anthropic.com
       - key: LLM_TIMEOUT_S
         value: 60
+      # Haiku 5.5 spends output tokens on hidden thinking before the answer; 600 truncates answers.
       - key: LLM_MAX_TOKENS
-        value: 600
+        value: 2048
       - key: LLM_COST_ALERT_USD
         value: 0.01
       - key: ENABLE_GRAPH
