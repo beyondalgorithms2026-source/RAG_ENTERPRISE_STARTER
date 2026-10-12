@@ -54,11 +54,11 @@ services:
       - key: EMBEDDING_BASE_URL
         value: https://api.openai.com/v1
       - key: LLM_PROVIDER
-        value: openai
+        value: anthropic
       - key: LLM_MODEL
-        value: gpt-4o-mini-2024-07-18
+        value: claude-haiku-5-5
       - key: LLM_BASE_URL
-        value: https://api.openai.com
+        value: https://api.anthropic.com
       - key: LLM_TIMEOUT_S
         value: 60
       - key: LLM_MAX_TOKENS
