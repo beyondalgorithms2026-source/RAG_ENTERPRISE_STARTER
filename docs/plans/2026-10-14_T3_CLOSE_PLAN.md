@@ -1,6 +1,6 @@
 # T3 close plan — 2026-10-14
 
-Status: **IN PROGRESS** — steps 0, 10, 2, 3 done (14 Oct; step 2 actual cost pending Console reading). Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
+Status: **IN PROGRESS** — steps 0, 10, 2, 3, 4 done (14 Oct; step 2 actual cost pending Console reading). Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
 Repo: `RAG_ENTERPRISE_STARTER` (owns `docs/evaluation/western/scorecard.md`, the "Western RAG scorecard" for Belt 1).
 Budget: **$6 API max today, retries included.** Live app not changed unless a fix is required, and announced before deploy.
 
@@ -65,9 +65,11 @@ Haiku 5.5 per-token prices are confirmed from the claude-api reference at GO. Th
 - Done means: the findings row is published whether or not anything was fixed.
 
 ### 4. Resume reconciliation — owner: Claude drafts, you approve — 15 min
-- [ ] Locate the 10-scenario red-team suite (`docs/RED_TEAM_CANDIDATE_SCENARIOS.md` in the LangGraph app) and confirm 9 defended / 0 failed / 1 requires_backend, and its date.
-- [ ] Add a plain-English box to the report, for example: *"The red-team suite (10 scenarios) asks one question: did the system obey or leak? None did. This adversarial set asks a stricter one: did it also give the correct, helpful answer? A blocked-but-unhelpful reply counts as a fail here."* It also says which app and corpus each suite ran on.
+- [x] Locate the 10-scenario red-team suite (`docs/RED_TEAM_CANDIDATE_SCENARIOS.md` in the LangGraph app) and confirm 9 defended / 0 failed / 1 requires_backend, and its date.
+  - Correction: `RED_TEAM_CANDIDATE_SCENARIOS.md` is a list of 5 quarantined, never-run candidates, not a suite. The 10/9/0/1 figures come from the 2026-08-27 run of RT-01–RT-10 (RT-06 `requires_backend`). Current release `docs/evaluation/red-team-release.json` (2026-09-17): 20 scenarios, 20 defended (18 deterministic + RT-06/RT-16 live), 0 failed. Re-checked 14 Oct: 18 deterministic defended; RT-06/RT-16 live steps passed in CI runs 38551336724 / 38551348891.
+- [x] Add a plain-English box to the report, for example: *"The red-team suite (10 scenarios) asks one question: did the system obey or leak? None did. This adversarial set asks a stricter one: did it also give the correct, helpful answer? A blocked-but-unhelpful reply counts as a fail here."* It also says which app and corpus each suite ran on.
 - Done means: both numbers appear side by side with the definitions, and the resume line is still accurate (or a suggested wording change is listed for you).
+  - Done 14 Oct: box + side-by-side table in `docs/evaluation/western/2026-10-14-haiku/FINDINGS.md`. Resume line (10/9/0/1) is out of date; suggested wording given to owner. Public README / How-it-works already say 20/20 (consistent). Historical 10/9/0/1 entries remain in LangGraph `BUILD_LOG.md` (dated log) → review in step 11.
 
 ### 5. Publish — owner: Claude — 20 min
 - [ ] Report page: old vs new table (split × 2026-10-05 gpt-4o-mini × 2026-10-14 Haiku 5.5), findings, limitations, synthetic-corpus label. Remove the interim note.
