@@ -60,3 +60,11 @@ README; 358 tests, ruff clean, cross-repo contract check passes; rendered and ch
 branch), STARTER README (models, 163 tests), MCP README (models). Every row is now **true** or **labelled with
 date + model** on the branches. Live verification after the final merge happens in steps 12 and 14.
 STARTER `docs/evaluation/western/scorecard.md` (linked from the pages) still shows the 5 Oct run until step 5.
+
+## Live re-check after deploy (14 Oct, APP `691113c` live at 17:49:19 UTC)
+
+All fixed rows confirmed on the live URL (desktop and 375 px phone width). One new row:
+
+| # | Claim | Where | Observed | Status | Fix |
+|---|---|---|---|---|---|
+| L23 | "Internal and restricted documents are excluded by SQL before retrieval — their names do not appear." | APP README, Documents row | The Documents page deliberately notes "+1 restricted Northline document (incident SOP) exists"; a public policy cites `NL-OPS-SOP-INCIDENT` by ID. Restricted content is never listed or retrieved. | wrong (overstated) | Follow-up APP PR: "never listed or retrieved; the page notes only that one restricted Northline document (the incident SOP) exists." |

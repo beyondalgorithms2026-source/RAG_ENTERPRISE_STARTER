@@ -1,6 +1,6 @@
 # T3 close plan — 2026-10-14
 
-Status: **IN PROGRESS** — steps 0, 10, 2, 3, 4, 11, 5, 9, 13, 12, 14 (branch parts) done. Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
+Status: **IN PROGRESS** — all steps done except 8 (deferred) and owner items: Loom recording, final 5-minute read. Merged 14 Oct (STARTER #53, APP #70, MCP #13); live since 17:49 UTC. Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
 Repo: `RAG_ENTERPRISE_STARTER` (owns `docs/evaluation/western/scorecard.md`, the "Western RAG scorecard" for Belt 1).
 Budget: **$6 API max today, retries included.** Live app not changed unless a fix is required, and announced before deploy.
 
@@ -74,27 +74,32 @@ Haiku 5.5 per-token prices are confirmed from the claude-api reference at GO. Th
 ### 5. Publish — owner: Claude — 20 min
 - [x] Report page: old vs new table (split × 2026-10-05 gpt-4o-mini × 2026-10-14 Haiku 5.5), findings, limitations, synthetic-corpus label. Remove the interim note.
   - Done 14 Oct on branch: `docs/evaluation/western/scorecard.md` is now the report (headline 19/20, three-run old-vs-new table, changed questions, permission check, findings with OWASP 2026 IDs, red-team box, limitations, cost, evidence index). 10-05 evidence moved to `2026-10-05-gpt-4o-mini/` (poison-test.json source path updated). No interim note existed (step 1 skipped). Owner: headline aligned with live pages (19/20).
-- [ ] PR → merge (with your OK) → check that GitHub renders it and that the live URL and the report links resolve.
+- [x] PR → merge (with your OK) → check that GitHub renders it and that the live URL and the report links resolve.
+  - Done 14 Oct: STARTER #53 `2e1677d`, MCP #13 `c00dcfc`, APP #70 `691113c` (owner OK; all required checks green). GitHub renders the report (7 tables, 15 → 17 → 19). All 17 links on the live pages resolve.
 - Done means: the merged page is public, and the live `/app` loads and answers one Northline question.
 
 ### 6. Loom script — owner: Claude writes, you record — 25 min write / 20 min record
-- [ ] Six segments, each giving: screen, exact question, spoken lines (~20–30 s), cold-Render fallback.
+- [x] Six segments, each giving: screen, exact question, spoken lines (~20–30 s), cold-Render fallback.
   1. Cited answer: WQ-03 London hotel cap → £240 with citation.
   2. Refusal: WQ-15 India PF → insufficient evidence.
   3. Restricted doc hidden from an anonymous user (WQ-12 path).
   4. Injection: WQ-19 → what actually happens (blocked or answered safely), stated honestly.
   5. Scorecard page: old vs new.
   6. Limitations: synthetic corpus, 20 questions, single run, not a benchmark.
-- [ ] Pre-flight: warm Render 5 min before recording. The fallback for each segment is a pre-captured screenshot/trace from `docs/evaluation/western/traces`.
+- [x] Pre-flight: warm Render 5 min before recording.
+  - Done 14 Oct: script `docs/plans/2026-10-14_T3_LOOM_SCRIPT.md`; rehearsed once on the deployed pages; fallback screenshots in `/Users/Work/Projects/repos/loom-fallbacks/` (outside the repos). Recording: owner. The fallback for each segment is a pre-captured screenshot/trace from `docs/evaluation/western/traces`.
 - Done means: the script is saved in `docs/plans/` and rehearsed once on the live URL.
 
 ### 7. Upwork portfolio item — owner: Claude drafts, you paste — 30 min
-- [ ] Check Upwork's current portfolio image specs (web, dated) before making the image.
-- [ ] Title, role, description (problem → approach → result → limits), skills tags, links (live app, report, repo).
-- [ ] 1-page snapshot image at the verified size (based on `RAG_UPWORK_SNAPSHOT.md`, updated numbers).
+- [x] Check Upwork's current portfolio image specs (web, dated) before making the image.
+  - Upwork portfolio guide (published 7 Jul 2026, read 14 Oct): 1000 × 750 px, up to 10 MB; title, role, description, up to five skills, media, thumbnail.
+- [x] Title, role, description (problem → approach → result → limits), skills tags, links (live app, report, repo).
+- [x] 1-page snapshot image at the verified size
+  - Done 14 Oct: `docs/plans/upwork/UPWORK_PORTFOLIO_ITEM.md` + `upwork-snapshot-1000x750.png` (1000 × 750, 111 KB; HTML source alongside). (based on `RAG_UPWORK_SNAPSHOT.md`, updated numbers).
 - Done means: a paste-ready `.md` and an image file that meet the spec.
 
 ### 8. Public profiles — owner: Claude drafts, you publish — 20 min
+**DEFERRED (owner, 14 Oct): not part of this close-out; drafts can copy `2026-10-14_T3_FIVE_FACTS.md` later.**
 - [ ] LinkedIn Featured title and description.
 - [ ] spanfold.com "Work" card: copy and a standalone HTML snippet. Draft file only; the site is not touched.
 - Done means: drafts saved in `docs/plans/drafts/`.
@@ -135,7 +140,8 @@ Goal: no visitor finds two numbers that disagree.
 ### 12. Content-only redeploy (LangGraph app) — owner: Claude, approved 14 Oct — 20 min
 - [x] One PR with only static and content changes (How-it-works text, timeline, labels, links, brand). No backend, prompt, screening or config changes; any guardrail fix from step 3 is a separate decision.
 - [x] Before deploying: the PR diff touches only content files, and the LangGraph app tests pass (`test_server_ui`, `test_evaluation_report` and others).
-- [ ] Announce → merge → Render deploys → after deploy: warm-up, re-read the live pages, click every link, ask one Northline question.
+- [x] Announce → merge → Render deploys → after deploy: warm-up, re-read the live pages, click every link, ask one Northline question.
+  - Done 14 Oct: deploy announced in chat; merged 17:46 UTC; live at 17:49:19 UTC. Re-read How it works, Quality, Security, Compare, Documents; links OK; 4 Northline questions asked (London cap verified £240; India PF not found; Sev1 not found, 0 citations; WQ-19 blocked, no tool calls).
 - Done means: the live page matches the merged PR, and the claims table re-check passes on the live URL.
   - Branch readiness checked 14 Oct (LangGraph `61a322c`, 4 commits ahead of main `945c89c`, 0 behind, 13 files):
     content/static: README, LICENSE, how-it-works.html/.js, app.js, ui.py (display strings), northline-scorecard.json;
@@ -154,7 +160,8 @@ Goal: no visitor finds two numbers that disagree.
 
 ### 14. Final cross-repo consistency pass — owner: Claude, then you — 20 min
 - [x] Same five facts, word for word, in all places (live page, the 3 READMEs, scorecard, Upwork, LinkedIn, spanfold.com draft, Loom script): answer model, corpus (synthetic Northline), scorecard result + date, red-team result + date, limitations.
-- [ ] Visitor walk-through on a phone and on desktop: open the live URL cold → follow every link to GitHub → check that each number matches the claims table.
+- [x] Visitor walk-through on a phone and on desktop: open the live URL cold → follow every link to GitHub → check that each number matches the claims table.
+  - Done 14 Oct: desktop (1280 px) and phone (375 px): 8 pages, 0 horizontal overflow; numbers match the claims table (13 public docs, 19/20, 18 + 2 · release 2026-09-17, as of 14 Oct). One wording gap found: APP README said restricted documents' names do not appear, but the Documents page deliberately notes the incident SOP exists and a public policy cites its ID → follow-up APP PR (README only). Owner's final 5-minute read pending.
 - Done means: zero discrepancies logged. You do a final 5-minute read.
   - Branch part done 14 Oct: canonical wording in `docs/plans/2026-10-14_T3_FIVE_FACTS.md`; checked in How it works, 3 READMEs and the scorecard (11 checks × 5 places, 0 gaps after filling 3: How-it-works limits, MCP README, scorecard model date). No conflicting Northline or red-team numbers. Drafts in steps 6–8 copy the canonical wording. Live walk-through (phone + desktop) and owner read: after the merge.
 
@@ -190,6 +197,8 @@ The Loom and portfolio copy come last, so they quote the final, deployed numbers
 | 14 Oct | Step 11: live pages show Northline 19/20 (Haiku 5.5, APP 5862921, ships with the fix) with 17/20 and 15/20 as history; Northwind 25/25 labelled gpt-4o-mini 12 Sep 2026, no re-run | you |
 | 14 Oct | Step 5: STARTER report headline = 19/20 (APP 5862921), aligned with live pages; 17/20 and 15/20 shown side by side | you |
 | 14 Oct | Steps 9+13: LICENSE → Spanfold in all 3 repos; other legacy footers untouched | you |
+| 14 Oct | Open PRs and merge before steps 6–7 so the Loom script is rehearsed on deployed pages; step 8 deferred | you |
+| 14 Oct | Post-deploy: APP README wording on restricted document names corrected in a follow-up PR (README only) | Claude |
 | 14 Oct | Step 10: save PUBLIC_DEMO `runs/` to main clone archive, remove both worktrees, delete `lg-app`, prune 42 merged local branches | you |
 
 ## T3 is closed when…

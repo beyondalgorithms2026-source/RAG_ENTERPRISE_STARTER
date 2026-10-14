@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Governed RAG snapshot</title>
+<style>
+  :root { --ink:#14212b; --muted:#56656f; --line:#d9e1e4; --bg:#f6f8f7; --teal:#1f7a6d; --teal-soft:#e3f1ee; --amber:#b7791f; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { width:1000px; height:750px; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif; }
+  .page { width:1000px; height:750px; padding:44px 52px 34px; display:flex; flex-direction:column; gap:26px; }
+  .eyebrow { font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:var(--teal); font-weight:700; }
+  h1 { font-size:42px; line-height:1.1; letter-spacing:-.01em; margin-top:10px; }
+  .lede { font-size:19px; color:var(--muted); margin-top:12px; line-height:1.4; max-width:860px; }
+  .tiles { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  .tile { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 18px 16px; }
+  .big { font-size:38px; font-weight:800; color:var(--teal); line-height:1; }
+  .label { font-size:15px; font-weight:700; margin-top:10px; }
+  .sub { font-size:13px; color:var(--muted); margin-top:4px; line-height:1.35; }
+  .flow { display:flex; align-items:stretch; gap:10px; }
+  .node { flex:1; background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .node b { display:block; font-size:16px; }
+  .node span { display:block; font-size:13px; color:var(--muted); margin-top:4px; line-height:1.35; }
+  .node.db { background:var(--teal-soft); border-color:#b9ddd5; }
+  .arrow { align-self:center; color:var(--muted); font-size:22px; }
+  .models { display:flex; justify-content:space-between; gap:18px; white-space:nowrap; font-size:14px; color:var(--muted); background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 18px; }
+  .models b { color:var(--ink); margin-right:6px; }
+  .foot { margin-top:auto; display:flex; justify-content:space-between; align-items:flex-end; font-size:13px; color:var(--muted); border-top:1px solid var(--line); padding-top:14px; }
+  .foot strong { color:var(--ink); }
+  .brand { font-weight:800; color:var(--ink); font-size:16px; letter-spacing:.02em; }
+</style></head>
+<body><div class="page">
+  <div>
+    <div class="eyebrow">Portfolio · Governed RAG</div>
+    <h1>Cited answers from policy documents —<br>or an honest refusal</h1>
+    <p class="lede">Access rules live inside the database query, weak evidence triggers a bounded retry, sensitive answers wait for a person, and every run is hash-chained.</p>
+  </div>
+  <div class="tiles">
+    <div class="tile"><div class="big">19/20</div><div class="label">Northline demo set</div><div class="sub">Claude Haiku 5.5 · 14 Oct 2026<br>was 15/20 on the previous model</div></div>
+    <div class="tile"><div class="big">20/20</div><div class="label">Red-team scenarios</div><div class="sub">18 deterministic + 2 live access-control checks in CI</div></div>
+    <div class="tile"><div class="big">5/5</div><div class="label">Refusal questions</div><div class="sub">Answered safely; nothing invented when the documents are silent</div></div>
+    <div class="tile"><div class="big">13/14</div><div class="label">Documents visible</div><div class="sub">to an anonymous visitor; the restricted one is never retrieved</div></div>
+  </div>
+  <div class="flow">
+    <div class="node"><b>Orchestration</b><span>Screening, evidence checks, recovery, approvals, audit · 358 tests</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>MCP boundary</b><span>3 read-only tools, no database credentials · 42 tests</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>Data layer</b><span>Hybrid search, access control in SQL, citations · 163 tests</span></div>
+    <div class="arrow">→</div>
+    <div class="node db"><b>Postgres + pgvector</b><span>384-dim vectors and access-control tables</span></div>
+  </div>
+  <div class="models"><span><b>Answers</b> Claude Haiku 5.5</span><span><b>Embeddings</b> OpenAI text-embedding-3-small</span><span><b>Demo</b> rag-enterprise-governance-demo.onrender.com</span></div>
+  <div class="foot">
+    <div><strong>Synthetic data</strong> for two fictional companies · demo evidence, not a benchmark · free hosting, not a production deployment</div>
+    <div class="brand">Spanfold</div>
+  </div>
+</div></body></html>
