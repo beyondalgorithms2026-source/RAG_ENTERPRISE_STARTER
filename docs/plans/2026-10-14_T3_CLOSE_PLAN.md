@@ -1,6 +1,6 @@
 # T3 close plan — 2026-10-14
 
-Status: **IN PROGRESS** — steps 0, 10 done (14 Oct). Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
+Status: **IN PROGRESS** — steps 0, 10, 2 done (14 Oct; step 2 actual cost pending Console reading). Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
 Repo: `RAG_ENTERPRISE_STARTER` (owns `docs/evaluation/western/scorecard.md`, the "Western RAG scorecard" for Belt 1).
 Budget: **$6 API max today, retries included.** Live app not changed unless a fix is required, and announced before deploy.
 
@@ -45,12 +45,12 @@ Haiku 5.5 per-token prices are confirmed from the claude-api reference at GO. Th
 - Done means: the note is merged and visible on GitHub.
 
 ### 2. Re-run eval on Haiku 5.5 — owner: Claude runs, you approve the spend — 40 min
-- [ ] Warm up Render (hit `/app` + health, wait for warm latency).
-- [ ] `western_eval.py convert` (offline) → run the APP eval runner once against the hosted stack, paced, Northline corpus.
-- [ ] Permission check as an explicit row: an anonymous query for the restricted doc returns an ACL denial, and the restricted doc id is absent from `used_doc_ids`. Also checked directly by listing visible docs as anonymous.
-- [ ] `western_eval.py scorecard --report … --model claude-haiku-5-5 --run-label "2026-10-14 … APP <sha> MCP <sha>"`.
-- [ ] Record model, date, APP/MCP commit, STARTER commit and actual cost in the report header.
-- [ ] Re-run individual items only for documented harness false positives, and log each one.
+- [x] Warm up Render (hit `/app` + health, wait for warm latency). — STARTER cold 52 s → 0.3 s warm.
+- [x] `western_eval.py convert` (offline) → run the APP eval runner once against the hosted stack, paced, Northline corpus. — eval set unchanged (sha256 d589985d…). Attempt 1 unpaced hit the 12/min ask limit (8× HTTP 429, kept as evidence); counted run = attempt 2, full 20, 12 s pacing, 0 infra failures.
+- [x] Permission check as an explicit row: an anonymous query for the restricted doc returns an ACL denial, and the restricted doc id is absent from `used_doc_ids`. Also checked directly by listing visible docs as anonymous.
+- [x] `western_eval.py scorecard --report … --model claude-haiku-5-5 --run-label "2026-10-14 … APP <sha> MCP <sha>"`.
+- [x] Record model, date, APP/MCP commit, STARTER commit and actual cost in the report header. — `docs/evaluation/western/2026-10-14-haiku/RUN_METADATA.md`; actual cost pending owner's Console reading.
+- [x] Re-run individual items only for documented harness false positives, and log each one. — none re-run.
 - Done means: new `summary.json` / `scorecard.md` / `eval-report.json` with Haiku 5.5 metadata, and cost ≤ budget.
 
 ### 3. Adversarial investigation — owner: Claude analyses, you decide on the fix — 45 min
@@ -161,6 +161,9 @@ The Loom and portfolio copy come last, so they quote the final, deployed numbers
 | 14 Oct | No merges to `main` mid-plan: all work on `t3/close-2026-10-14` in each repo; one PR per repo at the end after owner GO; Render deploy happens once at that merge. Live-URL checks in steps 5/12/14 run after that merge. | you |
 | 14 Oct | Step 1 interim note skipped (final report replaces it before anything reaches main) | you |
 | 14 Oct | Stop after every step for status + owner GO before the next | you |
+| 14 Oct | Step 2 run against hosted stack (option A): all answer calls on Render's live key; eval key in LangGraph `.env` exported only for the run (unused: synthesis not triggered) | you |
+| 14 Oct | Step 2 attempt 1 (unpaced) not counted: 8× HTTP 429 from the 12/min ask limit. One full paced re-run (12 s/case) counted, within the approved ≤$0.20 | Claude |
+| 14 Oct | Scorecard note "declined" on passing WQ-07/WQ-20 is a wording heuristic in `western_eval.py`, not a score change; script left unchanged (scoring-rule question, not an edit) | Claude |
 | 14 Oct | Step 10: save PUBLIC_DEMO `runs/` to main clone archive, remove both worktrees, delete `lg-app`, prune 42 merged local branches | you |
 
 ## T3 is closed when…
