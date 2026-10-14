@@ -37,7 +37,6 @@ The restricted document is removed by SQL access trimming, so the visitor sees a
 |---|---|---|---|
 | 1 | 08:55:36–08:56:35 | Unpaced. Haiku 5.5 answered fast enough that the run exceeded the hosted limit of 12 ask calls/min/IP; after 12 calls, WQ-12…18 and WQ-20 got HTTP 429 (no model call). Kept in `attempt-1-ratelimited/`. | No |
 | 2 | 08:57:18–09:04:50 | Full re-run of all 20, paced with a 12 s wait before each case (wrapper around the unchanged CLI; runner, scoring and eval set untouched). | **Yes** |
-
 | 3 | 09:31:03–09:37:20 | Same paced full run on APP `5862921` (T3 fix for WQ-04/WQ-14, on branch, **not yet deployed**). Results in `with-fix-5862921/`. Shown as a second column, never as the live result until the fix is deployed. | Second column |
 
 No individual items were re-run.
@@ -52,7 +51,7 @@ No individual items were re-run.
 
 ## Cost
 
-All model calls were made by hosted STARTER with the live Render key: attempt 1 (12 ask calls), counted run (27), poison/WQ-04/WQ-14 probes 09:23–09:26 UTC (9), with-fix run 09:31–09:37 UTC (see its eval-results.json), plus query embeddings. The local eval key was loaded but not used, because synthesis was not triggered.
+All model calls were made by hosted STARTER with the live Render key: attempt 1 (12 ask calls), counted run (27), poison/WQ-04/WQ-14 probes 09:23–09:26 UTC (9), with-fix run 09:31–09:37 UTC (25), plus query embeddings. The local eval key was loaded but not used, because synthesis was not triggered.
 
 | Source | Amount |
 |---|---|
