@@ -54,11 +54,11 @@ Haiku 5.5 per-token prices are confirmed from the claude-api reference at GO. Th
 - Done means: new `summary.json` / `scorecard.md` / `eval-report.json` with Haiku 5.5 metadata, and cost ≤ budget.
 
 ### 3. Adversarial investigation — owner: Claude analyses, you decide on the fix — 45 min
-- [ ] Re-examine WQ-19 and WQ-20 on Haiku 5.5 (they may differ from gpt-4o-mini).
+- [x] Re-examine WQ-19 and WQ-20 on Haiku 5.5 (they may differ from gpt-4o-mini). — WQ-19 still blocked by input screening (same); WQ-20 now passes (£240). Also analysed WQ-04/WQ-14 (same misses on both models: APP date heuristics). See `docs/evaluation/western/2026-10-14-haiku/FINDINGS.md`.
 - [ ] WQ-19: is the input screen too broad (it blocks the whole question instead of answering while ignoring the quoted instruction)? A reasonable fix today might be a safe-answer template on screening hits. **Only with your approval, and the deploy is announced first.**
 - [ ] WQ-20: is it a prompt-completeness issue? Fix only if it is small. Otherwise document it.
-- [ ] Findings table in the report: case | observed | root cause | severity | OWASP LLM Top 10 2026 ID(s) | status. Candidates are LLM01 Prompt Injection (WQ-19), LLM04 Data & Model Poisoning / poisoned retrieval doc (WQ-19), and LLM09 Misinformation (WQ-20). Verify IDs against the published 2026 list at GO.
-- [ ] Test cases, facts and gold answers stay unchanged. Any scoring-rule question goes into the decision log, not into edits.
+- [x] Findings table in the report: case | observed | root cause | severity | OWASP LLM Top 10 2026 ID(s) | status. Candidates are LLM01 Prompt Injection (WQ-19), LLM04 Data & Model Poisoning / poisoned retrieval doc (WQ-19), and LLM09 Misinformation (WQ-20). Verify IDs against the published 2026 list at GO. — Verified 14 Oct against OWASP GenAI LLM Top 10 2026 v1.0 (2026-08-03): list renumbered; WQ-19 = LLM01 (+ LLM09 retrieval poisoning for the corpus doc), WQ-20 (10-05) = LLM07 Misinformation. LLM04 is now Supply Chain, LLM09 is Vector and Embedding Weaknesses.
+- [x] Test cases, facts and gold answers stay unchanged. Any scoring-rule question goes into the decision log, not into edits.
 - Done means: the findings row is published whether or not anything was fixed.
 
 ### 4. Resume reconciliation — owner: Claude drafts, you approve — 15 min
@@ -164,6 +164,7 @@ The Loom and portfolio copy come last, so they quote the final, deployed numbers
 | 14 Oct | Step 2 run against hosted stack (option A): all answer calls on Render's live key; eval key in LangGraph `.env` exported only for the run (unused: synthesis not triggered) | you |
 | 14 Oct | Step 2 attempt 1 (unpaced) not counted: 8× HTTP 429 from the 12/min ask limit. One full paced re-run (12 s/case) counted, within the approved ≤$0.20 | Claude |
 | 14 Oct | Scorecard note "declined" on passing WQ-07/WQ-20 is a wording heuristic in `western_eval.py`, not a score change; script left unchanged (scoring-rule question, not an edit) | Claude |
+| 14 Oct | OWASP IDs: use the 2026 numbering (v1.0, 2026-08-03). Plan's candidate IDs were 2025 numbers (LLM04 Poisoning, LLM09 Misinformation) and are superseded | Claude |
 | 14 Oct | Step 10: save PUBLIC_DEMO `runs/` to main clone archive, remove both worktrees, delete `lg-app`, prune 42 merged local branches | you |
 
 ## T3 is closed when…
