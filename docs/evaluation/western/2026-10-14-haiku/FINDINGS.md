@@ -53,3 +53,10 @@ starts "When must/should/may/can…" as asking for a date; "by when", "When does
 still do. Across all 200 eval questions in the five sets, only Western WQ-01, WQ-04 and WQ-14 change
 classification; none of the 90 Northwind / operations-manual questions change. APP tests: 358 passed; ruff clean;
 deterministic red-team 18 defended / 2 requires_backend / 0 failed. Indirect-injection probes re-run on Haiku 5.5.
+
+**Regression check (14 Oct):** the governed Northwind 90-case suite was run twice on an isolated CI stack with
+gpt-4o-mini held constant, APP `945c89c` vs `5862921`, both against STARTER `b774cab`: 79 pass / 4 fail / 7 manual
+review in both, 0 infrastructure failures, refusals 8/8, safe boundaries 2/2. Four opposite-direction swaps are
+answer-wording variance (APP validation identical). Details: [`northwind-regression/`](northwind-regression/README.md).
+With the fix, the Western set on Haiku 5.5 is 19/20 ([`with-fix-5862921/`](with-fix-5862921/scorecard.md)).
+
