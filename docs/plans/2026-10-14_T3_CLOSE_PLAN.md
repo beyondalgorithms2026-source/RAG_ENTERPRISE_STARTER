@@ -1,6 +1,6 @@
 # T3 close plan — 2026-10-14
 
-Status: **IN PROGRESS** — steps 0, 10, 2, 3, 4, 11 done (14 Oct; step 2 actual cost pending Console reading). Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
+Status: **IN PROGRESS** — steps 0, 10, 2, 3, 4, 11, 5 (branch part) done (14 Oct; step 2 actual cost pending Console reading). Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
 Repo: `RAG_ENTERPRISE_STARTER` (owns `docs/evaluation/western/scorecard.md`, the "Western RAG scorecard" for Belt 1).
 Budget: **$6 API max today, retries included.** Live app not changed unless a fix is required, and announced before deploy.
 
@@ -72,7 +72,8 @@ Haiku 5.5 per-token prices are confirmed from the claude-api reference at GO. Th
   - Done 14 Oct: box + side-by-side table in `docs/evaluation/western/2026-10-14-haiku/FINDINGS.md`. Resume line (10/9/0/1) is out of date; suggested wording given to owner. Public README / How-it-works already say 20/20 (consistent). Historical 10/9/0/1 entries remain in LangGraph `BUILD_LOG.md` (dated log) → review in step 11.
 
 ### 5. Publish — owner: Claude — 20 min
-- [ ] Report page: old vs new table (split × 2026-10-05 gpt-4o-mini × 2026-10-14 Haiku 5.5), findings, limitations, synthetic-corpus label. Remove the interim note.
+- [x] Report page: old vs new table (split × 2026-10-05 gpt-4o-mini × 2026-10-14 Haiku 5.5), findings, limitations, synthetic-corpus label. Remove the interim note.
+  - Done 14 Oct on branch: `docs/evaluation/western/scorecard.md` is now the report (headline 19/20, three-run old-vs-new table, changed questions, permission check, findings with OWASP 2026 IDs, red-team box, limitations, cost, evidence index). 10-05 evidence moved to `2026-10-05-gpt-4o-mini/` (poison-test.json source path updated). No interim note existed (step 1 skipped). Owner: headline aligned with live pages (19/20).
 - [ ] PR → merge (with your OK) → check that GitHub renders it and that the live URL and the report links resolve.
 - Done means: the merged page is public, and the live `/app` loads and answers one Northline question.
 
@@ -176,6 +177,7 @@ The Loom and portfolio copy come last, so they quote the final, deployed numbers
 | 14 Oct | CI full-eval default STARTER ref (codex/eval-correction) broken by SQLAlchemy 2.1 / psycopg v3; first two runs cancelled (no answers generated). APP `1b8ba5a` adds `app_ref`/`starter_ref` inputs (defaults unchanged); kept in the PR (owner) | you |
 | 14 Oct | Western re-run with the fix shown as a second column (19/20), labelled not yet deployed; headline stays the as-deployed run until the merge | you |
 | 14 Oct | Step 11: live pages show Northline 19/20 (Haiku 5.5, APP 5862921, ships with the fix) with 17/20 and 15/20 as history; Northwind 25/25 labelled gpt-4o-mini 12 Sep 2026, no re-run | you |
+| 14 Oct | Step 5: STARTER report headline = 19/20 (APP 5862921), aligned with live pages; 17/20 and 15/20 shown side by side | you |
 | 14 Oct | Step 10: save PUBLIC_DEMO `runs/` to main clone archive, remove both worktrees, delete `lg-app`, prune 42 merged local branches | you |
 
 ## T3 is closed when…
