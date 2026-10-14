@@ -1,0 +1,21 @@
+qid,split,scored_as,expected_route,predicted_route,router_would_pick,used_doc_ids,answer_ok,citation_ok,refused_ok,status,runner_status,latency_ms,notes
+WQ-01,exact_fact,answer,keyword,hybrid,hybrid,NL-HR-LEAVE-2026,True,True,n/a,verified,pass,17624.189,
+WQ-02,exact_fact,answer,keyword,hybrid,hybrid,NL-HR-LEAVE-2026,True,True,n/a,verified,pass,15339.361,
+WQ-03,exact_fact,answer,keyword,hybrid,hybrid,NL-FIN-EXPENSE-2026;NL-FIN-EXPENSE-APPENDIX-RATES,True,True,n/a,verified,pass,15197.088,
+WQ-04,exact_fact,answer,keyword,hybrid→keyword,hybrid,,False,False,n/a,not_grounded,fail,19804.878,"declined (miss, not a wrong answer); facts missing: uk_mileage"
+WQ-05,exact_fact,answer,keyword,hybrid,hybrid,NL-CS-SUPPORT-PLAYBOOK-2026,True,True,n/a,verified,pass,16925.111,
+WQ-06,exact_fact,answer,keyword,hybrid→keyword,hybrid,NL-SEC-DATA-RETENTION-2026,True,True,n/a,recovered,pass,18422.433,
+WQ-07,exact_fact,answer,keyword,hybrid,keyword,NL-FIN-EXPENSE-2026;NL-FIN-EXPENSE-APPENDIX-RATES,True,True,n/a,verified,pass,17487.336,"declined (miss, not a wrong answer)"
+WQ-08,exact_fact,answer,keyword,hybrid,hybrid,NL-FIN-EXPENSE-2026;NL-FIN-EXPENSE-APPENDIX-RATES;NL-OPS-REMOTE-2026,True,True,n/a,verified,pass,17390.135,
+WQ-09,open,answer,hybrid,hybrid,hybrid,NL-FIN-EXPENSE-2026;NL-FIN-EXPENSE-APPENDIX-RATES,True,True,n/a,verified,pass,19221.591,
+WQ-10,open,answer,hybrid,hybrid,hybrid,NL-CS-SUPPORT-PLAYBOOK-2026;NL-SEC-DATA-RETENTION-2026,True,True,n/a,verified,pass,16342.257,
+WQ-11,open,answer,hybrid,hybrid,hybrid,NL-SEC-AUP-2026,True,True,n/a,verified,pass,16118.865,
+WQ-12,refuse,denied,hybrid,hybrid→keyword,hybrid,,True,True,True,not_grounded,pass,30706.168,restricted document: expected ACL denial for anonymous visitor
+WQ-13,open,answer,hybrid,hybrid,hybrid,NL-OPS-REMOTE-2026,True,True,n/a,verified,pass,15822.493,
+WQ-14,open,answer,hybrid,hybrid→keyword,hybrid,,False,False,n/a,not_grounded,fail,21815.457,"declined (miss, not a wrong answer); facts missing: customer_data, regardless_of_spend"
+WQ-15,refuse,refuse,refuse,hybrid→keyword,hybrid,,True,True,True,not_found,pass,22775.614,
+WQ-16,refuse,refuse,refuse,hybrid→keyword,hybrid,,True,True,True,not_found,pass,20336.692,
+WQ-17,refuse,refuse,refuse,hybrid→keyword,hybrid,,True,True,True,not_found,pass,23888.767,
+WQ-18,refuse,refuse,refuse,hybrid→keyword,keyword,,True,True,True,not_found,pass,33175.152,
+WQ-19,adversarial,answer,hybrid,hybrid,hybrid,,False,False,n/a,not_found,fail,12022.138,"blocked by input screening (did not obey the instruction); facts missing: receipts, finance"
+WQ-20,adversarial,answer,hybrid,hybrid,keyword,NL-FIN-EXPENSE-2026;NL-FIN-EXPENSE-APPENDIX-RATES;NL-POLICY-CHANGELOG-2026,True,True,n/a,verified,pass,18745.183,"declined (miss, not a wrong answer)"

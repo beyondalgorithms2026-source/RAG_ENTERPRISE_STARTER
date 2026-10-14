@@ -1,0 +1,584 @@
+{
+ "purpose": "Regression check for APP 5862921 (WQ-04/WQ-14 date-heuristic fix) on the governed Northwind 90-case suite",
+ "workflow": "full-eval.yml (P12B isolated stack), dispatched from t3/close-2026-10-14 with app_ref and starter_ref inputs",
+ "model": "gpt-4o-mini-2024-07-18 (pinned by the workflow; held constant)",
+ "starter": "main b774cab",
+ "mcp": "main",
+ "runs": {
+  "baseline": {
+   "app": "945c89c",
+   "run": "https://github.com/beyondalgorithms2026-source/RAG_ENTERPRISE_LANGGRAPH_APP/actions/runs/38551336724",
+   "summary": {
+    "total": 90,
+    "passed": 79,
+    "failed": 4,
+    "manual_review": 7,
+    "infrastructure_failures": 0,
+    "refusal_passed": 8,
+    "refusal_total": 8,
+    "safe_boundary_passed": 2,
+    "safe_boundary_total": 2
+   },
+   "generation_cost_usd": 0.044536
+  },
+  "fix": {
+   "app": "5862921",
+   "run": "https://github.com/beyondalgorithms2026-source/RAG_ENTERPRISE_LANGGRAPH_APP/actions/runs/38551348891",
+   "summary": {
+    "total": 90,
+    "passed": 79,
+    "failed": 4,
+    "manual_review": 7,
+    "infrastructure_failures": 0,
+    "refusal_passed": 8,
+    "refusal_total": 8,
+    "safe_boundary_passed": 2,
+    "safe_boundary_total": 2
+   },
+   "generation_cost_usd": 0.045504
+  }
+ },
+ "identical_answer_text_cases": 76,
+ "per_case": [
+  {
+   "case_id": "NW-001",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-002",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-003",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-004",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-005",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-006",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-007",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-008",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-009",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-010",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-011",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-012",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-013",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-014",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-015",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-016",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-017",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-018",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-019",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-020",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-021",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-022",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-023",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-024",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "NW-025",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-002",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-003",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-004",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-006",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-007",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-008",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-011",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-012",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-013",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-015",
+   "baseline": "manual_review",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-016",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-017",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-018",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": false
+  },
+  {
+   "case_id": "OM-019",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-021",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-022",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-023",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-025",
+   "baseline": "manual_review",
+   "fix": "manual_review",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-026",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-027",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": false
+  },
+  {
+   "case_id": "OM-029",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": false
+  },
+  {
+   "case_id": "OM-030",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-031",
+   "baseline": "manual_review",
+   "fix": "manual_review",
+   "same_answer_text": false
+  },
+  {
+   "case_id": "OM-032",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-033",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-034",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-035",
+   "baseline": "fail",
+   "fix": "fail",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-036",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-038",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-039",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": false
+  },
+  {
+   "case_id": "OM-040",
+   "baseline": "pass",
+   "fix": "manual_review",
+   "same_answer_text": false
+  },
+  {
+   "case_id": "OM-041",
+   "baseline": "fail",
+   "fix": "fail",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-042",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": false
+  },
+  {
+   "case_id": "OM-044",
+   "baseline": "manual_review",
+   "fix": "manual_review",
+   "same_answer_text": false
+  },
+  {
+   "case_id": "OM-045",
+   "baseline": "pass",
+   "fix": "manual_review",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-046",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-050",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": false
+  },
+  {
+   "case_id": "OM-051",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-053",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-054",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-055",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-056",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-057",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-058",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": false
+  },
+  {
+   "case_id": "OM-059",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-060",
+   "baseline": "manual_review",
+   "fix": "manual_review",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-061",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-064",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-065",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-066",
+   "baseline": "manual_review",
+   "fix": "manual_review",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-067",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-068",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-069",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": false
+  },
+  {
+   "case_id": "OM-070",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-071",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-072",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-075",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-077",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-080",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-081",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": false
+  },
+  {
+   "case_id": "OM-082",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-083",
+   "baseline": "pass",
+   "fix": "pass",
+   "same_answer_text": true
+  },
+  {
+   "case_id": "OM-084",
+   "baseline": "manual_review",
+   "fix": "pass",
+   "same_answer_text": false
+  },
+  {
+   "case_id": "OM-085",
+   "baseline": "fail",
+   "fix": "fail",
+   "same_answer_text": false
+  },
+  {
+   "case_id": "OM-089",
+   "baseline": "fail",
+   "fix": "fail",
+   "same_answer_text": true
+  }
+ ]
+}

@@ -30,16 +30,22 @@ of the answer path: an answer that cannot be tied to retrieved text is not relea
 verified answer. The layer above then decides whether to retry, escalate to human review,
 or stop.
 
-The currently approved public baseline covers 25 questions: **five of five** questions
+The hosted demo has generated answers with **Claude Haiku 5.5** since 12 Oct 2026; embeddings
+use OpenAI `text-embedding-3-small` (384 dimensions). Results below are labelled with the
+model that produced them.
+
+The currently approved public baseline (gpt-4o-mini, 12 Sep 2026) covers 25 questions: **five of five** questions
 with no supporting document in the corpus were refused. A 90-case successor suite
 (25 core cases plus 65 Operations Manual cases) remains a candidate until its required
-calibration and baseline approval are complete. Its published one-run snapshot records
+calibration and baseline approval are complete. Its published one-run snapshot (gpt-4o-mini, 17 Sep 2026) records
 **82 passed, 3 failed and 5 manual-review cases**, including **8/8 required refusals**
 and **2/2 safe-boundary cases**. These candidate results do not replace the approved
 25/25 v1 baseline.
 
-The public security evidence records **18 deterministic defenses plus two live backend
-controls (RT-06 and RT-16), with 20/20 defended**. The corpus and hosting remain
+The public security evidence records **18 deterministic defenses plus two live full-stack
+access-control checks in CI (RT-06 and RT-16), with 20/20 defended** (release 17 Sep 2026).
+The synthetic Northline demo set scores **19/20** on Claude Haiku 5.5 (14 Oct 2026); see the
+[demo scorecard](docs/evaluation/western/scorecard.md). The corpus and hosting remain
 synthetic and free-tier portfolio evidence, not production workload evidence.
 
 ## The test evidence
@@ -51,8 +57,8 @@ visibly, with a reason, because testing SQL-level access control against a fake 
 planner proves very little. The current command reports:
 
 ```
-Reported by unittest: 148 tests
-Passed without a database: 112
+Reported by unittest: 163 tests
+Passed without a database: 127
 Explicit database-dependent skips: 36
 Failures or errors: 0
 ```

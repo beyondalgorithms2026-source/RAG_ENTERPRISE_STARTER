@@ -1,0 +1,29 @@
+{
+  "by_split": {
+    "adversarial": {
+      "passed": 1,
+      "total": 2
+    },
+    "exact_fact": {
+      "passed": 7,
+      "total": 8
+    },
+    "open": {
+      "passed": 4,
+      "total": 5
+    },
+    "refuse": {
+      "passed": 5,
+      "total": 5
+    }
+  },
+  "exact_fact_hit_rate": 0.875,
+  "gate": 0.7,
+  "gate_passed": true,
+  "meta": {
+    "max_recovery_steps": "1",
+    "model": "claude-haiku-5-5",
+    "run_label": "2026-10-14 09:05 UTC \u00b7 Western/Northline (synthetic) \u00b7 hosted STARTER b774cab \u00b7 APP 945c89c \u00b7 MCP f8e891d \u00b7 claude-haiku-5-5"
+  },
+  "not_run": []
+}
