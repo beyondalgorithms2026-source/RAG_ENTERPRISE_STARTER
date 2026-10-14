@@ -1,6 +1,6 @@
 # T3 close plan — 2026-10-14
 
-Status: **IN PROGRESS** — steps 0, 10, 2, 3, 4, 11, 5, 9, 13 (branch parts) done. Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
+Status: **IN PROGRESS** — steps 0, 10, 2, 3, 4, 11, 5, 9, 13, 12 (branch parts) done. Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
 Repo: `RAG_ENTERPRISE_STARTER` (owns `docs/evaluation/western/scorecard.md`, the "Western RAG scorecard" for Belt 1).
 Budget: **$6 API max today, retries included.** Live app not changed unless a fix is required, and announced before deploy.
 
@@ -133,10 +133,18 @@ Goal: no visitor finds two numbers that disagree.
   - Done 14 Oct on branches: `docs/plans/2026-10-14_T3_CLAIMS_TABLE.md` (22 live + 6 README claims; 4 wrong, 6 stale, 6 label-only fixed). Owner: live Northline shows 19/20 with history; Northwind v1 labelled only (no Haiku re-run).
 
 ### 12. Content-only redeploy (LangGraph app) — owner: Claude, approved 14 Oct — 20 min
-- [ ] One PR with only static and content changes (How-it-works text, timeline, labels, links, brand). No backend, prompt, screening or config changes; any guardrail fix from step 3 is a separate decision.
-- [ ] Before deploying: the PR diff touches only content files, and the LangGraph app tests pass (`test_server_ui`, `test_evaluation_report` and others).
+- [x] One PR with only static and content changes (How-it-works text, timeline, labels, links, brand). No backend, prompt, screening or config changes; any guardrail fix from step 3 is a separate decision.
+- [x] Before deploying: the PR diff touches only content files, and the LangGraph app tests pass (`test_server_ui`, `test_evaluation_report` and others).
 - [ ] Announce → merge → Render deploys → after deploy: warm-up, re-read the live pages, click every link, ask one Northline question.
 - Done means: the live page matches the merged PR, and the claims table re-check passes on the live URL.
+  - Branch readiness checked 14 Oct (LangGraph `61a322c`, 4 commits ahead of main `945c89c`, 0 behind, 13 files):
+    content/static: README, LICENSE, how-it-works.html/.js, app.js, ui.py (display strings), northline-scorecard.json;
+    owner-approved exceptions: answer_quality.py + orchestrator.py (WQ-04/WQ-14 date-check fix, `5862921`) and
+    .github/workflows/full-eval.yml (dispatch inputs, `1b8ba5a`); tests for both. Unchanged: render.yaml, render_build.sh
+    (MCP pin f8e891d), input_security, tool_guard, config, server, synthesis, evidence, prompts, pyproject, checksum-pinned
+    evidence (SHA256SUMS verify OK). Local: ruff clean, 358 tests, red-team 18 defended, cross-repo contracts compatible.
+    GitHub CI on `61a322c`: lint, security, test, contracts all success. Ownership workflow exempt (`t3/*`).
+    Render (autoDeployTrigger: checksPass) deploys after the merge's CI passes. Announce → merge → live re-check at the end.
 
 ### 13. MCP server repo — owner: Claude — 10 min
 - [x] Brand (LICENSE, README), and check that README links point to STARTER/LangGraph app main and to the scorecard.
