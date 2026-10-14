@@ -1,6 +1,6 @@
 # T3 close plan — 2026-10-14
 
-Status: **IN PROGRESS** — steps 0, 10, 2, 3, 4 done (14 Oct; step 2 actual cost pending Console reading). Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
+Status: **IN PROGRESS** — steps 0, 10, 2, 3, 4, 11 done (14 Oct; step 2 actual cost pending Console reading). Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
 Repo: `RAG_ENTERPRISE_STARTER` (owns `docs/evaluation/western/scorecard.md`, the "Western RAG scorecard" for Belt 1).
 Budget: **$6 API max today, retries included.** Live app not changed unless a fix is required, and announced before deploy.
 
@@ -120,14 +120,15 @@ Checked 14 Oct: all four point to the same GitHub repo, and none has unpushed co
 
 ### 11. Live demo claims audit (LangGraph app) — owner: Claude — 45 min
 Goal: no visitor finds two numbers that disagree.
-- [ ] Inventory every number/claim on the live pages (`/app`, How-it-works, Quality/Evaluation pages), in the LangGraph app's `README`, `docs/evaluation/status.json`, `red-team-release.json` and `BUILD_LOG.md`, and in the STARTER and MCP READMEs. Record it as a claims table: claim | where | source file | value | still true?
-- [ ] **Red-team count (resume 10/9/0/1 vs site 20 = 18 deterministic + 2 live, `requires_backend: 2`).** Find the run behind each. Pick the current release as the single truth. Give you a corrected resume line; the site and repo are not changed to fit the resume.
-- [ ] **Model labels.** Every place a visitor sees a model name must say Claude Haiku 5.5 for answers and text-embedding-3-small for embeddings. Older evidence is kept but labelled with its model and date (for example "run 2026-10-05 on gpt-4o-mini").
-- [ ] **Northwind baseline** (`northwind-openai-v1.json`, the "25/25" claim). Default: label it as an OpenAI-era baseline with its date. Re-run on Haiku only if it fits within the remaining budget **and** you approve. Never present it as a Haiku result.
-- [ ] **How-it-works timeline.** Add a 14 Oct entry for the Haiku 5.5 re-run and the published adversarial findings.
-- [ ] Check that every link on the live pages resolves (no 404s, no links to deleted branches or clones).
-- [ ] Wording sweep: no "secure / certified / compliant / production client"; "synthetic" appears next to every score.
+- [x] Inventory every number/claim on the live pages (`/app`, How-it-works, Quality/Evaluation pages), in the LangGraph app's `README`, `docs/evaluation/status.json`, `red-team-release.json` and `BUILD_LOG.md`, and in the STARTER and MCP READMEs. Record it as a claims table: claim | where | source file | value | still true?
+- [x] **Red-team count (resume 10/9/0/1 vs site 20 = 18 deterministic + 2 live, `requires_backend: 2`).** Find the run behind each. Pick the current release as the single truth. Give you a corrected resume line; the site and repo are not changed to fit the resume.
+- [x] **Model labels.** Every place a visitor sees a model name must say Claude Haiku 5.5 for answers and text-embedding-3-small for embeddings. Older evidence is kept but labelled with its model and date (for example "run 2026-10-05 on gpt-4o-mini").
+- [x] **Northwind baseline** (`northwind-openai-v1.json`, the "25/25" claim). Default: label it as an OpenAI-era baseline with its date. Re-run on Haiku only if it fits within the remaining budget **and** you approve. Never present it as a Haiku result.
+- [x] **How-it-works timeline.** Add a 14 Oct entry for the Haiku 5.5 re-run and the published adversarial findings.
+- [x] Check that every link on the live pages resolves (no 404s, no links to deleted branches or clones).
+- [x] Wording sweep: no "secure / certified / compliant / production client"; "synthetic" appears next to every score.
 - Done means: every row of the claims table is "true" or "labelled with date + model".
+  - Done 14 Oct on branches: `docs/plans/2026-10-14_T3_CLAIMS_TABLE.md` (22 live + 6 README claims; 4 wrong, 6 stale, 6 label-only fixed). Owner: live Northline shows 19/20 with history; Northwind v1 labelled only (no Haiku re-run).
 
 ### 12. Content-only redeploy (LangGraph app) — owner: Claude, approved 14 Oct — 20 min
 - [ ] One PR with only static and content changes (How-it-works text, timeline, labels, links, brand). No backend, prompt, screening or config changes; any guardrail fix from step 3 is a separate decision.
@@ -174,6 +175,7 @@ The Loom and portfolio copy come last, so they quote the final, deployed numbers
 | 14 Oct | Northwind 90-case regression run anyway (owner): paired CI runs, APP 945c89c vs 5862921, gpt-4o-mini, STARTER main → identical 79/4/7; no regression | you |
 | 14 Oct | CI full-eval default STARTER ref (codex/eval-correction) broken by SQLAlchemy 2.1 / psycopg v3; first two runs cancelled (no answers generated). APP `1b8ba5a` adds `app_ref`/`starter_ref` inputs (defaults unchanged); kept in the PR (owner) | you |
 | 14 Oct | Western re-run with the fix shown as a second column (19/20), labelled not yet deployed; headline stays the as-deployed run until the merge | you |
+| 14 Oct | Step 11: live pages show Northline 19/20 (Haiku 5.5, APP 5862921, ships with the fix) with 17/20 and 15/20 as history; Northwind 25/25 labelled gpt-4o-mini 12 Sep 2026, no re-run | you |
 | 14 Oct | Step 10: save PUBLIC_DEMO `runs/` to main clone archive, remove both worktrees, delete `lg-app`, prune 42 merged local branches | you |
 
 ## T3 is closed when…
