@@ -1,6 +1,6 @@
 # T3 close plan — 2026-10-14
 
-Status: **IN PROGRESS** — steps 0, 10, 2, 3, 4, 11, 5 (branch part) done. Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
+Status: **IN PROGRESS** — steps 0, 10, 2, 3, 4, 11, 5, 9, 13 (branch parts) done. Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
 Repo: `RAG_ENTERPRISE_STARTER` (owns `docs/evaluation/western/scorecard.md`, the "Western RAG scorecard" for Belt 1).
 Budget: **$6 API max today, retries included.** Live app not changed unless a fix is required, and announced before deploy.
 
@@ -100,9 +100,10 @@ Haiku 5.5 per-token prices are confirmed from the claude-api reference at GO. Th
 - Done means: drafts saved in `docs/plans/drafts/`.
 
 ### 9. Brand → Spanfold — owner: Claude — 20 min
-- [ ] Sweep README headers, LICENSE copyright lines and report footers across the RAG repos for "Beyond Algorithms" and replace with "Spanfold". GitHub handle `beyondalgorithms2026-source` and URLs stay unchanged.
-- [ ] Show you the diff list before committing (repos other than STARTER get their own small PRs).
+- [x] Sweep README headers, LICENSE copyright lines and report footers across the RAG repos for "Beyond Algorithms" and replace with "Spanfold". GitHub handle `beyondalgorithms2026-source` and URLs stay unchanged.
+- [x] Show you the diff list before committing (repos other than STARTER get their own small PRs).
 - Done means: `grep "Beyond Algorithms"` finds only URLs/handles, and PRs are merged.
+  - Done 14 Oct on branches: only the 3 LICENSE lines used the name → "Spanfold" (STARTER `fb62487`, APP `61a322c`, MCP `c90be14`). Owner reviewed the diff. Other legacy footers ("RAG Enterprise", "© 2024", "RAG Master Intelligence") left as is by owner decision. PR merge pending (end of plan).
 
 ### 10. Consolidate LangGraph app checkouts — owner: Claude, you confirm each removal — 10 min (do FIRST, right after step 0)
 Checked 14 Oct: all four point to the same GitHub repo, and none has unpushed commits, stashes or uncommitted work (only `.DS_Store`).
@@ -138,9 +139,10 @@ Goal: no visitor finds two numbers that disagree.
 - Done means: the live page matches the merged PR, and the claims table re-check passes on the live URL.
 
 ### 13. MCP server repo — owner: Claude — 10 min
-- [ ] Brand (LICENSE, README), and check that README links point to STARTER/LangGraph app main and to the scorecard.
-- [ ] Record the MCP commit used by the live demo in the scorecard header.
+- [x] Brand (LICENSE, README), and check that README links point to STARTER/LangGraph app main and to the scorecard.
+- [x] Record the MCP commit used by the live demo in the scorecard header.
 - Done means: PR merged, and the README contains no stale model or number claims.
+  - Done 14 Oct on branch (MCP `c90be14`): header links to STARTER and the Northline scorecard; live pin `f8e891d` recorded (no runtime change since); model labels from step 11. Scorecard header records MCP `f8e891d`. PR merge pending.
 
 ### 14. Final cross-repo consistency pass — owner: Claude, then you — 20 min
 - [ ] Same five facts, word for word, in all places (live page, the 3 READMEs, scorecard, Upwork, LinkedIn, spanfold.com draft, Loom script): answer model, corpus (synthetic Northline), scorecard result + date, red-team result + date, limitations.
@@ -178,6 +180,7 @@ The Loom and portfolio copy come last, so they quote the final, deployed numbers
 | 14 Oct | Western re-run with the fix shown as a second column (19/20), labelled not yet deployed; headline stays the as-deployed run until the merge | you |
 | 14 Oct | Step 11: live pages show Northline 19/20 (Haiku 5.5, APP 5862921, ships with the fix) with 17/20 and 15/20 as history; Northwind 25/25 labelled gpt-4o-mini 12 Sep 2026, no re-run | you |
 | 14 Oct | Step 5: STARTER report headline = 19/20 (APP 5862921), aligned with live pages; 17/20 and 15/20 shown side by side | you |
+| 14 Oct | Steps 9+13: LICENSE → Spanfold in all 3 repos; other legacy footers untouched | you |
 | 14 Oct | Step 10: save PUBLIC_DEMO `runs/` to main clone archive, remove both worktrees, delete `lg-app`, prune 42 merged local branches | you |
 
 ## T3 is closed when…
