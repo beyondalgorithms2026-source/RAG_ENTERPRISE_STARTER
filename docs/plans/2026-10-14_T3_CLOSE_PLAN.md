@@ -1,6 +1,6 @@
 # T3 close plan — 2026-10-14
 
-Status: **IN PROGRESS** — step 0 done (14 Oct). Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
+Status: **IN PROGRESS** — steps 0, 10 done (14 Oct). Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
 Repo: `RAG_ENTERPRISE_STARTER` (owns `docs/evaluation/western/scorecard.md`, the "Western RAG scorecard" for Belt 1).
 Budget: **$6 API max today, retries included.** Live app not changed unless a fix is required, and announced before deploy.
 
@@ -40,7 +40,8 @@ Haiku 5.5 per-token prices are confirmed from the claude-api reference at GO. Th
 - Done means: on the latest main, and live model/provider confirmed from the app itself (not from memory).
 
 ### 1. Interim note — owner: Claude (you approve the wording) — 5 min
-- [ ] Add to the top of `scorecard.md`: *"Interim: scores below were produced on 2026-10-05 with gpt-4o-mini. The live demo now runs Claude Haiku 5.5. A re-run is in progress."*
+**SKIPPED (owner decision 14 Oct): nothing reaches main mid-plan; the final report replaces it.**
+- [ ] ~~Add to the top of `scorecard.md`: *"Interim: scores below were produced on 2026-10-05 with gpt-4o-mini. The live demo now runs Claude Haiku 5.5. A re-run is in progress."*~~
 - Done means: the note is merged and visible on GitHub.
 
 ### 2. Re-run eval on Haiku 5.5 — owner: Claude runs, you approve the spend — 40 min
@@ -105,8 +106,11 @@ Checked 14 Oct: all four point to the same GitHub repo, and none has unpushed co
 | `RAG_ENTERPRISE_LANGGRAPH_APP_PUBLIC_DEMO` | git *worktree* of the main clone | `git worktree remove` (deleting the folder by hand would leave a stale worktree entry) |
 | `RAG_ENTERPRISE_LANGGRAPH_APP_QUALITY_EVIDENCE` | git *worktree* of the main clone | `git worktree remove` |
 | `lg-app` | separate clone | re-check it is clean, then delete (its `.venv312` is rebuildable) |
-- [ ] Re-run the unpushed/dirty check immediately before each removal, and show you the list.
-- [ ] Local branches already merged on GitHub are pruned; unmerged remote branches are left alone.
+- [x] Re-run the unpushed/dirty check immediately before each removal, and show you the list.
+  - Done 14 Oct. No uncommitted work or stashes anywhere. After `fetch --prune`, 23 commits on 22 local branches showed as "not on any remote": all were squash-merged PRs (#21, #24–25, #38–56) whose remote branches were deleted; content verified on main by patch-id (`release/public-demo-main` = PR #21 first commit + `4318baf` formatting). PUBLIC_DEMO had local-only `runs/` (red-team/latest.json, v2-calibration runs 37415662357, 37412426407; 12 files) → moved to `RAG_ENTERPRISE_LANGGRAPH_APP/runs/_archive_public_demo_2026-10-06/` (gitignored). `.render/mcp-server` = clean build cache (recreated by `scripts/render_build.sh`).
+  - Removed (owner-approved each): PUBLIC_DEMO + QUALITY_EVIDENCE via `git worktree remove` (no `--force` needed); `lg-app` deleted.
+- [x] Local branches already merged on GitHub are pruned; unmerged remote branches are left alone.
+  - Done 14 Oct: 42 local branches with MERGED PRs deleted (local only). Kept 10 with no merged PR: `main`, `t3/close-2026-10-14`, `b004-public-demo`, `b004-v2-quality-evidence`, `b004/evidence-pack`, `codex/eval-correction` (#20 closed), `fallback/pre-public-demo-main-20260917`, `feature/intelligent-rag-orchestration-proof`, `feature/public-demo-redesign`, `heads/freeze/pre-cleanup-2026-10-06`. Local `main` fast-forwarded to `945c89c`; working branch stays `t3/close-2026-10-14`. `git worktree list` shows one entry.
 - Done means: one LangGraph app folder on `main`, and `git worktree list` shows only it.
 
 ### 11. Live demo claims audit (LangGraph app) — owner: Claude — 45 min
@@ -157,6 +161,7 @@ The Loom and portfolio copy come last, so they quote the final, deployed numbers
 | 14 Oct | No merges to `main` mid-plan: all work on `t3/close-2026-10-14` in each repo; one PR per repo at the end after owner GO; Render deploy happens once at that merge. Live-URL checks in steps 5/12/14 run after that merge. | you |
 | 14 Oct | Step 1 interim note skipped (final report replaces it before anything reaches main) | you |
 | 14 Oct | Stop after every step for status + owner GO before the next | you |
+| 14 Oct | Step 10: save PUBLIC_DEMO `runs/` to main clone archive, remove both worktrees, delete `lg-app`, prune 42 merged local branches | you |
 
 ## T3 is closed when…
 1. The published Western scorecard shows a 2026-10-14 Claude Haiku 5.5 run (model, date, all 3 commits, cost), with an old-vs-new table and adversarial findings mapped to OWASP LLM 2026 IDs.
