@@ -7,10 +7,10 @@ configuration. This is demo evidence, not a benchmark and not a production accur
 
 | | |
 |---|---|
-| Answer model | Claude Haiku 5.5 (`claude-haiku-5-5`), temperature 0, called by the data layer |
+| Answer model | Claude Haiku 5.5 (`claude-haiku-5-5`, since 12 Oct 2026), temperature 0, called by the data layer |
 | Embeddings | OpenAI `text-embedding-3-small`, 384 dimensions |
 | Run | 2026-10-14 09:31–09:37 UTC, one paced run of all 20 questions |
-| Code | STARTER `b774cab` (hosted) · APP `5862921` · MCP `f8e891d` |
+| Code | STARTER `b774cab` (hosted) · APP `5862921` · MCP `f8e891d` (live pin) |
 | Path | APP → MCP → hosted STARTER on Render, anonymous public grant, Northline corpus |
 | Scoring | Key facts approved in `eval/western/facts.review.csv` must appear in the answer, and a gold document must be cited (never a `must_not_cite` one). Refusal items pass on a refusal. No LLM judge |
 

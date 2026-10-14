@@ -1,6 +1,6 @@
 # T3 close plan — 2026-10-14
 
-Status: **IN PROGRESS** — steps 0, 10, 2, 3, 4, 11, 5, 9, 13, 12 (branch parts) done. Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
+Status: **IN PROGRESS** — steps 0, 10, 2, 3, 4, 11, 5, 9, 13, 12, 14 (branch parts) done. Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
 Repo: `RAG_ENTERPRISE_STARTER` (owns `docs/evaluation/western/scorecard.md`, the "Western RAG scorecard" for Belt 1).
 Budget: **$6 API max today, retries included.** Live app not changed unless a fix is required, and announced before deploy.
 
@@ -153,9 +153,10 @@ Goal: no visitor finds two numbers that disagree.
   - Done 14 Oct on branch (MCP `c90be14`): header links to STARTER and the Northline scorecard; live pin `f8e891d` recorded (no runtime change since); model labels from step 11. Scorecard header records MCP `f8e891d`. PR merge pending.
 
 ### 14. Final cross-repo consistency pass — owner: Claude, then you — 20 min
-- [ ] Same five facts, word for word, in all places (live page, the 3 READMEs, scorecard, Upwork, LinkedIn, spanfold.com draft, Loom script): answer model, corpus (synthetic Northline), scorecard result + date, red-team result + date, limitations.
+- [x] Same five facts, word for word, in all places (live page, the 3 READMEs, scorecard, Upwork, LinkedIn, spanfold.com draft, Loom script): answer model, corpus (synthetic Northline), scorecard result + date, red-team result + date, limitations.
 - [ ] Visitor walk-through on a phone and on desktop: open the live URL cold → follow every link to GitHub → check that each number matches the claims table.
 - Done means: zero discrepancies logged. You do a final 5-minute read.
+  - Branch part done 14 Oct: canonical wording in `docs/plans/2026-10-14_T3_FIVE_FACTS.md`; checked in How it works, 3 READMEs and the scorecard (11 checks × 5 places, 0 gaps after filling 3: How-it-works limits, MCP README, scorecard model date). No conflicting Northline or red-team numbers. Drafts in steps 6–8 copy the canonical wording. Live walk-through (phone + desktop) and owner read: after the merge.
 
 ## Execution order
 0 → 10 → 1 → 2 → 3 → 4 → 11 → 5 → 9 + 13 → 12 → 14 → 6 → 7 → 8
