@@ -97,7 +97,7 @@ totals before and after (79 pass, 4 fail, 7 manual review). Full detail: [FINDIN
 |---|---|
 | Estimate, all Haiku 5.5 runs on 14 Oct (Western ×3 incl. one rate-limited attempt, probes) | ≈ $0.16 |
 | Northwind regression check, gpt-4o-mini (measured generation cost) | $0.09 |
-| Actual Anthropic spend, 14 Oct 08:55–09:38 UTC | _pending owner's Console reading_ |
+| Actual Anthropic spend, all of 14 Oct (Console, daily; includes any visitor traffic) | **$0.05** (262,585 input + 31,685 output tokens) |
 
 ## Evidence
 

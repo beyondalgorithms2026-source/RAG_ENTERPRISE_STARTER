@@ -56,6 +56,6 @@ All model calls were made by hosted STARTER with the live Render key: attempt 1 
 | Source | Amount |
 |---|---|
 | Estimate (Haiku 5.5 at $0.10 / $0.50 per MTok) | ≈ $0.16 for all four runs on 14 Oct |
-| Actual: Anthropic Console, live key, 08:55–09:38 UTC | _pending owner reading_ |
-| Actual: Anthropic Console, eval key | _pending owner reading (expected $0)_ |
-| Actual: OpenAI embeddings | _pending owner reading (expected < $0.01)_ |
+| Actual: Anthropic Console, live key `RAG-Live-Demo`, whole day 14 Oct (daily granularity; includes any visitor traffic) | **$0.05** — 262,585 input + 31,685 output tokens, Claude Haiku 5.5, no cache use |
+| Actual: Anthropic Console, eval key | **$0** (no usage recorded) |
+| Actual: OpenAI | Northwind regression CI runs: $0.09 generation (gpt-4o-mini, measured by the workflow); query embeddings not separately reported (expected < $0.01) |

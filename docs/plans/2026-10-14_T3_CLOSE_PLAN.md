@@ -1,6 +1,6 @@
 # T3 close plan — 2026-10-14
 
-Status: **IN PROGRESS** — steps 0, 10, 2, 3, 4, 11, 5 (branch part) done (14 Oct; step 2 actual cost pending Console reading). Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
+Status: **IN PROGRESS** — steps 0, 10, 2, 3, 4, 11, 5 (branch part) done. Branch `t3/close-2026-10-14` in all 3 repos; no PRs/merges until all steps are done and owner approves. Living checklist: tick items, log decisions at the bottom.
 Repo: `RAG_ENTERPRISE_STARTER` (owns `docs/evaluation/western/scorecard.md`, the "Western RAG scorecard" for Belt 1).
 Budget: **$6 API max today, retries included.** Live app not changed unless a fix is required, and announced before deploy.
 
@@ -49,7 +49,7 @@ Haiku 5.5 per-token prices are confirmed from the claude-api reference at GO. Th
 - [x] `western_eval.py convert` (offline) → run the APP eval runner once against the hosted stack, paced, Northline corpus. — eval set unchanged (sha256 d589985d…). Attempt 1 unpaced hit the 12/min ask limit (8× HTTP 429, kept as evidence); counted run = attempt 2, full 20, 12 s pacing, 0 infra failures.
 - [x] Permission check as an explicit row: an anonymous query for the restricted doc returns an ACL denial, and the restricted doc id is absent from `used_doc_ids`. Also checked directly by listing visible docs as anonymous.
 - [x] `western_eval.py scorecard --report … --model claude-haiku-5-5 --run-label "2026-10-14 … APP <sha> MCP <sha>"`.
-- [x] Record model, date, APP/MCP commit, STARTER commit and actual cost in the report header. — `docs/evaluation/western/2026-10-14-haiku/RUN_METADATA.md`; actual cost pending owner's Console reading.
+- [x] Record model, date, APP/MCP commit, STARTER commit and actual cost in the report header. — `docs/evaluation/western/2026-10-14-haiku/RUN_METADATA.md`; actual cost from owner's Console export: $0.05 for all of 14 Oct on the live key, $0 on the eval key; plus $0.09 gpt-4o-mini in CI.
 - [x] Re-run individual items only for documented harness false positives, and log each one. — none re-run.
 - Done means: new `summary.json` / `scorecard.md` / `eval-report.json` with Haiku 5.5 metadata, and cost ≤ budget.
 
