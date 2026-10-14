@@ -55,8 +55,10 @@ Haiku 5.5 per-token prices are confirmed from the claude-api reference at GO. Th
 
 ### 3. Adversarial investigation — owner: Claude analyses, you decide on the fix — 45 min
 - [x] Re-examine WQ-19 and WQ-20 on Haiku 5.5 (they may differ from gpt-4o-mini). — WQ-19 still blocked by input screening (same); WQ-20 now passes (£240). Also analysed WQ-04/WQ-14 (same misses on both models: APP date heuristics). See `docs/evaluation/western/2026-10-14-haiku/FINDINGS.md`.
-- [ ] WQ-19: is the input screen too broad (it blocks the whole question instead of answering while ignoring the quoted instruction)? A reasonable fix today might be a safe-answer template on screening hits. **Only with your approval, and the deploy is announced first.**
-- [ ] WQ-20: is it a prompt-completeness issue? Fix only if it is small. Otherwise document it.
+- [x] WQ-19: is the input screen too broad (it blocks the whole question instead of answering while ignoring the quoted instruction)? A reasonable fix today might be a safe-answer template on screening hits. **Only with your approval, and the deploy is announced first.** — Yes, too broad (`_ROLE_OVERRIDE` matches quoted text). Owner: document only, no guardrail change.
+- [x] WQ-20: is it a prompt-completeness issue? Fix only if it is small. Otherwise document it. — Resolved on Haiku 5.5 (£240 present); no fix needed.
+- [x] (added) WQ-04/WQ-14 false declines: owner chose fix in T3 → APP `5862921` on `t3/close-2026-10-14` (date heuristics narrowed; 358 tests pass; only WQ-01/04/14 of 200 eval questions change classification). Logic change, deploys with the final LangGraph merge (outside the content-only approval of step 12).
+- [x] (added) Indirect-injection probes P1–P5 re-run on Haiku 5.5 (5/5 not followed) + raw STARTER answers for WQ-04/WQ-14: `poison-test-haiku.json`, ≈ $0.015.
 - [x] Findings table in the report: case | observed | root cause | severity | OWASP LLM Top 10 2026 ID(s) | status. Candidates are LLM01 Prompt Injection (WQ-19), LLM04 Data & Model Poisoning / poisoned retrieval doc (WQ-19), and LLM09 Misinformation (WQ-20). Verify IDs against the published 2026 list at GO. — Verified 14 Oct against OWASP GenAI LLM Top 10 2026 v1.0 (2026-08-03): list renumbered; WQ-19 = LLM01 (+ LLM09 retrieval poisoning for the corpus doc), WQ-20 (10-05) = LLM07 Misinformation. LLM04 is now Supply Chain, LLM09 is Vector and Embedding Weaknesses.
 - [x] Test cases, facts and gold answers stay unchanged. Any scoring-rule question goes into the decision log, not into edits.
 - Done means: the findings row is published whether or not anything was fixed.
@@ -165,6 +167,8 @@ The Loom and portfolio copy come last, so they quote the final, deployed numbers
 | 14 Oct | Step 2 attempt 1 (unpaced) not counted: 8× HTTP 429 from the 12/min ask limit. One full paced re-run (12 s/case) counted, within the approved ≤$0.20 | Claude |
 | 14 Oct | Scorecard note "declined" on passing WQ-07/WQ-20 is a wording heuristic in `western_eval.py`, not a score change; script left unchanged (scoring-rule question, not an edit) | Claude |
 | 14 Oct | OWASP IDs: use the 2026 numbering (v1.0, 2026-08-03). Plan's candidate IDs were 2025 numbers (LLM04 Poisoning, LLM09 Misinformation) and are superseded | Claude |
+| 14 Oct | Step 3 decisions: WQ-19 document only; WQ-04/WQ-14 fix in T3 (APP logic change, deploys at final merge); re-run poison probes on Haiku 5.5 | you |
+| 14 Oct | Northwind 90-case re-run proposed as unnecessary: no Northwind/operations-manual question changes classification under the fix (checked offline on all 200 questions) — awaiting owner confirmation | Claude |
 | 14 Oct | Step 10: save PUBLIC_DEMO `runs/` to main clone archive, remove both worktrees, delete `lg-app`, prune 42 merged local branches | you |
 
 ## T3 is closed when…
