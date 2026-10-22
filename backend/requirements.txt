@@ -4,7 +4,7 @@ pydantic-settings>=2.2.0
 # 2.1 makes postgresql:// URLs use psycopg (v3); this service ships psycopg2.
 sqlalchemy>=2.0.0,<2.1
 psycopg2-binary>=2.9.13
-PyMySQL>=1.1.1
+PyMySQL>=1.2.3
 python-dotenv>=1.0.0
 python-multipart>=0.0.32
 pypdf>=6.19.0
