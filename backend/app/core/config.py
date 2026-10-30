@@ -100,6 +100,8 @@ class Settings(BaseSettings):
     AUTH_COOKIE_SECURE: bool = False
     FRONTEND_APP_URL: str = "http://127.0.0.1:3001"
     API_ALLOWED_ORIGINS: str = ""
+    # Preferred name for the browser allow-list (comma list). Empty = API_ALLOWED_ORIGINS, then the Spanfold site.
+    ALLOWED_ORIGINS: str = ""
     # No defaults. These sign and gate authentication, so a value baked into
     # source would be a shipped credential. validate_security_posture() in
     # app/auth/service.py refuses to start when they are unset in a mode that

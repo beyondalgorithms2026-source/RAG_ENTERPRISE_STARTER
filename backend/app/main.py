@@ -1,5 +1,6 @@
 import secrets
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +22,7 @@ from .api.upload import router as upload_router
 from .auth.admin_modules import enforce_admin_module_for_request
 from .auth.context import reset_current_user, set_current_user
 from .auth.service import AuthError, authenticate_request, validate_security_posture
+from .core import deploy
 from .core.config import settings
 from .db.migrate import run_migrations
 from .db.repo_acl import sync_authenticated_user
@@ -35,27 +37,33 @@ def _csv(value: str) -> list[str]:
     return [item.strip() for item in (value or "").split(",") if item.strip()]
 
 
+def _origin_of(url: str) -> str:
+    parts = urlsplit((url or "").strip())
+    return f"{parts.scheme}://{parts.netloc}" if parts.scheme and parts.netloc else ""
+
+
 def _allowed_cors_origins() -> list[str]:
-    configured = _csv(settings.API_ALLOWED_ORIGINS)
+    """ALLOWED_ORIGINS wins, then the older API_ALLOWED_ORIGINS. With neither set: the Spanfold site (plus the
+    configured UI origin), or the localhost dev ports when APP_ENV=local."""
+    configured = _csv(settings.ALLOWED_ORIGINS) or _csv(settings.API_ALLOWED_ORIGINS)
     if configured:
         return configured
-    if (settings.APP_ENV or "local").strip().lower() not in {"local", "dev"}:
-        return [settings.FRONTEND_APP_URL.rstrip("/")]
-    return [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-    ]
+    if (settings.APP_ENV or "local").strip().lower() == "local":
+        return list(deploy.LOCAL_ORIGINS)
+    origins = list(deploy.DEFAULT_ORIGINS)
+    ui = _origin_of(settings.FRONTEND_APP_URL)
+    if ui and ui not in origins and not ui.startswith("http://127.0.0.1"):
+        origins.append(ui)
+    return origins
 
 
+deploy.install_gate(app)  # /healthz + daily/monthly spend caps (429). Before CORS so the 429 carries CORS headers.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_cors_origins(),
     allow_credentials=True,
-    allow_methods=["OPTIONS", "POST", "GET", "DELETE", "PATCH"],
+    # Browsers on other sites only read and ask; uploads, deletes and admin changes are same-origin.
+    allow_methods=["OPTIONS", "POST", "GET"],
     allow_headers=["Content-Type", "Authorization", settings.CSRF_HEADER_NAME],
 )
 

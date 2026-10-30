@@ -12,8 +12,13 @@ __pycache__/
 ehthumbs.db
 Thumbs.db
 
-# Environments
+# Environments (real env files are never committed; the examples are)
 .env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
 .venv
 env/
 venv/

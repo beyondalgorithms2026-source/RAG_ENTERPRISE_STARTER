@@ -84,6 +84,18 @@ class _OpenAIEmbeddingProvider:
         )
         response.raise_for_status()
         payload = response.json()
+        # Count the embedding bill in the daily/monthly ledger (price per million tokens, default 0.02).
+        tokens = int((payload.get("usage") or {}).get("total_tokens") or 0)
+        if tokens:
+            import os
+
+            from app.core.deploy import record_spend
+
+            try:
+                price = float(os.environ.get("EMBED_PRICE_PER_MTOK", "0.02"))
+            except ValueError:
+                price = 0.02
+            record_spend(tokens * price / 1_000_000 or 1e-9, "embedding")
         rows = sorted(payload.get("data") or [], key=lambda item: item.get("index", -1))
         if len(rows) != len(texts):
             raise RuntimeError(

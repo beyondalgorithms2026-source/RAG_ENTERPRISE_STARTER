@@ -104,6 +104,9 @@ def _provider_generate(
     transform generation (AR9)."""
     from app.llm.providers import get_provider
 
+    from app.core.deploy import check_caps
+
+    check_caps()  # DemoLimitReached -> HTTP 429 with a plain message
     httpx = _get_httpx()
     if httpx is None:
         return {"success": False, "error": "httpx is not installed."}
@@ -173,6 +176,10 @@ def _build_usage(provider, data, model, system_prompt, user_prompt, content) -> 
             model, prompt_text=f"{system_prompt}\n{user_prompt}", completion_text=content
         )
     add_usage(usage)
+    # Daily/monthly spend ledger (app/core/deploy.py): real token cost, or EST_COST_PER_CALL_USD if it is 0.
+    from app.core.deploy import record_spend
+
+    record_spend(usage.get("cost_usd"), "llm")
     return usage
 
 
