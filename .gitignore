@@ -49,5 +49,8 @@ data/extracted/*
 data/graph_artifacts/*
 !data/graph_artifacts/.gitkeep
 
+# Local spend ledger (written when running the API or tests from backend/)
+backend/data/
+
 # Private working copy of the Track B plan (published version: docs/track-b/)
 /IMPLEMENTATION_TRACK_B.md
